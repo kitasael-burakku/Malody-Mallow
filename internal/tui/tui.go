@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/config"
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
 	"maly/internal/viz"
@@ -51,15 +52,24 @@ type Model struct {
 	vizOn     bool
 	viz       *viz.Viz
 	vizBars   []float64
-	vizPeaks  []float64
 	vizWarned bool
 	vizStyles []lipgloss.Style
 
-	paletteOpen bool
-	palInput    textinput.Model
-	palItems    []palItem
-	palMatches  []int
-	palCursor   int
+	// Selector inicial de idioma (solo si language = "" en el config).
+	langOpen   bool
+	langCursor int
+
+	// Paleta de comandos (ctrl+p): consola integrada.
+	consoleOpen bool
+	conInput    textinput.Model
+	conLines    []string
+
+	// Selector de canciones (ctrl+o).
+	songsOpen   bool
+	songInput   textinput.Model
+	songItems   []songItem
+	songMatches []int
+	songCursor  int
 }
 
 type tickMsg time.Time
@@ -83,7 +93,7 @@ type actionMsg struct {
 func Run(cfg config.Config, embedded bool) error {
 	ti := textinput.New()
 	ti.Prompt = "/"
-	ti.Placeholder = "filtrar…"
+	ti.Placeholder = i18n.T("tui.filter_ph")
 	ti.CharLimit = 100
 
 	m := &Model{
@@ -95,6 +105,7 @@ func Run(cfg config.Config, embedded bool) error {
 		tree:        buildTree(nil),
 		filterInput: ti,
 		vizOn:       cfg.Visualizer.Enabled,
+		langOpen:    cfg.Language == "",
 	}
 	m.filterInput.PromptStyle = m.st.accent
 	m.filterInput.TextStyle = m.st.text
@@ -204,39 +215,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case vizTickMsg:
 		if m.viz != nil && m.vizOn {
 			playing := m.status != nil && m.status.Track != nil && !m.status.Paused
-			m.vizBars, m.vizPeaks = m.viz.Bars(m.width-2, playing)
+			m.vizBars = m.viz.Bars(m.width-2, playing)
 			if m.viz.Fake() && !m.vizWarned {
 				m.vizWarned = true
-				m.setFlash("sin pw-record/parec: visualizador en modo animación", true)
+				m.setFlash(i18n.T("tui.viz_fake"), true)
 			}
 		}
 		return m, vizTickCmd()
 
 	case libraryMsg:
 		if msg.err != nil {
-			m.setFlash("biblioteca: "+msg.err.Error(), true)
+			m.setFlash(i18n.Tf("tui.lib_err", msg.err.Error()), true)
 			return m, nil
 		}
 		m.tree = buildTree(msg.tracks)
-		if m.paletteOpen {
-			m.buildPalette()
+		if m.songsOpen {
+			m.buildSongs()
 		}
 		if len(msg.tracks) == 0 {
-			m.setFlash("Biblioteca vacía: ejecuta `maly scan` o revisa music_dir en el config", true)
+			m.setFlash(i18n.T("tui.lib_empty_flash"), true)
 		}
 		return m, nil
 
-	case rescanMsg:
-		if msg.err != nil {
-			m.setFlash(msg.err.Error(), true)
-			return m, nil
+	case conMsg:
+		m.conLines = append(m.conLines, msg.lines...)
+		if msg.reloadLib {
+			return m, loadLibrary
 		}
-		if !msg.resp.OK {
-			m.setFlash(msg.resp.Error, true)
-			return m, nil
-		}
-		m.setFlash(msg.resp.Msg, false)
-		return m, loadLibrary
+		return m, nil
 
 	case statusMsg:
 		if msg.err != nil {
@@ -278,11 +284,20 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if m.paletteOpen {
-		return m.handlePaletteKey(msg)
+	if m.langOpen {
+		return m.handleLangKey(msg)
+	}
+	if m.consoleOpen {
+		return m.handleConsoleKey(msg)
+	}
+	if m.songsOpen {
+		return m.handleSongsKey(msg)
 	}
 	if m.is("palette", msg) {
-		return m, m.openPalette()
+		return m, m.openConsole()
+	}
+	if m.is("songs", msg) {
+		return m, m.openSongs()
 	}
 
 	if m.filterMode {

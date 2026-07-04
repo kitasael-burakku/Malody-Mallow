@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"maly/internal/i18n"
 )
 
 type Theme struct {
@@ -29,6 +31,7 @@ type Visualizer struct {
 
 type Config struct {
 	MusicDir   string            `toml:"music_dir"`
+	Language   string            `toml:"language"` // "" = preguntar al abrir la TUI; "en" | "es"
 	Theme      Theme             `toml:"theme"`
 	Visualizer Visualizer        `toml:"visualizer"`
 	Keys       map[string]string `toml:"keys"`
@@ -54,6 +57,7 @@ func DefaultKeys() map[string]string {
 		"quit":         "q",
 		"help":         "?",
 		"palette":      "ctrl+p",
+		"songs":        "ctrl+o",
 		"toggle_viz":   "v",
 	}
 }
@@ -80,6 +84,7 @@ func Default() Config {
 }
 
 const defaultTOML = `music_dir = "~/Music"
+language = ""             # "" = preguntar al abrir la TUI; "en" | "es"
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal
@@ -113,6 +118,7 @@ bars_gravity = 0.92
 # quit = "q"
 # help = "?"
 # palette = "ctrl+p"
+# songs = "ctrl+o"
 # toggle_viz = "v"
 `
 
@@ -164,18 +170,18 @@ func Load() (Config, error) {
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		if mkErr := os.MkdirAll(ConfigDir(), 0o755); mkErr != nil {
-			return cfg, fmt.Errorf("creando %s: %w", ConfigDir(), mkErr)
+			return cfg, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", ConfigDir()), mkErr)
 		}
 		if wErr := os.WriteFile(path, []byte(defaultTOML), 0o644); wErr != nil {
-			return cfg, fmt.Errorf("escribiendo config por defecto: %w", wErr)
+			return cfg, fmt.Errorf("%s: %w", i18n.T("cfg.write_default"), wErr)
 		}
 		return cfg, nil
 	}
 	if err != nil {
-		return cfg, fmt.Errorf("leyendo %s: %w", path, err)
+		return cfg, fmt.Errorf("%s: %w", i18n.Tf("cfg.read", path), err)
 	}
 	if _, err := toml.Decode(string(data), &cfg); err != nil {
-		return cfg, fmt.Errorf("config inválido en %s: %w", path, err)
+		return cfg, fmt.Errorf("%s: %w", i18n.Tf("cfg.invalid", path), err)
 	}
 	// Completar keybindings que falten con los defaults.
 	keys := DefaultKeys()
@@ -191,3 +197,36 @@ func Load() (Config, error) {
 
 // MusicPath devuelve music_dir con ~ expandido.
 func (c Config) MusicPath() string { return ExpandTilde(c.MusicDir) }
+
+// SaveLanguage persiste solo la clave language en config.toml, editando la
+// línea existente (o insertándola arriba) para no tocar el resto del archivo.
+func SaveLanguage(code string) error {
+	path := ConfigPath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		data = []byte(defaultTOML)
+	}
+	lines := strings.Split(string(data), "\n")
+	done := false
+	for i, l := range lines {
+		trim := strings.TrimSpace(l)
+		if strings.HasPrefix(trim, "[") {
+			break // solo el bloque top-level puede tener language
+		}
+		if strings.HasPrefix(trim, "language") {
+			lines[i] = fmt.Sprintf("language = %q", code)
+			done = true
+			break
+		}
+	}
+	if !done {
+		lines = append([]string{fmt.Sprintf("language = %q", code)}, lines...)
+	}
+	if err := os.MkdirAll(ConfigDir(), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+}

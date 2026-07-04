@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"maly/internal/i18n"
 	"maly/internal/library"
 )
 
@@ -52,11 +53,11 @@ func buildTree(tracks []library.Track) *libTree {
 	for _, tr := range tracks {
 		artist := tr.Artist
 		if artist == "" {
-			artist = "(desconocido)"
+			artist = i18n.T("tui.unknown_artist")
 		}
 		album := tr.Album
 		if album == "" {
-			album = "(sin álbum)"
+			album = i18n.T("tui.no_album")
 		}
 		if curArtist == nil || curArtist.label != artist {
 			curArtist = &node{kind: artistNode, label: artist}

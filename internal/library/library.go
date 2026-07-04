@@ -4,6 +4,7 @@ package library
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -12,9 +13,11 @@ import (
 	"unicode"
 
 	"github.com/dhowden/tag"
+
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
+	"maly/internal/i18n"
 	_ "modernc.org/sqlite"
 )
 
@@ -82,17 +85,17 @@ CREATE INDEX IF NOT EXISTS idx_pl_tracks ON playlist_tracks(playlist_id, pos);
 // Open abre (o crea) la base de datos en dbPath.
 func Open(dbPath string) (*Library, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
-		return nil, fmt.Errorf("creando %s: %w", filepath.Dir(dbPath), err)
+		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", filepath.Dir(dbPath)), err)
 	}
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
-		return nil, fmt.Errorf("abriendo base de datos: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("lib.open_db"), err)
 	}
 	// modernc.org/sqlite no soporta bien conexiones concurrentes de escritura.
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("creando esquema: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("lib.schema"), err)
 	}
 	return &Library{db: db}, nil
 }
@@ -112,10 +115,10 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 	var res ScanResult
 	info, err := os.Stat(root)
 	if err != nil {
-		return res, fmt.Errorf("no puedo acceder a %s: %w", root, err)
+		return res, fmt.Errorf("%s: %w", i18n.Tf("lib.no_access", root), err)
 	}
 	if !info.IsDir() {
-		return res, fmt.Errorf("%s no es un directorio", root)
+		return res, errors.New(i18n.Tf("lib.not_dir", root))
 	}
 
 	// mtimes ya indexados, para saltar archivos sin cambios.
@@ -286,7 +289,7 @@ func (l *Library) All() ([]Track, error) {
 func (l *Library) Get(id int64) (Track, error) {
 	t, err := scanTrack(l.db.QueryRow(`SELECT `+trackCols+` FROM tracks WHERE id = ?`, id))
 	if err == sql.ErrNoRows {
-		return t, fmt.Errorf("pista %d no encontrada", id)
+		return t, errors.New(i18n.Tf("lib.track_nf", id))
 	}
 	return t, err
 }

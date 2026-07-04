@@ -34,7 +34,6 @@ type Viz struct {
 
 	gravity float64
 	bars    []float64
-	peaks   []float64
 	start   time.Time
 }
 
@@ -134,17 +133,17 @@ func (v *Viz) Fake() bool {
 	return v.fake
 }
 
-// Bars devuelve n alturas (0..1) suavizadas y sus picos. playing solo se usa
-// en modo fake para animar únicamente cuando hay reproducción.
-func (v *Viz) Bars(n int, playing bool) (bars, peaks []float64) {
+// Bars devuelve n alturas (0..1) que siguen la amplitud suavizada: suben al
+// instante y caen con gravity, estilo CAVA. playing solo se usa en modo fake
+// para animar únicamente cuando hay reproducción.
+func (v *Viz) Bars(n int, playing bool) []float64 {
 	if n <= 0 {
-		return nil, nil
+		return nil
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if len(v.bars) != n {
 		v.bars = make([]float64, n)
-		v.peaks = make([]float64, n)
 	}
 
 	var raw []float64
@@ -159,15 +158,8 @@ func (v *Viz) Bars(n int, playing bool) (bars, peaks []float64) {
 		} else {
 			v.bars[i] *= v.gravity
 		}
-		v.peaks[i] -= 0.015
-		if v.bars[i] > v.peaks[i] {
-			v.peaks[i] = v.bars[i]
-		}
-		if v.peaks[i] < 0 {
-			v.peaks[i] = 0
-		}
 	}
-	return append([]float64(nil), v.bars...), append([]float64(nil), v.peaks...)
+	return append([]float64(nil), v.bars...)
 }
 
 func (v *Viz) fftBars(n int) []float64 {

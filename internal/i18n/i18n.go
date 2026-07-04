@@ -1,0 +1,271 @@
+// Package i18n centraliza todos los textos visibles de maly en inglés y
+// español. El idioma activo es global al proceso (el demonio embebido y la
+// TUI comparten selección) y seguro entre goroutines.
+package i18n
+
+import (
+	"fmt"
+	"sync/atomic"
+)
+
+const (
+	en int32 = iota
+	es
+)
+
+var current atomic.Int32 // por defecto en (0): English
+
+// Set fija el idioma activo a partir del código del config ("en" | "es").
+// Cualquier otro valor cae en inglés.
+func Set(code string) {
+	if code == "es" {
+		current.Store(es)
+	} else {
+		current.Store(en)
+	}
+}
+
+// Code devuelve el código del idioma activo.
+func Code() string {
+	if current.Load() == es {
+		return "es"
+	}
+	return "en"
+}
+
+// T devuelve la traducción de key en el idioma activo. Si la clave no
+// existe devuelve la clave tal cual (falla visible, no silenciosa).
+func T(key string) string {
+	return TL(Code(), key)
+}
+
+// Tf es T + fmt.Sprintf.
+func Tf(key string, a ...any) string {
+	return fmt.Sprintf(T(key), a...)
+}
+
+// TL traduce en un idioma explícito ("en" | "es"), independiente del global.
+// Lo usa el demonio para responder en el idioma del cliente que pregunta;
+// un código vacío o desconocido cae en el idioma activo del proceso.
+func TL(code, key string) string {
+	tr, ok := table[key]
+	if !ok {
+		return key
+	}
+	switch code {
+	case "es":
+		return tr[es]
+	case "en":
+		return tr[en]
+	default:
+		return tr[current.Load()]
+	}
+}
+
+// TLf es TL + fmt.Sprintf.
+func TLf(code, key string, a ...any) string {
+	return fmt.Sprintf(TL(code, key), a...)
+}
+
+// table indexa [en, es] por clave.
+var table = map[string][2]string{
+	// ---- TUI: paneles y estados ----
+	"tui.too_small":       {"terminal too small for maly", "terminal muy pequeña para maly"},
+	"tui.lib_title":       {"Library (%d)", "Biblioteca (%d)"},
+	"tui.queue_title":     {"Queue (%d)", "Cola (%d)"},
+	"tui.viz_title":       {"Visualizer", "Visualizador"},
+	"tui.now_title":       {"Now Playing", "Ahora suena"},
+	"tui.help_title":      {"Help", "Ayuda"},
+	"tui.lib_empty":       {" (library empty — run maly scan)", " (biblioteca vacía — ejecuta maly scan)"},
+	"tui.queue_empty":     {" (queue empty — `a` adds from the library)", " (cola vacía — `a` agrega desde la biblioteca)"},
+	"tui.nothing":         {" ⏹ nothing playing — enter in the Library plays", " ⏹ nada suena — enter en la Biblioteca reproduce"},
+	"tui.footer":          {" tab panels · enter play · a add · space pause · / filter · ctrl+p palette · ctrl+o songs · ? help · q quit", " tab paneles · enter reproduce · a agrega · espacio pausa · / filtra · ctrl+p paleta · ctrl+o canciones · ? ayuda · q salir"},
+	"tui.footer_embedded": {" (embedded daemon)", " (demonio embebido)"},
+	"tui.no_daemon":       {" the daemon is not responding…", " el demonio no responde…"},
+	"tui.viz_fake":        {"pw-record/parec not found: visualizer in animation mode", "sin pw-record/parec: visualizador en modo animación"},
+	"tui.lib_err":         {"library: %s", "biblioteca: %s"},
+	"tui.lib_empty_flash": {"Library is empty: run `maly scan` or check music_dir in the config", "Biblioteca vacía: ejecuta `maly scan` o revisa music_dir en el config"},
+	"tui.filter_ph":       {"filter…", "filtrar…"},
+	"tui.unknown_artist":  {"(unknown)", "(desconocido)"},
+	"tui.no_album":        {"(no album)", "(sin álbum)"},
+
+	// ---- TUI: ayuda (?) ----
+	"help.play_pause":     {"play / pause", "reproducir / pausar"},
+	"help.next_prev":      {"next / previous", "siguiente / anterior"},
+	"help.volume":         {"volume ±5%", "volumen ±5%"},
+	"help.seek":           {"seek ±5s", "seek ±5s"},
+	"help.switch":         {"switch panel", "cambiar de panel"},
+	"help.enter":          {"play / expand", "reproducir / expandir"},
+	"help.add":            {"add to queue", "agregar a la cola"},
+	"help.remove":         {"remove from queue", "quitar de la cola"},
+	"help.filter":         {"filter current panel", "filtrar panel actual"},
+	"help.shuffle_repeat": {"shuffle / repeat", "shuffle / repeat"},
+	"help.toggle_viz":     {"toggle visualizer", "alternar visualizador"},
+	"help.palette":        {"command palette", "paleta de comandos"},
+	"help.songs":          {"song selector", "selector de canciones"},
+	"help.quit":           {"quit", "salir"},
+	"help.close":          {"  any key closes this help", "  cualquier tecla cierra esta ayuda"},
+	"help.show":           {"show this help", "mostrar esta ayuda"},
+	"help.space":          {"space", "espacio"},
+
+	// ---- TUI: selector de idioma ----
+	"lang.title": {"Choose language", "Elige idioma"},
+	"lang.hint":  {"↑/↓ move · enter select", "↑/↓ mover · enter elegir"},
+
+	// ---- TUI: paleta de comandos (consola) ----
+	"con.title":       {"Command Palette", "Paleta de comandos"},
+	"con.ph":          {"command… e.g. maly next", "comando… p. ej. maly next"},
+	"con.hint":        {"enter runs · esc closes", "enter ejecuta · esc cierra"},
+	"con.unknown":     {"unknown command %q — try help", "comando desconocido %q — prueba help"},
+	"con.help_head":   {"available commands:", "comandos disponibles:"},
+	"con.help_local":  {"also: viz (toggle visualizer) · cls (clear output) · quit", "también: viz (alternar visualizador) · cls (limpiar salida) · quit"},
+	"con.usage_add":   {"usage: add <query|path>", "uso: add <consulta|ruta>"},
+	"con.usage_vol":   {"usage: vol <0-100|+N|-N>", "uso: vol <0-100|+N|-N>"},
+	"con.usage_seek":  {"usage: seek <+N|-N|mm:ss>", "uso: seek <+N|-N|mm:ss>"},
+	"con.queue_empty": {"the queue is empty", "la cola está vacía"},
+	"con.viz_on":      {"visualizer on", "visualizador activado"},
+	"con.viz_off":     {"visualizer off", "visualizador desactivado"},
+	"con.scanning":    {"scanning library…", "escaneando biblioteca…"},
+	"con.ok":          {"ok", "ok"},
+
+	// ---- TUI: selector de canciones ----
+	"songs.title": {"Songs", "Canciones"},
+	"songs.ph":    {"search song…", "buscar canción…"},
+	"songs.hint":  {"%d result(s) · enter plays · tab adds · esc closes", "%d resultado(s) · enter reproduce · tab agrega · esc cierra"},
+	"songs.none":  {"  no matches", "  sin coincidencias"},
+	"songs.added": {"added: %s", "agregada: %s"},
+
+	// ---- Estado (CLI y consola) ----
+	"st.stopped": {"⏹ nothing playing  vol %d%%  shuffle: %s  repeat: %s  queue: %d track(s)", "⏹ nada suena  vol %d%%  shuffle: %s  repeat: %s  cola: %d pista(s)"},
+	"st.line2":   {"  %s / %s  vol %d%%  shuffle: %s  repeat: %s  queue %d/%d", "  %s / %s  vol %d%%  shuffle: %s  repeat: %s  cola %d/%d"},
+
+	// ---- CLI: ayuda ----
+	"cli.tagline":           {"a local music player for your terminal", "reproductor de música local para tu terminal"},
+	"cli.sec_usage":         {"USAGE", "USO"},
+	"cli.usage_tui":         {"open the TUI (starts the daemon if needed)", "abre la TUI (arranca el demonio si hace falta)"},
+	"cli.usage_daemon":      {"run only the daemon (headless)", "arranca solo el demonio (headless)"},
+	"cli.sec_playback":      {"PLAYBACK", "REPRODUCCIÓN"},
+	"cli.sec_playback_note": {"require a running daemon or an open TUI", "requieren demonio corriendo o TUI abierta"},
+	"cli.play":              {"resume, or search the library and play", "reanuda; con consulta busca y reproduce"},
+	"cli.pause":             {"pause playback", "pausa la reproducción"},
+	"cli.toggle":            {"toggle play/pause", "alterna play/pausa"},
+	"cli.stop":              {"stop playback", "detiene la reproducción"},
+	"cli.next":              {"next track", "pista siguiente"},
+	"cli.prev":              {"previous track", "pista anterior"},
+	"cli.add":               {"add query results or a path to the queue", "agrega a la cola (consulta o ruta)"},
+	"cli.queue":             {"show the queue", "muestra la cola"},
+	"cli.status":            {"show current status", "muestra el estado actual"},
+	"cli.vol":               {"set or adjust volume", "fija o ajusta el volumen"},
+	"cli.seek":              {"seek within the track", "cambia la posición"},
+	"cli.shuffle":           {"toggle or set shuffle", "alterna o fija shuffle"},
+	"cli.repeat":            {"cycle or set repeat mode", "alterna o fija el modo repeat"},
+	"cli.clear":             {"clear the queue", "vacía la cola"},
+	"cli.sec_library":       {"LIBRARY", "BIBLIOTECA"},
+	"cli.sec_library_note":  {"work without the daemon", "funcionan sin demonio"},
+	"cli.scan":              {"(re)scan the music library", "(re)escanea la biblioteca"},
+	"cli.search":            {"search by title/artist/album", "busca por título/artista/álbum"},
+	"cli.playlist":          {"manage playlists (list|create|delete|add|play)", "gestiona playlists (list|create|delete|add|play)"},
+	"cli.sec_other":         {"OTHER", "OTROS"},
+	"cli.help_cmd":          {"show this help", "muestra esta ayuda"},
+	"cli.version_cmd":       {"show version", "muestra la versión"},
+	"cli.lang_cmd":          {"change the interface language", "cambia el idioma de la interfaz"},
+	"cli.lang_set":          {"Language set to %s", "Idioma cambiado a %s"},
+	"cli.lang_invalid":      {"invalid language %q (use en or es)", "idioma inválido %q (usa en o es)"},
+	"cli.sec_examples":      {"EXAMPLES", "EJEMPLOS"},
+	"cli.sec_keys":          {"TUI KEYS", "ATAJOS EN LA TUI"},
+	"cli.unknown":           {"maly: unknown subcommand %q", "maly: subcomando desconocido %q"},
+	"cli.more":              {"run `maly -h` for help", "ejecuta `maly -h` para ver la ayuda"},
+
+	// ---- CLI: cliente y utilidades ----
+	"cli.no_daemon":        {"the maly daemon is not running; open `maly` or run `maly daemon`", "el demonio de maly no está corriendo; abre `maly` o lanza `maly daemon`"},
+	"cli.usage_add_cmd":    {"usage: maly add <query|path>", "uso: maly add <consulta|ruta>"},
+	"cli.usage_vol_cmd":    {"usage: maly vol <0-100|+N|-N>", "uso: maly vol <0-100|+N|-N>"},
+	"cli.usage_seek_cmd":   {"usage: maly seek <+N|-N|mm:ss>", "uso: maly seek <+N|-N|mm:ss>"},
+	"cli.usage_search":     {"usage: maly search <query>", "uso: maly search <consulta>"},
+	"cli.daemon_listening": {"maly daemon listening on %s", "maly daemon escuchando en %s"},
+	"cli.queue_empty":      {"The queue is empty. Use maly add <query> or maly play <query>.", "La cola está vacía. Usa maly add <consulta> o maly play <consulta>."},
+	"cli.scan_start":       {"Scanning %s ...", "Escaneando %s ..."},
+	"cli.scan_warn":        {"  warning: %s", "  aviso: %s"},
+	"cli.scan_done":        {"Done: %d new, %d updated, %d removed (%d tracks total)", "Listo: %d nuevas, %d actualizadas, %d eliminadas (%d pistas en total)"},
+	"cli.scan_empty":       {"The library is empty. Is there music in %s? You can pass another path: maly scan <path>", "La biblioteca está vacía. ¿Hay música en %s? Puedes indicar otra ruta: maly scan <ruta>"},
+	"cli.search_none":      {"No results. Did you scan the library? (maly scan)", "Sin resultados. ¿Ya escaneaste la biblioteca? (maly scan)"},
+	"cli.tbl_header":       {"ID\tARTIST\tALBUM\t#\tTITLE", "ID\tARTISTA\tÁLBUM\t#\tTÍTULO"},
+
+	// ---- CLI: playlists ----
+	"pl.usage":        {"usage:\n  maly playlist list                  list playlists\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist play <name>           play the playlist (needs daemon)", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist play <nombre>             reproduce la playlist (requiere demonio)"},
+	"pl.usage_play":   {"usage: maly playlist play <name>", "uso: maly playlist play <nombre>"},
+	"pl.usage_create": {"usage: maly playlist create <name>", "uso: maly playlist create <nombre>"},
+	"pl.usage_delete": {"usage: maly playlist delete <name>", "uso: maly playlist delete <nombre>"},
+	"pl.usage_add":    {"usage: maly playlist add <name> <query>", "uso: maly playlist add <nombre> <consulta>"},
+	"pl.none":         {"No playlists. Create one with: maly playlist create <name>", "No hay playlists. Crea una con: maly playlist create <nombre>"},
+	"pl.tbl_header":   {"PLAYLIST\tTRACKS", "PLAYLIST\tPISTAS"},
+	"pl.created":      {"Playlist %q created", "Playlist %q creada"},
+	"pl.deleted":      {"Playlist %q deleted", "Playlist %q eliminada"},
+	"pl.no_results":   {"no results for %q", "sin resultados para %q"},
+	"pl.added":        {"%d track(s) added to %q", "%d pista(s) agregadas a %q"},
+	"pl.unknown":      {"unknown playlist subcommand %q", "subcomando playlist desconocido %q"},
+
+	// ---- Demonio ----
+	"d.already":          {"another maly daemon is already running", "ya hay un demonio de maly corriendo"},
+	"d.invalid_req":      {"invalid request: %s", "petición inválida: %s"},
+	"d.playing_n":        {"Playing %s (%d queued)", "Reproduciendo %s (%d en cola)"},
+	"d.playing":          {"Playing %s", "Reproduciendo %s"},
+	"d.paused":           {"Paused", "Pausado"},
+	"d.stopped":          {"Stopped", "Detenido"},
+	"d.no_next":          {"no next track in the queue", "no hay siguiente pista en la cola"},
+	"d.queue_empty":      {"the queue is empty", "la cola está vacía"},
+	"d.queue_empty_hint": {"the queue is empty; use maly play <query> or maly add", "la cola está vacía; usa maly play <consulta> o maly add"},
+	"d.playnow_paths":    {"playnow requires paths", "playnow requiere rutas"},
+	"d.added_n":          {"%d track(s) added to the queue", "%d pista(s) agregadas a la cola"},
+	"d.also_playing":     {"; playing %s", "; reproduciendo %s"},
+	"d.jump_oob":         {"position %d outside the queue", "posición %d fuera de la cola"},
+	"d.removed":          {"Track removed from the queue", "Pista quitada de la cola"},
+	"d.cleared":          {"Queue cleared", "Cola vaciada"},
+	"d.vol_invalid":      {"invalid volume %q (use 0-100, +N or -N)", "volumen inválido %q (usa 0-100, +N o -N)"},
+	"d.vol_set":          {"Volume %d%%", "Volumen %d%%"},
+	"d.shuffle_on":       {"Shuffle on", "Shuffle activado"},
+	"d.shuffle_off":      {"Shuffle off", "Shuffle desactivado"},
+	"d.repeat_invalid":   {"invalid repeat mode %q (off|all|one)", "modo repeat inválido %q (off|all|one)"},
+	"d.repeat":           {"Repeat: %s", "Repeat: %s"},
+	"d.pl_empty":         {"playlist %q is empty", "la playlist %q está vacía"},
+	"d.playing_pl":       {"Playing playlist %q (%d tracks)", "Reproduciendo playlist %q (%d pistas)"},
+	"d.scan_done":        {"Scan done: %d new, %d updated, %d removed (%d total)", "Escaneo listo: %d nuevas, %d actualizadas, %d eliminadas (%d en total)"},
+	"d.unknown_cmd":      {"unknown command %q", "comando desconocido %q"},
+	"d.seek_usage":       {"usage: seek <+N|-N|mm:ss>", "uso: seek <+N|-N|mm:ss>"},
+	"d.seek_mmss":        {"invalid position %q (use mm:ss)", "posición inválida %q (usa mm:ss)"},
+	"d.seek_offset":      {"invalid offset %q", "desplazamiento inválido %q"},
+	"d.seek_abs":         {"invalid position %q (use +N, -N or mm:ss)", "posición inválida %q (usa +N, -N o mm:ss)"},
+	"d.missing_query":    {"missing query or path", "falta la consulta o ruta"},
+	"d.no_results":       {"no results for %q (did you run maly scan?)", "sin resultados para %q (¿escaneaste con maly scan?)"},
+	"d.no_audio":         {"no audio files in %s", "no hay audio en %s"},
+
+	// ---- IPC y arranque ----
+	"ipc.send":         {"sending to the daemon", "enviando al demonio"},
+	"ipc.read":         {"reading daemon response", "leyendo respuesta del demonio"},
+	"ipc.invalid":      {"invalid daemon response", "respuesta inválida del demonio"},
+	"cli.embedded_err": {"starting embedded daemon", "arrancando el demonio embebido"},
+
+	// ---- Config ----
+	"cfg.write_default": {"writing default config", "escribiendo config por defecto"},
+	"cfg.read":          {"reading %s", "leyendo %s"},
+	"cfg.invalid":       {"invalid config at %s", "config inválido en %s"},
+
+	// ---- Reproductor (mpv) ----
+	"p.no_mpv":      {"mpv is not installed (Arch: pacman -S mpv, Ubuntu: apt install mpv)", "mpv no está instalado (Arch: pacman -S mpv, Ubuntu: apt install mpv)"},
+	"p.launch":      {"launching mpv", "lanzando mpv"},
+	"p.connect":     {"could not connect to mpv IPC", "no pude conectar con el IPC de mpv"},
+	"p.configure":   {"configuring mpv", "configurando mpv"},
+	"p.not_running": {"mpv is not running", "mpv no está corriendo"},
+	"p.exited":      {"mpv exited", "mpv terminó"},
+
+	// ---- Biblioteca ----
+	"lib.mkdir":     {"creating %s", "creando %s"},
+	"lib.open_db":   {"opening database", "abriendo base de datos"},
+	"lib.schema":    {"creating schema", "creando esquema"},
+	"lib.no_access": {"cannot access %s", "no puedo acceder a %s"},
+	"lib.not_dir":   {"%s is not a directory", "%s no es un directorio"},
+	"lib.track_nf":  {"track %d not found", "pista %d no encontrada"},
+	"lib.pl_nf":     {"playlist %q does not exist", "la playlist %q no existe"},
+	"lib.pl_name":   {"missing playlist name", "falta el nombre de la playlist"},
+	"lib.pl_exists": {"playlist %q already exists", "la playlist %q ya existe"},
+}

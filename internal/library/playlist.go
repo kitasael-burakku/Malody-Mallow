@@ -2,7 +2,9 @@ package library
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
+
+	"maly/internal/i18n"
 )
 
 type Playlist struct {
@@ -36,7 +38,7 @@ func (l *Library) playlistID(name string) (int64, error) {
 	var id int64
 	err := l.db.QueryRow(`SELECT id FROM playlists WHERE name = ?`, name).Scan(&id)
 	if err == sql.ErrNoRows {
-		return 0, fmt.Errorf("la playlist %q no existe", name)
+		return 0, errors.New(i18n.Tf("lib.pl_nf", name))
 	}
 	return id, err
 }
@@ -44,14 +46,14 @@ func (l *Library) playlistID(name string) (int64, error) {
 // CreatePlaylist crea una playlist vacía.
 func (l *Library) CreatePlaylist(name string) error {
 	if name == "" {
-		return fmt.Errorf("falta el nombre de la playlist")
+		return errors.New(i18n.T("lib.pl_name"))
 	}
 	res, err := l.db.Exec(`INSERT OR IGNORE INTO playlists (name) VALUES (?)`, name)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return fmt.Errorf("la playlist %q ya existe", name)
+		return errors.New(i18n.Tf("lib.pl_exists", name))
 	}
 	return nil
 }

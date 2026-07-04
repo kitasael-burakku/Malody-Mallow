@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+
+	"maly/internal/i18n"
 )
 
 const (
@@ -67,13 +69,19 @@ func (m *Model) View() string {
 		return ""
 	}
 	if m.width < minWidth || m.height < minHeight {
-		return m.st.dim.Render("terminal muy pequeña para maly")
+		return m.st.dim.Render(i18n.T("tui.too_small"))
+	}
+	if m.langOpen {
+		return m.langView()
 	}
 	if m.showHelp {
 		return m.helpView()
 	}
-	if m.paletteOpen {
-		return m.paletteView()
+	if m.consoleOpen {
+		return m.consoleView()
+	}
+	if m.songsOpen {
+		return m.songsView()
 	}
 
 	topH, vizH := m.layout()
@@ -106,7 +114,7 @@ func (m *Model) libraryPanel(w, h int) string {
 	pageH := m.libPageH()
 	rows := m.tree.rows
 	if len(rows) == 0 {
-		lines = append(lines, m.st.dim.Render(" (biblioteca vacía — ejecuta maly scan)"))
+		lines = append(lines, m.st.dim.Render(i18n.T("tui.lib_empty")))
 	}
 	end := m.tree.offset + pageH
 	if end > len(rows) {
@@ -142,7 +150,7 @@ func (m *Model) libraryPanel(w, h int) string {
 		}
 		lines = append(lines, line)
 	}
-	title := fmt.Sprintf("Biblioteca (%d)", len(m.tree.all))
+	title := i18n.Tf("tui.lib_title", len(m.tree.all))
 	return m.st.panel(title, lines, w, h, focused)
 }
 
@@ -166,7 +174,7 @@ func (m *Model) queuePanel(w, h int) string {
 	}
 	vis := m.visibleQueue()
 	if len(vis) == 0 {
-		lines = append(lines, m.st.dim.Render(" (cola vacía — `a` agrega desde la biblioteca)"))
+		lines = append(lines, m.st.dim.Render(i18n.T("tui.queue_empty")))
 	}
 	pageH := m.queuePageH()
 	end := m.queueOffset + pageH
@@ -198,14 +206,14 @@ func (m *Model) queuePanel(w, h int) string {
 		}
 		lines = append(lines, line)
 	}
-	title := fmt.Sprintf("Cola (%d)", len(m.queue))
+	title := i18n.Tf("tui.queue_title", len(m.queue))
 	return m.st.panel(title, lines, w, h, focused)
 }
 
 var vizBlocks = []rune(" ▁▂▃▄▅▆▇█")
 
-// vizPanel dibuja el espectro: una columna por barra, caracteres de octavos
-// y gradiente vertical color_low → color_high.
+// vizPanel dibuja el espectro: una columna por barra que sigue la amplitud
+// suavizada, caracteres de octavos y gradiente vertical color_low → color_high.
 func (m *Model) vizPanel(w, h int) string {
 	innerW := w - 2
 	innerH := h - 2
@@ -216,10 +224,9 @@ func (m *Model) vizPanel(w, h int) string {
 		rowFromBottom := innerH - 1 - r
 		cells := make([]rune, innerW)
 		for c := 0; c < innerW; c++ {
-			var bar, peak float64
+			var bar float64
 			if c < len(m.vizBars) {
 				bar = m.vizBars[c]
-				peak = m.vizPeaks[c]
 			}
 			rem := int(bar*float64(innerH)*8) - rowFromBottom*8
 			switch {
@@ -229,15 +236,11 @@ func (m *Model) vizPanel(w, h int) string {
 				cells[c] = vizBlocks[rem]
 			default:
 				cells[c] = ' '
-				// pico cayendo por encima de la barra
-				if int(peak*float64(innerH)*8)/8 == rowFromBottom && peak > 0.02 {
-					cells[c] = '▂'
-				}
 			}
 		}
 		lines[r] = styles[r].Render(string(cells))
 	}
-	return m.st.panel("Visualizador", lines, w, h, false)
+	return m.st.panel(i18n.T("tui.viz_title"), lines, w, h, false)
 }
 
 // vizGradient devuelve un estilo por fila interpolando el tema (cacheado).
@@ -296,7 +299,7 @@ func (m *Model) nowPanel(w, h int) string {
 	rightW := lipgloss.Width(right)
 
 	if m.status == nil || m.status.Track == nil {
-		line1 = m.st.dim.Render(clip(" ⏹ nada suena — enter en la Biblioteca reproduce", innerW-rightW-1))
+		line1 = m.st.dim.Render(clip(i18n.T("tui.nothing"), innerW-rightW-1))
 		line1 = padTo(line1, innerW-rightW) + right
 		line2 = m.st.dim.Render(strings.Repeat("─", innerW))
 	} else {
@@ -324,22 +327,22 @@ func (m *Model) nowPanel(w, h int) string {
 		}
 		line2 = m.st.accent.Render(strings.Repeat("━", filled)) + m.st.dim.Render(strings.Repeat("─", innerW-filled))
 	}
-	return m.st.panel("Ahora suena", []string{line1, line2}, w, h, false)
+	return m.st.panel(i18n.T("tui.now_title"), []string{line1, line2}, w, h, false)
 }
 
 func (m *Model) footer() string {
 	var line string
 	switch {
 	case m.connErr:
-		line = m.st.errSt.Render(" el demonio no responde…")
+		line = m.st.errSt.Render(i18n.T("tui.no_daemon"))
 	case m.flash != "" && m.flashErr:
 		line = m.st.errSt.Render(" " + m.flash)
 	case m.flash != "":
 		line = m.st.playing.Render(" " + m.flash)
 	default:
-		hint := " tab paneles · enter reproduce · a agrega · espacio pausa · / filtra · ? ayuda · q salir"
+		hint := i18n.T("tui.footer")
 		if m.embedded {
-			hint += " (demonio embebido)"
+			hint += i18n.T("tui.footer_embedded")
 		}
 		line = m.st.dim.Render(clip(hint, m.width))
 	}
@@ -349,34 +352,36 @@ func (m *Model) footer() string {
 func (m *Model) helpView() string {
 	k := m.keys
 	rows := [][2]string{
-		{k["play_pause"], "reproducir / pausar"},
-		{k["next"] + " / " + k["prev"], "siguiente / anterior"},
-		{k["vol_up"] + " / " + k["vol_down"], "volumen ±5%"},
-		{k["seek_forward"] + " / " + k["seek_back"], "seek ±5s"},
-		{k["switch_panel"], "cambiar de panel"},
-		{"enter", "reproducir / expandir"},
-		{k["add"], "agregar a la cola"},
-		{k["remove"], "quitar de la cola"},
-		{k["filter"], "filtrar panel actual"},
-		{k["shuffle"] + " / " + k["repeat"], "shuffle / repeat"},
-		{k["palette"], "paleta de comandos"},
-		{k["quit"], "salir"},
+		{k["play_pause"], i18n.T("help.play_pause")},
+		{k["next"] + " / " + k["prev"], i18n.T("help.next_prev")},
+		{k["vol_up"] + " / " + k["vol_down"], i18n.T("help.volume")},
+		{k["seek_forward"] + " / " + k["seek_back"], i18n.T("help.seek")},
+		{k["switch_panel"], i18n.T("help.switch")},
+		{"enter", i18n.T("help.enter")},
+		{k["add"], i18n.T("help.add")},
+		{k["remove"], i18n.T("help.remove")},
+		{k["filter"], i18n.T("help.filter")},
+		{k["shuffle"] + " / " + k["repeat"], i18n.T("help.shuffle_repeat")},
+		{k["toggle_viz"], i18n.T("help.toggle_viz")},
+		{k["palette"], i18n.T("help.palette")},
+		{k["songs"], i18n.T("help.songs")},
+		{k["quit"], i18n.T("help.quit")},
 	}
 	var b strings.Builder
 	for _, r := range rows {
 		key := r[0]
 		if key == " " {
-			key = "espacio"
+			key = i18n.T("help.space")
 		} else if strings.HasPrefix(key, " / ") {
-			key = "espacio" + key[1:]
+			key = i18n.T("help.space") + key[1:]
 		}
 		b.WriteString(fmt.Sprintf("  %s %s\n",
 			m.st.accent.Render(padTo(key, 14)), m.st.text.Render(r[1])))
 	}
-	b.WriteString("\n" + m.st.dim.Render("  cualquier tecla cierra esta ayuda"))
+	b.WriteString("\n" + m.st.dim.Render(i18n.T("help.close")))
 	lines := strings.Split(b.String(), "\n")
 	w := 46
-	box := m.st.panel("Ayuda", lines, w, len(lines)+2, true)
+	box := m.st.panel(i18n.T("tui.help_title"), lines, w, len(lines)+2, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 

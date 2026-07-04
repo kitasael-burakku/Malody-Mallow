@@ -28,8 +28,14 @@ solo binario.
 - **Biblioteca SQLite**: escaneo de tags (artista/álbum/título/año/género),
   búsqueda insensible a acentos y mayúsculas ("aurea" encuentra "Áurea").
 - **Visualizador de espectro**: FFT en vivo del monitor de
-  PipeWire/PulseAudio, con gradiente de color y picos que caen.
-- **Paleta Ctrl+P**: búsqueda difusa sobre comandos y toda la biblioteca.
+  PipeWire/PulseAudio, con gradiente de color; las barras siguen la
+  amplitud suavizada (estilo CAVA).
+- **Paleta Ctrl+P**: consola integrada de comandos (`maly next`, `vol +5`,
+  `status`…) con la salida dentro de la propia paleta.
+- **Selector Ctrl+O**: búsqueda difusa sobre toda la biblioteca
+  (`enter` reproduce, `tab` agrega a la cola).
+- **Bilingüe**: interfaz en English/Español; se elige al primer arranque
+  (clave `language` del config).
 - **Playlists**, shuffle, repeat (off/all/one), cola en vivo.
 - Tema y keybindings configurables por TOML; fondo transparente (usa el
   color de tu terminal).
@@ -85,7 +91,8 @@ La primera vez se crea `~/.config/maly/config.toml` con los defaults.
 | `/` | filtrar el panel actual |
 | `s` / `r` | shuffle / repeat |
 | `v` | alternar visualizador |
-| `ctrl+p` | paleta de comandos y canciones (fuzzy; `enter` reproduce, `tab` agrega) |
+| `ctrl+p` | paleta de comandos (consola integrada) |
+| `ctrl+o` | selector de canciones (fuzzy; `enter` reproduce, `tab` agrega) |
 | `?` | ayuda |
 | `q` | salir |
 
@@ -112,6 +119,8 @@ maly playlist create <nombre>
 maly playlist add <nombre> <consulta>
 maly playlist play <nombre>
 maly playlist delete <nombre>
+maly lang [en|es]              # cambia el idioma (sin arg abre el selector); alias -l
+maly version | -v
 ```
 
 Los comandos de biblioteca (`scan`, `search`, `playlist list/create/add/delete`)
@@ -124,6 +133,7 @@ el demonio: ábrelo con `maly` o `maly daemon`.
 
 ```toml
 music_dir = "~/Music"
+language = ""             # "" = preguntar al abrir la TUI; "en" | "es"
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal
@@ -156,6 +166,7 @@ bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
 # quit = "q"
 # help = "?"
 # palette = "ctrl+p"
+# songs = "ctrl+o"
 # toggle_viz = "v"
 ```
 

@@ -9,34 +9,22 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"maly/internal/config"
+	"maly/internal/i18n"
 	"maly/internal/library"
 )
 
-const usage = `maly — reproductor de música para terminal
-
-Uso:
-  maly                     abre la TUI (arranca el demonio si hace falta)
-  maly daemon              arranca solo el demonio (headless)
-
-Reproducción (requieren demonio o TUI abierta):
-  maly play [consulta]     reproduce (busca en la biblioteca si hay consulta)
-  maly pause | toggle | stop
-  maly next | prev
-  maly add <consulta|ruta> agrega a la cola
-  maly queue               muestra la cola
-  maly status              estado actual
-  maly vol <0-100|+N|-N>   volumen
-  maly seek <+N|-N|mm:ss>  posición
-  maly shuffle | repeat    alternar modos
-
-Biblioteca (funcionan sin demonio):
-  maly scan [ruta]         (re)escanea la biblioteca
-  maly search <consulta>   busca por título/artista/álbum
-  maly playlist list|create|delete|add|play ...
-`
+const version = "0.2.0"
 
 func main() {
+	// Fijar el idioma antes de imprimir nada: todo texto sale de i18n.
+	// Si el config no carga o no hay idioma elegido, queda inglés (default).
+	if cfg, err := config.Load(); err == nil && cfg.Language != "" {
+		i18n.Set(cfg.Language)
+	}
+
 	args := os.Args[1:]
 	cmd := ""
 	if len(args) > 0 {
@@ -47,7 +35,9 @@ func main() {
 	var err error
 	switch cmd {
 	case "":
-		err = runTUI()
+		err = runTUI(false)
+	case "lang", "-l", "--lang":
+		err = runLang(args)
 	case "daemon":
 		err = runDaemon()
 	case "scan":
@@ -57,16 +47,123 @@ func main() {
 	case "play", "pause", "toggle", "stop", "next", "prev",
 		"add", "queue", "status", "vol", "seek", "shuffle", "repeat", "playlist":
 		err = runClient(cmd, args)
+	case "version", "-v", "--version":
+		fmt.Println("maly v" + version)
 	case "help", "-h", "--help":
-		fmt.Print(usage)
+		fmt.Print(helpText())
 	default:
-		fmt.Fprintf(os.Stderr, "maly: subcomando desconocido %q\n\n%s", cmd, usage)
+		fmt.Fprintf(os.Stderr, "%s\n%s\n", i18n.Tf("cli.unknown", cmd), i18n.T("cli.more"))
 		os.Exit(2)
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "maly: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// helpText arma la ayuda de `maly -h`: secciones coloreadas, comandos,
+// ejemplos y atajos de la TUI. lipgloss quita los colores si stdout no es
+// un terminal.
+func helpText() string {
+	accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
+	cmdSt := lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1"))
+	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+	bold := lipgloss.NewStyle().Bold(true)
+
+	var b strings.Builder
+	sec := func(name, note string) {
+		b.WriteString("\n" + accent.Render(name))
+		if note != "" {
+			b.WriteString(" " + dim.Render("("+note+")"))
+		}
+		b.WriteByte('\n')
+	}
+	row := func(usage, descKey string) {
+		b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(fmt.Sprintf("%-28s", usage)), i18n.T(descKey)))
+	}
+	example := func(line string) {
+		b.WriteString("  " + dim.Render("$ ") + line + "\n")
+	}
+	key := func(k, descKey string) {
+		b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(fmt.Sprintf("%-14s", k)), i18n.T(descKey)))
+	}
+
+	b.WriteString(bold.Render("maly") + " " + dim.Render("v"+version) + " — " + i18n.T("cli.tagline") + "\n")
+
+	sec(i18n.T("cli.sec_usage"), "")
+	row("maly", "cli.usage_tui")
+	row("maly daemon", "cli.usage_daemon")
+
+	sec(i18n.T("cli.sec_playback"), i18n.T("cli.sec_playback_note"))
+	row("play [<query>]", "cli.play")
+	row("pause", "cli.pause")
+	row("toggle", "cli.toggle")
+	row("stop", "cli.stop")
+	row("next", "cli.next")
+	row("prev", "cli.prev")
+	row("add <query|path>", "cli.add")
+	row("queue", "cli.queue")
+	row("status", "cli.status")
+	row("vol <0-100|+N|-N>", "cli.vol")
+	row("seek <+N|-N|mm:ss>", "cli.seek")
+	row("shuffle [on|off]", "cli.shuffle")
+	row("repeat [off|all|one]", "cli.repeat")
+
+	sec(i18n.T("cli.sec_library"), i18n.T("cli.sec_library_note"))
+	row("scan [<path>]", "cli.scan")
+	row("search <query>", "cli.search")
+	row("playlist <sub> [args]", "cli.playlist")
+
+	sec(i18n.T("cli.sec_other"), "")
+	row("lang [en|es], -l", "cli.lang_cmd")
+	row("help, -h", "cli.help_cmd")
+	row("version, -v", "cli.version_cmd")
+
+	sec(i18n.T("cli.sec_examples"), "")
+	example("maly play luna")
+	example("maly add ~/Music/album")
+	example("maly vol +10")
+	example("maly seek 1:23")
+	example("maly shuffle on")
+	example("maly playlist add favs luna")
+
+	sec(i18n.T("cli.sec_keys"), "")
+	key(i18n.T("help.space"), "help.play_pause")
+	key("n / p", "help.next_prev")
+	key("tab", "help.switch")
+	key("/", "help.filter")
+	key("ctrl+p", "help.palette")
+	key("ctrl+o", "help.songs")
+	key("v", "help.toggle_viz")
+	key("?", "help.show")
+	key("q", "help.quit")
+
+	return b.String()
+}
+
+// runLang cambia el idioma: sin argumento abre la TUI con el selector;
+// con "en"/"es" lo fija directamente desde la CLI.
+func runLang(args []string) error {
+	if len(args) == 0 {
+		return runTUI(true)
+	}
+	code := args[0]
+	if code != "en" && code != "es" {
+		return fmt.Errorf("%s", i18n.Tf("cli.lang_invalid", code))
+	}
+	if err := config.SaveLanguage(code); err != nil {
+		return err
+	}
+	i18n.Set(code) // el mensaje de confirmación ya sale en el idioma nuevo
+	fmt.Println(i18n.Tf("cli.lang_set", langName(code)))
+	return nil
+}
+
+func langName(code string) string {
+	if code == "es" {
+		return "Español"
+	}
+	return "English"
 }
 
 func openLibrary() (*library.Library, error) {
@@ -88,26 +185,25 @@ func runScan(args []string) error {
 	}
 	defer lib.Close()
 
-	fmt.Printf("Escaneando %s ...\n", dir)
+	fmt.Println(i18n.Tf("cli.scan_start", dir))
 	res, err := lib.Scan(dir)
 	if err != nil {
 		return err
 	}
 	for _, e := range res.Errors {
-		fmt.Fprintf(os.Stderr, "  aviso: %s\n", e)
+		fmt.Fprintln(os.Stderr, i18n.Tf("cli.scan_warn", e))
 	}
 	total, _ := lib.Count()
-	fmt.Printf("Listo: %d nuevas, %d actualizadas, %d eliminadas (%d pistas en total)\n",
-		res.Added, res.Updated, res.Removed, total)
+	fmt.Println(i18n.Tf("cli.scan_done", res.Added, res.Updated, res.Removed, total))
 	if total == 0 {
-		fmt.Printf("La biblioteca está vacía. ¿Hay música en %s? Puedes indicar otra ruta: maly scan <ruta>\n", dir)
+		fmt.Println(i18n.Tf("cli.scan_empty", dir))
 	}
 	return nil
 }
 
 func runSearch(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("uso: maly search <consulta>")
+		return fmt.Errorf("%s", i18n.T("cli.usage_search"))
 	}
 	lib, err := openLibrary()
 	if err != nil {
@@ -119,7 +215,7 @@ func runSearch(args []string) error {
 		return err
 	}
 	if len(tracks) == 0 {
-		fmt.Println("Sin resultados. ¿Ya escaneaste la biblioteca? (maly scan)")
+		fmt.Println(i18n.T("cli.search_none"))
 		return nil
 	}
 	printTracks(tracks)
@@ -128,7 +224,7 @@ func runSearch(args []string) error {
 
 func printTracks(tracks []library.Track) {
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "ID\tARTISTA\tÁLBUM\t#\tTÍTULO")
+	fmt.Fprintln(w, i18n.T("cli.tbl_header"))
 	for _, t := range tracks {
 		no := ""
 		if t.TrackNo > 0 {

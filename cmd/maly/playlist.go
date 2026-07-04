@@ -8,31 +8,25 @@ import (
 	"text/tabwriter"
 
 	"maly/internal/config"
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 )
-
-const playlistUsage = `uso:
-  maly playlist list                      lista las playlists
-  maly playlist create <nombre>           crea una playlist
-  maly playlist delete <nombre>           elimina una playlist
-  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda
-  maly playlist play <nombre>             reproduce la playlist (requiere demonio)`
 
 // runPlaylist opera directo sobre SQLite salvo `play`, que necesita demonio.
 func runPlaylist(args []string) error {
 	if len(args) == 0 {
-		return errors.New(playlistUsage)
+		return errors.New(i18n.T("pl.usage"))
 	}
 	sub := args[0]
 	args = args[1:]
 
 	if sub == "play" {
 		if len(args) == 0 {
-			return errors.New("uso: maly playlist play <nombre>")
+			return errors.New(i18n.T("pl.usage_play"))
 		}
 		c, err := ipc.Dial(config.SocketPath())
 		if err != nil {
-			return fmt.Errorf("el demonio de maly no está corriendo; abre `maly` o lanza `maly daemon`")
+			return errors.New(i18n.T("cli.no_daemon"))
 		}
 		defer c.Close()
 		resp, err := c.Do(ipc.Request{Cmd: "playlist_play", Value: strings.Join(args, " ")})
@@ -59,11 +53,11 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		if len(lists) == 0 {
-			fmt.Println("No hay playlists. Crea una con: maly playlist create <nombre>")
+			fmt.Println(i18n.T("pl.none"))
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
-		fmt.Fprintln(w, "PLAYLIST\tPISTAS")
+		fmt.Fprintln(w, i18n.T("pl.tbl_header"))
 		for _, p := range lists {
 			fmt.Fprintf(w, "%s\t%d\n", p.Name, p.Tracks)
 		}
@@ -71,29 +65,29 @@ func runPlaylist(args []string) error {
 
 	case "create":
 		if len(args) == 0 {
-			return errors.New("uso: maly playlist create <nombre>")
+			return errors.New(i18n.T("pl.usage_create"))
 		}
 		name := strings.Join(args, " ")
 		if err := lib.CreatePlaylist(name); err != nil {
 			return err
 		}
-		fmt.Printf("Playlist %q creada\n", name)
+		fmt.Println(i18n.Tf("pl.created", name))
 		return nil
 
 	case "delete":
 		if len(args) == 0 {
-			return errors.New("uso: maly playlist delete <nombre>")
+			return errors.New(i18n.T("pl.usage_delete"))
 		}
 		name := strings.Join(args, " ")
 		if err := lib.DeletePlaylist(name); err != nil {
 			return err
 		}
-		fmt.Printf("Playlist %q eliminada\n", name)
+		fmt.Println(i18n.Tf("pl.deleted", name))
 		return nil
 
 	case "add":
 		if len(args) < 2 {
-			return errors.New("uso: maly playlist add <nombre> <consulta>")
+			return errors.New(i18n.T("pl.usage_add"))
 		}
 		name := args[0]
 		query := strings.Join(args[1:], " ")
@@ -102,7 +96,7 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		if len(tracks) == 0 {
-			return fmt.Errorf("sin resultados para %q", query)
+			return errors.New(i18n.Tf("pl.no_results", query))
 		}
 		ids := make([]int64, len(tracks))
 		for i, t := range tracks {
@@ -111,10 +105,10 @@ func runPlaylist(args []string) error {
 		if err := lib.AddToPlaylist(name, ids); err != nil {
 			return err
 		}
-		fmt.Printf("%d pista(s) agregadas a %q\n", len(tracks), name)
+		fmt.Println(i18n.Tf("pl.added", len(tracks), name))
 		return nil
 
 	default:
-		return fmt.Errorf("subcomando playlist desconocido %q\n%s", sub, playlistUsage)
+		return fmt.Errorf("%s\n%s", i18n.Tf("pl.unknown", sub), i18n.T("pl.usage"))
 	}
 }

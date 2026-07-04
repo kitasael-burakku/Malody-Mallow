@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"maly/internal/i18n"
 )
 
 // Request es una petición del cliente al demonio.
@@ -17,6 +19,7 @@ type Request struct {
 	Value string   `json:"value,omitempty"` // vol/seek/repeat/shuffle: argumento
 	Index int      `json:"index,omitempty"` // remove/jump: posición en la cola
 	Paths []string `json:"paths,omitempty"` // add/playnow: rutas exactas (TUI)
+	Lang  string   `json:"lang,omitempty"`  // idioma del cliente; el demonio responde en él
 }
 
 // TrackInfo es la vista serializable de una pista.
@@ -77,23 +80,27 @@ func Ping(socket string) bool {
 	return err == nil && resp.OK
 }
 
-// Do envía una petición y espera la respuesta.
+// Do envía una petición y espera la respuesta. Adjunta el idioma activo del
+// cliente para que el demonio responda en él aunque arrancara con otro.
 func (c *Client) Do(req Request) (Response, error) {
 	var resp Response
+	if req.Lang == "" {
+		req.Lang = i18n.Code()
+	}
 	data, err := json.Marshal(req)
 	if err != nil {
 		return resp, err
 	}
 	c.conn.SetDeadline(time.Now().Add(30 * time.Second))
 	if _, err := c.conn.Write(append(data, '\n')); err != nil {
-		return resp, fmt.Errorf("enviando al demonio: %w", err)
+		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.send"), err)
 	}
 	line, err := c.r.ReadBytes('\n')
 	if err != nil {
-		return resp, fmt.Errorf("leyendo respuesta del demonio: %w", err)
+		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.read"), err)
 	}
 	if err := json.Unmarshal(line, &resp); err != nil {
-		return resp, fmt.Errorf("respuesta inválida del demonio: %w", err)
+		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.invalid"), err)
 	}
 	return resp, nil
 }

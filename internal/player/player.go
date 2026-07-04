@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+
+	"maly/internal/i18n"
 	"time"
 )
 
@@ -56,7 +58,7 @@ type mpvEvent struct {
 func Start(socketPath string, onEOF func()) (*Player, error) {
 	mpvBin, err := exec.LookPath("mpv")
 	if err != nil {
-		return nil, errors.New("mpv no está instalado (Arch: pacman -S mpv, Ubuntu: apt install mpv)")
+		return nil, errors.New(i18n.T("p.no_mpv"))
 	}
 	os.Remove(socketPath)
 	cmd := exec.Command(mpvBin,
@@ -66,7 +68,7 @@ func Start(socketPath string, onEOF func()) (*Player, error) {
 		"--volume=100",
 	)
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("lanzando mpv: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("p.launch"), err)
 	}
 
 	// mpv tarda un poco en crear el socket.
@@ -80,7 +82,7 @@ func Start(socketPath string, onEOF func()) (*Player, error) {
 	}
 	if err != nil {
 		cmd.Process.Kill()
-		return nil, fmt.Errorf("no pude conectar con el IPC de mpv: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("p.connect"), err)
 	}
 
 	p := &Player{
@@ -97,7 +99,7 @@ func Start(socketPath string, onEOF func()) (*Player, error) {
 	for i, prop := range []string{"pause", "time-pos", "duration", "volume", "idle-active", "path"} {
 		if _, err := p.command("observe_property", int64(i+1), prop); err != nil {
 			p.Close()
-			return nil, fmt.Errorf("configurando mpv: %w", err)
+			return nil, fmt.Errorf("%s: %w", i18n.T("p.configure"), err)
 		}
 	}
 	return p, nil
@@ -171,7 +173,7 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
-		return nil, errors.New("mpv no está corriendo")
+		return nil, errors.New(i18n.T("p.not_running"))
 	}
 	p.reqID++
 	id := p.reqID
@@ -192,7 +194,7 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 	case <-time.After(5 * time.Second):
 		return nil, errors.New("mpv no responde")
 	case <-p.done:
-		return nil, errors.New("mpv terminó")
+		return nil, errors.New(i18n.T("p.exited"))
 	}
 }
 

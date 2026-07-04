@@ -10,6 +10,7 @@ import (
 
 	"maly/internal/config"
 	"maly/internal/daemon"
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 )
 
@@ -21,7 +22,7 @@ func runDaemon() error {
 	d, err := daemon.New(cfg)
 	if err != nil {
 		if errors.Is(err, daemon.ErrAlreadyRunning) {
-			return fmt.Errorf("%v (socket: %s)", err, config.SocketPath())
+			return fmt.Errorf("%s (socket: %s)", i18n.T("d.already"), config.SocketPath())
 		}
 		return err
 	}
@@ -31,7 +32,7 @@ func runDaemon() error {
 		<-sig
 		d.Close()
 	}()
-	fmt.Printf("maly daemon escuchando en %s\n", config.SocketPath())
+	fmt.Println(i18n.Tf("cli.daemon_listening", config.SocketPath()))
 	defer d.Close()
 	return d.Run()
 }
@@ -48,17 +49,17 @@ func runClient(cmd string, args []string) error {
 		req.Query = strings.Join(args, " ")
 	case "add":
 		if len(args) == 0 {
-			return fmt.Errorf("uso: maly add <consulta|ruta>")
+			return errors.New(i18n.T("cli.usage_add_cmd"))
 		}
 		req.Query = strings.Join(args, " ")
 	case "vol":
 		if len(args) != 1 {
-			return fmt.Errorf("uso: maly vol <0-100|+N|-N>")
+			return errors.New(i18n.T("cli.usage_vol_cmd"))
 		}
 		req.Value = args[0]
 	case "seek":
 		if len(args) != 1 {
-			return fmt.Errorf("uso: maly seek <+N|-N|mm:ss>")
+			return errors.New(i18n.T("cli.usage_seek_cmd"))
 		}
 		req.Value = args[0]
 	case "shuffle", "repeat":
@@ -69,7 +70,7 @@ func runClient(cmd string, args []string) error {
 
 	c, err := ipc.Dial(config.SocketPath())
 	if err != nil {
-		return fmt.Errorf("el demonio de maly no está corriendo; abre `maly` o lanza `maly daemon`")
+		return errors.New(i18n.T("cli.no_daemon"))
 	}
 	defer c.Close()
 
@@ -112,8 +113,7 @@ func printStatus(s *ipc.Status) {
 		return
 	}
 	if s.Track == nil {
-		fmt.Printf("⏹ nada suena  vol %d%%  shuffle: %s  repeat: %s  cola: %d pista(s)\n",
-			s.Volume, onOff(s.Shuffle), s.Repeat, s.QueueLen)
+		fmt.Println(i18n.Tf("st.stopped", s.Volume, onOff(s.Shuffle), s.Repeat, s.QueueLen))
 		return
 	}
 	icon := "▶"
@@ -128,14 +128,13 @@ func printStatus(s *ipc.Status) {
 		line += fmt.Sprintf(" [%s]", s.Track.Album)
 	}
 	fmt.Println(line)
-	fmt.Printf("  %s / %s  vol %d%%  shuffle: %s  repeat: %s  cola %d/%d\n",
-		fmtTime(s.Position), fmtTime(s.Duration), s.Volume,
-		onOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen)
+	fmt.Println(i18n.Tf("st.line2", fmtTime(s.Position), fmtTime(s.Duration), s.Volume,
+		onOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen))
 }
 
 func printQueue(resp ipc.Response) {
 	if len(resp.Queue) == 0 {
-		fmt.Println("La cola está vacía. Usa maly add <consulta> o maly play <consulta>.")
+		fmt.Println(i18n.T("cli.queue_empty"))
 		return
 	}
 	cur := -1

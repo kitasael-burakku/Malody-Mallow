@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"maly/internal/config"
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
 	"maly/internal/player"
@@ -24,7 +25,7 @@ import (
 )
 
 // ErrAlreadyRunning indica que otro demonio ya posee el socket.
-var ErrAlreadyRunning = errors.New("ya hay un demonio de maly corriendo")
+var ErrAlreadyRunning = errors.New("another maly daemon is already running")
 
 type Daemon struct {
 	mu  sync.Mutex
@@ -102,7 +103,7 @@ func (d *Daemon) serve(conn net.Conn) {
 		var req ipc.Request
 		var resp ipc.Response
 		if err := json.Unmarshal(sc.Bytes(), &req); err != nil {
-			resp = ipc.Response{Error: "petición inválida: " + err.Error()}
+			resp = ipc.Response{Error: i18n.Tf("d.invalid_req", err.Error())}
 		} else {
 			resp = d.handle(req)
 		}
@@ -125,6 +126,10 @@ func (d *Daemon) onTrackEnd() {
 func (d *Daemon) handle(req ipc.Request) ipc.Response {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	// Responder en el idioma del cliente (los clientes viejos no mandan
+	// lang: TL cae en el idioma del proceso).
+	lang := req.Lang
 
 	fail := func(err error) ipc.Response { return ipc.Response{Error: err.Error()} }
 	okStatus := func(msg string) ipc.Response {
@@ -150,7 +155,7 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 
 	case "play":
 		if strings.TrimSpace(req.Query) != "" {
-			tracks, err := d.resolveTracks(req.Query)
+			tracks, err := d.resolveTracks(lang, req.Query)
 			if err != nil {
 				return fail(err)
 			}
@@ -159,19 +164,19 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 			if err := d.pl.Load(t.Path); err != nil {
 				return fail(err)
 			}
-			return okStatus(fmt.Sprintf("Reproduciendo %s (%d en cola)", t, len(tracks)))
+			return okStatus(i18n.TLf(lang, "d.playing_n", t, len(tracks)))
 		}
-		return d.resumeLocked(fail, okStatus)
+		return d.resumeLocked(lang, fail, okStatus)
 
 	case "pause":
 		if err := d.pl.SetPause(true); err != nil {
 			return fail(err)
 		}
-		return okStatus("Pausado")
+		return okStatus(i18n.TL(lang, "d.paused"))
 
 	case "toggle":
 		if d.pl.State().Idle {
-			return d.resumeLocked(fail, okStatus)
+			return d.resumeLocked(lang, fail, okStatus)
 		}
 		if err := d.pl.Toggle(); err != nil {
 			return fail(err)
@@ -182,32 +187,32 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 		if err := d.pl.Stop(); err != nil {
 			return fail(err)
 		}
-		return okStatus("Detenido")
+		return okStatus(i18n.TL(lang, "d.stopped"))
 
 	case "next":
 		t, ok := d.q.Next(false)
 		if !ok {
-			return fail(errors.New("no hay siguiente pista en la cola"))
+			return fail(errors.New(i18n.TL(lang, "d.no_next")))
 		}
 		if err := d.pl.Load(t.Path); err != nil {
 			return fail(err)
 		}
-		return okStatus("Reproduciendo " + t.String())
+		return okStatus(i18n.TLf(lang, "d.playing", t))
 
 	case "prev":
 		t, ok := d.q.Prev()
 		if !ok {
-			return fail(errors.New("la cola está vacía"))
+			return fail(errors.New(i18n.TL(lang, "d.queue_empty")))
 		}
 		if err := d.pl.Load(t.Path); err != nil {
 			return fail(err)
 		}
-		return okStatus("Reproduciendo " + t.String())
+		return okStatus(i18n.TLf(lang, "d.playing", t))
 
 	case "playnow":
 		// Agrega pistas exactas (rutas) y salta a la primera; usado por la TUI.
 		if len(req.Paths) == 0 {
-			return fail(errors.New("playnow requiere rutas"))
+			return fail(errors.New(i18n.TL(lang, "d.playnow_paths")))
 		}
 		first := d.q.Len()
 		for _, p := range req.Paths {
@@ -217,7 +222,7 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 		if err := d.pl.Load(t.Path); err != nil {
 			return fail(err)
 		}
-		return okStatus("Reproduciendo " + t.String())
+		return okStatus(i18n.TLf(lang, "d.playing", t))
 
 	case "add":
 		var tracks []library.Track
@@ -227,20 +232,20 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 				tracks = append(tracks, trackFromFile(d.lib, p))
 			}
 		} else {
-			tracks, err = d.resolveTracks(req.Query)
+			tracks, err = d.resolveTracks(lang, req.Query)
 			if err != nil {
 				return fail(err)
 			}
 		}
 		wasEmpty := d.q.Len() == 0
 		d.q.Add(tracks...)
-		msg := fmt.Sprintf("%d pista(s) agregadas a la cola", len(tracks))
+		msg := i18n.TLf(lang, "d.added_n", len(tracks))
 		if wasEmpty && d.pl.State().Idle {
 			if t, ok := d.q.JumpTo(0); ok {
 				if err := d.pl.Load(t.Path); err != nil {
 					return fail(err)
 				}
-				msg += "; reproduciendo " + t.String()
+				msg += i18n.TLf(lang, "d.also_playing", t)
 			}
 		}
 		return okStatus(msg)
@@ -248,12 +253,12 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 	case "jump":
 		t, ok := d.q.JumpTo(req.Index)
 		if !ok {
-			return fail(fmt.Errorf("posición %d fuera de la cola", req.Index+1))
+			return fail(errors.New(i18n.TLf(lang, "d.jump_oob", req.Index+1)))
 		}
 		if err := d.pl.Load(t.Path); err != nil {
 			return fail(err)
 		}
-		return okStatus("Reproduciendo " + t.String())
+		return okStatus(i18n.TLf(lang, "d.playing", t))
 
 	case "remove":
 		wasCurrent := d.q.RemoveAt(req.Index)
@@ -264,26 +269,26 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 				d.pl.Stop()
 			}
 		}
-		return okStatus("Pista quitada de la cola")
+		return okStatus(i18n.TL(lang, "d.removed"))
 
 	case "clear":
 		d.q.Clear()
 		d.pl.Stop()
-		return okStatus("Cola vaciada")
+		return okStatus(i18n.TL(lang, "d.cleared"))
 
 	case "vol":
 		cur := d.pl.State().Volume
 		v, err := parseAdjust(req.Value, cur, 0, 100)
 		if err != nil {
-			return fail(fmt.Errorf("volumen inválido %q (usa 0-100, +N o -N)", req.Value))
+			return fail(errors.New(i18n.TLf(lang, "d.vol_invalid", req.Value)))
 		}
 		if err := d.pl.SetVolume(v); err != nil {
 			return fail(err)
 		}
-		return okStatus(fmt.Sprintf("Volumen %d%%", int(v)))
+		return okStatus(i18n.TLf(lang, "d.vol_set", int(v)))
 
 	case "seek":
-		if err := d.seekLocked(req.Value); err != nil {
+		if err := d.seekLocked(lang, req.Value); err != nil {
 			return fail(err)
 		}
 		return okStatus("")
@@ -298,9 +303,9 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 			d.q.Shuffle = !d.q.Shuffle
 		}
 		if d.q.Shuffle {
-			return okStatus("Shuffle activado")
+			return okStatus(i18n.TL(lang, "d.shuffle_on"))
 		}
-		return okStatus("Shuffle desactivado")
+		return okStatus(i18n.TL(lang, "d.shuffle_off"))
 
 	case "repeat":
 		switch req.Value {
@@ -309,9 +314,9 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 		case "":
 			d.q.CycleRepeat()
 		default:
-			return fail(fmt.Errorf("modo repeat inválido %q (off|all|one)", req.Value))
+			return fail(errors.New(i18n.TLf(lang, "d.repeat_invalid", req.Value)))
 		}
-		return okStatus("Repeat: " + string(d.q.Repeat))
+		return okStatus(i18n.TLf(lang, "d.repeat", string(d.q.Repeat)))
 
 	case "playlist_play":
 		tracks, err := d.lib.PlaylistTracks(req.Value)
@@ -319,14 +324,14 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 			return fail(err)
 		}
 		if len(tracks) == 0 {
-			return fail(fmt.Errorf("la playlist %q está vacía", req.Value))
+			return fail(errors.New(i18n.TLf(lang, "d.pl_empty", req.Value)))
 		}
 		d.q.Replace(tracks)
 		t, _ := d.q.JumpTo(0)
 		if err := d.pl.Load(t.Path); err != nil {
 			return fail(err)
 		}
-		return okStatus(fmt.Sprintf("Reproduciendo playlist %q (%d pistas)", req.Value, len(tracks)))
+		return okStatus(i18n.TLf(lang, "d.playing_pl", req.Value, len(tracks)))
 
 	case "scan":
 		dir := d.cfg.MusicPath()
@@ -338,18 +343,17 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 			return fail(err)
 		}
 		total, _ := d.lib.Count()
-		return ipc.Response{OK: true, Msg: fmt.Sprintf(
-			"Escaneo listo: %d nuevas, %d actualizadas, %d eliminadas (%d en total)",
+		return ipc.Response{OK: true, Msg: i18n.TLf(lang, "d.scan_done",
 			res.Added, res.Updated, res.Removed, total)}
 
 	default:
-		return fail(fmt.Errorf("comando desconocido %q", req.Cmd))
+		return fail(errors.New(i18n.TLf(lang, "d.unknown_cmd", req.Cmd)))
 	}
 }
 
 // resumeLocked reanuda: quita pausa si hay pista, o arranca la cola si mpv
 // está idle.
-func (d *Daemon) resumeLocked(fail func(error) ipc.Response, okStatus func(string) ipc.Response) ipc.Response {
+func (d *Daemon) resumeLocked(lang string, fail func(error) ipc.Response, okStatus func(string) ipc.Response) ipc.Response {
 	st := d.pl.State()
 	if !st.Idle {
 		if err := d.pl.SetPause(false); err != nil {
@@ -360,55 +364,55 @@ func (d *Daemon) resumeLocked(fail func(error) ipc.Response, okStatus func(strin
 	t, ok := d.q.Current()
 	if !ok {
 		if t, ok = d.q.JumpTo(0); !ok {
-			return fail(errors.New("la cola está vacía; usa maly play <consulta> o maly add"))
+			return fail(errors.New(i18n.TL(lang, "d.queue_empty_hint")))
 		}
 	}
 	if err := d.pl.Load(t.Path); err != nil {
 		return fail(err)
 	}
-	return okStatus("Reproduciendo " + t.String())
+	return okStatus(i18n.TLf(lang, "d.playing", t))
 }
 
-func (d *Daemon) seekLocked(val string) error {
+func (d *Daemon) seekLocked(lang, val string) error {
 	val = strings.TrimSpace(val)
 	if val == "" {
-		return errors.New("uso: seek <+N|-N|mm:ss>")
+		return errors.New(i18n.TL(lang, "d.seek_usage"))
 	}
 	if strings.Contains(val, ":") {
 		parts := strings.SplitN(val, ":", 2)
 		mm, err1 := strconv.Atoi(parts[0])
 		ss, err2 := strconv.Atoi(parts[1])
 		if err1 != nil || err2 != nil || mm < 0 || ss < 0 || ss > 59 {
-			return fmt.Errorf("posición inválida %q (usa mm:ss)", val)
+			return errors.New(i18n.TLf(lang, "d.seek_mmss", val))
 		}
 		return d.pl.SeekAbs(float64(mm*60 + ss))
 	}
 	if strings.HasPrefix(val, "+") || strings.HasPrefix(val, "-") {
 		n, err := strconv.ParseFloat(val, 64)
 		if err != nil {
-			return fmt.Errorf("desplazamiento inválido %q", val)
+			return errors.New(i18n.TLf(lang, "d.seek_offset", val))
 		}
 		return d.pl.SeekRel(n)
 	}
 	n, err := strconv.ParseFloat(val, 64)
 	if err != nil {
-		return fmt.Errorf("posición inválida %q (usa +N, -N o mm:ss)", val)
+		return errors.New(i18n.TLf(lang, "d.seek_abs", val))
 	}
 	return d.pl.SeekAbs(n)
 }
 
 // resolveTracks convierte una consulta o ruta en pistas: archivo suelto,
 // directorio (recursivo) o búsqueda en la biblioteca.
-func (d *Daemon) resolveTracks(q string) ([]library.Track, error) {
+func (d *Daemon) resolveTracks(lang, q string) ([]library.Track, error) {
 	q = strings.TrimSpace(q)
 	if q == "" {
-		return nil, errors.New("falta la consulta o ruta")
+		return nil, errors.New(i18n.TL(lang, "d.missing_query"))
 	}
 	p := config.ExpandTilde(q)
 	if abs, err := filepath.Abs(p); err == nil {
 		if fi, err := os.Stat(abs); err == nil {
 			if fi.IsDir() {
-				return tracksFromDir(d.lib, abs)
+				return tracksFromDir(lang, d.lib, abs)
 			}
 			return []library.Track{trackFromFile(d.lib, abs)}, nil
 		}
@@ -418,7 +422,7 @@ func (d *Daemon) resolveTracks(q string) ([]library.Track, error) {
 		return nil, err
 	}
 	if len(tracks) == 0 {
-		return nil, fmt.Errorf("sin resultados para %q (¿escaneaste con maly scan?)", q)
+		return nil, errors.New(i18n.TLf(lang, "d.no_results", q))
 	}
 	return tracks, nil
 }
@@ -437,7 +441,7 @@ func trackFromFile(lib *library.Library, path string) library.Track {
 	}
 }
 
-func tracksFromDir(lib *library.Library, dir string) ([]library.Track, error) {
+func tracksFromDir(lang string, lib *library.Library, dir string) ([]library.Track, error) {
 	var out []library.Track
 	err := filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || e.IsDir() || !audioExts[strings.ToLower(filepath.Ext(path))] {
@@ -450,7 +454,7 @@ func tracksFromDir(lib *library.Library, dir string) ([]library.Track, error) {
 		return nil, err
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no hay audio en %s", dir)
+		return nil, errors.New(i18n.TLf(lang, "d.no_audio", dir))
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out, nil

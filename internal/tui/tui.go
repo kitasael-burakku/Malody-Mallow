@@ -1,0 +1,481 @@
+// Package tui implementa la interfaz Bubble Tea de maly: paneles Biblioteca,
+// Cola, Visualizador y Ahora suena, más la paleta de comandos.
+package tui
+
+import (
+	"time"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
+	"maly/internal/config"
+	"maly/internal/ipc"
+	"maly/internal/library"
+	"maly/internal/viz"
+)
+
+type panelID int
+
+const (
+	panelLibrary panelID = iota
+	panelQueue
+)
+
+type Model struct {
+	cfg      config.Config
+	st       styles
+	keys     map[string]string
+	sock     string
+	embedded bool
+
+	width, height int
+	focus         panelID
+
+	tree        *libTree
+	queue       []ipc.TrackInfo
+	queueCursor int
+	queueOffset int
+	queueFilter string
+	status      *ipc.Status
+	connErr     bool
+
+	filterMode  bool
+	filterInput textinput.Model
+
+	showHelp   bool
+	flash      string
+	flashErr   bool
+	flashUntil time.Time
+
+	vizOn     bool
+	viz       *viz.Viz
+	vizBars   []float64
+	vizPeaks  []float64
+	vizWarned bool
+	vizStyles []lipgloss.Style
+
+	paletteOpen bool
+	palInput    textinput.Model
+	palItems    []palItem
+	palMatches  []int
+	palCursor   int
+}
+
+type tickMsg time.Time
+type libraryMsg struct {
+	tracks []library.Track
+	err    error
+}
+
+// statusMsg es el refresco silencioso periódico; actionMsg es la respuesta a
+// una acción del usuario (muestra flash con el resultado).
+type statusMsg struct {
+	resp ipc.Response
+	err  error
+}
+type actionMsg struct {
+	resp ipc.Response
+	err  error
+}
+
+// Run abre la TUI. embedded indica que el demonio corre dentro del proceso.
+func Run(cfg config.Config, embedded bool) error {
+	ti := textinput.New()
+	ti.Prompt = "/"
+	ti.Placeholder = "filtrar…"
+	ti.CharLimit = 100
+
+	m := &Model{
+		cfg:         cfg,
+		st:          newStyles(cfg.Theme),
+		keys:        cfg.Keys,
+		sock:        config.SocketPath(),
+		embedded:    embedded,
+		tree:        buildTree(nil),
+		filterInput: ti,
+		vizOn:       cfg.Visualizer.Enabled,
+	}
+	m.filterInput.PromptStyle = m.st.accent
+	m.filterInput.TextStyle = m.st.text
+
+	if cfg.Visualizer.Enabled {
+		m.viz = viz.New(cfg.Visualizer.BarsGravity)
+		defer m.viz.Close()
+	}
+
+	_, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
+	return err
+}
+
+func (m *Model) Init() tea.Cmd {
+	cmds := []tea.Cmd{loadLibrary, m.fetch(), tickCmd()}
+	if m.viz != nil {
+		cmds = append(cmds, vizTickCmd())
+	}
+	return tea.Batch(cmds...)
+}
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+type vizTickMsg time.Time
+
+func vizTickCmd() tea.Cmd {
+	return tea.Tick(60*time.Millisecond, func(t time.Time) tea.Msg { return vizTickMsg(t) })
+}
+
+func loadLibrary() tea.Msg {
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		return libraryMsg{err: err}
+	}
+	defer lib.Close()
+	tracks, err := lib.All()
+	return libraryMsg{tracks: tracks, err: err}
+}
+
+// req manda una acción al demonio (conexión nueva por petición: es un socket
+// Unix local y evita compartir estado entre goroutines de comandos).
+func (m *Model) req(r ipc.Request) tea.Cmd {
+	sock := m.sock
+	return func() tea.Msg {
+		c, err := ipc.Dial(sock)
+		if err != nil {
+			return actionMsg{err: err}
+		}
+		defer c.Close()
+		resp, err := c.Do(r)
+		return actionMsg{resp: resp, err: err}
+	}
+}
+
+// fetch pide estado + cola sin mostrar mensajes.
+func (m *Model) fetch() tea.Cmd {
+	sock := m.sock
+	return func() tea.Msg {
+		c, err := ipc.Dial(sock)
+		if err != nil {
+			return statusMsg{err: err}
+		}
+		defer c.Close()
+		resp, err := c.Do(ipc.Request{Cmd: "queue"})
+		return statusMsg{resp: resp, err: err}
+	}
+}
+
+func (m *Model) setFlash(text string, isErr bool) {
+	m.flash = text
+	m.flashErr = isErr
+	m.flashUntil = time.Now().Add(4 * time.Second)
+}
+
+func (m *Model) applyStatus(resp ipc.Response) {
+	if resp.Status != nil {
+		m.status = resp.Status
+	}
+	if resp.Queue != nil || (resp.Status != nil && resp.Status.QueueLen == 0) {
+		m.queue = resp.Queue
+	}
+	vis := m.visibleQueue()
+	if m.queueCursor >= len(vis) {
+		m.queueCursor = len(vis) - 1
+	}
+	if m.queueCursor < 0 {
+		m.queueCursor = 0
+	}
+}
+
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+		m.filterInput.Width = m.width/2 - 6
+		return m, nil
+
+	case tickMsg:
+		if !m.flashUntil.IsZero() && time.Now().After(m.flashUntil) {
+			m.flash = ""
+			m.flashUntil = time.Time{}
+		}
+		return m, tea.Batch(m.fetch(), tickCmd())
+
+	case vizTickMsg:
+		if m.viz != nil && m.vizOn {
+			playing := m.status != nil && m.status.Track != nil && !m.status.Paused
+			m.vizBars, m.vizPeaks = m.viz.Bars(m.width-2, playing)
+			if m.viz.Fake() && !m.vizWarned {
+				m.vizWarned = true
+				m.setFlash("sin pw-record/parec: visualizador en modo animación", true)
+			}
+		}
+		return m, vizTickCmd()
+
+	case libraryMsg:
+		if msg.err != nil {
+			m.setFlash("biblioteca: "+msg.err.Error(), true)
+			return m, nil
+		}
+		m.tree = buildTree(msg.tracks)
+		if m.paletteOpen {
+			m.buildPalette()
+		}
+		if len(msg.tracks) == 0 {
+			m.setFlash("Biblioteca vacía: ejecuta `maly scan` o revisa music_dir en el config", true)
+		}
+		return m, nil
+
+	case rescanMsg:
+		if msg.err != nil {
+			m.setFlash(msg.err.Error(), true)
+			return m, nil
+		}
+		if !msg.resp.OK {
+			m.setFlash(msg.resp.Error, true)
+			return m, nil
+		}
+		m.setFlash(msg.resp.Msg, false)
+		return m, loadLibrary
+
+	case statusMsg:
+		if msg.err != nil {
+			m.connErr = true
+			return m, nil
+		}
+		m.connErr = false
+		m.applyStatus(msg.resp)
+		return m, nil
+
+	case actionMsg:
+		if msg.err != nil {
+			m.setFlash(msg.err.Error(), true)
+			return m, nil
+		}
+		if !msg.resp.OK {
+			m.setFlash(msg.resp.Error, true)
+			return m, nil
+		}
+		if msg.resp.Msg != "" {
+			m.setFlash(msg.resp.Msg, false)
+		}
+		m.applyStatus(msg.resp)
+		return m, m.fetch()
+
+	case tea.KeyMsg:
+		return m.handleKey(msg)
+	}
+	return m, nil
+}
+
+// is compara la tecla pulsada con el binding configurado para una acción.
+func (m *Model) is(action string, msg tea.KeyMsg) bool {
+	return m.keys[action] == msg.String()
+}
+
+func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "ctrl+c" {
+		return m, tea.Quit
+	}
+
+	if m.paletteOpen {
+		return m.handlePaletteKey(msg)
+	}
+	if m.is("palette", msg) {
+		return m, m.openPalette()
+	}
+
+	if m.filterMode {
+		switch msg.String() {
+		case "esc":
+			m.filterMode = false
+			m.filterInput.SetValue("")
+			m.applyFilter("")
+			return m, nil
+		case "enter":
+			m.filterMode = false
+			return m, nil
+		}
+		var cmd tea.Cmd
+		m.filterInput, cmd = m.filterInput.Update(msg)
+		m.applyFilter(m.filterInput.Value())
+		return m, cmd
+	}
+
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
+	switch {
+	case m.is("quit", msg):
+		return m, tea.Quit
+	case m.is("help", msg):
+		m.showHelp = true
+		return m, nil
+	case m.is("play_pause", msg):
+		return m, m.req(ipc.Request{Cmd: "toggle"})
+	case m.is("next", msg):
+		return m, m.req(ipc.Request{Cmd: "next"})
+	case m.is("prev", msg):
+		return m, m.req(ipc.Request{Cmd: "prev"})
+	case m.is("vol_up", msg):
+		return m, m.req(ipc.Request{Cmd: "vol", Value: "+5"})
+	case m.is("vol_down", msg):
+		return m, m.req(ipc.Request{Cmd: "vol", Value: "-5"})
+	case m.is("seek_forward", msg):
+		return m, m.req(ipc.Request{Cmd: "seek", Value: "+5"})
+	case m.is("seek_back", msg):
+		return m, m.req(ipc.Request{Cmd: "seek", Value: "-5"})
+	case m.is("shuffle", msg):
+		return m, m.req(ipc.Request{Cmd: "shuffle"})
+	case m.is("repeat", msg):
+		return m, m.req(ipc.Request{Cmd: "repeat"})
+	case m.is("toggle_viz", msg):
+		m.vizOn = !m.vizOn
+		return m, nil
+	case m.is("switch_panel", msg):
+		if m.focus == panelLibrary {
+			m.focus = panelQueue
+		} else {
+			m.focus = panelLibrary
+		}
+		m.syncFilterInput()
+		return m, nil
+	case m.is("filter", msg):
+		m.filterMode = true
+		m.syncFilterInput()
+		m.filterInput.Focus()
+		return m, textinput.Blink
+	}
+
+	// Teclas dependientes del panel enfocado.
+	if m.focus == panelLibrary {
+		return m.handleLibraryKey(msg)
+	}
+	return m.handleQueueKey(msg)
+}
+
+// syncFilterInput carga en el input el filtro del panel enfocado.
+func (m *Model) syncFilterInput() {
+	if m.focus == panelLibrary {
+		m.filterInput.SetValue(m.tree.filter)
+	} else {
+		m.filterInput.SetValue(m.queueFilter)
+	}
+}
+
+func (m *Model) applyFilter(val string) {
+	if m.focus == panelLibrary {
+		m.tree.filter = val
+		m.tree.flatten()
+		m.tree.offset = 0
+		m.tree.cursor = 0
+	} else {
+		m.queueFilter = val
+		m.queueCursor = 0
+		m.queueOffset = 0
+	}
+}
+
+func (m *Model) handleLibraryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	pageH := m.libPageH()
+	switch msg.String() {
+	case "up", "k":
+		m.tree.move(-1, pageH)
+	case "down", "j":
+		m.tree.move(1, pageH)
+	case "pgup":
+		m.tree.move(-pageH, pageH)
+	case "pgdown":
+		m.tree.move(pageH, pageH)
+	case "home":
+		m.tree.cursor = 0
+		m.tree.scrollTo(pageH)
+	case "end":
+		m.tree.cursor = len(m.tree.rows) - 1
+		m.tree.scrollTo(pageH)
+	case "enter":
+		n := m.tree.current()
+		if n == nil {
+			return m, nil
+		}
+		if n.kind == trackNode {
+			return m, m.req(ipc.Request{Cmd: "playnow", Paths: []string{n.track.Path}})
+		}
+		m.tree.toggle()
+	default:
+		if m.is("add", msg) {
+			n := m.tree.current()
+			if n == nil {
+				return m, nil
+			}
+			var paths []string
+			for _, t := range n.tracks() {
+				paths = append(paths, t.Path)
+			}
+			return m, m.req(ipc.Request{Cmd: "add", Paths: paths})
+		}
+	}
+	return m, nil
+}
+
+// visibleQueue devuelve los índices reales de la cola que pasan el filtro.
+func (m *Model) visibleQueue() []int {
+	idx := make([]int, 0, len(m.queue))
+	q := library.Fold(m.queueFilter)
+	for i, t := range m.queue {
+		if q == "" || containsAll(library.Fold(t.Title+" "+t.Artist+" "+t.Album), q) {
+			idx = append(idx, i)
+		}
+	}
+	return idx
+}
+
+func (m *Model) handleQueueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	vis := m.visibleQueue()
+	pageH := m.queuePageH()
+	clamp := func() {
+		if m.queueCursor >= len(vis) {
+			m.queueCursor = len(vis) - 1
+		}
+		if m.queueCursor < 0 {
+			m.queueCursor = 0
+		}
+		if m.queueCursor < m.queueOffset {
+			m.queueOffset = m.queueCursor
+		}
+		if m.queueCursor >= m.queueOffset+pageH {
+			m.queueOffset = m.queueCursor - pageH + 1
+		}
+	}
+	switch msg.String() {
+	case "up", "k":
+		m.queueCursor--
+		clamp()
+	case "down", "j":
+		m.queueCursor++
+		clamp()
+	case "pgup":
+		m.queueCursor -= pageH
+		clamp()
+	case "pgdown":
+		m.queueCursor += pageH
+		clamp()
+	case "home":
+		m.queueCursor = 0
+		clamp()
+	case "end":
+		m.queueCursor = len(vis) - 1
+		clamp()
+	case "enter":
+		if m.queueCursor < len(vis) {
+			return m, m.req(ipc.Request{Cmd: "jump", Index: vis[m.queueCursor]})
+		}
+	default:
+		if m.is("remove", msg) && m.queueCursor < len(vis) {
+			return m, m.req(ipc.Request{Cmd: "remove", Index: vis[m.queueCursor]})
+		}
+	}
+	return m, nil
+}

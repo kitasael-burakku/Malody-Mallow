@@ -50,12 +50,41 @@ sudo pacman -S mpv pipewire pipewire-pulse go   # pw-record viene con pipewire
 **Ubuntu / Debian**
 
 ```sh
-sudo apt install mpv pipewire golang-go   # o: pulseaudio-utils en vez de pipewire
+sudo apt install mpv pipewire git   # o: pulseaudio-utils en vez de pipewire
+sudo snap install go --classic      # el golang-go de apt es viejo (1.22 en Ubuntu 24.04)
 ```
 
-> Ubuntu/Debian suelen traer una versión de Go más antigua que la
-> requerida. Si `go version` marca menos de 1.25, instálalo desde
-> https://go.dev/dl/ o con `sudo snap install go --classic`.
+En Debian (sin snap) instala Go desde <https://go.dev/dl/>: el `golang-go`
+de apt no llega a 1.25 y el paquete desactiva la descarga automática de
+toolchains, así que `go build` falla con `go.mod requires go >= 1.25.0`.
+
+**Fedora**
+
+```sh
+sudo dnf install mpv pipewire-utils golang git   # mpv sin RPM Fusion; pw-record viene en pipewire-utils
+```
+
+> Desde Fedora 43 el paquete `golang` también fija `GOTOOLCHAIN=local` (no
+> descarga otro toolchain automáticamente), igual que Debian. Ahora mismo no
+> afecta porque Fedora 43/44 ya trae Go 1.25/1.26, pero si en el futuro este
+> proyecto sube el mínimo de Go y `go build` falla con
+> `toolchain not available`, instala la versión nueva desde
+> <https://go.dev/dl/>.
+
+**openSUSE**
+
+```sh
+sudo zypper install mpv pipewire pipewire-tools go git
+```
+
+En Tumbleweed `go` ya es ≥ 1.25; en Leap puede ser más viejo — si
+`go version` no llega, instala desde <https://go.dev/dl/>.
+
+**Void Linux**
+
+```sh
+sudo xbps-install -S mpv pipewire go git
+```
 
 **Clonar y compilar**
 
@@ -63,8 +92,15 @@ sudo apt install mpv pipewire golang-go   # o: pulseaudio-utils en vez de pipewi
 git clone https://github.com/kitasael-burakku/maly.git
 cd maly
 go build -o maly ./cmd/maly
-install -Dm755 maly ~/.local/bin/maly   # o donde prefieras en tu PATH
+install -Dm755 maly ~/.local/bin/maly
 ```
+
+Si después de esto sale `maly: command not found`: en Ubuntu/Debian una
+instalación limpia no trae `~/.local/bin`, y `~/.profile` solo lo agrega
+al PATH si la carpeta ya existía al iniciar sesión — el `install` funciona,
+pero tu shell actual no la ve. Recarga el perfil (`source ~/.profile`) o
+abre una sesión nueva. Alternativa que no depende del PATH del usuario:
+`sudo install -Dm755 maly /usr/local/bin/maly`.
 
 Sin `pw-record`/`parec` maly funciona igual; el visualizador degrada a una
 animación y te lo avisa una vez.

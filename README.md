@@ -1,24 +1,15 @@
 # maly
 
+![version](https://img.shields.io/badge/version-0.3.0-blue)
+![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
+
 Reproductor de música local para terminal, estilo btop/lazygit: TUI con
 paneles, servicio en segundo plano con socket Unix y CLI tipo
 `mpc`/`playerctl`, todo en un solo binario.
 
-```
-╭─ Biblioteca (142) ─────────────╮╭─ Cola (12) ────────────────────╮
-│▾ kaisoyeon                     ││▶   1. kaisoyeon — La Presiento │
-│  ▾ (sin álbum)                 ││    2. Proporción Áurea         │
-│     La Presiento               ││    3. Amanecer                 │
-╰────────────────────────────────╯╰────────────────────────────────╯
-╭─ Visualizador ─────────────────────────────────────────────────╮
-│            ▂▄▆█▅▂      ▁▃▅▂        ▂▄▂                         │
-│▃▃▂▂▂▄▅▆▇███████████▆▅▄▅█████▅▄▃▃▄▅█████▄▃▂▂▂▂▁▁▁               │
-╰────────────────────────────────────────────────────────────────╯
-╭─ Ahora suena ──────────────────────────────────────────────────╮
-│ ▶ kaisoyeon — La Presiento        01:23/03:17  vol 80%  ⇄ ⟲    │
-│━━━━━━━━━━━━━━━━━━━─────────────────────────────────────────────│
-╰────────────────────────────────────────────────────────────────╯
-```
+## Screenshots
+
+![Vista previa de maly: biblioteca, cola, visualizador y reproducción actual](pictures/maly.jpg)
 
 ## Características
 
@@ -46,24 +37,31 @@ paneles, servicio en segundo plano con socket Unix y CLI tipo
 
 ## Instalación
 
-Dependencias de sistema: `mpv` (audio) y, para el visualizador, PipeWire
-o PulseAudio con sus herramientas de línea de comandos.
+Dependencias de sistema: `mpv` (audio), Go ≥ 1.25 (para compilar) y, para
+el visualizador, PipeWire o PulseAudio con sus herramientas de línea de
+comandos.
 
 **Arch Linux**
 
 ```sh
-sudo pacman -S mpv pipewire pipewire-pulse   # pw-record viene con pipewire
+sudo pacman -S mpv pipewire pipewire-pulse go   # pw-record viene con pipewire
 ```
 
 **Ubuntu / Debian**
 
 ```sh
-sudo apt install mpv pipewire-bin      # o: sudo apt install mpv pulseaudio-utils
+sudo apt install mpv pipewire golang-go   # o: pulseaudio-utils en vez de pipewire
 ```
 
-**Compilar maly** (Go ≥ 1.22):
+> Ubuntu/Debian suelen traer una versión de Go más antigua que la
+> requerida. Si `go version` marca menos de 1.25, instálalo desde
+> https://go.dev/dl/ o con `sudo snap install go --classic`.
+
+**Clonar y compilar**
 
 ```sh
+git clone https://github.com/kitasael-burakku/maly.git
+cd maly
 go build -o maly ./cmd/maly
 install -Dm755 maly ~/.local/bin/maly   # o donde prefieras en tu PATH
 ```

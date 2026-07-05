@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -106,6 +107,17 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.conReq(ipc.Request{Cmd: "add", Query: strings.Join(args, " ")})
+	case "jump":
+		if len(args) != 1 {
+			m.conErr(i18n.T("con.usage_jump"))
+			return m, nil
+		}
+		n, err := strconv.Atoi(args[0])
+		if err != nil || n < 1 {
+			m.conErr(i18n.T("con.usage_jump"))
+			return m, nil
+		}
+		return m, m.conReq(ipc.Request{Cmd: "jump", Index: n - 1})
 	case "vol":
 		if len(args) != 1 {
 			m.conErr(i18n.T("con.usage_vol"))
@@ -146,6 +158,7 @@ func (m *Model) conHelp() {
 		{"play [q]", i18n.T("cli.play")},
 		{"pause / toggle / stop", i18n.T("cli.toggle")},
 		{"next / prev", i18n.T("cli.next") + " · " + i18n.T("cli.prev")},
+		{"jump <pos>", i18n.T("cli.jump")},
 		{"add <q>", i18n.T("cli.add")},
 		{"queue / status", i18n.T("cli.queue") + " · " + i18n.T("cli.status")},
 		{"vol <0-100|+N|-N>", i18n.T("cli.vol")},

@@ -80,8 +80,8 @@ var table = map[string][2]string{
 	"tui.queue_empty":     {" (queue empty — `a` adds from the library)", " (cola vacía — `a` agrega desde la biblioteca)"},
 	"tui.nothing":         {" ⏹ nothing playing — enter in the Library plays", " ⏹ nada suena — enter en la Biblioteca reproduce"},
 	"tui.footer":          {" tab panels · enter play · a add · space pause · / filter · ctrl+p palette · ctrl+o songs · ? help · q quit", " tab paneles · enter reproduce · a agrega · espacio pausa · / filtra · ctrl+p paleta · ctrl+o canciones · ? ayuda · q salir"},
-	"tui.footer_embedded": {" (embedded daemon)", " (demonio embebido)"},
-	"tui.no_daemon":       {" the daemon is not responding…", " el demonio no responde…"},
+	"tui.footer_embedded": {" (embedded daemon)", " (servicio integrado)"},
+	"tui.no_daemon":       {" the daemon is not responding…", " el servicio no responde…"},
 	"tui.viz_fake":        {"pw-record/parec not found: visualizer in animation mode", "sin pw-record/parec: visualizador en modo animación"},
 	"tui.lib_err":         {"library: %s", "biblioteca: %s"},
 	"tui.lib_empty_flash": {"Library is empty: run `maly scan` or check music_dir in the config", "Biblioteca vacía: ejecuta `maly scan` o revisa music_dir en el config"},
@@ -104,6 +104,8 @@ var table = map[string][2]string{
 	"help.palette":        {"command palette", "paleta de comandos"},
 	"help.songs":          {"song selector", "selector de canciones"},
 	"help.quit":           {"quit", "salir"},
+	"help.vim_nav":        {"navigate (also arrows)", "navegar (también flechas)"},
+	"help.jump_scroll":    {"top / bottom · half page", "inicio / final · media página"},
 	"help.close":          {"  any key closes this help", "  cualquier tecla cierra esta ayuda"},
 	"help.show":           {"show this help", "mostrar esta ayuda"},
 	"help.space":          {"space", "espacio"},
@@ -120,6 +122,7 @@ var table = map[string][2]string{
 	"con.help_head":   {"available commands:", "comandos disponibles:"},
 	"con.help_local":  {"also: viz (toggle visualizer) · cls (clear output) · quit", "también: viz (alternar visualizador) · cls (limpiar salida) · quit"},
 	"con.usage_add":   {"usage: add <query|path>", "uso: add <consulta|ruta>"},
+	"con.usage_jump":  {"usage: jump <position> (positions: queue)", "uso: jump <posición> (posiciones: queue)"},
 	"con.usage_vol":   {"usage: vol <0-100|+N|-N>", "uso: vol <0-100|+N|-N>"},
 	"con.usage_seek":  {"usage: seek <+N|-N|mm:ss>", "uso: seek <+N|-N|mm:ss>"},
 	"con.queue_empty": {"the queue is empty", "la cola está vacía"},
@@ -128,12 +131,13 @@ var table = map[string][2]string{
 	"con.scanning":    {"scanning library…", "escaneando biblioteca…"},
 	"con.ok":          {"ok", "ok"},
 
-	// ---- TUI: selector de canciones ----
+	// ---- TUI: selector de canciones y picker genérico ----
 	"songs.title": {"Songs", "Canciones"},
 	"songs.ph":    {"search song…", "buscar canción…"},
 	"songs.hint":  {"%d result(s) · enter plays · tab adds · esc closes", "%d resultado(s) · enter reproduce · tab agrega · esc cierra"},
-	"songs.none":  {"  no matches", "  sin coincidencias"},
 	"songs.added": {"added: %s", "agregada: %s"},
+	"sel.title":   {"Select Track", "Elegir canción"},
+	"sel.none":    {"  no matches", "  sin coincidencias"},
 
 	// ---- Estado (CLI y consola) ----
 	"st.stopped": {"⏹ nothing playing  vol %d%%  shuffle: %s  repeat: %s  queue: %d track(s)", "⏹ nada suena  vol %d%%  shuffle: %s  repeat: %s  cola: %d pista(s)"},
@@ -142,11 +146,13 @@ var table = map[string][2]string{
 	// ---- CLI: ayuda ----
 	"cli.tagline":           {"a local music player for your terminal", "reproductor de música local para tu terminal"},
 	"cli.sec_usage":         {"USAGE", "USO"},
-	"cli.usage_tui":         {"open the TUI (starts the daemon if needed)", "abre la TUI (arranca el demonio si hace falta)"},
-	"cli.usage_daemon":      {"run only the daemon (headless)", "arranca solo el demonio (headless)"},
+	"cli.usage_tui":         {"open the TUI (starts the daemon if needed)", "abre la TUI (inicia el servicio si hace falta)"},
+	"cli.usage_daemon":      {"run only the daemon (headless)", "inicia solo el servicio en segundo plano"},
 	"cli.sec_playback":      {"PLAYBACK", "REPRODUCCIÓN"},
-	"cli.sec_playback_note": {"require a running daemon or an open TUI", "requieren demonio corriendo o TUI abierta"},
+	"cli.sec_playback_note": {"require a running daemon or an open TUI", "requieren el servicio corriendo o la TUI abierta"},
 	"cli.play":              {"resume, or search the library and play", "reanuda; con consulta busca y reproduce"},
+	"cli.select":            {"pick a track with fuzzy search and play it", "elige una canción con búsqueda fuzzy y reprodúcela"},
+	"cli.jump":              {"jump to a queue position", "salta a una posición de la cola"},
 	"cli.pause":             {"pause playback", "pausa la reproducción"},
 	"cli.toggle":            {"toggle play/pause", "alterna play/pausa"},
 	"cli.stop":              {"stop playback", "detiene la reproducción"},
@@ -161,7 +167,7 @@ var table = map[string][2]string{
 	"cli.repeat":            {"cycle or set repeat mode", "alterna o fija el modo repeat"},
 	"cli.clear":             {"clear the queue", "vacía la cola"},
 	"cli.sec_library":       {"LIBRARY", "BIBLIOTECA"},
-	"cli.sec_library_note":  {"work without the daemon", "funcionan sin demonio"},
+	"cli.sec_library_note":  {"work without the daemon", "funcionan sin el servicio"},
 	"cli.scan":              {"(re)scan the music library", "(re)escanea la biblioteca"},
 	"cli.search":            {"search by title/artist/album", "busca por título/artista/álbum"},
 	"cli.playlist":          {"manage playlists (list|create|delete|add|play)", "gestiona playlists (list|create|delete|add|play)"},
@@ -171,18 +177,26 @@ var table = map[string][2]string{
 	"cli.lang_cmd":          {"change the interface language", "cambia el idioma de la interfaz"},
 	"cli.lang_set":          {"Language set to %s", "Idioma cambiado a %s"},
 	"cli.lang_invalid":      {"invalid language %q (use en or es)", "idioma inválido %q (usa en o es)"},
+	"cli.controls":          {"show or set the controls preset", "muestra o cambia el esquema de controles"},
+	"cli.controls_head":     {"Control presets:", "Esquemas de controles:"},
+	"cli.controls_hint":     {"switch with: maly controls <preset>", "cambia con: maly controls <preset>"},
+	"cli.controls_set":      {"Controls set to %q", "Controles cambiados a %q"},
+	"cli.controls_invalid":  {"unknown preset %q (available: %s)", "esquema desconocido %q (disponibles: %s)"},
+	"cli.preset_default":    {"arrows + letters (the classic keys)", "flechas + letras (teclas clásicas)"},
+	"cli.preset_vim":        {"x removes, < / > prev/next (hjkl, gg, G always work)", "x quita, < / > anterior/siguiente (hjkl, gg y G siempre funcionan)"},
 	"cli.sec_examples":      {"EXAMPLES", "EJEMPLOS"},
 	"cli.sec_keys":          {"TUI KEYS", "ATAJOS EN LA TUI"},
 	"cli.unknown":           {"maly: unknown subcommand %q", "maly: subcomando desconocido %q"},
 	"cli.more":              {"run `maly -h` for help", "ejecuta `maly -h` para ver la ayuda"},
 
 	// ---- CLI: cliente y utilidades ----
-	"cli.no_daemon":        {"the maly daemon is not running; open `maly` or run `maly daemon`", "el demonio de maly no está corriendo; abre `maly` o lanza `maly daemon`"},
+	"cli.no_daemon":        {"the maly daemon is not running; open `maly` or run `maly daemon`", "el servicio de maly no está corriendo; abre `maly` o ejecuta `maly daemon`"},
 	"cli.usage_add_cmd":    {"usage: maly add <query|path>", "uso: maly add <consulta|ruta>"},
+	"cli.usage_jump_cmd":   {"usage: maly jump <position>  (positions: maly queue)", "uso: maly jump <posición>  (posiciones: maly queue)"},
 	"cli.usage_vol_cmd":    {"usage: maly vol <0-100|+N|-N>", "uso: maly vol <0-100|+N|-N>"},
 	"cli.usage_seek_cmd":   {"usage: maly seek <+N|-N|mm:ss>", "uso: maly seek <+N|-N|mm:ss>"},
 	"cli.usage_search":     {"usage: maly search <query>", "uso: maly search <consulta>"},
-	"cli.daemon_listening": {"maly daemon listening on %s", "maly daemon escuchando en %s"},
+	"cli.daemon_listening": {"maly daemon listening on %s", "servicio de maly escuchando en %s"},
 	"cli.queue_empty":      {"The queue is empty. Use maly add <query> or maly play <query>.", "La cola está vacía. Usa maly add <consulta> o maly play <consulta>."},
 	"cli.scan_start":       {"Scanning %s ...", "Escaneando %s ..."},
 	"cli.scan_warn":        {"  warning: %s", "  aviso: %s"},
@@ -192,7 +206,7 @@ var table = map[string][2]string{
 	"cli.tbl_header":       {"ID\tARTIST\tALBUM\t#\tTITLE", "ID\tARTISTA\tÁLBUM\t#\tTÍTULO"},
 
 	// ---- CLI: playlists ----
-	"pl.usage":        {"usage:\n  maly playlist list                  list playlists\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist play <name>           play the playlist (needs daemon)", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist play <nombre>             reproduce la playlist (requiere demonio)"},
+	"pl.usage":        {"usage:\n  maly playlist list                  list playlists\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist play <name>           play the playlist (needs daemon)", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist play <nombre>             reproduce la playlist (requiere el servicio)"},
 	"pl.usage_play":   {"usage: maly playlist play <name>", "uso: maly playlist play <nombre>"},
 	"pl.usage_create": {"usage: maly playlist create <name>", "uso: maly playlist create <nombre>"},
 	"pl.usage_delete": {"usage: maly playlist delete <name>", "uso: maly playlist delete <nombre>"},
@@ -206,7 +220,7 @@ var table = map[string][2]string{
 	"pl.unknown":      {"unknown playlist subcommand %q", "subcomando playlist desconocido %q"},
 
 	// ---- Demonio ----
-	"d.already":          {"another maly daemon is already running", "ya hay un demonio de maly corriendo"},
+	"d.already":          {"another maly daemon is already running", "ya hay un servicio de maly corriendo"},
 	"d.invalid_req":      {"invalid request: %s", "petición inválida: %s"},
 	"d.playing_n":        {"Playing %s (%d queued)", "Reproduciendo %s (%d en cola)"},
 	"d.playing":          {"Playing %s", "Reproduciendo %s"},
@@ -240,10 +254,10 @@ var table = map[string][2]string{
 	"d.no_audio":         {"no audio files in %s", "no hay audio en %s"},
 
 	// ---- IPC y arranque ----
-	"ipc.send":         {"sending to the daemon", "enviando al demonio"},
-	"ipc.read":         {"reading daemon response", "leyendo respuesta del demonio"},
-	"ipc.invalid":      {"invalid daemon response", "respuesta inválida del demonio"},
-	"cli.embedded_err": {"starting embedded daemon", "arrancando el demonio embebido"},
+	"ipc.send":         {"sending to the daemon", "enviando al servicio"},
+	"ipc.read":         {"reading daemon response", "leyendo respuesta del servicio"},
+	"ipc.invalid":      {"invalid daemon response", "respuesta inválida del servicio"},
+	"cli.embedded_err": {"starting embedded daemon", "iniciando el servicio integrado"},
 
 	// ---- Config ----
 	"cfg.write_default": {"writing default config", "escribiendo config por defecto"},

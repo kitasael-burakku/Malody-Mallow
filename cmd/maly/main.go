@@ -16,7 +16,7 @@ import (
 	"maly/internal/library"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 func main() {
 	// Fijar el idioma antes de imprimir nada: todo texto sale de i18n.
@@ -44,7 +44,11 @@ func main() {
 		err = runScan(args)
 	case "search":
 		err = runSearch(args)
-	case "play", "pause", "toggle", "stop", "next", "prev",
+	case "select":
+		err = runSelect()
+	case "controls":
+		err = runControls(args)
+	case "play", "pause", "toggle", "stop", "next", "prev", "jump", "clear",
 		"add", "queue", "status", "vol", "seek", "shuffle", "repeat", "playlist":
 		err = runClient(cmd, args)
 	case "version", "-v", "--version":
@@ -96,13 +100,16 @@ func helpText() string {
 
 	sec(i18n.T("cli.sec_playback"), i18n.T("cli.sec_playback_note"))
 	row("play [<query>]", "cli.play")
+	row("select", "cli.select")
 	row("pause", "cli.pause")
 	row("toggle", "cli.toggle")
 	row("stop", "cli.stop")
 	row("next", "cli.next")
 	row("prev", "cli.prev")
+	row("jump <pos>", "cli.jump")
 	row("add <query|path>", "cli.add")
 	row("queue", "cli.queue")
+	row("clear", "cli.clear")
 	row("status", "cli.status")
 	row("vol <0-100|+N|-N>", "cli.vol")
 	row("seek <+N|-N|mm:ss>", "cli.seek")
@@ -115,12 +122,14 @@ func helpText() string {
 	row("playlist <sub> [args]", "cli.playlist")
 
 	sec(i18n.T("cli.sec_other"), "")
+	row("controls [<preset>]", "cli.controls")
 	row("lang [en|es], -l", "cli.lang_cmd")
 	row("help, -h", "cli.help_cmd")
 	row("version, -v", "cli.version_cmd")
 
 	sec(i18n.T("cli.sec_examples"), "")
 	example("maly play luna")
+	example("maly jump 3")
 	example("maly add ~/Music/album")
 	example("maly vol +10")
 	example("maly seek 1:23")
@@ -156,6 +165,41 @@ func runLang(args []string) error {
 	}
 	i18n.Set(code) // el mensaje de confirmación ya sale en el idioma nuevo
 	fmt.Println(i18n.Tf("cli.lang_set", langName(code)))
+	return nil
+}
+
+// runControls lista los presets de controles o fija uno en el config.
+func runControls(args []string) error {
+	if len(args) == 0 {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		active := cfg.Controls
+		if !config.ValidPreset(active) {
+			active = "default"
+		}
+		accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
+		dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+		fmt.Println(accent.Render(i18n.T("cli.controls_head")))
+		for _, name := range config.PresetNames() {
+			mark := "  "
+			if name == active {
+				mark = "* "
+			}
+			fmt.Printf("%s%-10s %s\n", mark, name, dim.Render(i18n.T("cli.preset_"+name)))
+		}
+		fmt.Println(dim.Render(i18n.T("cli.controls_hint")))
+		return nil
+	}
+	name := args[0]
+	if !config.ValidPreset(name) {
+		return fmt.Errorf("%s", i18n.Tf("cli.controls_invalid", name, strings.Join(config.PresetNames(), ", ")))
+	}
+	if err := config.SaveControls(name); err != nil {
+		return err
+	}
+	fmt.Println(i18n.Tf("cli.controls_set", name))
 	return nil
 }
 

@@ -166,3 +166,33 @@ func (t *libTree) toggle() {
 		t.flatten()
 	}
 }
+
+// expand (vim l) expande el nodo bajo el cursor; en pistas o con filtro
+// activo no hace nada.
+func (t *libTree) expand() {
+	if n := t.current(); n != nil && t.filter == "" && n.kind != trackNode && !n.expanded {
+		n.expanded = true
+		t.flatten()
+	}
+}
+
+// collapse (vim h) pliega el nodo bajo el cursor; si ya está plegado o es
+// una pista, sube al nodo padre.
+func (t *libTree) collapse(pageH int) {
+	n := t.current()
+	if n == nil || t.filter != "" {
+		return
+	}
+	if n.kind != trackNode && n.expanded {
+		n.expanded = false
+		t.flatten()
+		return
+	}
+	for i := t.cursor - 1; i >= 0; i-- {
+		if t.rows[i].kind < n.kind { // el padre es el anterior menos profundo
+			t.cursor = i
+			break
+		}
+	}
+	t.scrollTo(pageH)
+}

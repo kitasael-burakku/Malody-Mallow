@@ -64,12 +64,12 @@ type Model struct {
 	conInput    textinput.Model
 	conLines    []string
 
-	// Selector de canciones (ctrl+o).
-	songsOpen   bool
-	songInput   textinput.Model
-	songItems   []songItem
-	songMatches []int
-	songCursor  int
+	// Selector de canciones (ctrl+o): picker fuzzy genérico.
+	songsOpen bool
+	songs     *picker
+
+	// gPending marca que se pulsó una `g` esperando la segunda (gg = inicio).
+	gPending bool
 }
 
 type tickMsg time.Time
@@ -230,7 +230,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.tree = buildTree(msg.tracks)
 		if m.songsOpen {
-			m.buildSongs()
+			m.songs.setItems(songItems(m.tree.all))
 		}
 		if len(msg.tracks) == 0 {
 			m.setFlash(i18n.T("tui.lib_empty_flash"), true)
@@ -298,6 +298,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.is("songs", msg) {
 		return m, m.openSongs()
+	}
+
+	// Cualquier tecla distinta de `g` rompe la secuencia gg pendiente; los
+	// paneles la consumen al recibir la segunda `g`.
+	if msg.String() != "g" {
+		m.gPending = false
 	}
 
 	if m.filterMode {
@@ -404,10 +410,29 @@ func (m *Model) handleLibraryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.tree.move(-pageH, pageH)
 	case "pgdown":
 		m.tree.move(pageH, pageH)
+	case "ctrl+u":
+		m.tree.move(-(pageH+1)/2, pageH)
+	case "ctrl+d":
+		m.tree.move((pageH+1)/2, pageH)
+	case "h":
+		m.tree.collapse(pageH)
+	case "l":
+		m.tree.expand()
+	case "g":
+		if m.gPending {
+			m.gPending = false
+			m.tree.cursor = 0
+			m.tree.scrollTo(pageH)
+		} else {
+			m.gPending = true
+		}
+	case "gg": // dos g rápidas llegan fusionadas en un solo KeyMsg
+		m.tree.cursor = 0
+		m.tree.scrollTo(pageH)
 	case "home":
 		m.tree.cursor = 0
 		m.tree.scrollTo(pageH)
-	case "end":
+	case "end", "G":
 		m.tree.cursor = len(m.tree.rows) - 1
 		m.tree.scrollTo(pageH)
 	case "enter":
@@ -477,10 +502,27 @@ func (m *Model) handleQueueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "pgdown":
 		m.queueCursor += pageH
 		clamp()
+	case "ctrl+u":
+		m.queueCursor -= (pageH + 1) / 2
+		clamp()
+	case "ctrl+d":
+		m.queueCursor += (pageH + 1) / 2
+		clamp()
+	case "g":
+		if m.gPending {
+			m.gPending = false
+			m.queueCursor = 0
+			clamp()
+		} else {
+			m.gPending = true
+		}
+	case "gg": // dos g rápidas llegan fusionadas en un solo KeyMsg
+		m.queueCursor = 0
+		clamp()
 	case "home":
 		m.queueCursor = 0
 		clamp()
-	case "end":
+	case "end", "G":
 		m.queueCursor = len(vis) - 1
 		clamp()
 	case "enter":

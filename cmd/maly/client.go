@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -52,6 +53,17 @@ func runClient(cmd string, args []string) error {
 			return errors.New(i18n.T("cli.usage_add_cmd"))
 		}
 		req.Query = strings.Join(args, " ")
+	case "jump":
+		// El usuario indica la posición 1-based que muestra `maly queue`;
+		// el servicio usa índices 0-based y valida el rango.
+		if len(args) != 1 {
+			return errors.New(i18n.T("cli.usage_jump_cmd"))
+		}
+		n, convErr := strconv.Atoi(args[0])
+		if convErr != nil || n < 1 {
+			return errors.New(i18n.T("cli.usage_jump_cmd"))
+		}
+		req.Index = n - 1
 	case "vol":
 		if len(args) != 1 {
 			return errors.New(i18n.T("cli.usage_vol_cmd"))

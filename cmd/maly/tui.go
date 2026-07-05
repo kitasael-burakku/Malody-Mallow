@@ -33,3 +33,12 @@ func runTUI(askLang bool) error {
 	}
 	return tui.Run(cfg, embedded)
 }
+
+// runSelect abre el mini selector fuzzy de `maly select` (sin TUI completa).
+func runSelect() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	return tui.RunSelect(cfg)
+}

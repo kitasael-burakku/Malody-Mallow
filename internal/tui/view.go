@@ -361,6 +361,8 @@ func (m *Model) helpView() string {
 		{k["add"], i18n.T("help.add")},
 		{k["remove"], i18n.T("help.remove")},
 		{k["filter"], i18n.T("help.filter")},
+		{"h j k l", i18n.T("help.vim_nav")},
+		{"gg/G ctrl+d/u", i18n.T("help.jump_scroll")},
 		{k["shuffle"] + " / " + k["repeat"], i18n.T("help.shuffle_repeat")},
 		{k["toggle_viz"], i18n.T("help.toggle_viz")},
 		{k["palette"], i18n.T("help.palette")},
@@ -380,7 +382,7 @@ func (m *Model) helpView() string {
 	}
 	b.WriteString("\n" + m.st.dim.Render(i18n.T("help.close")))
 	lines := strings.Split(b.String(), "\n")
-	w := 46
+	w := 50
 	box := m.st.panel(i18n.T("tui.help_title"), lines, w, len(lines)+2, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -32,6 +33,7 @@ type Visualizer struct {
 type Config struct {
 	MusicDir   string            `toml:"music_dir"`
 	Language   string            `toml:"language"` // "" = preguntar al abrir la TUI; "en" | "es"
+	Controls   string            `toml:"controls"` // preset de teclas: "default" | "vim"
 	Theme      Theme             `toml:"theme"`
 	Visualizer Visualizer        `toml:"visualizer"`
 	Keys       map[string]string `toml:"keys"`
@@ -62,6 +64,35 @@ func DefaultKeys() map[string]string {
 	}
 }
 
+// controlPresets define cada esquema de controles como overrides sobre
+// DefaultKeys; agregar un preset nuevo es agregar una entrada aquí (y su
+// descripción cli.preset_<nombre> en i18n). La navegación vim (hjkl, gg, G,
+// ctrl+d/u) está siempre activa, independiente del preset.
+var controlPresets = map[string]map[string]string{
+	"default": {},
+	"vim": {
+		"remove": "x",
+		"next":   ">",
+		"prev":   "<",
+	},
+}
+
+// PresetNames devuelve los presets disponibles en orden estable.
+func PresetNames() []string {
+	names := make([]string, 0, len(controlPresets))
+	for n := range controlPresets {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ValidPreset indica si name es un preset de controles conocido.
+func ValidPreset(name string) bool {
+	_, ok := controlPresets[name]
+	return ok
+}
+
 func Default() Config {
 	return Config{
 		MusicDir: "~/Music",
@@ -85,6 +116,7 @@ func Default() Config {
 
 const defaultTOML = `music_dir = "~/Music"
 language = ""             # "" = preguntar al abrir la TUI; "en" | "es"
+controls = "default"      # esquema de teclas: default | vim (maly controls)
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal
@@ -163,9 +195,29 @@ func ExpandTilde(p string) string {
 	return p
 }
 
+// resolveKeys deja en c.Keys el mapa final: defaults ← preset de controles
+// ← [keys] del usuario (lo explícito siempre gana). c.Keys debe traer solo
+// las entradas escritas por el usuario.
+func (c *Config) resolveKeys() {
+	keys := DefaultKeys()
+	for k, v := range controlPresets[c.Controls] {
+		keys[k] = v
+	}
+	for k, v := range c.Keys {
+		keys[k] = v
+	}
+	c.Keys = keys
+}
+
 // Load lee el config; si no existe lo crea con los defaults.
-func Load() (Config, error) {
-	cfg := Default()
+func Load() (cfg Config, retErr error) {
+	cfg = Default()
+	// El decode debe llenar Keys solo con lo que el usuario escribió en
+	// [keys]; resolveKeys mezcla después defaults y preset (retorno con
+	// nombre para que también aplique en las salidas tempranas).
+	cfg.Keys = nil
+	defer func() { cfg.resolveKeys() }()
+
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -183,12 +235,6 @@ func Load() (Config, error) {
 	if _, err := toml.Decode(string(data), &cfg); err != nil {
 		return cfg, fmt.Errorf("%s: %w", i18n.Tf("cfg.invalid", path), err)
 	}
-	// Completar keybindings que falten con los defaults.
-	keys := DefaultKeys()
-	for k, v := range cfg.Keys {
-		keys[k] = v
-	}
-	cfg.Keys = keys
 	if cfg.Visualizer.BarsGravity <= 0 || cfg.Visualizer.BarsGravity >= 1 {
 		cfg.Visualizer.BarsGravity = 0.92
 	}
@@ -198,9 +244,15 @@ func Load() (Config, error) {
 // MusicPath devuelve music_dir con ~ expandido.
 func (c Config) MusicPath() string { return ExpandTilde(c.MusicDir) }
 
-// SaveLanguage persiste solo la clave language en config.toml, editando la
-// línea existente (o insertándola arriba) para no tocar el resto del archivo.
-func SaveLanguage(code string) error {
+// SaveLanguage persiste solo la clave language en config.toml.
+func SaveLanguage(code string) error { return saveTopLevel("language", code) }
+
+// SaveControls persiste solo el preset de controles en config.toml.
+func SaveControls(name string) error { return saveTopLevel("controls", name) }
+
+// saveTopLevel edita (o inserta arriba) una clave del bloque top-level del
+// TOML sin tocar el resto del archivo.
+func saveTopLevel(key, value string) error {
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -214,16 +266,16 @@ func SaveLanguage(code string) error {
 	for i, l := range lines {
 		trim := strings.TrimSpace(l)
 		if strings.HasPrefix(trim, "[") {
-			break // solo el bloque top-level puede tener language
+			break // solo el bloque top-level puede tener la clave
 		}
-		if strings.HasPrefix(trim, "language") {
-			lines[i] = fmt.Sprintf("language = %q", code)
+		if strings.HasPrefix(trim, key) {
+			lines[i] = fmt.Sprintf("%s = %q", key, value)
 			done = true
 			break
 		}
 	}
 	if !done {
-		lines = append([]string{fmt.Sprintf("language = %q", code)}, lines...)
+		lines = append([]string{fmt.Sprintf("%s = %q", key, value)}, lines...)
 	}
 	if err := os.MkdirAll(ConfigDir(), 0o755); err != nil {
 		return err

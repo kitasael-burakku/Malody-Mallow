@@ -1,15 +1,15 @@
-# maly
+# Malody Mallow
 
 ![version](https://img.shields.io/badge/version-0.3.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 
-Reproductor de música local para terminal, estilo btop/lazygit: TUI con
-paneles, servicio en segundo plano con socket Unix y CLI tipo
-`mpc`/`playerctl`, todo en un solo binario.
+Reproductor de música local para terminal (comando `maly`), estilo
+btop/lazygit: TUI con paneles, servicio en segundo plano con socket Unix
+y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 
 ## Screenshots
 
-![Vista previa de maly: biblioteca, cola, visualizador y reproducción actual](pictures/maly.jpg)
+![Vista previa de Malody Mallow: biblioteca, cola, visualizador y reproducción actual](pictures/maly.jpg)
 
 ## Características
 
@@ -89,8 +89,8 @@ sudo xbps-install -S mpv pipewire go git
 **Clonar y compilar**
 
 ```sh
-git clone https://github.com/kitasael-burakku/maly.git
-cd maly
+git clone https://github.com/kitasael-burakku/Malody-Mallow.git
+cd Malody-Mallow
 go build -o maly ./cmd/maly
 install -Dm755 maly ~/.local/bin/maly
 ```

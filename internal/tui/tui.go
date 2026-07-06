@@ -55,6 +55,9 @@ type Model struct {
 	vizWarned bool
 	vizStyles []lipgloss.Style
 
+	logo        logoModel
+	logoTicking bool
+
 	// Selector inicial de idioma (solo si language = "" en el config).
 	langOpen   bool
 	langCursor int
@@ -106,6 +109,7 @@ func Run(cfg config.Config, embedded bool) error {
 		filterInput: ti,
 		vizOn:       cfg.Visualizer.Enabled,
 		langOpen:    cfg.Language == "",
+		logo:        newLogo(),
 	}
 	m.filterInput.PromptStyle = m.st.accent
 	m.filterInput.TextStyle = m.st.text
@@ -210,7 +214,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flash = ""
 			m.flashUntil = time.Time{}
 		}
-		return m, tea.Batch(m.fetch(), tickCmd())
+		cmds := []tea.Cmd{m.fetch(), tickCmd()}
+		// Rearma la animación del logo si volvió a ser visible (su tick se
+		// autocancela al ocultarse para no consumir CPU).
+		if m.logoVisible() && !m.logoTicking {
+			m.logoTicking = true
+			cmds = append(cmds, logoTickCmd())
+		}
+		return m, tea.Batch(cmds...)
+
+	case logoTickMsg:
+		if !m.logoVisible() {
+			m.logoTicking = false
+			return m, nil
+		}
+		m.logo.tick(m.logoEnergy())
+		return m, logoTickCmd()
 
 	case vizTickMsg:
 		if m.viz != nil && m.vizOn {

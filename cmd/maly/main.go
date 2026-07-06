@@ -52,7 +52,7 @@ func main() {
 		"add", "queue", "status", "vol", "seek", "shuffle", "repeat", "playlist":
 		err = runClient(cmd, args)
 	case "version", "-v", "--version":
-		fmt.Println("maly v" + version)
+		fmt.Println("Malody Mallow (maly) v" + version)
 	case "help", "-h", "--help":
 		fmt.Print(helpText())
 	default:
@@ -92,7 +92,7 @@ func helpText() string {
 		b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(fmt.Sprintf("%-14s", k)), i18n.T(descKey)))
 	}
 
-	b.WriteString(bold.Render("maly") + " " + dim.Render("v"+version) + " — " + i18n.T("cli.tagline") + "\n")
+	b.WriteString(bold.Render("Malody Mallow") + " " + dim.Render("(maly) v"+version) + " — " + i18n.T("cli.tagline") + "\n")
 
 	sec(i18n.T("cli.sec_usage"), "")
 	row("maly", "cli.usage_tui")

@@ -9,6 +9,15 @@ import (
 	"maly/internal/config"
 )
 
+// Paleta "Kitasan Glass · Universal Dark": colores propios de maly (logo)
+// independientes del tema configurable del usuario.
+const (
+	kitasanCyan     = "#7ab8b8"
+	kitasanBlueGray = "#8098a8"
+	kitasanRed      = "#b85c50"
+	kitasanSand     = "#c8b898"
+)
+
 // styles deriva todos los estilos lipgloss del tema del config. Nunca fija
 // colores de fondo: el terminal pone el suyo (transparent = true).
 type styles struct {
@@ -74,7 +83,10 @@ func (s styles) panel(title string, lines []string, w, h int, focused bool) stri
 	innerW := w - 2
 	innerH := h - 2
 
-	label := " " + clip(title, innerW-3) + " "
+	label := ""
+	if title != "" {
+		label = " " + clip(title, innerW-3) + " "
+	}
 	rest := innerW - 1 - lipgloss.Width(label)
 	if rest < 0 {
 		rest = 0

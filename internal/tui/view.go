@@ -17,19 +17,22 @@ const (
 	vizMinRows = 22
 )
 
-// layout reparte la altura: fila superior (biblioteca+cola), visualizador,
-// ahora suena y una línea de pie.
-func (m *Model) layout() (topH, vizH int) {
+// layout reparte la altura: logo (si cabe), fila superior (biblioteca+cola),
+// visualizador, ahora suena y una línea de pie.
+func (m *Model) layout() (topH, vizH, logoH int) {
+	if m.height >= logoMinRows {
+		logoH = logoPanelH
+	}
 	vizH = 0
 	if m.vizOn && m.height >= vizMinRows {
 		vizH = vizPanelH
 	}
-	topH = m.height - 1 - nowPanelH - vizH
+	topH = m.height - 1 - nowPanelH - vizH - logoH
 	if topH < 5 {
 		topH += vizH
 		vizH = 0
 	}
-	return topH, vizH
+	return topH, vizH, logoH
 }
 
 func (m *Model) libFilterVisible() bool {
@@ -41,7 +44,7 @@ func (m *Model) queueFilterVisible() bool {
 }
 
 func (m *Model) libPageH() int {
-	topH, _ := m.layout()
+	topH, _, _ := m.layout()
 	h := topH - 2
 	if m.libFilterVisible() {
 		h--
@@ -53,7 +56,7 @@ func (m *Model) libPageH() int {
 }
 
 func (m *Model) queuePageH() int {
-	topH, _ := m.layout()
+	topH, _, _ := m.layout()
 	h := topH - 2
 	if m.queueFilterVisible() {
 		h--
@@ -84,7 +87,7 @@ func (m *Model) View() string {
 		return m.songsView()
 	}
 
-	topH, vizH := m.layout()
+	topH, vizH, logoH := m.layout()
 	leftW := m.width / 2
 	rightW := m.width - leftW
 
@@ -92,7 +95,11 @@ func (m *Model) View() string {
 		m.libraryPanel(leftW, topH),
 		m.queuePanel(rightW, topH),
 	)
-	parts := []string{top}
+	var parts []string
+	if logoH > 0 {
+		parts = append(parts, m.logoPanel(m.width, logoH))
+	}
+	parts = append(parts, top)
 	if vizH > 0 {
 		parts = append(parts, m.vizPanel(m.width, vizH))
 	}

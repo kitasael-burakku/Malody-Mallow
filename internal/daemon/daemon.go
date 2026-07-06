@@ -20,6 +20,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/mpris"
 	"maly/internal/player"
 	"maly/internal/queue"
 )
@@ -28,12 +29,13 @@ import (
 var ErrAlreadyRunning = errors.New("another maly daemon is already running")
 
 type Daemon struct {
-	mu  sync.Mutex
-	cfg config.Config
-	lib *library.Library
-	pl  *player.Player
-	q   *queue.Queue
-	ln  net.Listener
+	mu    sync.Mutex
+	cfg   config.Config
+	lib   *library.Library
+	pl    *player.Player
+	q     *queue.Queue
+	ln    net.Listener
+	mpris *mpris.Service // nil si no hay bus de sesión
 }
 
 // New prepara el demonio: reclama el socket, abre la biblioteca y lanza mpv.
@@ -55,7 +57,7 @@ func New(cfg config.Config) (*Daemon, error) {
 	}
 	d := &Daemon{cfg: cfg, lib: lib, q: queue.New()}
 
-	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.onTrackEnd)
+	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.onTrackEnd, d.updateMPRIS)
 	if err != nil {
 		lib.Close()
 		return nil, err
@@ -69,6 +71,16 @@ func New(cfg config.Config) (*Daemon, error) {
 		return nil, fmt.Errorf("no pude escuchar en %s: %w", sock, err)
 	}
 	d.ln = ln
+
+	// MPRIS es opcional: sin bus de sesión (p. ej. headless) el demonio
+	// funciona igual, solo sin integración playerctl/Waybar.
+	if m, err := mpris.Start(d); err != nil {
+		fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.mpris_off", err))
+	} else {
+		d.mu.Lock()
+		d.mpris = m
+		d.mu.Unlock()
+	}
 	return d, nil
 }
 
@@ -86,8 +98,15 @@ func (d *Daemon) Run() error {
 	}
 }
 
-// Close para todo: mpv, listener, socket y biblioteca.
+// Close para todo: MPRIS, mpv, listener, socket y biblioteca.
 func (d *Daemon) Close() {
+	d.mu.Lock()
+	m := d.mpris
+	d.mpris = nil
+	d.mu.Unlock()
+	if m != nil {
+		m.Close()
+	}
 	d.ln.Close()
 	os.Remove(config.SocketPath())
 	d.pl.Close()
@@ -117,13 +136,67 @@ func (d *Daemon) serve(conn net.Conn) {
 // onTrackEnd avanza la cola cuando una pista termina por sí sola.
 func (d *Daemon) onTrackEnd() {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if t, ok := d.q.Next(true); ok {
 		d.pl.Load(t.Path)
 	}
+	d.mu.Unlock()
+	d.updateMPRIS()
 }
 
+// handle ejecuta la petición y refleja en MPRIS lo que haya cambiado.
 func (d *Daemon) handle(req ipc.Request) ipc.Response {
+	resp := d.dispatch(req)
+	switch req.Cmd {
+	case "ping", "status", "queue", "search", "scan":
+		// solo lectura: nada que reflejar
+	case "seek":
+		if m, st := d.mprisState(); m != nil {
+			m.Update(st)
+			if resp.OK {
+				m.Seeked(int64(st.Position * 1e6))
+			}
+		}
+	default:
+		if m, st := d.mprisState(); m != nil {
+			m.Update(st)
+		}
+	}
+	return resp
+}
+
+// Do ejecuta una petición como si llegara por el socket; lo usa el servicio
+// MPRIS para no duplicar la lógica de comandos.
+func (d *Daemon) Do(req ipc.Request) ipc.Response { return d.handle(req) }
+
+// Status devuelve una copia del estado actual (también para MPRIS).
+func (d *Daemon) Status() *ipc.Status {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.statusLocked()
+}
+
+// mprisState toma el servicio y una copia coherente del estado, o nil si
+// MPRIS no está activo.
+func (d *Daemon) mprisState() (*mpris.Service, *ipc.Status) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.mpris == nil {
+		return nil, nil
+	}
+	return d.mpris, d.statusLocked()
+}
+
+// updateMPRIS refleja el estado actual en MPRIS; los eventos de mpv que no
+// pasan por handle (pausa externa, fin de pista, ticks de posición) llegan
+// aquí vía el onChange del player.
+func (d *Daemon) updateMPRIS() {
+	if m, st := d.mprisState(); m != nil {
+		m.Update(st)
+	}
+}
+
+// dispatch ejecuta el comando bajo el mutex del demonio.
+func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -489,9 +562,14 @@ func parseAdjust(val string, cur, min, max float64) (float64, error) {
 func toInfos(tracks []library.Track) []ipc.TrackInfo {
 	out := make([]ipc.TrackInfo, len(tracks))
 	for i, t := range tracks {
-		out[i] = ipc.TrackInfo{ID: t.ID, Path: t.Path, Title: t.Title, Artist: t.Artist, Album: t.Album}
+		out[i] = infoOf(t)
 	}
 	return out
+}
+
+func infoOf(t library.Track) ipc.TrackInfo {
+	return ipc.TrackInfo{ID: t.ID, Path: t.Path, Title: t.Title, Artist: t.Artist,
+		Album: t.Album, AlbumArtist: t.AlbumArtist, Genre: t.Genre, TrackNo: t.TrackNo}
 }
 
 func (d *Daemon) statusLocked() *ipc.Status {
@@ -508,7 +586,7 @@ func (d *Daemon) statusLocked() *ipc.Status {
 		QueueLen:   d.q.Len(),
 	}
 	if t, ok := d.q.Current(); ok && !st.Idle {
-		info := ipc.TrackInfo{ID: t.ID, Path: t.Path, Title: t.Title, Artist: t.Artist, Album: t.Album}
+		info := infoOf(t)
 		s.Track = &info
 	}
 	return s

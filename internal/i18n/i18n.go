@@ -221,6 +221,7 @@ var table = map[string][2]string{
 
 	// ---- Demonio ----
 	"d.already":          {"another maly daemon is already running", "ya hay un servicio de maly corriendo"},
+	"d.mpris_off":        {"MPRIS disabled: %v", "MPRIS desactivado: %v"},
 	"d.invalid_req":      {"invalid request: %s", "petición inválida: %s"},
 	"d.playing_n":        {"Playing %s (%d queued)", "Reproduciendo %s (%d en cola)"},
 	"d.playing":          {"Playing %s", "Reproduciendo %s"},

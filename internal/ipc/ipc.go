@@ -24,11 +24,14 @@ type Request struct {
 
 // TrackInfo es la vista serializable de una pista.
 type TrackInfo struct {
-	ID     int64  `json:"id"`
-	Path   string `json:"path"`
-	Title  string `json:"title"`
-	Artist string `json:"artist"`
-	Album  string `json:"album"`
+	ID          int64  `json:"id"`
+	Path        string `json:"path"`
+	Title       string `json:"title"`
+	Artist      string `json:"artist"`
+	Album       string `json:"album"`
+	AlbumArtist string `json:"album_artist,omitempty"`
+	Genre       string `json:"genre,omitempty"`
+	TrackNo     int    `json:"track_no,omitempty"`
 }
 
 // Status es el estado completo del reproductor.

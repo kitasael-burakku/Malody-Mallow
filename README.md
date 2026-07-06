@@ -24,6 +24,9 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 - **Backend mpv**: MP3, FLAC, OGG, OPUS, M4A, WAV sin esfuerzo.
 - **Servicio + cliente**: la música sigue sonando aunque cierres la TUI
   (si lanzaste `maly daemon` aparte). Control desde cualquier terminal.
+- **MPRIS**: el servicio se anuncia como `org.mpris.MediaPlayer2.maly` en
+  D-Bus — `playerctl`, el módulo `mpris` de Waybar y las teclas multimedia
+  del escritorio lo ven y controlan sin configurar nada.
 - **Biblioteca SQLite**: escaneo de tags (artista/álbum/título/año/género),
   búsqueda insensible a acentos y mayúsculas ("aurea" encuentra "Áurea").
 - **Visualizador de espectro**: FFT en vivo del monitor de
@@ -182,6 +185,33 @@ Los comandos de biblioteca (`scan`, `search`, `playlist list/create/add/delete`)
 operan directo sobre SQLite y no necesitan el servicio. Los de reproducción sí
 lo piden: ábrelo con `maly` o `maly daemon`.
 
+### MPRIS (playerctl, Waybar…)
+
+Mientras el servicio corre (TUI abierta o `maly daemon`), maly es un
+reproductor MPRIS2 más del escritorio:
+
+```sh
+playerctl -p maly play-pause
+playerctl -p maly next
+playerctl -p maly metadata --format '{{artist}} — {{title}}'
+playerctl -p maly position 30      # salta al segundo 30
+```
+
+Para "now playing" en Waybar basta el módulo nativo `mpris`:
+
+```jsonc
+"mpris": {
+    "player": "maly",     // omítelo para seguir a cualquier reproductor
+    "format": "{status_icon} {artist} — {title}",
+    "status-icons": { "playing": "▶", "paused": "⏸" }
+}
+```
+
+Los cambios de pista/estado se emiten como señales D-Bus
+(`PropertiesChanged`), así que los applets se actualizan al instante sin
+polling. Si no hay bus de sesión (p. ej. headless), maly lo avisa una vez
+y sigue funcionando sin MPRIS.
+
 ## Configuración
 
 `~/.config/maly/config.toml` (se genera con estos defaults):
@@ -231,6 +261,9 @@ bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
 - `maly` (sin args) abre la TUI; si no hay servicio, lo embebe (muere al salir).
 - `maly daemon` lo deja corriendo aparte; la TUI y el CLI se conectan a él.
 - Socket: `$XDG_RUNTIME_DIR/maly/maly.sock`, protocolo JSON de una línea.
+- MPRIS: el servicio exporta `org.mpris.MediaPlayer2.maly` en el bus de
+  sesión (`internal/mpris`, godbus); solo refleja el estado del demonio, la
+  lógica de reproducción no se duplica.
 - Base de datos: `~/.local/share/maly/library.db` (SQLite puro Go, sin CGo).
 - maly lanza y supervisa su propio `mpv --idle --no-video` y lo controla por
   IPC JSON; al cerrar maly, su mpv muere con él.

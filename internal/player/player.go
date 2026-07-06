@@ -28,15 +28,16 @@ type State struct {
 
 // Player es un wrapper sobre un proceso mpv propio.
 type Player struct {
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	conn    net.Conn
-	reqID   int64
-	pending map[int64]chan mpvReply
-	state   State
-	onEOF   func() // pista terminada de forma natural
-	closed  bool
-	done    chan struct{}
+	mu       sync.Mutex
+	cmd      *exec.Cmd
+	conn     net.Conn
+	reqID    int64
+	pending  map[int64]chan mpvReply
+	state    State
+	onEOF    func() // pista terminada de forma natural
+	onChange func() // cambio de estado observado (pausa, pista, posición…)
+	closed   bool
+	done     chan struct{}
 }
 
 type mpvReply struct {
@@ -54,8 +55,9 @@ type mpvEvent struct {
 }
 
 // Start lanza mpv y conecta con su socket IPC. onEOF se invoca cuando una
-// pista termina por sí sola (para avanzar la cola).
-func Start(socketPath string, onEOF func()) (*Player, error) {
+// pista termina por sí sola (para avanzar la cola); onChange, ante cambios
+// de estado observados en mpv (lo usa el demonio para refrescar MPRIS).
+func Start(socketPath string, onEOF, onChange func()) (*Player, error) {
 	mpvBin, err := exec.LookPath("mpv")
 	if err != nil {
 		return nil, errors.New(i18n.T("p.no_mpv"))
@@ -86,12 +88,13 @@ func Start(socketPath string, onEOF func()) (*Player, error) {
 	}
 
 	p := &Player{
-		cmd:     cmd,
-		conn:    conn,
-		pending: map[int64]chan mpvReply{},
-		state:   State{Idle: true, Volume: 100},
-		onEOF:   onEOF,
-		done:    make(chan struct{}),
+		cmd:      cmd,
+		conn:     conn,
+		pending:  map[int64]chan mpvReply{},
+		state:    State{Idle: true, Volume: 100},
+		onEOF:    onEOF,
+		onChange: onChange,
+		done:     make(chan struct{}),
 	}
 	go p.readLoop()
 	go func() { cmd.Wait() }() // evitar zombi
@@ -132,35 +135,51 @@ func (p *Player) handleEvent(ev mpvEvent) {
 	switch ev.Event {
 	case "property-change":
 		p.mu.Lock()
+		changed := false
 		switch ev.Name {
 		case "pause":
+			old := p.state.Paused
 			json.Unmarshal(ev.Data, &p.state.Paused)
+			changed = p.state.Paused != old
 		case "time-pos":
 			var v *float64
 			json.Unmarshal(ev.Data, &v)
 			if v != nil {
+				changed = p.state.Position != *v
 				p.state.Position = *v
 			}
 		case "duration":
 			var v *float64
 			json.Unmarshal(ev.Data, &v)
 			if v != nil {
+				changed = p.state.Duration != *v
 				p.state.Duration = *v
 			}
 		case "volume":
+			old := p.state.Volume
 			json.Unmarshal(ev.Data, &p.state.Volume)
+			changed = p.state.Volume != old
 		case "idle-active":
+			old := p.state.Idle
 			json.Unmarshal(ev.Data, &p.state.Idle)
+			changed = p.state.Idle != old
 		case "path":
 			var s *string
 			json.Unmarshal(ev.Data, &s)
+			old := p.state.Path
 			if s == nil {
 				p.state.Path = ""
 			} else {
 				p.state.Path = *s
 			}
+			changed = p.state.Path != old
 		}
 		p.mu.Unlock()
+		// Async como onEOF: en línea bloquearía readLoop, y con él las
+		// respuestas de mpv que el demonio pueda estar esperando.
+		if changed && p.onChange != nil {
+			go p.onChange()
+		}
 	case "end-file":
 		if ev.Reason == "eof" && p.onEOF != nil {
 			go p.onEOF()

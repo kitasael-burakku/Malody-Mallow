@@ -7,9 +7,17 @@ Reproductor de música local para terminal (comando `maly`), estilo
 btop/lazygit: TUI con paneles, servicio en segundo plano con socket Unix
 y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 
-## Screenshots
+---
+
+## TUI
 
 ![Vista previa de Malody Mallow: biblioteca, cola, visualizador y reproducción actual](pictures/maly.jpg)
+
+![Paleta de comandos](pictures/commands.jpg)
+
+![Selector de canciones](pictures/selector.jpg)
+
+---
 
 ## Características
 

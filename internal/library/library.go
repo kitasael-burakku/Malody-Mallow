@@ -157,7 +157,7 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 		if old, ok := known[path]; ok && old == mtime {
 			return nil
 		}
-		t := readTags(path)
+		t := ReadTags(path)
 		_, dbErr := l.db.Exec(`
 			INSERT INTO tracks (path, title, artist, album, album_artist, genre, track_no, year, mtime, search_text)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -198,9 +198,10 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 	return res, nil
 }
 
-// readTags lee los metadatos de un archivo; si falla, deriva el título del
-// nombre del archivo para que igualmente entre en la biblioteca.
-func readTags(path string) Track {
+// ReadTags lee los metadatos de un archivo; si falla, deriva el título del
+// nombre del archivo para que igualmente entre en la biblioteca. La usa Scan
+// y el demonio para pistas agregadas por ruta que no están en la biblioteca.
+func ReadTags(path string) Track {
 	t := Track{
 		Path:  path,
 		Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),

@@ -112,3 +112,43 @@ func TestPlaylistsRoundTrip(t *testing.T) {
 		t.Fatal("borrar playlist inexistente debe fallar")
 	}
 }
+
+// TestReadTags cubre el camino del demonio para pistas por ruta que no están
+// en la biblioteca: un trailer ID3v1 fabricado (128 bytes al final del
+// archivo) alcanza para que dhowden/tag devuelva metadatos reales.
+func TestReadTags(t *testing.T) {
+	dir := t.TempDir()
+
+	pad := func(s string, n int) []byte {
+		b := make([]byte, n)
+		copy(b, s)
+		return b
+	}
+	id3v1 := append([]byte("TAG"), pad("Prueba Al Vuelo", 30)...)
+	id3v1 = append(id3v1, pad("kaisoyeon", 30)...)
+	id3v1 = append(id3v1, pad("Demos", 30)...)
+	id3v1 = append(id3v1, pad("2026", 4)...)
+	id3v1 = append(id3v1, make([]byte, 30)...) // comentario vacío
+	id3v1 = append(id3v1, 255)                 // sin género
+
+	tagged := filepath.Join(dir, "con-tags.mp3")
+	if err := os.WriteFile(tagged, append([]byte("relleno que no es audio "), id3v1...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := ReadTags(tagged)
+	if got.Title != "Prueba Al Vuelo" || got.Artist != "kaisoyeon" || got.Album != "Demos" {
+		t.Errorf("ReadTags con ID3v1 = %q / %q / %q", got.Title, got.Artist, got.Album)
+	}
+	if got.Path != tagged {
+		t.Errorf("Path = %q, quería %q", got.Path, tagged)
+	}
+
+	// sin tags legibles: el título cae al nombre del archivo, sin extensión
+	plain := filepath.Join(dir, "sin tags.mp3")
+	if err := os.WriteFile(plain, []byte("no es audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ReadTags(plain); got.Title != "sin tags" || got.Artist != "" {
+		t.Errorf("ReadTags sin tags = %+v", got)
+	}
+}

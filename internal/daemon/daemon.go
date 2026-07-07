@@ -524,10 +524,9 @@ func trackFromFile(lib *library.Library, path string) library.Track {
 	if t, ok := lib.ByPath(path); ok {
 		return t
 	}
-	return library.Track{
-		Path:  path,
-		Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
-	}
+	// fuera de la biblioteca: leer los tags al vuelo para no encolar la
+	// pista con el nombre de archivo como único dato
+	return library.ReadTags(path)
 }
 
 func tracksFromDir(lang string, lib *library.Library, dir string) ([]library.Track, error) {

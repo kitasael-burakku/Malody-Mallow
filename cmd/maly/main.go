@@ -16,7 +16,7 @@ import (
 	"maly/internal/library"
 )
 
-const version = "0.3.0"
+const version = "0.4.0"
 
 func main() {
 	// Fijar el idioma antes de imprimir nada: todo texto sale de i18n.

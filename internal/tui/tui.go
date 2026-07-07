@@ -41,6 +41,11 @@ type Model struct {
 	status      *ipc.Status
 	connErr     bool
 
+	// Suscripción push al demonio; nil = modo polling (demonio viejo o
+	// conexión caída). subRetry cuenta ticks hasta el próximo reintento.
+	sub      *ipc.Client
+	subRetry int
+
 	filterMode  bool
 	filterInput textinput.Model
 
@@ -92,6 +97,15 @@ type actionMsg struct {
 	err  error
 }
 
+// subMsg es un push de la suscripción; subOpenMsg su apertura (con el estado
+// inicial); subDeadMsg la caída o el rechazo (se vuelve al polling del tick).
+type subMsg struct{ resp ipc.Response }
+type subOpenMsg struct {
+	c     *ipc.Client
+	first ipc.Response
+}
+type subDeadMsg struct{}
+
 // Run abre la TUI. embedded indica que el demonio corre dentro del proceso.
 func Run(cfg config.Config, embedded bool) error {
 	ti := textinput.New()
@@ -110,6 +124,7 @@ func Run(cfg config.Config, embedded bool) error {
 		vizOn:       cfg.Visualizer.Enabled,
 		langOpen:    cfg.Language == "",
 		logo:        newLogo(),
+		subRetry:    subRetryTicks, // Init ya lanza el primer intento
 	}
 	m.filterInput.PromptStyle = m.st.accent
 	m.filterInput.TextStyle = m.st.text
@@ -124,11 +139,46 @@ func Run(cfg config.Config, embedded bool) error {
 }
 
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{loadLibrary, m.fetch(), tickCmd()}
+	cmds := []tea.Cmd{loadLibrary, m.fetch(), m.subscribeCmd(), tickCmd()}
 	if m.viz != nil {
 		cmds = append(cmds, vizTickCmd())
 	}
 	return tea.Batch(cmds...)
+}
+
+// subRetryTicks separa los reintentos de suscripción en modo polling
+// (10 ticks de 500 ms = 5 s): contra un demonio viejo cada intento es una
+// petición rechazada, no vale la pena hacerla en cada tick.
+const subRetryTicks = 10
+
+// subscribeCmd abre la conexión push. Si el demonio no la soporta o no
+// responde, la TUI sigue con el polling del tick y reintenta más tarde.
+func (m *Model) subscribeCmd() tea.Cmd {
+	sock := m.sock
+	return func() tea.Msg {
+		c, err := ipc.Dial(sock)
+		if err != nil {
+			return subDeadMsg{}
+		}
+		resp, err := c.Subscribe()
+		if err != nil || !resp.OK {
+			c.Close()
+			return subDeadMsg{}
+		}
+		return subOpenMsg{c: c, first: resp}
+	}
+}
+
+// waitPush espera el siguiente push de la suscripción.
+func waitPush(c *ipc.Client) tea.Cmd {
+	return func() tea.Msg {
+		resp, err := c.Next()
+		if err != nil {
+			c.Close()
+			return subDeadMsg{}
+		}
+		return subMsg{resp: resp}
+	}
 }
 
 func tickCmd() tea.Cmd {
@@ -214,7 +264,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.flash = ""
 			m.flashUntil = time.Time{}
 		}
-		cmds := []tea.Cmd{m.fetch(), tickCmd()}
+		cmds := []tea.Cmd{tickCmd()}
+		// Sin suscripción viva: polling como antes, y cada tanto se
+		// reintenta abrir la suscripción.
+		if m.sub == nil {
+			cmds = append(cmds, m.fetch())
+			if m.subRetry--; m.subRetry <= 0 {
+				m.subRetry = subRetryTicks
+				cmds = append(cmds, m.subscribeCmd())
+			}
+		}
 		// Rearma la animación del logo si volvió a ser visible (su tick se
 		// autocancela al ocultarse para no consumir CPU).
 		if m.logoVisible() && !m.logoTicking {
@@ -270,6 +329,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.connErr = false
 		m.applyStatus(msg.resp)
+		return m, nil
+
+	case subOpenMsg:
+		// Puede llegar de un reintento tardío con otra suscripción ya viva.
+		if m.sub != nil {
+			msg.c.Close()
+			return m, nil
+		}
+		m.sub = msg.c
+		m.connErr = false
+		m.applyStatus(msg.first)
+		return m, waitPush(m.sub)
+
+	case subMsg:
+		m.connErr = false
+		m.applyStatus(msg.resp)
+		return m, waitPush(m.sub)
+
+	case subDeadMsg:
+		// El tick retoma el polling; el próximo fetch fallido marcará
+		// connErr si es que el demonio de verdad murió.
+		m.sub = nil
+		m.subRetry = subRetryTicks
 		return m, nil
 
 	case actionMsg:

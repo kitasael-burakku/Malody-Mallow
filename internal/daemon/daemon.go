@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"maly/internal/config"
 	"maly/internal/i18n"
@@ -38,6 +39,18 @@ type Daemon struct {
 	ln       net.Listener
 	mpris    *mpris.Service // nil si no hay bus de sesión
 	scanning atomic.Bool    // guarda contra escaneos simultáneos (scan corre sin d.mu)
+
+	// Suscriptores IPC (comando subscribe). Mutex propio: notify los marca
+	// desde caminos que ya tienen (o van a tomar) d.mu.
+	subMu sync.Mutex
+	subs  map[*subscriber]struct{}
+}
+
+// subscriber es una conexión en modo push. dirty tiene capacidad 1: una
+// ráfaga de cambios mientras se escribe el push anterior colapsa en uno solo.
+type subscriber struct {
+	conn  net.Conn
+	dirty chan struct{}
 }
 
 // New prepara el demonio: reclama el socket, abre la biblioteca y lanza mpv.
@@ -57,9 +70,9 @@ func New(cfg config.Config) (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Daemon{cfg: cfg, lib: lib, q: queue.New()}
+	d := &Daemon{cfg: cfg, lib: lib, q: queue.New(), subs: map[*subscriber]struct{}{}}
 
-	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.onTrackEnd, d.updateMPRIS)
+	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.onTrackEnd, d.notify)
 	if err != nil {
 		lib.Close()
 		return nil, err
@@ -109,6 +122,13 @@ func (d *Daemon) Close() {
 	if m != nil {
 		m.Close()
 	}
+	// Cortar los suscriptores: su lector detecta el cierre y la goroutine
+	// de subscribe termina sola.
+	d.subMu.Lock()
+	for s := range d.subs {
+		s.conn.Close()
+	}
+	d.subMu.Unlock()
 	d.ln.Close()
 	os.Remove(config.SocketPath())
 	d.pl.Close()
@@ -125,6 +145,11 @@ func (d *Daemon) serve(conn net.Conn) {
 		var resp ipc.Response
 		if err := json.Unmarshal(sc.Bytes(), &req); err != nil {
 			resp = ipc.Response{Error: i18n.Tf("d.invalid_req", err.Error())}
+		} else if req.Cmd == "subscribe" {
+			// La conexión pasa a modo push y no vuelve: subscribe escribe
+			// el estado inicial y luego un push por cada cambio.
+			d.subscribe(conn, sc)
+			return
 		} else {
 			resp = d.handle(req)
 		}
@@ -142,10 +167,75 @@ func (d *Daemon) onTrackEnd() {
 		d.pl.Load(t.Path)
 	}
 	d.mu.Unlock()
-	d.updateMPRIS()
+	d.notify()
 }
 
-// handle ejecuta la petición y refleja en MPRIS lo que haya cambiado.
+// subscribe atiende una conexión en modo push desde la goroutine de serve:
+// estado inicial, y uno nuevo cada vez que notify marca dirty, con un mínimo
+// de 250 ms entre pushes (los ticks de time-pos de mpv llegan varios por
+// segundo). Vuelve —y serve cierra la conexión— cuando el cliente cuelga.
+func (d *Daemon) subscribe(conn net.Conn, sc *bufio.Scanner) {
+	s := &subscriber{conn: conn, dirty: make(chan struct{}, 1)}
+	// Registrar antes del primer push: un cambio entre la foto inicial y el
+	// registro se perdería; así a lo sumo genera un push extra inmediato.
+	d.subMu.Lock()
+	d.subs[s] = struct{}{}
+	d.subMu.Unlock()
+	defer func() {
+		d.subMu.Lock()
+		delete(d.subs, s)
+		d.subMu.Unlock()
+	}()
+
+	// El cliente ya no habla: cualquier retorno del lector es que colgó.
+	done := make(chan struct{})
+	go func() {
+		for sc.Scan() {
+		}
+		close(done)
+	}()
+
+	if s.push(d.state()) != nil {
+		return
+	}
+	for {
+		select {
+		case <-done:
+			return
+		case <-s.dirty:
+			if s.push(d.state()) != nil {
+				return
+			}
+			select {
+			case <-done:
+				return
+			case <-time.After(250 * time.Millisecond):
+			}
+		}
+	}
+}
+
+// push escribe una respuesta en la conexión suscrita. El deadline evita que
+// un cliente colgado (buffer lleno) deje la goroutine clavada para siempre.
+func (s *subscriber) push(resp ipc.Response) error {
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return err
+	}
+	s.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	_, err = s.conn.Write(append(data, '\n'))
+	return err
+}
+
+// state arma la foto completa que reciben los suscriptores, con la misma
+// forma que la respuesta del comando queue.
+func (d *Daemon) state() ipc.Response {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return ipc.Response{OK: true, Status: d.statusLocked(), Queue: toInfos(d.q.Items)}
+}
+
+// handle ejecuta la petición y refleja los cambios en MPRIS y suscriptores.
 func (d *Daemon) handle(req ipc.Request) ipc.Response {
 	resp := d.dispatch(req)
 	switch req.Cmd {
@@ -158,10 +248,9 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 				m.Seeked(int64(st.Position * 1e6))
 			}
 		}
+		d.wakeSubs()
 	default:
-		if m, st := d.mprisState(); m != nil {
-			m.Update(st)
-		}
+		d.notify()
 	}
 	return resp
 }
@@ -188,13 +277,27 @@ func (d *Daemon) mprisState() (*mpris.Service, *ipc.Status) {
 	return d.mpris, d.statusLocked()
 }
 
-// updateMPRIS refleja el estado actual en MPRIS; los eventos de mpv que no
-// pasan por handle (pausa externa, fin de pista, ticks de posición) llegan
-// aquí vía el onChange del player.
-func (d *Daemon) updateMPRIS() {
+// notify refleja el estado actual en MPRIS y despierta a los suscriptores
+// IPC; los eventos de mpv que no pasan por handle (pausa externa, fin de
+// pista, ticks de posición) llegan aquí vía el onChange del player.
+func (d *Daemon) notify() {
 	if m, st := d.mprisState(); m != nil {
 		m.Update(st)
 	}
+	d.wakeSubs()
+}
+
+// wakeSubs marca dirty a cada suscriptor; el envío no bloquea (cap 1: si ya
+// hay una marca pendiente, este cambio viaja en ese mismo push).
+func (d *Daemon) wakeSubs() {
+	d.subMu.Lock()
+	for s := range d.subs {
+		select {
+		case s.dirty <- struct{}{}:
+		default:
+		}
+	}
+	d.subMu.Unlock()
 }
 
 // dispatch ejecuta el comando bajo el mutex del demonio.

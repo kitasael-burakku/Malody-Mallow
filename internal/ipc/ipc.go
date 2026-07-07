@@ -116,4 +116,27 @@ func (c *Client) Do(req Request) (Response, error) {
 	return resp, nil
 }
 
+// Subscribe convierte la conexión en una suscripción push: el demonio
+// responde con el estado completo (como el comando queue) y a partir de ahí
+// empuja una respuesta igual con cada cambio, que se lee con Next. La
+// conexión queda dedicada: no admite más peticiones con Do.
+func (c *Client) Subscribe() (Response, error) {
+	return c.Do(Request{Cmd: "subscribe"})
+}
+
+// Next espera el siguiente push de una conexión suscrita. Bloquea sin
+// límite: que no haya cambios durante minutos es normal.
+func (c *Client) Next() (Response, error) {
+	var resp Response
+	c.conn.SetDeadline(time.Time{})
+	line, err := c.r.ReadBytes('\n')
+	if err != nil {
+		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.read"), err)
+	}
+	if err := json.Unmarshal(line, &resp); err != nil {
+		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.invalid"), err)
+	}
+	return resp, nil
+}
+
 func (c *Client) Close() error { return c.conn.Close() }

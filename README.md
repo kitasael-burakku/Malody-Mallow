@@ -42,6 +42,9 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
   `maly controls` (`default` | `vim`).
 - **Bilingüe**: interfaz en English/Español; se elige al primer arranque
   (clave `language` del config).
+- **Autocompletado de shell** (bash/fish/zsh) dinámico: TAB completa
+  comandos, títulos reales de tu biblioteca, playlists y posiciones de la
+  cola (ver [Autocompletado](#autocompletado-bash--fish--zsh)).
 - **Playlists**, shuffle, repeat (off/all/one), cola en vivo.
 - Tema y keybindings configurables por TOML; fondo transparente (usa el
   color de tu terminal).
@@ -116,6 +119,49 @@ abre una sesión nueva. Alternativa que no depende del PATH del usuario:
 Sin `pw-record`/`parec` maly funciona igual; el visualizador degrada a una
 animación y te lo avisa una vez.
 
+### Autocompletado (bash / fish / zsh)
+
+`maly completions <shell>` imprime el script; instálalo una vez y el TAB
+completa comandos con su descripción, títulos de tu biblioteca (búsqueda
+insensible a acentos), playlists, posiciones de la cola y rutas.
+
+**fish**
+
+```sh
+maly completions fish > ~/.config/fish/completions/maly.fish
+```
+
+**bash** (requiere el paquete `bash-completion`, ya presente en
+Ubuntu/Debian/Fedora; en Arch: `sudo pacman -S bash-completion`)
+
+```sh
+mkdir -p ~/.local/share/bash-completion/completions
+maly completions bash > ~/.local/share/bash-completion/completions/maly
+```
+
+Sin `bash-completion`, agrega a `~/.bashrc`: `source <(maly completions bash)`.
+
+**zsh**
+
+```sh
+mkdir -p ~/.local/share/zsh/site-functions
+maly completions zsh > ~/.local/share/zsh/site-functions/_maly
+```
+
+y en `~/.zshrc`, **antes** del `compinit`:
+
+```sh
+fpath=(~/.local/share/zsh/site-functions $fpath)
+```
+
+Alternativa sin tocar el fpath: `source <(maly completions zsh)` después
+del `compinit`.
+
+Abre una sesión nueva del shell y listo. El completado consulta la
+biblioteca en cada TAB (los títulos nuevos aparecen sin reinstalar nada) y
+degrada en silencio: sin biblioteca o sin servicio simplemente no ofrece
+candidatos.
+
 ## Uso
 
 ```sh
@@ -178,6 +224,7 @@ maly playlist play <nombre>
 maly playlist delete <nombre>
 maly controls [default|vim]    # lista o cambia el preset de controles
 maly lang [en|es]              # cambia el idioma (sin arg abre el selector); alias -l
+maly completions <shell>       # script de autocompletado (bash | fish | zsh)
 maly version | -v
 ```
 

@@ -8,18 +8,56 @@ _maly() {
     # sobre una palabra nueva, COMP_WORDS no trae el elemento vacío: se añade
     local -a ctx=("${COMP_WORDS[@]:1:COMP_CWORD}")
     ((${#ctx[@]} < COMP_CWORD)) && ctx+=("")
+    # los tokens llegan como se teclearon, con los espacios escapados de una
+    # inserción previa (Proporción\ Áurea): quitar las barras para la consulta
+    ctx=("${ctx[@]//\\/}")
+    local cur=${ctx[-1]}
 
     local -a lines
     mapfile -t lines < <(maly __complete "${ctx[@]}" 2>/dev/null)
 
-    # maly ya filtró lo semántico; no se re-filtra por prefijo para que
-    # readline pueda reemplazar "aurea" por "Proporción Áurea" (búsqueda
-    # fold-aware). %q escapa espacios y acentos para la inserción.
-    COMPREPLY=()
+    local -a vals descs
     local line
     for line in "${lines[@]}"; do
-        COMPREPLY+=("$(printf '%q' "${line%%$'\t'*}")")
+        vals+=("${line%%$'\t'*}")
+        if [[ $line == *$'\t'* ]]; then descs+=("${line#*$'\t'}"); else descs+=(""); fi
     done
+
+    # readline por sí solo únicamente inserta el prefijo común de COMPREPLY
+    # (con candidatos dispares no escribe nada) y jamás muestra descripciones:
+    # la inserción se decide aquí, estilo kubectl/cobra.
+    COMPREPLY=()
+    if ((${#vals[@]} == 1)); then
+        # candidato único: insertarlo entero; %q escapa espacios y acentos
+        # ("aurea" → Proporción\ Áurea) y readline cierra con espacio solo
+        COMPREPLY=("$(printf '%q' "${vals[0]}")")
+    elif ((${#vals[@]} > 1)); then
+        # prefijo común de los valores
+        local lcd=${vals[0]} v
+        for v in "${vals[@]:1}"; do
+            while [[ $v != "$lcd"* ]]; do lcd=${lcd%?}; done
+        done
+        if ((${#lcd} > ${#cur})); then
+            # hay progreso: insertar solo el prefijo, sin espacio de cierre
+            compopt -o nospace
+            COMPREPLY=("$(printf '%q' "$lcd")")
+        else
+            # sin progreso: listar los candidatos con su descripción, en el
+            # orden en que maly los emite (nosort)
+            compopt -o nosort 2>/dev/null
+            local i
+            for i in "${!vals[@]}"; do
+                if [[ -n ${descs[i]} ]]; then
+                    COMPREPLY+=("${vals[i]}  (${descs[i]})")
+                else
+                    COMPREPLY+=("${vals[i]}")
+                fi
+            done
+            # candidato vacío de sacrificio: anula el prefijo común de la
+            # lista para que readline no reescriba (y des-escape) la palabra
+            COMPREPLY+=("")
+        fi
+    fi
 
     # scan y add aceptan rutas: caer al completado de archivos de readline
     # cuando maly no devuelve candidatos

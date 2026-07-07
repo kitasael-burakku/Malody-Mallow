@@ -141,6 +141,10 @@ maly completions bash > ~/.local/share/bash-completion/completions/maly
 
 Sin `bash-completion`, agrega a `~/.bashrc`: `source <(maly completions bash)`.
 
+En bash el primer TAB inserta lo que se pueda decidir (candidato único o el
+prefijo común, p. ej. `aurea` → `Proporción\ Áurea`); cuando hay varias
+opciones, el segundo TAB muestra la lista con descripciones.
+
 **zsh**
 
 ```sh

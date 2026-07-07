@@ -19,18 +19,32 @@ import (
 // lugar para miles de líneas.
 const maxCandidates = 30
 
-//go:embed completions/maly.fish
-var fishScript string
+var (
+	//go:embed completions/maly.bash
+	bashScript string
+	//go:embed completions/maly.fish
+	fishScript string
+	//go:embed completions/maly.zsh
+	zshScript string
+)
 
-// supportedShells lista los shells con script de instalación; bash y zsh
-// llegan cuando el wrapper de fish esté validado.
-var supportedShells = []string{"fish"}
+// supportedShells lista los shells con script de instalación (ordenados:
+// también son los candidatos de `maly completions <TAB>`).
+var supportedShells = []string{"bash", "fish", "zsh"}
+
+var completionScripts = map[string]string{
+	"bash": bashScript,
+	"fish": fishScript,
+	"zsh":  zshScript,
+}
 
 // runCompletions imprime el script de completado del shell pedido.
 func runCompletions(args []string) error {
-	if len(args) == 1 && args[0] == "fish" {
-		fmt.Print(fishScript)
-		return nil
+	if len(args) == 1 {
+		if script, ok := completionScripts[args[0]]; ok {
+			fmt.Print(script)
+			return nil
+		}
 	}
 	return fmt.Errorf("%s", i18n.Tf("cli.usage_completions", strings.Join(supportedShells, ", ")))
 }

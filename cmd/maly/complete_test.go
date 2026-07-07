@@ -65,7 +65,8 @@ func TestCompleteStatic(t *testing.T) {
 		{[]string{"repeat", "all", ""}, ""}, // ya tiene su argumento
 		{[]string{"shuffle", ""}, "on,off"},
 		{[]string{"lang", ""}, "en,es"},
-		{[]string{"completions", ""}, "fish"},
+		{[]string{"completions", ""}, "bash,fish,zsh"},
+		{[]string{"completions", "z"}, "zsh"},
 		{[]string{"status", ""}, ""}, // sin completer
 	}
 	for _, c := range cases {

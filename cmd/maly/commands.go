@@ -20,6 +20,11 @@ type command struct {
 	descKey string // clave i18n de la descripción
 	section string // sección del help (ver helpSections); "" = no listado
 	run     func(args []string) error
+
+	// complete recibe los args ya escritos (sin el nombre del comando) y la
+	// palabra parcial bajo el cursor; devuelve líneas "valor\tdescripción"
+	// (descripción opcional). nil = sin candidatos dinámicos. Ver complete.go.
+	complete func(args []string, cur string) []string
 }
 
 // client devuelve un run que delega en runClient con el subcomando fijado.
@@ -32,39 +37,48 @@ var commands = []command{
 	// daemon no se lista por sección: aparece en la cabecera de uso.
 	{name: "daemon", run: func([]string) error { return runDaemon() }},
 
-	{name: "play", usage: "play [<query>]", descKey: "cli.play", section: "playback", run: client("play")},
+	{name: "play", usage: "play [<query>]", descKey: "cli.play", section: "playback", run: client("play"), complete: completeTracks},
 	{name: "select", usage: "select", descKey: "cli.select", section: "playback", run: func([]string) error { return runSelect() }},
 	{name: "pause", usage: "pause", descKey: "cli.pause", section: "playback", run: client("pause")},
 	{name: "toggle", usage: "toggle", descKey: "cli.toggle", section: "playback", run: client("toggle")},
 	{name: "stop", usage: "stop", descKey: "cli.stop", section: "playback", run: client("stop")},
 	{name: "next", usage: "next", descKey: "cli.next", section: "playback", run: client("next")},
 	{name: "prev", usage: "prev", descKey: "cli.prev", section: "playback", run: client("prev")},
-	{name: "jump", usage: "jump <pos>", descKey: "cli.jump", section: "playback", run: client("jump")},
-	{name: "add", usage: "add <query|path>", descKey: "cli.add", section: "playback", run: client("add")},
+	{name: "jump", usage: "jump <pos>", descKey: "cli.jump", section: "playback", run: client("jump"), complete: completeJump},
+	{name: "add", usage: "add <query|path>", descKey: "cli.add", section: "playback", run: client("add"), complete: completeTracks},
 	{name: "queue", usage: "queue", descKey: "cli.queue", section: "playback", run: client("queue")},
 	{name: "clear", usage: "clear", descKey: "cli.clear", section: "playback", run: client("clear")},
 	{name: "status", usage: "status", descKey: "cli.status", section: "playback", run: client("status")},
 	{name: "vol", usage: "vol <0-100|+N|-N>", descKey: "cli.vol", section: "playback", run: client("vol")},
 	{name: "seek", usage: "seek <+N|-N|mm:ss>", descKey: "cli.seek", section: "playback", run: client("seek")},
-	{name: "shuffle", usage: "shuffle [on|off]", descKey: "cli.shuffle", section: "playback", run: client("shuffle")},
-	{name: "repeat", usage: "repeat [off|all|one]", descKey: "cli.repeat", section: "playback", run: client("repeat")},
+	{name: "shuffle", usage: "shuffle [on|off]", descKey: "cli.shuffle", section: "playback", run: client("shuffle"), complete: completeStatic("on", "off")},
+	{name: "repeat", usage: "repeat [off|all|one]", descKey: "cli.repeat", section: "playback", run: client("repeat"), complete: completeStatic("off", "all", "one")},
 
 	{name: "scan", usage: "scan [<path>]", descKey: "cli.scan", section: "library", run: runScan},
 	{name: "search", usage: "search <query>", descKey: "cli.search", section: "library", run: runSearch},
-	{name: "playlist", usage: "playlist <sub> [args]", descKey: "cli.playlist", section: "library", run: runPlaylist},
+	{name: "playlist", usage: "playlist <sub> [args]", descKey: "cli.playlist", section: "library", run: runPlaylist, complete: completePlaylist},
 
-	{name: "controls", usage: "controls [<preset>]", descKey: "cli.controls", section: "other", run: runControls},
-	{name: "lang", aliases: []string{"-l", "--lang"}, usage: "lang [en|es], -l", descKey: "cli.lang_cmd", section: "other", run: runLang},
+	{name: "controls", usage: "controls [<preset>]", descKey: "cli.controls", section: "other", run: runControls, complete: completeControls},
+	{name: "lang", aliases: []string{"-l", "--lang"}, usage: "lang [en|es], -l", descKey: "cli.lang_cmd", section: "other", run: runLang, complete: completeStatic("en", "es")},
+	{name: "completions", usage: "completions <shell>", descKey: "cli.completions", section: "other", run: runCompletions, complete: completeStatic(supportedShells...)},
 	{name: "help", aliases: []string{"-h", "--help"}, usage: "help, -h", descKey: "cli.help_cmd", section: "other"}, // run se asigna en init()
 	{name: "version", aliases: []string{"-v", "--version"}, usage: "version, -v", descKey: "cli.version_cmd", section: "other", run: runVersion},
+
+	// __complete es interno (lo invocan los scripts de shell en cada TAB):
+	// sin section no sale en el help, y completeCommands salta los "__*".
+	{name: "__complete"}, // run se asigna en init()
 }
 
-// init asigna el run de help aparte: en la tabla, el compilador vería
-// commands → runHelp → helpText → commands como ciclo de inicialización.
+// init asigna los run de help y __complete aparte: en la tabla, el compilador
+// vería commands → runHelp/runComplete → helpText/completeCommands → commands
+// como ciclo de inicialización.
 func init() {
 	for i := range commands {
-		if commands[i].name == "help" {
+		switch commands[i].name {
+		case "help":
 			commands[i].run = runHelp
+		case "__complete":
+			commands[i].run = runComplete
 		}
 	}
 }

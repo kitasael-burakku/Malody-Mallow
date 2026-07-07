@@ -61,6 +61,10 @@ type Response struct {
 type Client struct {
 	conn net.Conn
 	r    *bufio.Reader
+
+	// Timeout por petición de Do; 0 usa el default (30 s). El completado de
+	// shell lo baja: un TAB no puede quedarse esperando a un demonio colgado.
+	Timeout time.Duration
 }
 
 // Dial conecta con el socket del demonio.
@@ -94,7 +98,11 @@ func (c *Client) Do(req Request) (Response, error) {
 	if err != nil {
 		return resp, err
 	}
-	c.conn.SetDeadline(time.Now().Add(30 * time.Second))
+	timeout := c.Timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+	c.conn.SetDeadline(time.Now().Add(timeout))
 	if _, err := c.conn.Write(append(data, '\n')); err != nil {
 		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.send"), err)
 	}

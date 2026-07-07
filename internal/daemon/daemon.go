@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"maly/internal/config"
 	"maly/internal/i18n"
@@ -29,13 +30,14 @@ import (
 var ErrAlreadyRunning = errors.New("another maly daemon is already running")
 
 type Daemon struct {
-	mu    sync.Mutex
-	cfg   config.Config
-	lib   *library.Library
-	pl    *player.Player
-	q     *queue.Queue
-	ln    net.Listener
-	mpris *mpris.Service // nil si no hay bus de sesión
+	mu       sync.Mutex
+	cfg      config.Config
+	lib      *library.Library
+	pl       *player.Player
+	q        *queue.Queue
+	ln       net.Listener
+	mpris    *mpris.Service // nil si no hay bus de sesión
+	scanning atomic.Bool    // guarda contra escaneos simultáneos (scan corre sin d.mu)
 }
 
 // New prepara el demonio: reclama el socket, abre la biblioteca y lanza mpv.
@@ -197,6 +199,11 @@ func (d *Daemon) updateMPRIS() {
 
 // dispatch ejecuta el comando bajo el mutex del demonio.
 func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
+	if req.Cmd == "scan" {
+		// Sin d.mu: solo toca lib (thread-safe) y cfg (inmutable). Con el
+		// mutex tomado, un escaneo largo congelaría play/status/TUI.
+		return d.scan(req.Lang, req.Query)
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -406,22 +413,31 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		}
 		return okStatus(i18n.TLf(lang, "d.playing_pl", req.Value, len(tracks)))
 
-	case "scan":
-		dir := d.cfg.MusicPath()
-		if strings.TrimSpace(req.Query) != "" {
-			dir = config.ExpandTilde(req.Query)
-		}
-		res, err := d.lib.Scan(dir)
-		if err != nil {
-			return fail(err)
-		}
-		total, _ := d.lib.Count()
-		return ipc.Response{OK: true, Msg: i18n.TLf(lang, "d.scan_done",
-			res.Added, res.Updated, res.Removed, total)}
-
 	default:
 		return fail(errors.New(i18n.TLf(lang, "d.unknown_cmd", req.Cmd)))
 	}
+}
+
+// scan (re)indexa dir sin tomar d.mu: library serializa sus sentencias en su
+// única conexión SQLite, y así play/status siguen respondiendo durante el
+// escaneo. Solo se permite un escaneo a la vez.
+func (d *Daemon) scan(lang, query string) ipc.Response {
+	if !d.scanning.CompareAndSwap(false, true) {
+		return ipc.Response{Error: i18n.TL(lang, "d.scan_busy")}
+	}
+	defer d.scanning.Store(false)
+
+	dir := d.cfg.MusicPath()
+	if strings.TrimSpace(query) != "" {
+		dir = config.ExpandTilde(query)
+	}
+	res, err := d.lib.Scan(dir)
+	if err != nil {
+		return ipc.Response{Error: err.Error()}
+	}
+	total, _ := d.lib.Count()
+	return ipc.Response{OK: true, Msg: i18n.TLf(lang, "d.scan_done",
+		res.Added, res.Updated, res.Removed, total)}
 }
 
 // resumeLocked reanuda: quita pausa si hay pista, o arranca la cola si mpv

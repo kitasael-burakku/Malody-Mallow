@@ -38,6 +38,7 @@ type Player struct {
 	onChange func() // cambio de estado observado (pausa, pista, posición…)
 	closed   bool
 	done     chan struct{}
+	exited   chan struct{} // cerrado cuando el proceso mpv termina
 }
 
 type mpvReply struct {
@@ -95,9 +96,10 @@ func Start(socketPath string, onEOF, onChange func()) (*Player, error) {
 		onEOF:    onEOF,
 		onChange: onChange,
 		done:     make(chan struct{}),
+		exited:   make(chan struct{}),
 	}
 	go p.readLoop()
-	go func() { cmd.Wait() }() // evitar zombi
+	go func() { cmd.Wait(); close(p.exited) }() // evitar zombi
 
 	for i, prop := range []string{"pause", "time-pos", "duration", "volume", "idle-active", "path"} {
 		if _, err := p.command("observe_property", int64(i+1), prop); err != nil {
@@ -324,20 +326,11 @@ func (p *Player) Close() {
 	p.conn.Close()
 	p.mu.Unlock()
 
-	if p.cmd.Process != nil {
-		waited := make(chan struct{})
-		go func() {
-			for i := 0; i < 20; i++ {
-				if p.cmd.ProcessState != nil {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-			close(waited)
-		}()
-		<-waited
-		if p.cmd.ProcessState == nil {
-			p.cmd.Process.Kill()
-		}
+	// Esperar a que mpv obedezca el quit; si no, matarlo. No se lee
+	// cmd.ProcessState directamente: lo escribe la goroutine de Wait.
+	select {
+	case <-p.exited:
+	case <-time.After(2 * time.Second):
+		p.cmd.Process.Kill()
 	}
 }

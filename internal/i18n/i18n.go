@@ -244,6 +244,7 @@ var table = map[string][2]string{
 	"d.repeat":           {"Repeat: %s", "Repeat: %s"},
 	"d.pl_empty":         {"playlist %q is empty", "la playlist %q está vacía"},
 	"d.playing_pl":       {"Playing playlist %q (%d tracks)", "Reproduciendo playlist %q (%d pistas)"},
+	"d.scan_busy":        {"a scan is already in progress", "ya hay un escaneo en curso"},
 	"d.scan_done":        {"Scan done: %d new, %d updated, %d removed (%d total)", "Escaneo listo: %d nuevas, %d actualizadas, %d eliminadas (%d en total)"},
 	"d.unknown_cmd":      {"unknown command %q", "comando desconocido %q"},
 	"d.seek_usage":       {"usage: seek <+N|-N|mm:ss>", "uso: seek <+N|-N|mm:ss>"},

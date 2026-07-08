@@ -29,7 +29,8 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
   para reanudar con `maly play`.
 - **MPRIS**: el servicio se anuncia como `org.mpris.MediaPlayer2.maly` en
   D-Bus — `playerctl`, el módulo `mpris` de Waybar y las teclas multimedia
-  del escritorio lo ven y controlan sin configurar nada.
+  del escritorio lo ven y controlan sin configurar nada; la carátula
+  embebida de la pista se publica como `mpris:artUrl`.
 - **Biblioteca SQLite**: escaneo de tags (artista/álbum/título/año/género),
   búsqueda insensible a acentos y mayúsculas ("aurea" encuentra "Áurea").
 - **Visualizador de espectro**: FFT en vivo del monitor de

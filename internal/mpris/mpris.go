@@ -58,19 +58,21 @@ type Service struct {
 	ctrl  Controller
 	conn  *dbus.Conn
 	props *properties
+	art   *artCache // nil = sin carátulas
 	mu    sync.Mutex
 	last  snapshot
 }
 
 // Start conecta al bus de sesión, exporta las interfaces MPRIS y reclama el
 // nombre. Si no hay bus (sesión headless) devuelve error y el demonio sigue
-// sin MPRIS.
-func Start(ctrl Controller) (*Service, error) {
+// sin MPRIS. artDir es el directorio para el cache de carátulas embebidas
+// (mpris:artUrl); vacío las deshabilita.
+func Start(ctrl Controller, artDir string) (*Service, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return nil, err
 	}
-	s := &Service{ctrl: ctrl, conn: conn}
+	s := &Service{ctrl: ctrl, conn: conn, art: newArtCache(artDir)}
 
 	st := ctrl.Status()
 	s.last = snapshotOf(st)
@@ -112,11 +114,12 @@ func Start(ctrl Controller) (*Service, error) {
 	return s, nil
 }
 
-// Close libera el nombre (playerctl deja de listar el reproductor) y cierra
-// la conexión al bus.
+// Close libera el nombre (playerctl deja de listar el reproductor), cierra
+// la conexión al bus y borra el cache de carátulas.
 func (s *Service) Close() {
 	s.conn.ReleaseName(busName)
 	s.conn.Close()
+	s.art.close()
 }
 
 // Update refleja el estado del demonio en las propiedades D-Bus. Emite
@@ -143,7 +146,7 @@ func (s *Service) Update(st *ipc.Status) {
 		s.props.SetMust(playerIface, "Volume", cur.volume)
 	}
 	if cur.trackKey != s.last.trackKey {
-		s.props.SetMust(playerIface, "Metadata", metadataOf(st))
+		s.props.SetMust(playerIface, "Metadata", s.metadata(st))
 	}
 	if cur.canNext != s.last.canNext {
 		s.props.SetMust(playerIface, "CanGoNext", cur.canNext)
@@ -191,7 +194,7 @@ func (s *Service) propSpec(st *ipc.Status) map[string]map[string]*propDef {
 			"MinimumRate":    {value: 1.0},
 			"MaximumRate":    {value: 1.0},
 			"Shuffle":        {value: snap.shuffle, emit: true, set: s.setShuffle},
-			"Metadata":       {value: metadataOf(st), emit: true},
+			"Metadata":       {value: s.metadata(st), emit: true},
 			"Volume":         {value: snap.volume, emit: true, set: s.setVolume},
 			"Position":       {value: positionUS(st)},
 			"CanGoNext":      {value: snap.canNext, emit: true},
@@ -383,8 +386,22 @@ func trackKeyOf(st *ipc.Status) string {
 	return fmt.Sprintf("%s|%d|%d", st.Track.Path, st.QueueIndex, int64(st.Duration*1e6))
 }
 
-// metadataOf arma el diccionario Metadata. mpris:artUrl se omite a propósito:
-// maly no extrae carátulas (posible mejora futura vía dhowden/tag).
+// metadata arma el Metadata completo: el diccionario puro de metadataOf más
+// mpris:artUrl si la pista tiene carátula embebida. Corre bajo s.mu (Update)
+// o en la inicialización de Start; setPosition usa metadataOf directo para
+// no hacer IO fuera del lock.
+func (s *Service) metadata(st *ipc.Status) map[string]dbus.Variant {
+	m := metadataOf(st)
+	if s.art == nil || st.Track == nil {
+		return m
+	}
+	if u := s.art.urlFor(st.Track.Path); u != "" {
+		m["mpris:artUrl"] = dbus.MakeVariant(u)
+	}
+	return m
+}
+
+// metadataOf arma el diccionario Metadata a partir del estado, sin IO.
 func metadataOf(st *ipc.Status) map[string]dbus.Variant {
 	t := st.Track
 	if t == nil {

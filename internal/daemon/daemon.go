@@ -107,7 +107,7 @@ func New(cfg config.Config) (*Daemon, error) {
 
 	// MPRIS es opcional: sin bus de sesión (p. ej. headless) el demonio
 	// funciona igual, solo sin integración playerctl/Waybar.
-	if m, err := mpris.Start(d); err != nil {
+	if m, err := mpris.Start(d, filepath.Join(config.RuntimeDir(), "art")); err != nil {
 		fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.mpris_off", err))
 	} else {
 		d.mu.Lock()

@@ -2,6 +2,7 @@
 
 ![version](https://img.shields.io/badge/version-0.5.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
+![license](https://img.shields.io/badge/license-MIT-green)
 
 Reproductor de música local para terminal (comando `maly`), estilo
 btop/lazygit: TUI con paneles, servicio en segundo plano con socket Unix
@@ -54,6 +55,26 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
   color de tu terminal).
 
 ## Instalación
+
+### Rápida: Mallow Install (cualquier distro)
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh | sh
+```
+
+El instalador detecta tu gestor de paquetes (pacman, apt, dnf, zypper, xbps)
+y ofrece instalar lo que falte (`git`, `mpv`); si el Go de tu distro no llega
+al mínimo, ofrece bajar el toolchain oficial de go.dev a `~/.cache/mallow` —
+solo para compilar, sin tocar el sistema (esquiva el `golang-go` viejo de
+Debian/Ubuntu). Compila desde `main`, instala en `~/.local/bin` y deja las
+completions de tu shell. Nada se instala sin preguntar.
+
+- `--system` instala en `/usr/local` para todos los usuarios (pide sudo).
+- `--uninstall` lo quita (tu config, biblioteca y playlists quedan).
+- Re-ejecutarlo actualiza a lo último de `main`.
+- Desde un checkout también funciona: `./mallow-install.sh`.
+
+### A mano
 
 Dependencias de sistema: `mpv` (audio), Go ≥ 1.25 (para compilar) y, para
 el visualizador, PipeWire o PulseAudio con sus herramientas de línea de
@@ -326,3 +347,6 @@ bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
 - Base de datos: `~/.local/share/maly/library.db` (SQLite puro Go, sin CGo).
 - maly lanza y supervisa su propio `mpv --idle --no-video` y lo controla por
   IPC JSON; al cerrar maly, su mpv muere con él.
+## Licencia
+
+[MIT](LICENSE).

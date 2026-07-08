@@ -6,7 +6,10 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"maly/internal/config"
 	"maly/internal/i18n"
+	"maly/internal/ipc"
+	"maly/internal/version"
 )
 
 // command es la fuente única de verdad de un subcomando: main() dispatcha
@@ -104,7 +107,27 @@ func runHelp([]string) error {
 }
 
 func runVersion([]string) error {
-	fmt.Println("Malody Mallow (maly) v" + version)
+	fmt.Println("Malody Mallow (maly) v" + version.Version)
+	// Si hay servicio corriendo, mostrar también su versión: tras actualizar
+	// el binario el demonio viejo sigue vivo y conviene enterarse.
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		return nil
+	}
+	defer c.Close()
+	resp, err := c.Do(ipc.Request{Cmd: "ping"})
+	if err != nil || !resp.OK {
+		return nil
+	}
+	svc := resp.Version
+	if svc == "" {
+		svc = "< 0.5.0" // demonios anteriores no reportan versión
+	}
+	if svc == version.Version {
+		fmt.Println(i18n.Tf("cli.version_svc", svc))
+	} else {
+		fmt.Println(i18n.Tf("cli.version_svc_old", svc))
+	}
 	return nil
 }
 
@@ -146,7 +169,7 @@ func helpText() string {
 		b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(fmt.Sprintf("%-14s", k)), i18n.T(descKey)))
 	}
 
-	b.WriteString(bold.Render("Malody Mallow") + " " + dim.Render("(maly) v"+version) + " — " + i18n.T("cli.tagline") + "\n")
+	b.WriteString(bold.Render("Malody Mallow") + " " + dim.Render("(maly) v"+version.Version) + " — " + i18n.T("cli.tagline") + "\n")
 
 	sec(i18n.T("cli.sec_usage"), "")
 	row("maly", "cli.usage_tui")

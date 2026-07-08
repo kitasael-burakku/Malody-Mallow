@@ -11,6 +11,7 @@ import (
 
 	"maly/internal/config"
 	"maly/internal/ipc"
+	"maly/internal/version"
 )
 
 // testEnv prepara un entorno XDG aislado para demonios de prueba. Se salta
@@ -140,6 +141,9 @@ func TestSubscribe(t *testing.T) {
 	if first.Status == nil {
 		t.Fatal("el estado inicial no trae Status")
 	}
+	if first.Version != version.Version {
+		t.Errorf("Version del estado inicial = %q, quería %q", first.Version, version.Version)
+	}
 
 	// waitVolume lee pushes hasta ver el volumen esperado: los pushes son
 	// fotos de estado (no eventos) y los de arranque de mpv o una ráfaga
@@ -204,6 +208,16 @@ func TestSubscribe(t *testing.T) {
 	}
 	if !ok {
 		t.Fatal("el suscriptor colgado no se desregistró")
+	}
+
+	// El camino petición/respuesta de serve también adjunta la versión.
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if resp, err := c.Do(ipc.Request{Cmd: "ping"}); err != nil || resp.Version != version.Version {
+		t.Errorf("Version en ping = %q (err %v), quería %q", resp.Version, err, version.Version)
 	}
 }
 

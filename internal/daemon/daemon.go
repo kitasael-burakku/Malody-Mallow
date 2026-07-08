@@ -25,6 +25,7 @@ import (
 	"maly/internal/mpris"
 	"maly/internal/player"
 	"maly/internal/queue"
+	"maly/internal/version"
 )
 
 // ErrAlreadyRunning indica que otro demonio ya posee el socket.
@@ -178,6 +179,7 @@ func (d *Daemon) serve(conn net.Conn) {
 		} else {
 			resp = d.handle(req)
 		}
+		resp.Version = version.Version
 		data, _ := json.Marshal(resp)
 		if _, err := conn.Write(append(data, '\n')); err != nil {
 			return
@@ -257,7 +259,7 @@ func (s *subscriber) push(resp ipc.Response) error {
 func (d *Daemon) state() ipc.Response {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return ipc.Response{OK: true, Status: d.statusLocked(), Queue: toInfos(d.q.Items)}
+	return ipc.Response{OK: true, Status: d.statusLocked(), Queue: toInfos(d.q.Items), Version: version.Version}
 }
 
 // handle ejecuta la petición y refleja los cambios en MPRIS y suscriptores.

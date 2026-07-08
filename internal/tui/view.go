@@ -346,6 +346,8 @@ func (m *Model) footer() string {
 		line = m.st.errSt.Render(" " + m.flash)
 	case m.flash != "":
 		line = m.st.playing.Render(" " + m.flash)
+	case m.verMismatch != "":
+		line = m.st.errSt.Render(" " + i18n.Tf("tui.svc_version", m.verMismatch))
 	default:
 		hint := i18n.T("tui.footer")
 		if m.embedded {

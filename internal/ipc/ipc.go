@@ -50,11 +50,12 @@ type Status struct {
 
 // Response es la respuesta del demonio.
 type Response struct {
-	OK     bool        `json:"ok"`
-	Error  string      `json:"error,omitempty"`
-	Msg    string      `json:"msg,omitempty"`
-	Status *Status     `json:"status,omitempty"`
-	Queue  []TrackInfo `json:"queue,omitempty"`
+	OK      bool        `json:"ok"`
+	Error   string      `json:"error,omitempty"`
+	Msg     string      `json:"msg,omitempty"`
+	Status  *Status     `json:"status,omitempty"`
+	Queue   []TrackInfo `json:"queue,omitempty"`
+	Version string      `json:"version,omitempty"` // versión del demonio ("" = anterior a 0.5.0)
 }
 
 // Client es una conexión al demonio.

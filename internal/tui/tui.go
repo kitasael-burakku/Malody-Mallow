@@ -13,6 +13,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/version"
 	"maly/internal/viz"
 )
 
@@ -45,6 +46,10 @@ type Model struct {
 	// conexión caída). subRetry cuenta ticks hasta el próximo reintento.
 	sub      *ipc.Client
 	subRetry int
+
+	// Versión del demonio si difiere de la del binario ("" = coincide o aún
+	// no se sabe): se muestra persistente en el pie hasta que lo reinicien.
+	verMismatch string
 
 	filterMode  bool
 	filterInput textinput.Model
@@ -236,6 +241,20 @@ func (m *Model) setFlash(text string, isErr bool) {
 	m.flashUntil = time.Now().Add(4 * time.Second)
 }
 
+// checkVersion detecta que el demonio corre otro binario (pasa al actualizar
+// maly sin reiniciar el servicio) y también limpia el aviso si lo reinician.
+// El demonio embebido es este mismo binario, así que nunca lo dispara.
+func (m *Model) checkVersion(resp ipc.Response) {
+	if resp.Version == version.Version {
+		m.verMismatch = ""
+		return
+	}
+	m.verMismatch = resp.Version
+	if m.verMismatch == "" {
+		m.verMismatch = "< 0.5.0" // demonios anteriores no reportan versión
+	}
+}
+
 func (m *Model) applyStatus(resp ipc.Response) {
 	if resp.Status != nil {
 		m.status = resp.Status
@@ -328,6 +347,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.connErr = false
+		m.checkVersion(msg.resp)
 		m.applyStatus(msg.resp)
 		return m, nil
 
@@ -339,11 +359,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.sub = msg.c
 		m.connErr = false
+		m.checkVersion(msg.first)
 		m.applyStatus(msg.first)
 		return m, waitPush(m.sub)
 
 	case subMsg:
 		m.connErr = false
+		m.checkVersion(msg.resp)
 		m.applyStatus(msg.resp)
 		return m, waitPush(m.sub)
 

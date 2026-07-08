@@ -79,7 +79,7 @@ func TestCompleteStatic(t *testing.T) {
 
 func TestCompletePlaylistSubs(t *testing.T) {
 	xdgSandbox(t)
-	if got := strings.Join(values(completeArgs([]string{"playlist", ""})), ","); got != "list,create,delete,add,play" {
+	if got := strings.Join(values(completeArgs([]string{"playlist", ""})), ","); got != "list,create,delete,add,play,export,import" {
 		t.Errorf("subcomandos de playlist: %q", got)
 	}
 	if got := strings.Join(values(completeArgs([]string{"playlist", "cr"})), ","); got != "create" {

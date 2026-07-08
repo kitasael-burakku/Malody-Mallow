@@ -211,7 +211,7 @@ var table = map[string][2]string{
 	"cli.tbl_header":       {"ID\tARTIST\tALBUM\t#\tTITLE", "ID\tARTISTA\tÁLBUM\t#\tTÍTULO"},
 
 	// ---- CLI: playlists ----
-	"pl.usage":        {"usage:\n  maly playlist list                  list playlists\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist play <name>           play the playlist (needs daemon)", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist play <nombre>             reproduce la playlist (requiere el servicio)"},
+	"pl.usage":        {"usage:\n  maly playlist list                  list playlists\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist play <name>           play the playlist (needs daemon)\n  maly playlist export <name> [file]  write the playlist as M3U\n  maly playlist import <file> [name]  create a playlist from an M3U", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist play <nombre>             reproduce la playlist (requiere el servicio)\n  maly playlist export <nombre> [archivo] escribe la playlist como M3U\n  maly playlist import <archivo> [nombre] crea una playlist desde un M3U"},
 	"pl.usage_play":   {"usage: maly playlist play <name>", "uso: maly playlist play <nombre>"},
 	"pl.usage_create": {"usage: maly playlist create <name>", "uso: maly playlist create <nombre>"},
 	"pl.usage_delete": {"usage: maly playlist delete <name>", "uso: maly playlist delete <nombre>"},
@@ -223,6 +223,11 @@ var table = map[string][2]string{
 	"pl.no_results":   {"no results for %q", "sin resultados para %q"},
 	"pl.added":        {"%d track(s) added to %q", "%d pista(s) agregadas a %q"},
 	"pl.unknown":      {"unknown playlist subcommand %q", "subcomando playlist desconocido %q"},
+	"pl.usage_export": {"usage: maly playlist export <name> [file.m3u]", "uso: maly playlist export <nombre> [archivo.m3u]"},
+	"pl.usage_import": {"usage: maly playlist import <file.m3u> [name]", "uso: maly playlist import <archivo.m3u> [nombre]"},
+	"pl.exported":     {"%d track(s) from %q written to %s", "%d pista(s) de %q escritas en %s"},
+	"pl.imported":     {"Playlist %q created with %d track(s) from %s", "Playlist %q creada con %d pista(s) desde %s"},
+	"pl.import_skip":  {"  skipped (not in the library): %s", "  saltada (no está en la biblioteca): %s"},
 
 	// ---- Demonio ----
 	"d.already":          {"another maly daemon is already running", "ya hay un servicio de maly corriendo"},
@@ -289,4 +294,5 @@ var table = map[string][2]string{
 	"lib.pl_nf":     {"playlist %q does not exist", "la playlist %q no existe"},
 	"lib.pl_name":   {"missing playlist name", "falta el nombre de la playlist"},
 	"lib.pl_exists": {"playlist %q already exists", "la playlist %q ya existe"},
+	"lib.m3u_empty": {"no library tracks found in %s (scan the music first: maly scan)", "ninguna pista de la biblioteca encontrada en %s (escanea la música primero: maly scan)"},
 }

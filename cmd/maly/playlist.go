@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
 
@@ -106,6 +107,41 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		fmt.Println(i18n.Tf("pl.added", len(tracks), name))
+		return nil
+
+	case "export":
+		if len(args) < 1 || len(args) > 2 {
+			return errors.New(i18n.T("pl.usage_export"))
+		}
+		name := args[0]
+		file := name + ".m3u"
+		if len(args) == 2 {
+			file = args[1]
+		}
+		n, err := lib.ExportM3U(name, file)
+		if err != nil {
+			return err
+		}
+		fmt.Println(i18n.Tf("pl.exported", n, name, file))
+		return nil
+
+	case "import":
+		if len(args) < 1 || len(args) > 2 {
+			return errors.New(i18n.T("pl.usage_import"))
+		}
+		file := args[0]
+		name := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+		if len(args) == 2 {
+			name = args[1]
+		}
+		added, skipped, err := lib.ImportM3U(file, name)
+		for _, s := range skipped {
+			fmt.Fprintln(os.Stderr, i18n.Tf("pl.import_skip", s))
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Println(i18n.Tf("pl.imported", name, added, file))
 		return nil
 
 	default:

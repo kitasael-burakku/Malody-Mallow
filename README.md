@@ -49,7 +49,7 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 - **Autocompletado de shell** (bash/fish/zsh) dinámico: TAB completa
   comandos, títulos reales de tu biblioteca, playlists y posiciones de la
   cola (ver [Autocompletado](#autocompletado-bash--fish--zsh)).
-- **Playlists**, shuffle, repeat (off/all/one), cola en vivo.
+- **Playlists** con export/import M3U, shuffle, repeat (off/all/one), cola en vivo.
 - Tema y keybindings configurables por TOML; fondo transparente (usa el
   color de tu terminal).
 
@@ -230,6 +230,8 @@ maly playlist create <nombre>
 maly playlist add <nombre> <consulta>
 maly playlist play <nombre>
 maly playlist delete <nombre>
+maly playlist export <nombre> [archivo]   # escribe la playlist como M3U
+maly playlist import <archivo> [nombre]   # crea una playlist desde un M3U
 maly controls [default|vim]    # lista o cambia el preset de controles
 maly lang [en|es]              # cambia el idioma (sin arg abre el selector); alias -l
 maly completions <shell>       # script de autocompletado (bash | fish | zsh)

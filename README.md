@@ -24,6 +24,9 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 - **Backend mpv**: MP3, FLAC, OGG, OPUS, M4A, WAV sin esfuerzo.
 - **Servicio + cliente**: la música sigue sonando aunque cierres la TUI
   (si lanzaste `maly daemon` aparte). Control desde cualquier terminal.
+- **La sesión sobrevive**: cola, volumen, shuffle/repeat y la pista actual
+  con su posición se restauran al reiniciar el servicio — en pausa, listos
+  para reanudar con `maly play`.
 - **MPRIS**: el servicio se anuncia como `org.mpris.MediaPlayer2.maly` en
   D-Bus — `playerctl`, el módulo `mpris` de Waybar y las teclas multimedia
   del escritorio lo ven y controlan sin configurar nada.

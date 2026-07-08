@@ -228,6 +228,17 @@ func (p *Player) Load(path string) error {
 	return err
 }
 
+// LoadPaused carga un archivo dejándolo en pausa (la pausa va antes del
+// loadfile para que no llegue a sonar ni un instante). Lo usa el demonio al
+// restaurar la sesión: nunca debe arrancar sonando solo.
+func (p *Player) LoadPaused(path string) error {
+	if err := p.SetPause(true); err != nil {
+		return err
+	}
+	_, err := p.command("loadfile", path, "replace")
+	return err
+}
+
 // SetPause pone o quita pausa.
 func (p *Player) SetPause(paused bool) error {
 	if _, err := p.command("set_property", "pause", paused); err != nil {

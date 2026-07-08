@@ -44,6 +44,13 @@ type Daemon struct {
 	// desde caminos que ya tienen (o van a tomar) d.mu.
 	subMu sync.Mutex
 	subs  map[*subscriber]struct{}
+
+	// Persistencia de sesión: notify marca dirty y sessionSaver guarda en
+	// caliente; Close cierra sessStop y hace el guardado final.
+	sessDirty atomic.Bool
+	sessStop  chan struct{}
+
+	closeOnce sync.Once
 }
 
 // subscriber es una conexión en modo push. dirty tiene capacidad 1: una
@@ -70,7 +77,13 @@ func New(cfg config.Config) (*Daemon, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Daemon{cfg: cfg, lib: lib, q: queue.New(), subs: map[*subscriber]struct{}{}}
+	d := &Daemon{
+		cfg:      cfg,
+		lib:      lib,
+		q:        queue.New(),
+		subs:     map[*subscriber]struct{}{},
+		sessStop: make(chan struct{}),
+	}
 
 	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.onTrackEnd, d.notify)
 	if err != nil {
@@ -78,6 +91,11 @@ func New(cfg config.Config) (*Daemon, error) {
 		return nil, err
 	}
 	d.pl = pl
+
+	// Reponer la sesión anterior antes del listener y de MPRIS, para que el
+	// primer cliente (y playerctl) ya vean el estado restaurado.
+	d.restoreSession()
+	go d.sessionSaver()
 
 	ln, err := net.Listen("unix", sock)
 	if err != nil {
@@ -113,8 +131,15 @@ func (d *Daemon) Run() error {
 	}
 }
 
-// Close para todo: MPRIS, mpv, listener, socket y biblioteca.
-func (d *Daemon) Close() {
+// Close para todo: MPRIS, mpv, listener, socket y biblioteca. Antes guarda
+// la sesión con la posición exacta (mpv sigue vivo en este punto). Es
+// idempotente: solo el primer llamado hace trabajo.
+func (d *Daemon) Close() { d.closeOnce.Do(d.doClose) }
+
+func (d *Daemon) doClose() {
+	close(d.sessStop)
+	d.saveSessionNow()
+
 	d.mu.Lock()
 	m := d.mpris
 	d.mpris = nil
@@ -277,14 +302,16 @@ func (d *Daemon) mprisState() (*mpris.Service, *ipc.Status) {
 	return d.mpris, d.statusLocked()
 }
 
-// notify refleja el estado actual en MPRIS y despierta a los suscriptores
-// IPC; los eventos de mpv que no pasan por handle (pausa externa, fin de
-// pista, ticks de posición) llegan aquí vía el onChange del player.
+// notify refleja el estado actual en MPRIS, despierta a los suscriptores
+// IPC y marca la sesión para el guardado en caliente; los eventos de mpv que
+// no pasan por handle (pausa externa, fin de pista, ticks de posición)
+// llegan aquí vía el onChange del player.
 func (d *Daemon) notify() {
 	if m, st := d.mprisState(); m != nil {
 		m.Update(st)
 	}
 	d.wakeSubs()
+	d.sessDirty.Store(true)
 }
 
 // wakeSubs marca dirty a cada suscriptor; el envío no bloquea (cap 1: si ya

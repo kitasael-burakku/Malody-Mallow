@@ -196,8 +196,9 @@ func helpText() string {
 	example("maly seek 1:23")
 	example("maly shuffle on")
 	example("maly playlist add favs luna")
+	example("maly playlist export favs")
 
-	sec(i18n.T("cli.sec_keys"), "")
+	sec(i18n.T("cli.sec_keys"), i18n.T("cli.sec_keys_note"))
 	key(i18n.T("help.space"), "help.play_pause")
 	key("n / p", "help.next_prev")
 	key("tab", "help.switch")

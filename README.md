@@ -235,10 +235,10 @@ maly playlist import <archivo> [nombre]   # crea una playlist desde un M3U
 maly controls [default|vim]    # lista o cambia el preset de controles
 maly lang [en|es]              # cambia el idioma (sin arg abre el selector); alias -l
 maly completions <shell>       # script de autocompletado (bash | fish | zsh)
-maly version | -v
+maly version | -v              # también muestra la versión del servicio si corre
 ```
 
-Los comandos de biblioteca (`scan`, `search`, `playlist list/create/add/delete`)
+Los comandos de biblioteca (`scan`, `search` y todo `playlist` salvo `play`)
 operan directo sobre SQLite y no necesitan el servicio. Los de reproducción sí
 lo piden: ábrelo con `maly` o `maly daemon`.
 
@@ -317,7 +317,9 @@ bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
 
 - `maly` (sin args) abre la TUI; si no hay servicio, lo embebe (muere al salir).
 - `maly daemon` lo deja corriendo aparte; la TUI y el CLI se conectan a él.
-- Socket: `$XDG_RUNTIME_DIR/maly/maly.sock`, protocolo JSON de una línea.
+- Socket: `$XDG_RUNTIME_DIR/maly/maly.sock`, protocolo JSON de una línea;
+  la TUI se suscribe a cambios por push (sin polling) y detecta si el
+  servicio corre una versión distinta del binario.
 - MPRIS: el servicio exporta `org.mpris.MediaPlayer2.maly` en el bus de
   sesión (`internal/mpris`, godbus); solo refleja el estado del demonio, la
   lógica de reproducción no se duplica.

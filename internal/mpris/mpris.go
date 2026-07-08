@@ -57,7 +57,7 @@ type snapshot struct {
 type Service struct {
 	ctrl  Controller
 	conn  *dbus.Conn
-	props *prop.Properties
+	props *properties
 	mu    sync.Mutex
 	last  snapshot
 }
@@ -74,7 +74,7 @@ func Start(ctrl Controller) (*Service, error) {
 
 	st := ctrl.Status()
 	s.last = snapshotOf(st)
-	props, err := prop.Export(conn, objPath, s.propSpec(st))
+	props, err := exportProps(conn, objPath, s.propSpec(st))
 	if err != nil {
 		conn.Close()
 		return nil, err
@@ -173,44 +173,43 @@ func (s *Service) Seeked(us int64) {
 // propSpec arma el mapa inicial de propiedades de ambas interfaces.
 // CanQuit/CanRaise son false: no hay ventana que alzar y el demonio puede
 // vivir embebido en la TUI (un Quit remoto la dejaría sin reproductor).
-func (s *Service) propSpec(st *ipc.Status) prop.Map {
+func (s *Service) propSpec(st *ipc.Status) map[string]map[string]*propDef {
 	snap := snapshotOf(st)
-	return prop.Map{
+	return map[string]map[string]*propDef{
 		rootIface: {
-			"CanQuit":             {Value: false, Emit: prop.EmitFalse},
-			"CanRaise":            {Value: false, Emit: prop.EmitFalse},
-			"HasTrackList":        {Value: false, Emit: prop.EmitFalse},
-			"Identity":            {Value: "Malody Mallow", Emit: prop.EmitFalse},
-			"SupportedUriSchemes": {Value: []string{"file"}, Emit: prop.EmitFalse},
-			"SupportedMimeTypes":  {Value: mimeTypes, Emit: prop.EmitFalse},
+			"CanQuit":             {value: false},
+			"CanRaise":            {value: false},
+			"HasTrackList":        {value: false},
+			"Identity":            {value: "Malody Mallow"},
+			"SupportedUriSchemes": {value: []string{"file"}},
+			"SupportedMimeTypes":  {value: mimeTypes},
 		},
 		playerIface: {
-			"PlaybackStatus": {Value: snap.playback, Emit: prop.EmitTrue},
-			"LoopStatus":     {Value: snap.loop, Writable: true, Emit: prop.EmitTrue, Callback: s.setLoop},
-			"Rate":           {Value: 1.0, Writable: true, Emit: prop.EmitTrue, Callback: s.setRate},
-			"MinimumRate":    {Value: 1.0, Emit: prop.EmitFalse},
-			"MaximumRate":    {Value: 1.0, Emit: prop.EmitFalse},
-			"Shuffle":        {Value: snap.shuffle, Writable: true, Emit: prop.EmitTrue, Callback: s.setShuffle},
-			"Metadata":       {Value: metadataOf(st), Emit: prop.EmitTrue},
-			"Volume":         {Value: snap.volume, Writable: true, Emit: prop.EmitTrue, Callback: s.setVolume},
-			"Position":       {Value: positionUS(st), Emit: prop.EmitFalse},
-			"CanGoNext":      {Value: snap.canNext, Emit: prop.EmitTrue},
-			"CanGoPrevious":  {Value: snap.canPrev, Emit: prop.EmitTrue},
-			"CanPlay":        {Value: snap.canPlay, Emit: prop.EmitTrue},
-			"CanPause":       {Value: snap.canPlay, Emit: prop.EmitTrue},
-			"CanSeek":        {Value: snap.canSeek, Emit: prop.EmitTrue},
-			"CanControl":     {Value: true, Emit: prop.EmitFalse},
+			"PlaybackStatus": {value: snap.playback, emit: true},
+			"LoopStatus":     {value: snap.loop, emit: true, set: s.setLoop},
+			"Rate":           {value: 1.0, emit: true, set: s.setRate},
+			"MinimumRate":    {value: 1.0},
+			"MaximumRate":    {value: 1.0},
+			"Shuffle":        {value: snap.shuffle, emit: true, set: s.setShuffle},
+			"Metadata":       {value: metadataOf(st), emit: true},
+			"Volume":         {value: snap.volume, emit: true, set: s.setVolume},
+			"Position":       {value: positionUS(st)},
+			"CanGoNext":      {value: snap.canNext, emit: true},
+			"CanGoPrevious":  {value: snap.canPrev, emit: true},
+			"CanPlay":        {value: snap.canPlay, emit: true},
+			"CanPause":       {value: snap.canPlay, emit: true},
+			"CanSeek":        {value: snap.canSeek, emit: true},
+			"CanControl":     {value: true},
 		},
 	}
 }
 
-// Los callbacks de Set corren con el candado interno de prop tomado:
-// ejecutar el comando en línea volvería a entrar en SetMust vía Update
-// (deadlock), así que se despacha en una goroutine y el Update posterior
-// confirma (o corrige) el valor publicado.
+// Los setters despachan el comando en una goroutine: la respuesta D-Bus
+// sale de inmediato aunque mpv tarde, y el Update posterior confirma (o
+// corrige) el valor publicado.
 
-func (s *Service) setVolume(c *prop.Change) *dbus.Error {
-	v, ok := c.Value.(float64)
+func (s *Service) setVolume(val any) *dbus.Error {
+	v, ok := val.(float64)
 	if !ok {
 		return prop.ErrInvalidArg
 	}
@@ -224,38 +223,38 @@ func (s *Service) setVolume(c *prop.Change) *dbus.Error {
 	return nil
 }
 
-func (s *Service) setShuffle(c *prop.Change) *dbus.Error {
-	on, ok := c.Value.(bool)
+func (s *Service) setShuffle(val any) *dbus.Error {
+	on, ok := val.(bool)
 	if !ok {
 		return prop.ErrInvalidArg
 	}
-	val := "off"
+	v := "off"
 	if on {
-		val = "on"
+		v = "on"
 	}
-	go s.ctrl.Do(ipc.Request{Cmd: "shuffle", Value: val})
+	go s.ctrl.Do(ipc.Request{Cmd: "shuffle", Value: v})
 	return nil
 }
 
-func (s *Service) setLoop(c *prop.Change) *dbus.Error {
-	var val string
-	switch c.Value {
+func (s *Service) setLoop(val any) *dbus.Error {
+	var v string
+	switch val {
 	case "None":
-		val = "off"
+		v = "off"
 	case "Track":
-		val = "one"
+		v = "one"
 	case "Playlist":
-		val = "all"
+		v = "all"
 	default:
 		return prop.ErrInvalidArg
 	}
-	go s.ctrl.Do(ipc.Request{Cmd: "repeat", Value: val})
+	go s.ctrl.Do(ipc.Request{Cmd: "repeat", Value: v})
 	return nil
 }
 
 // setRate solo acepta 1.0: maly no cambia la velocidad de reproducción.
-func (s *Service) setRate(c *prop.Change) *dbus.Error {
-	if v, ok := c.Value.(float64); !ok || v != 1.0 {
+func (s *Service) setRate(val any) *dbus.Error {
+	if v, ok := val.(float64); !ok || v != 1.0 {
 		return prop.ErrInvalidArg
 	}
 	return nil

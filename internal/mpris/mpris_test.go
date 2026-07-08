@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/godbus/dbus/v5"
-	"github.com/godbus/dbus/v5/prop"
 
 	"maly/internal/ipc"
 )
@@ -280,12 +279,12 @@ func TestSetVolume(t *testing.T) {
 		{-0.3, "0"},
 	}
 	for _, c := range cases {
-		if err := s.setVolume(&prop.Change{Value: c.in}); err != nil {
+		if err := s.setVolume(c.in); err != nil {
 			t.Errorf("setVolume(%v) devolvió error: %v", c.in, err)
 		}
 		f.want(t, "vol", c.want)
 	}
-	if err := s.setVolume(&prop.Change{Value: "alto"}); err == nil {
+	if err := s.setVolume("alto"); err == nil {
 		t.Error("setVolume con tipo inválido no devolvió error")
 	}
 	f.wantNone(t)
@@ -295,11 +294,11 @@ func TestSetShuffle(t *testing.T) {
 	f := newFakeCtrl(&ipc.Status{})
 	s := &Service{ctrl: f}
 
-	s.setShuffle(&prop.Change{Value: true})
+	s.setShuffle(true)
 	f.want(t, "shuffle", "on")
-	s.setShuffle(&prop.Change{Value: false})
+	s.setShuffle(false)
 	f.want(t, "shuffle", "off")
-	if err := s.setShuffle(&prop.Change{Value: 1}); err == nil {
+	if err := s.setShuffle(1); err == nil {
 		t.Error("setShuffle con tipo inválido no devolvió error")
 	}
 }
@@ -312,26 +311,26 @@ func TestSetLoop(t *testing.T) {
 		{"None", "off"}, {"Track", "one"}, {"Playlist", "all"},
 	}
 	for _, c := range cases {
-		if err := s.setLoop(&prop.Change{Value: c.in}); err != nil {
+		if err := s.setLoop(c.in); err != nil {
 			t.Errorf("setLoop(%q) devolvió error: %v", c.in, err)
 		}
 		f.want(t, "repeat", c.want)
 	}
-	if err := s.setLoop(&prop.Change{Value: "Aleatorio"}); err == nil {
+	if err := s.setLoop("Aleatorio"); err == nil {
 		t.Error("setLoop con valor inválido no devolvió error")
 	}
 }
 
 func TestSetRate(t *testing.T) {
 	s := &Service{}
-	if err := s.setRate(&prop.Change{Value: 1.0}); err != nil {
+	if err := s.setRate(1.0); err != nil {
 		t.Errorf("setRate(1.0) devolvió error: %v", err)
 	}
 	// maly no cambia la velocidad: cualquier otro valor se rechaza
-	if err := s.setRate(&prop.Change{Value: 1.5}); err == nil {
+	if err := s.setRate(1.5); err == nil {
 		t.Error("setRate(1.5) no devolvió error")
 	}
-	if err := s.setRate(&prop.Change{Value: "rápido"}); err == nil {
+	if err := s.setRate("rápido"); err == nil {
 		t.Error("setRate con tipo inválido no devolvió error")
 	}
 }

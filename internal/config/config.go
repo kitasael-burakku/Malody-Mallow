@@ -330,6 +330,14 @@ func Load() (cfg Config, retErr error) {
 	cfg.Keys = nil
 	defer func() { cfg.resolveKeys() }()
 
+	// Sin $HOME (cron, algún unit de systemd) y sin los XDG que lo sustituyen,
+	// las rutas caerían silenciosamente en el directorio actual. Fallar claro.
+	if os.Getenv("XDG_CONFIG_HOME") == "" || os.Getenv("XDG_DATA_HOME") == "" {
+		if _, err := os.UserHomeDir(); err != nil {
+			return cfg, fmt.Errorf("%s: %w", i18n.T("cfg.no_home"), err)
+		}
+	}
+
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {

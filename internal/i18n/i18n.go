@@ -274,6 +274,7 @@ var table = map[string][2]string{
 	"cli.embedded_err": {"starting embedded daemon", "iniciando el servicio integrado"},
 
 	// ---- Config ----
+	"cfg.no_home":       {"cannot determine your home directory (set $HOME)", "no pude determinar tu carpeta home (define $HOME)"},
 	"cfg.write_default": {"writing default config", "escribiendo config por defecto"},
 	"cfg.read":          {"reading %s", "leyendo %s"},
 	"cfg.invalid":       {"invalid config at %s", "config inválido en %s"},

@@ -91,10 +91,9 @@ else
 	ZSHC=$DATA/zsh/site-functions
 fi
 
-# ¿$BIN ya existía antes de esta corrida? En Debian/Ubuntu ~/.profile agrega
-# ~/.local/bin al PATH solo si ya existía al iniciar sesión, así que si lo
-# creamos ahora hay que avisar aunque esta sesión sí lo vea. Se comprueba antes
-# de instalar (install -D lo crea).
+# ¿$BIN ya existía antes de esta corrida? (para el aviso de fish: su PATH por
+# defecto puede incluirlo, pero si lo creamos ahora conviene avisar igual).
+# Se comprueba antes de instalar (install -D lo crea).
 BIN_EXISTED=1
 [ "$SYSTEM" -eq 0 ] && { [ -d "$BIN" ] || BIN_EXISTED=0; }
 
@@ -269,23 +268,40 @@ fi
 
 # ---- avisos finales ----
 if [ "$SYSTEM" -eq 0 ]; then
-	on_path=0
-	case ":$PATH:" in *":$BIN:"*) on_path=1 ;; esac
 	# Consejo según el shell de login: en fish lo idiomático (y persistente) es
 	# fish_add_path, no el export de POSIX.
 	sh_name=${SHELL:-}; sh_name=${sh_name##*/}
 	if [ "$sh_name" = fish ]; then
-		add_es="agrégalo:  fish_add_path $BIN"
-		add_en="add it:  fish_add_path $BIN"
+		on_path=0
+		case ":$PATH:" in *":$BIN:"*) on_path=1 ;; esac
+		if [ "$on_path" -eq 0 ]; then
+			warn "$BIN no está en tu PATH; agrégalo:  fish_add_path $BIN" \
+				"$BIN is not in your PATH; add it:  fish_add_path $BIN"
+		elif [ "$BIN_EXISTED" -eq 0 ]; then
+			warn "$BIN se creó en esta instalación; para que futuras sesiones lo vean, agrégalo:  fish_add_path $BIN" \
+				"$BIN was created by this install; for future sessions to see it, add it:  fish_add_path $BIN"
+		fi
 	else
-		add_es="reloguéate, o agrega  export PATH=\"$BIN:\$PATH\"  a tu shell"
-		add_en="re-login, or add  export PATH=\"$BIN:\$PATH\"  to your shell"
-	fi
-	if [ "$on_path" -eq 0 ]; then
-		warn "$BIN no está en tu PATH; $add_es" "$BIN is not in your PATH; $add_en"
-	elif [ "$BIN_EXISTED" -eq 0 ]; then
-		warn "$BIN se creó en esta instalación; para que futuras sesiones lo vean, $add_es" \
-			"$BIN was created by this install; for future sessions to see it, $add_en"
+		# bash/zsh: no vale mirar el $PATH de esta corrida (puede venir heredado
+		# de la sesión); lo que cuenta es que quede escrito en el rc que las
+		# terminales nuevas sí leen. ~/.profile no sirve: solo lo leen los login
+		# shells, y una terminal nueva del escritorio no lo es.
+		case "$sh_name" in
+		zsh) RC=${ZDOTDIR:-$HOME}/.zshrc ;;
+		*) RC=$HOME/.bashrc ;;
+		esac
+		path_line="export PATH=\"$BIN:\$PATH\""
+		if ! grep -qF "$BIN" "$RC" 2>/dev/null; then
+			if confirm "$RC no menciona $BIN; ¿agregar  $path_line ?" \
+				"$RC doesn't mention $BIN; add  $path_line ?"; then
+				printf '\n# added by mallow-install.sh\n%s\n' "$path_line" >> "$RC"
+				msg "escrito en $RC; con abrir una terminal nueva basta" \
+					"written to $RC; opening a new terminal is enough"
+			else
+				warn "agrega  $path_line  a $RC (una terminal nueva basta); sin eso, cada terminal nueva necesitará  source ~/.profile  o ese export a mano" \
+					"add  $path_line  to $RC (a new terminal is enough); without it, every new terminal will need  source ~/.profile  or that export by hand"
+			fi
+		fi
 	fi
 fi
 if ! command -v pw-record >/dev/null 2>&1 && ! command -v parec >/dev/null 2>&1; then

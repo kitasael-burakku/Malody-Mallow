@@ -4,7 +4,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 	"text/tabwriter"
@@ -114,8 +116,9 @@ func runScan(args []string) error {
 	if err != nil {
 		return err
 	}
-	dir := cfg.MusicPath()
-	if len(args) > 0 {
+	dir, origin := cfg.MusicDirOrigin()
+	explicit := len(args) > 0
+	if explicit {
 		dir = config.ExpandTilde(args[0])
 	}
 	lib, err := openLibrary()
@@ -127,6 +130,11 @@ func runScan(args []string) error {
 	fmt.Println(i18n.Tf("cli.scan_start", dir))
 	res, err := lib.Scan(dir)
 	if err != nil {
+		// Ruta por defecto que no existe: decir de dónde salió y cómo apuntar
+		// a la música. Con ruta explícita el usuario ya sabe qué escribió.
+		if !explicit && errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("%s", i18n.Tf("cli.scan_noexist", dir, i18n.T(origin)))
+		}
 		return err
 	}
 	for _, e := range res.Errors {

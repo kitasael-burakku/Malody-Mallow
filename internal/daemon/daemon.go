@@ -559,12 +559,16 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 	}
 	defer d.scanning.Store(false)
 
-	dir := d.cfg.MusicPath()
-	if strings.TrimSpace(query) != "" {
+	dir, origin := d.cfg.MusicDirOrigin()
+	explicit := strings.TrimSpace(query) != ""
+	if explicit {
 		dir = config.ExpandTilde(query)
 	}
 	res, err := d.lib.Scan(dir)
 	if err != nil {
+		if !explicit && errors.Is(err, fs.ErrNotExist) {
+			return ipc.Response{Error: i18n.TLf(lang, "cli.scan_noexist", dir, i18n.TL(lang, origin))}
+		}
 		return ipc.Response{Error: err.Error()}
 	}
 	total, _ := d.lib.Count()

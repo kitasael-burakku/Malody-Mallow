@@ -208,6 +208,7 @@ var table = map[string][2]string{
 	"cli.scan_warn":        {"  warning: %s", "  aviso: %s"},
 	"cli.scan_done":        {"Done: %d new, %d updated, %d removed (%d tracks total)", "Listo: %d nuevas, %d actualizadas, %d eliminadas (%d pistas en total)"},
 	"cli.scan_empty":       {"The library is empty. Is there music in %s? You can pass another path: maly scan <path>", "La biblioteca está vacía. ¿Hay música en %s? Puedes indicar otra ruta: maly scan <ruta>"},
+	"cli.scan_noexist":     {"%s does not exist (from %s). Point maly at your music with: maly scan <path>", "%s no existe (viene de %s). Indica dónde está tu música con: maly scan <ruta>"},
 	"cli.search_none":      {"No results. Did you scan the library? (maly scan)", "Sin resultados. ¿Ya escaneaste la biblioteca? (maly scan)"},
 	"cli.tbl_header":       {"ID\tARTIST\tALBUM\t#\tTITLE", "ID\tARTISTA\tÁLBUM\t#\tTÍTULO"},
 
@@ -290,6 +291,12 @@ var table = map[string][2]string{
 	"lib.open_db":   {"opening database", "abriendo base de datos"},
 	"lib.schema":    {"creating schema", "creando esquema"},
 	"lib.no_access": {"cannot access %s", "no puedo acceder a %s"},
+
+	// ---- Origen de la ruta de música (para el error de scan) ----
+	"music.src_config":   {"music_dir in your config", "music_dir de tu config"},
+	"music.src_xdgenv":   {"$XDG_MUSIC_DIR", "$XDG_MUSIC_DIR"},
+	"music.src_userdirs": {"XDG_MUSIC_DIR in user-dirs.dirs", "XDG_MUSIC_DIR de user-dirs.dirs"},
+	"music.src_fallback": {"the default (no music dir configured)", "el valor por defecto (sin directorio configurado)"},
 	"lib.not_dir":   {"%s is not a directory", "%s no es un directorio"},
 	"lib.track_nf":  {"track %d not found", "pista %d no encontrada"},
 	"lib.pl_nf":     {"playlist %q does not exist", "la playlist %q no existe"},

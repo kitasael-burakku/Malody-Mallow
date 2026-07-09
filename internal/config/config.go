@@ -214,22 +214,40 @@ func collapseTilde(p string) string {
 	return p
 }
 
-// defaultMusicDir resuelve el directorio de música cuando el config no lo
-// fija: $XDG_MUSIC_DIR, luego XDG_MUSIC_DIR en user-dirs.dirs (localizado,
-// p. ej. ~/Música en español), y por último ~/Music. Devuelve una ruta
-// absoluta ya expandida.
-func defaultMusicDir() string {
+// Claves i18n que describen de dónde salió la ruta de música resuelta; las
+// usa el mensaje de error de scan.
+const (
+	MusicSrcConfig   = "music.src_config"
+	MusicSrcXDGEnv   = "music.src_xdgenv"
+	MusicSrcUserDirs = "music.src_userdirs"
+	MusicSrcFallback = "music.src_fallback"
+)
+
+// resolveMusicDir implementa el orden completo (music_dir del config →
+// $XDG_MUSIC_DIR → user-dirs.dirs → ~/Music) y devuelve la ruta expandida
+// junto con una clave i18n de su origen.
+func resolveMusicDir(cfgVal string) (path, originKey string) {
+	if v := strings.TrimSpace(cfgVal); v != "" {
+		return ExpandTilde(v), MusicSrcConfig
+	}
 	if d := strings.TrimSpace(os.Getenv("XDG_MUSIC_DIR")); d != "" {
-		return d
+		return d, MusicSrcXDGEnv
 	}
 	if d := musicFromUserDirs(); d != "" {
-		return d
+		return d, MusicSrcUserDirs
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "~/Music"
+		return "~/Music", MusicSrcFallback
 	}
-	return filepath.Join(home, "Music")
+	return filepath.Join(home, "Music"), MusicSrcFallback
+}
+
+// defaultMusicDir resuelve el directorio de música cuando el config no lo
+// fija (p. ej. ~/Música en español). Devuelve una ruta absoluta ya expandida.
+func defaultMusicDir() string {
+	p, _ := resolveMusicDir("")
+	return p
 }
 
 // musicFromUserDirs lee XDG_MUSIC_DIR del user-dirs.dirs que escribe
@@ -338,10 +356,14 @@ func Load() (cfg Config, retErr error) {
 // MusicPath devuelve music_dir con ~ expandido; si el config lo dejó vacío,
 // cae en la resolución por defecto (XDG_MUSIC_DIR / user-dirs.dirs / ~/Music).
 func (c Config) MusicPath() string {
-	if strings.TrimSpace(c.MusicDir) == "" {
-		return defaultMusicDir()
-	}
-	return ExpandTilde(c.MusicDir)
+	p, _ := resolveMusicDir(c.MusicDir)
+	return p
+}
+
+// MusicDirOrigin devuelve la ruta de música resuelta y una clave i18n que
+// explica su origen, para mensajes de error útiles.
+func (c Config) MusicDirOrigin() (path, originKey string) {
+	return resolveMusicDir(c.MusicDir)
 }
 
 // SaveLanguage persiste solo la clave language en config.toml.

@@ -282,6 +282,7 @@ var table = map[string][2]string{
 	"p.no_mpv":      {"mpv is not installed (Arch: pacman -S mpv, Ubuntu: apt install mpv)", "mpv no está instalado (Arch: pacman -S mpv, Ubuntu: apt install mpv)"},
 	"p.launch":      {"launching mpv", "lanzando mpv"},
 	"p.connect":     {"could not connect to mpv IPC", "no pude conectar con el IPC de mpv"},
+	"p.died":        {"mpv exited before creating its IPC socket", "mpv terminó antes de crear su socket IPC"},
 	"p.configure":   {"configuring mpv", "configurando mpv"},
 	"p.not_running": {"mpv is not running", "mpv no está corriendo"},
 	"p.exited":      {"mpv exited", "mpv terminó"},

@@ -10,6 +10,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"maly/internal/i18n"
@@ -63,29 +65,52 @@ func Start(socketPath string, onEOF, onChange func()) (*Player, error) {
 	if err != nil {
 		return nil, errors.New(i18n.T("p.no_mpv"))
 	}
+	// Asegurar el directorio del socket (0700) y limpiar un socket huérfano de
+	// un mpv que murió sin borrarlo.
+	if err := os.MkdirAll(filepath.Dir(socketPath), 0o700); err != nil {
+		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", filepath.Dir(socketPath)), err)
+	}
 	os.Remove(socketPath)
+
+	// --input-terminal=no (en vez de --no-terminal) evita que mpv toque la
+	// terminal de la TUI pero deja que escriba a stdout el motivo de una
+	// muerte temprana (opción inválida, etc.); lo capturamos acotado para
+	// diagnosticar. Idle, mpv no escribe nada, así que en el caso sano el
+	// buffer queda vacío.
 	cmd := exec.Command(mpvBin,
-		"--idle=yes", "--no-video", "--no-terminal",
+		"--idle=yes", "--no-video", "--input-terminal=no",
 		"--audio-display=no",
 		"--input-ipc-server="+socketPath,
 		"--volume=100",
 	)
+	var out boundedBuffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("p.launch"), err)
 	}
+	exited := make(chan struct{})
+	go func() { cmd.Wait(); close(exited) }() // evitar zombi y detectar muerte
 
-	// mpv tarda un poco en crear el socket.
+	// mpv tarda en crear el socket; en hardware lento puede pasar de un par de
+	// segundos. Reintentar hasta ~5 s, distinguiendo "mpv murió" (el socket no
+	// va a aparecer) de "aún no está listo".
 	var conn net.Conn
-	for i := 0; i < 50; i++ {
-		conn, err = net.Dial("unix", socketPath)
-		if err == nil {
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if conn, err = net.Dial("unix", socketPath); err == nil {
 			break
 		}
+		select {
+		case <-exited:
+			return nil, mpvStartError(cmd, out.String())
+		default:
+		}
+		if time.Now().After(deadline) {
+			cmd.Process.Kill()
+			return nil, fmt.Errorf("%s: %w", i18n.T("p.connect"), err)
+		}
 		time.Sleep(50 * time.Millisecond)
-	}
-	if err != nil {
-		cmd.Process.Kill()
-		return nil, fmt.Errorf("%s: %w", i18n.T("p.connect"), err)
 	}
 
 	p := &Player{
@@ -96,10 +121,9 @@ func Start(socketPath string, onEOF, onChange func()) (*Player, error) {
 		onEOF:    onEOF,
 		onChange: onChange,
 		done:     make(chan struct{}),
-		exited:   make(chan struct{}),
+		exited:   exited,
 	}
 	go p.readLoop()
-	go func() { cmd.Wait(); close(p.exited) }() // evitar zombi
 
 	for i, prop := range []string{"pause", "time-pos", "duration", "volume", "idle-active", "path"} {
 		if _, err := p.command("observe_property", int64(i+1), prop); err != nil {
@@ -344,4 +368,43 @@ func (p *Player) Close() {
 	case <-time.After(2 * time.Second):
 		p.cmd.Process.Kill()
 	}
+}
+
+// boundedBuffer conserva los últimos boundedBufferMax bytes escritos: acota la
+// salida de mpv que capturamos para diagnóstico sin crecer sin límite.
+type boundedBuffer struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+const boundedBufferMax = 8 << 10
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+	if len(b.buf) > boundedBufferMax {
+		b.buf = b.buf[len(b.buf)-boundedBufferMax:]
+	}
+	return len(p), nil
+}
+
+func (b *boundedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.buf)
+}
+
+// mpvStartError arma el error cuando mpv terminó antes de crear el socket,
+// incluyendo su código de salida y lo que haya escrito (motivo del fallo).
+func mpvStartError(cmd *exec.Cmd, out string) error {
+	out = strings.TrimSpace(out)
+	detail := ""
+	if cmd.ProcessState != nil {
+		detail = cmd.ProcessState.String()
+	}
+	if out != "" {
+		return fmt.Errorf("%s (%s): %s", i18n.T("p.died"), detail, out)
+	}
+	return fmt.Errorf("%s (%s)", i18n.T("p.died"), detail)
 }

@@ -91,6 +91,13 @@ else
 	ZSHC=$DATA/zsh/site-functions
 fi
 
+# ¿$BIN ya existía antes de esta corrida? En Debian/Ubuntu ~/.profile agrega
+# ~/.local/bin al PATH solo si ya existía al iniciar sesión, así que si lo
+# creamos ahora hay que avisar aunque esta sesión sí lo vea. Se comprueba antes
+# de instalar (install -D lo crea).
+BIN_EXISTED=1
+[ "$SYSTEM" -eq 0 ] && { [ -d "$BIN" ] || BIN_EXISTED=0; }
+
 SUDO=''
 if [ "$SYSTEM" -eq 1 ] && [ "$(id -u)" -ne 0 ]; then
 	command -v sudo >/dev/null 2>&1 ||
@@ -261,11 +268,26 @@ if [ "$SYSTEM" -eq 1 ] || command -v zsh >/dev/null 2>&1; then
 fi
 
 # ---- avisos finales ----
-case ":$PATH:" in
-*":$BIN:"*) ;;
-*) warn "$BIN no está en tu PATH: abre una sesión nueva o agrégalo a tu shell" \
-	"$BIN is not in your PATH: open a new session or add it to your shell" ;;
-esac
+if [ "$SYSTEM" -eq 0 ]; then
+	on_path=0
+	case ":$PATH:" in *":$BIN:"*) on_path=1 ;; esac
+	# Consejo según el shell de login: en fish lo idiomático (y persistente) es
+	# fish_add_path, no el export de POSIX.
+	sh_name=${SHELL:-}; sh_name=${sh_name##*/}
+	if [ "$sh_name" = fish ]; then
+		add_es="agrégalo:  fish_add_path $BIN"
+		add_en="add it:  fish_add_path $BIN"
+	else
+		add_es="reloguéate, o agrega  export PATH=\"$BIN:\$PATH\"  a tu shell"
+		add_en="re-login, or add  export PATH=\"$BIN:\$PATH\"  to your shell"
+	fi
+	if [ "$on_path" -eq 0 ]; then
+		warn "$BIN no está en tu PATH; $add_es" "$BIN is not in your PATH; $add_en"
+	elif [ "$BIN_EXISTED" -eq 0 ]; then
+		warn "$BIN se creó en esta instalación; para que futuras sesiones lo vean, $add_es" \
+			"$BIN was created by this install; for future sessions to see it, $add_en"
+	fi
+fi
 if ! command -v pw-record >/dev/null 2>&1 && ! command -v parec >/dev/null 2>&1; then
 	warn 'sin pw-record/parec el visualizador queda en modo animación (opcional: pipewire o pulseaudio-utils)' \
 		'without pw-record/parec the visualizer stays in animation mode (optional: pipewire or pulseaudio-utils)'

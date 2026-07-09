@@ -95,7 +95,7 @@ func ValidPreset(name string) bool {
 
 func Default() Config {
 	return Config{
-		MusicDir: "~/Music",
+		MusicDir: collapseTilde(defaultMusicDir()),
 		Theme: Theme{
 			Transparent: true,
 			Accent:      "#89b4fa",
@@ -114,7 +114,10 @@ func Default() Config {
 	}
 }
 
-const defaultTOML = `music_dir = "~/Music"
+// configTemplate es el config.toml inicial; %q recibe la ruta de música ya
+// resuelta (defaultMusicDir), con el home recolapsado a ~ para que sea
+// portable entre máquinas del mismo usuario.
+const configTemplate = `music_dir = %q
 language = ""             # "" = preguntar al abrir la TUI; "en" | "es"
 controls = "default"      # esquema de teclas: default | vim (maly controls)
 
@@ -195,6 +198,97 @@ func ExpandTilde(p string) string {
 	return p
 }
 
+// collapseTilde es la inversa de ExpandTilde: si p cuelga del home lo
+// reescribe con "~", para guardar rutas portables en el config.
+func collapseTilde(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
+	if p == home {
+		return "~"
+	}
+	if rest, ok := strings.CutPrefix(p, home+string(filepath.Separator)); ok {
+		return "~/" + rest
+	}
+	return p
+}
+
+// defaultMusicDir resuelve el directorio de música cuando el config no lo
+// fija: $XDG_MUSIC_DIR, luego XDG_MUSIC_DIR en user-dirs.dirs (localizado,
+// p. ej. ~/Música en español), y por último ~/Music. Devuelve una ruta
+// absoluta ya expandida.
+func defaultMusicDir() string {
+	if d := strings.TrimSpace(os.Getenv("XDG_MUSIC_DIR")); d != "" {
+		return d
+	}
+	if d := musicFromUserDirs(); d != "" {
+		return d
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "~/Music"
+	}
+	return filepath.Join(home, "Music")
+}
+
+// musicFromUserDirs lee XDG_MUSIC_DIR del user-dirs.dirs que escribe
+// xdg-user-dirs (líneas tipo `XDG_MUSIC_DIR="$HOME/Música"`). Devuelve ""
+// si el archivo no existe o no trae la clave.
+func musicFromUserDirs() string {
+	cfgHome := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME"))
+	if cfgHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		cfgHome = filepath.Join(home, ".config")
+	}
+	data, err := os.ReadFile(filepath.Join(cfgHome, "user-dirs.dirs"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		rest, ok := strings.CutPrefix(line, "XDG_MUSIC_DIR=")
+		if !ok {
+			continue
+		}
+		rest = strings.Trim(strings.TrimSpace(rest), `"'`)
+		if rest = expandHomeVar(rest); rest != "" {
+			return rest
+		}
+	}
+	return ""
+}
+
+// expandHomeVar expande un "$HOME"/"${HOME}" inicial, la única variable que
+// usa user-dirs.dirs.
+func expandHomeVar(p string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return p
+	}
+	switch {
+	case p == "$HOME" || p == "${HOME}":
+		return home
+	case strings.HasPrefix(p, "$HOME/"):
+		return filepath.Join(home, p[len("$HOME/"):])
+	case strings.HasPrefix(p, "${HOME}/"):
+		return filepath.Join(home, p[len("${HOME}/"):])
+	}
+	return p
+}
+
+// defaultConfigTOML arma el config.toml inicial con la ruta de música ya
+// resuelta.
+func defaultConfigTOML() string {
+	return fmt.Sprintf(configTemplate, collapseTilde(defaultMusicDir()))
+}
+
 // resolveKeys deja en c.Keys el mapa final: defaults ← preset de controles
 // ← [keys] del usuario (lo explícito siempre gana). c.Keys debe traer solo
 // las entradas escritas por el usuario.
@@ -224,7 +318,7 @@ func Load() (cfg Config, retErr error) {
 		if mkErr := os.MkdirAll(ConfigDir(), 0o755); mkErr != nil {
 			return cfg, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", ConfigDir()), mkErr)
 		}
-		if wErr := os.WriteFile(path, []byte(defaultTOML), 0o644); wErr != nil {
+		if wErr := os.WriteFile(path, []byte(defaultConfigTOML()), 0o644); wErr != nil {
 			return cfg, fmt.Errorf("%s: %w", i18n.T("cfg.write_default"), wErr)
 		}
 		return cfg, nil
@@ -241,8 +335,14 @@ func Load() (cfg Config, retErr error) {
 	return cfg, nil
 }
 
-// MusicPath devuelve music_dir con ~ expandido.
-func (c Config) MusicPath() string { return ExpandTilde(c.MusicDir) }
+// MusicPath devuelve music_dir con ~ expandido; si el config lo dejó vacío,
+// cae en la resolución por defecto (XDG_MUSIC_DIR / user-dirs.dirs / ~/Music).
+func (c Config) MusicPath() string {
+	if strings.TrimSpace(c.MusicDir) == "" {
+		return defaultMusicDir()
+	}
+	return ExpandTilde(c.MusicDir)
+}
 
 // SaveLanguage persiste solo la clave language en config.toml.
 func SaveLanguage(code string) error { return saveTopLevel("language", code) }
@@ -259,7 +359,7 @@ func saveTopLevel(key, value string) error {
 		if !os.IsNotExist(err) {
 			return err
 		}
-		data = []byte(defaultTOML)
+		data = []byte(defaultConfigTOML())
 	}
 	lines := strings.Split(string(data), "\n")
 	done := false

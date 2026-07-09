@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/dhowden/tag"
@@ -252,12 +253,21 @@ func (l *Library) collect(query string, args ...any) ([]Track, error) {
 	return out, rows.Err()
 }
 
-var foldTransform = transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+// foldPool reparte transformers reutilizables: transform.Transformer tiene
+// estado interno y no es seguro entre goroutines, y Fold se llama en paralelo
+// (el demonio escanea sin d.mu mientras search/status siguen respondiendo).
+var foldPool = sync.Pool{
+	New: func() any {
+		return transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+	},
+}
 
 // Fold normaliza texto para búsqueda: minúsculas y sin diacríticos, de modo
 // que "aurea" encuentre "Áurea" aunque el tag venga en NFD.
 func Fold(s string) string {
-	out, _, err := transform.String(foldTransform, s)
+	t := foldPool.Get().(transform.Transformer)
+	out, _, err := transform.String(t, s) // transform.String hace Reset primero
+	foldPool.Put(t)
 	if err != nil {
 		out = s
 	}

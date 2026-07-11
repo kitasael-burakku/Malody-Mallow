@@ -41,6 +41,11 @@ type Daemon struct {
 	mpris    *mpris.Service // nil si no hay bus de sesión
 	scanning atomic.Bool    // guarda contra escaneos simultáneos (scan corre sin d.mu)
 
+	// libGen es la generación de la biblioteca: arranca en 1 y crece con
+	// cada scan exitoso. statusLocked la adjunta a todo Status, y los
+	// clientes recargan su copia de la biblioteca al verla cambiar.
+	libGen atomic.Uint64
+
 	// Pistas fallidas seguidas desde la última reproducción sana (bajo d.mu).
 	// Guarda de advance: al acumular una pasada completa de la cola sin que
 	// nada suene, se detiene en vez de ciclar para siempre. Es aproximada a
@@ -97,6 +102,7 @@ func New(cfg config.Config) (*Daemon, error) {
 		subs:     map[*subscriber]struct{}{},
 		sessStop: make(chan struct{}),
 	}
+	d.libGen.Store(1) // 0 queda reservado a demonios sin soporte (omitempty)
 
 	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.advance, d.notify)
 	if err != nil {
@@ -713,6 +719,13 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 		return ipc.Response{Error: err.Error()}
 	}
 	total, _ := d.lib.Count()
+	if res.Added+res.Updated+res.Removed > 0 {
+		// La biblioteca cambió de generación: despertar a los suscriptores
+		// aquí mismo (handle trata scan como solo-lectura y no lo haría). Un
+		// scan sin cambios no recarga el árbol de nadie.
+		d.libGen.Add(1)
+		d.wakeSubs()
+	}
 	return ipc.Response{OK: true, Msg: i18n.TLf(lang, "d.scan_done",
 		res.Added, res.Updated, res.Removed, total)}
 }
@@ -873,6 +886,7 @@ func (d *Daemon) statusLocked() *ipc.Status {
 		Repeat:     string(d.q.Repeat),
 		QueueIndex: d.q.Index,
 		QueueLen:   d.q.Len(),
+		LibGen:     d.libGen.Load(),
 	}
 	if t, ok := d.q.Current(); ok && !st.Idle {
 		info := infoOf(t)

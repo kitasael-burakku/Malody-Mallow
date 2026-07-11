@@ -24,11 +24,11 @@ type Request struct {
 
 // TrackInfo es la vista serializable de una pista.
 type TrackInfo struct {
-	ID          int64  `json:"id"`
-	Path        string `json:"path"`
-	Title       string `json:"title"`
-	Artist      string `json:"artist"`
-	Album       string `json:"album"`
+	ID          int64   `json:"id"`
+	Path        string  `json:"path"`
+	Title       string  `json:"title"`
+	Artist      string  `json:"artist"`
+	Album       string  `json:"album"`
 	AlbumArtist string  `json:"album_artist,omitempty"`
 	Genre       string  `json:"genre,omitempty"`
 	TrackNo     int     `json:"track_no,omitempty"`
@@ -47,6 +47,10 @@ type Status struct {
 	Repeat     string     `json:"repeat"` // off | all | one
 	QueueIndex int        `json:"queue_index"`
 	QueueLen   int        `json:"queue_len"`
+	// LibGen es la generación de la biblioteca del demonio: crece con cada
+	// scan, así los clientes detectan en cualquier respuesta o push que la
+	// biblioteca cambió y recargan su copia. 0 = demonio sin soporte (< 0.7).
+	LibGen uint64 `json:"lib_gen,omitempty"`
 }
 
 // Response es la respuesta del demonio.

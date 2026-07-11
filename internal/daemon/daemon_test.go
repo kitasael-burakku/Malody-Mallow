@@ -694,3 +694,53 @@ func TestSessionCorruptStartsClean(t *testing.T) {
 		t.Fatalf("con sesión corrupta el arranque debe ser limpio: %+v", st)
 	}
 }
+
+// TestLibGenBumpsOnScan: la generación de biblioteca arranca en 1, sube solo
+// cuando un scan cambia algo y el cambio llega como push a los suscriptores
+// (así todas las TUIs recargan el árbol sin que nadie se lo pida).
+func TestLibGenBumpsOnScan(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	if st := d.Do(ipc.Request{Cmd: "status"}).Status; st == nil || st.LibGen != 1 {
+		t.Fatalf("LibGen inicial: %+v, quería 1", st)
+	}
+
+	sub, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	if first, err := sub.Subscribe(); err != nil || !first.OK {
+		t.Fatalf("subscribe: %v / %+v", err, first)
+	}
+
+	music := t.TempDir()
+	if err := os.WriteFile(filepath.Join(music, "una.mp3"), []byte("dummy"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+
+	// El scan despierta a los suscriptores; los pushes son fotos, se lee
+	// hasta ver la generación nueva.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp := next(t, sub)
+		if resp.Status != nil && resp.Status.LibGen == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("nunca llegó el push con LibGen 2; último: %+v", resp.Status)
+		}
+	}
+
+	// Re-escanear sin cambios no debe subir la generación (ni recargar nada).
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("re-scan: %s", resp.Error)
+	}
+	if st := d.Do(ipc.Request{Cmd: "status"}).Status; st.LibGen != 2 {
+		t.Fatalf("LibGen tras scan sin cambios = %d, quería 2", st.LibGen)
+	}
+}

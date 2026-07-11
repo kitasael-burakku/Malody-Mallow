@@ -7,11 +7,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"maly/internal/config"
 	"maly/internal/i18n"
-	"maly/internal/ipc"
 )
 
 // runGet descarga audio a music_dir con yt-dlp y re-escanea la biblioteca:
@@ -65,20 +63,7 @@ func runGet(args []string) error {
 	}
 
 	fmt.Println("\n" + i18n.T("cli.get_scan"))
-	// Escanear a través del demonio si responde (así su biblioteca en memoria
-	// también se entera); sin demonio, directo a la DB como `maly scan`.
-	if c, err := ipc.Dial(config.SocketPath()); err == nil {
-		defer c.Close()
-		c.Timeout = 2 * time.Minute // un scan grande no cabe en los 30 s default
-		resp, err := c.Do(ipc.Request{Cmd: "scan"})
-		if err != nil {
-			return err
-		}
-		if !resp.OK {
-			return errors.New(resp.Error)
-		}
-		fmt.Println(resp.Msg)
-		return nil
-	}
+	// runScan decide el camino: vía demonio si responde (sube LibGen y las
+	// TUIs abiertas recargan el árbol solas), directo a la DB si no.
 	return runScan(nil)
 }

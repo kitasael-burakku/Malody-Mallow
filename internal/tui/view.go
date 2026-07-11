@@ -409,4 +409,3 @@ func (m *Model) helpView() string {
 	box := m.st.panel(i18n.T("tui.help_title"), lines, w, len(lines)+2, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
-

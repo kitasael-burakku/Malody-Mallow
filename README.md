@@ -275,7 +275,9 @@ maly version | -v              # también muestra la versión del servicio si co
 
 Los comandos de biblioteca (`scan`, `search`, `get` y todo `playlist` salvo
 `play`) operan directo sobre SQLite y no necesitan el servicio. Los de
-reproducción sí lo piden: ábrelo con `maly` o `maly daemon`.
+reproducción sí lo piden: ábrelo con `maly` o `maly daemon`. Si el servicio
+está corriendo, `scan` (y el re-escaneo de `get`) pasa a través de él y toda
+TUI abierta recarga su biblioteca al instante, sin tocar nada.
 
 `maly get` delega toda la interacción web en yt-dlp (como lazygit usa git):
 sin `://` busca la frase en YouTube y baja el primer resultado; con una URL

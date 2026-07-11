@@ -19,8 +19,7 @@ import (
 
 // conMsg trae la salida de un comando ejecutado contra el demonio.
 type conMsg struct {
-	lines     []string
-	reloadLib bool // tras scan: recargar la biblioteca de la TUI
+	lines []string
 }
 
 // conMaxLines limita el historial de salida de la consola.
@@ -232,7 +231,9 @@ func (m *Model) conScan() tea.Cmd {
 		if !resp.OK {
 			return conMsg{lines: []string{st.errSt.Render(resp.Error)}}
 		}
-		return conMsg{lines: []string{st.playing.Render(resp.Msg)}, reloadLib: true}
+		// La recarga del árbol no se pide aquí: el scan subió LibGen y la
+		// foto de estado siguiente la dispara (en esta TUI y en las demás).
+		return conMsg{lines: []string{st.playing.Render(resp.Msg)}}
 	}
 }
 

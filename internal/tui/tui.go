@@ -42,6 +42,10 @@ type Model struct {
 	status      *ipc.Status
 	connErr     bool
 
+	// Última generación de biblioteca vista (Status.LibGen): si el demonio
+	// reporta otra, algún scan tocó la DB y el árbol se recarga solo.
+	libGen uint64
+
 	// Suscripción push al demonio; nil = modo polling (demonio viejo o
 	// conexión caída). subRetry cuenta ticks hasta el próximo reintento.
 	sub      *ipc.Client
@@ -261,7 +265,10 @@ func (m *Model) checkVersion(resp ipc.Response) {
 	}
 }
 
-func (m *Model) applyStatus(resp ipc.Response) {
+// applyStatus incorpora una foto de estado del demonio. Devuelve un comando
+// si la foto exige trabajo extra (hoy: recargar la biblioteca al cambiar de
+// generación); puede ser nil.
+func (m *Model) applyStatus(resp ipc.Response) tea.Cmd {
 	if resp.Status != nil {
 		m.status = resp.Status
 	}
@@ -275,6 +282,17 @@ func (m *Model) applyStatus(resp ipc.Response) {
 	if m.queueCursor < 0 {
 		m.queueCursor = 0
 	}
+	// Otra generación de biblioteca: un scan (consola, maly scan o maly get,
+	// desde cualquier cliente) tocó la DB. La primera foto solo registra la
+	// generación — Init ya cargó el árbol.
+	if s := resp.Status; s != nil && s.LibGen != m.libGen {
+		known := m.libGen != 0
+		m.libGen = s.LibGen
+		if known {
+			return loadLibrary
+		}
+	}
+	return nil
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -342,9 +360,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case conMsg:
 		m.conLines = append(m.conLines, msg.lines...)
-		if msg.reloadLib {
-			return m, loadLibrary
-		}
 		return m, nil
 
 	case plListMsg:
@@ -375,8 +390,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.connErr = false
 		m.checkVersion(msg.resp)
-		m.applyStatus(msg.resp)
-		return m, nil
+		return m, m.applyStatus(msg.resp)
 
 	case subOpenMsg:
 		// Puede llegar de un reintento tardío con otra suscripción ya viva.
@@ -387,14 +401,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sub = msg.c
 		m.connErr = false
 		m.checkVersion(msg.first)
-		m.applyStatus(msg.first)
-		return m, waitPush(m.sub)
+		return m, tea.Batch(m.applyStatus(msg.first), waitPush(m.sub))
 
 	case subMsg:
 		m.connErr = false
 		m.checkVersion(msg.resp)
-		m.applyStatus(msg.resp)
-		return m, waitPush(m.sub)
+		return m, tea.Batch(m.applyStatus(msg.resp), waitPush(m.sub))
 
 	case subDeadMsg:
 		// El tick retoma el polling; el próximo fetch fallido marcará
@@ -415,8 +427,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.resp.Msg != "" {
 			m.setFlash(msg.resp.Msg, false)
 		}
-		m.applyStatus(msg.resp)
-		return m, m.fetch()
+		return m, tea.Batch(m.applyStatus(msg.resp), m.fetch())
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)

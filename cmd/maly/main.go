@@ -8,13 +8,16 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/config"
 	"maly/internal/i18n"
+	"maly/internal/ipc"
 	"maly/internal/library"
 )
 
@@ -116,14 +119,38 @@ func runScan(args []string) error {
 	if err != nil {
 		return err
 	}
-	dir, origin, explicit := cfg.ScanTarget(strings.Join(args, " "))
+	query := strings.Join(args, " ")
+	// Ruta relativa a absoluta: si atiende el demonio, su cwd es otro.
+	if q := strings.TrimSpace(query); q != "" {
+		if abs, err := filepath.Abs(config.ExpandTilde(q)); err == nil {
+			query = abs
+		}
+	}
+	dir, origin, explicit := cfg.ScanTarget(query)
+	fmt.Println(i18n.Tf("cli.scan_start", dir))
+
+	// Con el demonio vivo el escaneo va a través de él: su LibGen sube y
+	// todas las TUIs abiertas recargan el árbol solas. Sin demonio, directo
+	// a la DB.
+	if c, err := ipc.Dial(config.SocketPath()); err == nil {
+		defer c.Close()
+		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
+		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: query})
+		if err != nil {
+			return err
+		}
+		if !resp.OK {
+			return errors.New(resp.Error)
+		}
+		fmt.Println(resp.Msg)
+		return nil
+	}
+
 	lib, err := openLibrary()
 	if err != nil {
 		return err
 	}
 	defer lib.Close()
-
-	fmt.Println(i18n.Tf("cli.scan_start", dir))
 	res, err := lib.Scan(dir)
 	if err != nil {
 		// Ruta por defecto que no existe: decir de dónde salió y cómo apuntar

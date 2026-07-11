@@ -55,7 +55,13 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   refleja mutadores a MPRIS/suscriptores y realinea la ventana gapless).
   `advance(reason, chained)` es la política de avance y salto de pistas
   irreproducibles (guarda `errStreak`, silencio deliberado `stopped`).
-  `scan` corre SIN `d.mu` (guarda `scanning` atómica). Sesión en
+  `scan` corre SIN `d.mu` (guarda `scanning` atómica) y sube `libGen` (la
+  generación de biblioteca que `statusLocked` adjunta como `Status.LibGen`)
+  solo si algo cambió, despertando a los suscriptores; los clientes recargan
+  su copia al verla cambiar (la TUI en `applyStatus`). Por eso `maly scan`
+  CLI escanea VÍA IPC si el demonio responde (rutas relativas absolutizadas
+  antes de mandarlas: el demonio tiene otro cwd) y directo a la DB si no —
+  `maly get` reutiliza ese mismo camino. Sesión en
   `session.go` (JSON atómico en XDG_DATA_HOME, guardado cada 15 s si dirty y en
   Close; restaura la pista actual EN PAUSA).
 - `internal/player` — wrapper de mpv. Gapless: `SetNext` mantiene una ventana de
@@ -124,9 +130,7 @@ Decisiones transversales:
 ### Camino a 1.0.0 (decidido: sin 0.7.0 intermedia; v1.0.0 será el primer git tag)
 
 1. ~~`maly get`~~ — hecho (ver `cmd/maly` arriba).
-2. **Frescura de biblioteca**: contador `LibGen` del demonio en respuestas/pushes
-   para que las TUIs recarguen el árbol solas tras cualquier scan (hoy solo
-   recarga quien lo dispara por consola). Complemento natural de `get`.
+2. ~~Frescura de biblioteca (`LibGen`)~~ — hecho (ver `internal/daemon` arriba).
 3. **Playlists CLI completas**: `playlist show <nombre>` (PlaylistTracks ya
    existe) y `playlist remove <nombre> <pos>`.
 4. **Tests de `internal/tui`** (hoy 0 tests; tree/picker/visibleQueue/clip son

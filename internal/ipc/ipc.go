@@ -29,9 +29,10 @@ type TrackInfo struct {
 	Title       string `json:"title"`
 	Artist      string `json:"artist"`
 	Album       string `json:"album"`
-	AlbumArtist string `json:"album_artist,omitempty"`
-	Genre       string `json:"genre,omitempty"`
-	TrackNo     int    `json:"track_no,omitempty"`
+	AlbumArtist string  `json:"album_artist,omitempty"`
+	Genre       string  `json:"genre,omitempty"`
+	TrackNo     int     `json:"track_no,omitempty"`
+	Duration    float64 `json:"duration,omitempty"` // segundos; 0 = desconocida
 }
 
 // Status es el estado completo del reproductor.

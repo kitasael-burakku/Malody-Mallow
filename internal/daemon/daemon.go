@@ -405,11 +405,40 @@ func (d *Daemon) mprisState() (*mpris.Service, *ipc.Status) {
 // no pasan por handle (pausa externa, fin de pista, ticks de posición)
 // llegan aquí vía el onChange del player.
 func (d *Daemon) notify() {
+	d.learnDuration()
 	if m, st := d.mprisState(); m != nil {
 		m.Update(st)
 	}
 	d.wakeSubs()
 	d.sessDirty.Store(true)
+}
+
+// learnDuration aprende perezosamente la duración de la pista actual cuando
+// mpv la reporta: los tags no la traen, así que la biblioteca la va
+// completando a medida que suena música. La copia en memoria de la cola
+// hace que solo se escriba una vez por pista.
+func (d *Daemon) learnDuration() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	st := d.pl.State()
+	t, ok := d.q.Current()
+	if !ok || st.Idle || st.Duration <= 0 || abs(t.Duration-st.Duration) < 0.5 {
+		return
+	}
+	for i := range d.q.Items {
+		if d.q.Items[i].Path == t.Path {
+			d.q.Items[i].Duration = st.Duration
+		}
+	}
+	// Fuera de la biblioteca (pista suelta por ruta) el UPDATE no toca filas.
+	d.lib.SetDuration(t.Path, st.Duration)
+}
+
+func abs(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // wakeSubs marca dirty a cada suscriptor; el envío no bloquea (cap 1: si ya
@@ -836,7 +865,8 @@ func toInfos(tracks []library.Track) []ipc.TrackInfo {
 
 func infoOf(t library.Track) ipc.TrackInfo {
 	return ipc.TrackInfo{ID: t.ID, Path: t.Path, Title: t.Title, Artist: t.Artist,
-		Album: t.Album, AlbumArtist: t.AlbumArtist, Genre: t.Genre, TrackNo: t.TrackNo}
+		Album: t.Album, AlbumArtist: t.AlbumArtist, Genre: t.Genre, TrackNo: t.TrackNo,
+		Duration: t.Duration}
 }
 
 func (d *Daemon) statusLocked() *ipc.Status {

@@ -3,6 +3,7 @@ package library
 import (
 	"database/sql"
 	"errors"
+	"strings"
 
 	"maly/internal/i18n"
 )
@@ -98,8 +99,12 @@ func (l *Library) PlaylistTracks(name string) ([]Track, error) {
 		WHERE pt.playlist_id = ? ORDER BY pt.pos`, id)
 }
 
+// qualCols es trackCols con cada columna calificada por alias (para joins);
+// derivarlo evita que las dos listas diverjan al agregar columnas.
 func qualCols(alias string) string {
-	return alias + ".id, " + alias + ".path, " + alias + ".title, " + alias + ".artist, " +
-		alias + ".album, " + alias + ".album_artist, " + alias + ".genre, " +
-		alias + ".track_no, " + alias + ".year"
+	cols := strings.Split(trackCols, ", ")
+	for i, c := range cols {
+		cols[i] = alias + "." + c
+	}
+	return strings.Join(cols, ", ")
 }

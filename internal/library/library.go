@@ -41,6 +41,7 @@ type Track struct {
 	Genre       string
 	TrackNo     int
 	Year        int
+	Duration    float64 // segundos; 0 = aún no aprendida (ver SetDuration)
 }
 
 // String es la forma "Artista — Título" usada en cola, paleta y status.
@@ -67,7 +68,8 @@ CREATE TABLE IF NOT EXISTS tracks (
 	track_no     INTEGER NOT NULL DEFAULT 0,
 	year         INTEGER NOT NULL DEFAULT 0,
 	mtime        INTEGER NOT NULL DEFAULT 0,
-	search_text  TEXT NOT NULL DEFAULT ''
+	search_text  TEXT NOT NULL DEFAULT '',
+	duration     REAL NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
 CREATE INDEX IF NOT EXISTS idx_tracks_album  ON tracks(album);
@@ -98,6 +100,9 @@ func Open(dbPath string) (*Library, error) {
 		db.Close()
 		return nil, fmt.Errorf("%s: %w", i18n.T("lib.schema"), err)
 	}
+	// Migración para bases anteriores a 0.6.0 (CREATE IF NOT EXISTS no
+	// agrega columnas); si la columna ya existe el ALTER falla y se ignora.
+	db.Exec(`ALTER TABLE tracks ADD COLUMN duration REAL NOT NULL DEFAULT 0`)
 	return &Library{db: db}, nil
 }
 
@@ -311,12 +316,21 @@ func ReadTags(path string) Track {
 	return t
 }
 
-const trackCols = `id, path, title, artist, album, album_artist, genre, track_no, year`
+const trackCols = `id, path, title, artist, album, album_artist, genre, track_no, year, duration`
 
 func scanTrack(row interface{ Scan(...any) error }) (Track, error) {
 	var t Track
-	err := row.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist, &t.Genre, &t.TrackNo, &t.Year)
+	err := row.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist, &t.Genre, &t.TrackNo, &t.Year, &t.Duration)
 	return t, err
+}
+
+// SetDuration guarda la duración de una pista. Los tags no la traen
+// (dhowden no decodifica audio), así que se aprende perezosamente: el
+// demonio la escribe cuando mpv la reporta al reproducir. El upsert del
+// escaneo no la toca, así que un re-scan la conserva.
+func (l *Library) SetDuration(path string, secs float64) error {
+	_, err := l.db.Exec(`UPDATE tracks SET duration = ? WHERE path = ?`, secs, path)
+	return err
 }
 
 func (l *Library) collect(query string, args ...any) ([]Track, error) {

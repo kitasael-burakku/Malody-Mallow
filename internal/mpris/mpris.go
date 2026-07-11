@@ -436,8 +436,13 @@ func metadataOf(st *ipc.Status) map[string]dbus.Variant {
 	if t.TrackNo > 0 {
 		m["xesam:trackNumber"] = dbus.MakeVariant(int32(t.TrackNo))
 	}
-	if st.Duration > 0 {
+	switch {
+	case st.Duration > 0:
 		m["mpris:length"] = dbus.MakeVariant(int64(st.Duration * 1e6))
+	case t.Duration > 0:
+		// mpv aún no la reporta (pista recién cargada): usar la aprendida
+		// por la biblioteca para que playerctl/Waybar no vean 0.
+		m["mpris:length"] = dbus.MakeVariant(int64(t.Duration * 1e6))
 	}
 	return m
 }

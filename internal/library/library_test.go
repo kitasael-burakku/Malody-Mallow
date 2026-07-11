@@ -1,6 +1,7 @@
 package library
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -135,6 +136,80 @@ func TestScanRescanAccounting(t *testing.T) {
 	}
 	if total, _ := lib.Count(); total != n-1 {
 		t.Fatalf("Count = %d, quería %d", total, n-1)
+	}
+}
+
+// TestSetDurationSurvivesRescan: la duración aprendida se lee de vuelta y
+// un re-escaneo con la pista modificada (el upsert corre) no la pisa.
+func TestSetDurationSurvivesRescan(t *testing.T) {
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	dir := fakeMusicDir(t, 3)
+	if _, err := lib.Scan(dir); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "album01", "pista0001.mp3")
+	if err := lib.SetDuration(path, 245.3); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := lib.ByPath(path)
+	if !ok || got.Duration != 245.3 {
+		t.Fatalf("ByPath tras SetDuration: %v %v", got.Duration, ok)
+	}
+	// mtime nuevo fuerza el upsert de esa pista en el re-escaneo.
+	future := time.Now().Add(time.Hour)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := lib.Scan(dir); err != nil || res.Updated != 1 {
+		t.Fatalf("re-escaneo: %+v, %v", res, err)
+	}
+	if got, _ := lib.ByPath(path); got.Duration != 245.3 {
+		t.Fatalf("el upsert pisó la duración aprendida: %v", got.Duration)
+	}
+	// Pista fuera de la biblioteca: el UPDATE no toca filas ni falla.
+	if err := lib.SetDuration("/no/existe.mp3", 10); err != nil {
+		t.Fatalf("SetDuration fuera de la biblioteca: %v", err)
+	}
+}
+
+// TestMigratesPre060: una DB creada con el esquema anterior (sin columna
+// duration) se abre, migra y acepta duraciones sin perder lo indexado.
+func TestMigratesPre060(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	old, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`CREATE TABLE tracks (
+		id INTEGER PRIMARY KEY, path TEXT UNIQUE NOT NULL,
+		title TEXT NOT NULL DEFAULT '', artist TEXT NOT NULL DEFAULT '',
+		album TEXT NOT NULL DEFAULT '', album_artist TEXT NOT NULL DEFAULT '',
+		genre TEXT NOT NULL DEFAULT '', track_no INTEGER NOT NULL DEFAULT 0,
+		year INTEGER NOT NULL DEFAULT 0, mtime INTEGER NOT NULL DEFAULT 0,
+		search_text TEXT NOT NULL DEFAULT '');
+		INSERT INTO tracks (path, title) VALUES ('/m/vieja.mp3', 'Vieja')`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+
+	lib, err := Open(path)
+	if err != nil {
+		t.Fatalf("Open sobre esquema pre-0.6.0: %v", err)
+	}
+	defer lib.Close()
+	got, ok := lib.ByPath("/m/vieja.mp3")
+	if !ok || got.Title != "Vieja" || got.Duration != 0 {
+		t.Fatalf("pista tras migrar: %+v %v", got, ok)
+	}
+	if err := lib.SetDuration("/m/vieja.mp3", 200); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := lib.ByPath("/m/vieja.mp3"); got.Duration != 200 {
+		t.Fatalf("duración tras migrar: %v", got.Duration)
 	}
 }
 

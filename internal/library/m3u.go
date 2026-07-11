@@ -12,8 +12,8 @@ import (
 )
 
 // ExportM3U escribe la playlist como M3U extendido (UTF-8, rutas absolutas)
-// y devuelve cuántas pistas exportó. La duración va como -1 porque la
-// biblioteca no la guarda; los reproductores la resuelven al cargar.
+// y devuelve cuántas pistas exportó. La duración sale de la biblioteca si
+// ya se aprendió (redondeada, como manda EXTINF); -1 si aún no.
 func (l *Library) ExportM3U(name, path string) (int, error) {
 	tracks, err := l.PlaylistTracks(name)
 	if err != nil {
@@ -22,7 +22,11 @@ func (l *Library) ExportM3U(name, path string) (int, error) {
 	var b strings.Builder
 	b.WriteString("#EXTM3U\n")
 	for _, t := range tracks {
-		fmt.Fprintf(&b, "#EXTINF:-1,%s\n%s\n", t.String(), t.Path)
+		secs := -1
+		if t.Duration > 0 {
+			secs = int(t.Duration + 0.5)
+		}
+		fmt.Fprintf(&b, "#EXTINF:%d,%s\n%s\n", secs, t.String(), t.Path)
 	}
 	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
 		return 0, err

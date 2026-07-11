@@ -431,6 +431,41 @@ func TestRemoveWhenStoppedStaysStopped(t *testing.T) {
 	}
 }
 
+// TestLearnsDuration: cuando mpv reporta la duración de la pista que suena,
+// el demonio la aprende — en la cola (visible por IPC) y en la biblioteca.
+func TestLearnsDuration(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	writeWAV(t, a, 30)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "play", Query: "a"}); !resp.OK {
+		t.Fatalf("play: %s", resp.Error)
+	}
+	waitStatus(t, d, "duración reportada", func(st *ipc.Status) bool {
+		return st.Playing && st.Duration > 29
+	})
+	// En la cola por IPC…
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp := d.Do(ipc.Request{Cmd: "queue"})
+		if len(resp.Queue) == 1 && resp.Queue[0].Duration > 29 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("la cola nunca aprendió la duración: %+v", resp.Queue)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	// …y persistida en la biblioteca.
+	got, ok := d.lib.ByPath(a)
+	if !ok || got.Duration < 29 {
+		t.Fatalf("biblioteca sin duración aprendida: %v %v", got.Duration, ok)
+	}
+}
+
 // TestGaplessChain: con una pista sonando y otra en la cola, la playlist de
 // mpv debe tener la promesa anexada (2 entradas); al terminar la primera,
 // mpv encadena SOLO —sin ningún loadfile replace del demonio— y la ventana

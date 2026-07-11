@@ -205,7 +205,21 @@ func (m *Model) queuePanel(w, h int) string {
 			mark = "▶ "
 			style = m.st.playing.Bold(true)
 		}
-		line := clip(fmt.Sprintf("%s%3d. %s", mark, real+1, name), innerW)
+		line := fmt.Sprintf("%s%3d. %s", mark, real+1, name)
+		if dur := fmtTime(t.Duration); t.Duration > 0 && innerW > len(dur)+12 {
+			// Duración aprendida, alineada a la derecha. El hueco se mide
+			// sobre la izquierda YA recortada (una sola fuente de ancho:
+			// lipgloss) — recortar la línea compuesta pierde una celda
+			// cuando clip y lipgloss no coinciden en runas ambiguas (▶).
+			left := clip(line, innerW-len(dur)-1)
+			gap := innerW - lipgloss.Width(left) - len(dur)
+			if gap < 1 {
+				gap = 1
+			}
+			line = left + strings.Repeat(" ", gap) + dur
+		} else {
+			line = clip(line, innerW)
+		}
 		if v == m.queueCursor && focused {
 			line = m.st.selected.Render(padTo(line, innerW))
 		} else {

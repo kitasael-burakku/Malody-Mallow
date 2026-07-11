@@ -67,6 +67,18 @@ func TestM3URoundTrip(t *testing.T) {
 		t.Fatalf("cabecera M3U inesperada: %.40q", data)
 	}
 
+	// Con la duración aprendida, el export la redondea en el EXTINF.
+	if err := lib.SetDuration(tracks[3].Path, 245.6); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.ExportM3U("orig", file); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(file)
+	if !strings.Contains(string(data), "#EXTINF:246,") {
+		t.Fatalf("EXTINF sin la duración aprendida:\n%s", data)
+	}
+
 	added, skipped, err := lib.ImportM3U(file, "copia")
 	if err != nil || added != 4 || len(skipped) != 0 {
 		t.Fatalf("ImportM3U = %d, %v, %v", added, skipped, err)

@@ -13,26 +13,108 @@ set -eu
 REPO_URL="https://github.com/kitasael-burakku/Malody-Mallow.git"
 
 # ---- idioma: mensajes en es/en según el locale ----
-case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in es*) ES=1 ;; *) ES=0 ;; esac
+# sys_lang encadena entorno → archivos del sistema → localectl y devuelve el
+# primer locale no vacío (vacío = inglés). El entorno puede venir pelado
+# (curl | sudo sh, chroots) aunque el sistema sí tenga idioma configurado.
+sys_lang() {
+	for v in "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
+		if [ -n "$v" ]; then printf '%s' "$v"; return 0; fi
+	done
+	# /etc/locale.conf (systemd: Arch, Fedora) y /etc/default/locale (Debian):
+	# línea LANG=… con o sin comillas; el ancla deja fuera las comentadas.
+	for f in /etc/locale.conf /etc/default/locale; do
+		[ -r "$f" ] || continue
+		v=$(sed -n 's/^[[:space:]]*LANG=//p' "$f" 2>/dev/null | sed -n 1p | tr -d '\042\047')
+		if [ -n "$v" ]; then printf '%s' "$v"; return 0; fi
+	done
+	# Último eslabón, solo con timeout a mano: localectl habla con dbus y en
+	# contenedores/chroots puede quedarse colgado en vez de fallar.
+	if command -v localectl >/dev/null 2>&1 && command -v timeout >/dev/null 2>&1; then
+		v=$(timeout 2 localectl status 2>/dev/null | sed -n 's/.*System Locale: LANG=//p' | sed -n 1p)
+		if [ -n "$v" ]; then printf '%s' "$v"; return 0; fi
+	fi
+	return 0
+}
+case "$(sys_lang)" in es*) ES=1 ;; *) ES=0 ;; esac
 tr2() { if [ "$ES" -eq 1 ]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
 
 # ---- colores solo si stdout es un terminal ----
 if [ -t 1 ]; then
 	CY=$(printf '\033[36m') BD=$(printf '\033[1m') RD=$(printf '\033[31m')
-	YL=$(printf '\033[33m') NC=$(printf '\033[0m')
+	YL=$(printf '\033[33m') GN=$(printf '\033[32m') NC=$(printf '\033[0m')
 else
-	CY='' BD='' RD='' YL='' NC=''
+	CY='' BD='' RD='' YL='' GN='' NC=''
 fi
 
 msg()  { printf '%smallow ▸%s %s\n' "$CY" "$NC" "$(tr2 "$1" "$2")"; }
 warn() { printf '%smallow ⚠%s %s\n' "$YL" "$NC" "$(tr2 "$1" "$2")"; }
-die()  { printf '%smallow ✗%s %s\n' "$RD" "$NC" "$(tr2 "$1" "$2")" >&2; exit 1; }
+ok()   { printf '%smallow ✓%s %s\n' "$GN" "$NC" "$(tr2 "$1" "$2")"; }
+die()  { hb_stop; printf '%smallow ✗%s %s\n' "$RD" "$NC" "$(tr2 "$1" "$2")" >&2; exit 1; }
 
+# ---- heartbeat: latido para pasos largos (clone, build) ----
+# Cosmético: en hardware lento esos pasos tardan minutos sin salida y parece
+# que el instalador se colgó. Si stdout es un terminal, reescribe una línea
+# con el tiempo transcurrido cada 3 s; redirigido a un log no imprime nada
+# intermedio. hb_stop es idempotente; die y el trap lo llaman para no dejar
+# la línea a medias ni el proceso vivo.
+HB_PID=''
+hb_start() {
+	msg "$1" "$2"
+	[ -t 1 ] || return 0
+	hb_base=$(tr2 "$1" "$2")
+	(
+		hb_s=0
+		while :; do
+			sleep 3
+			hb_s=$((hb_s + 3))
+			printf '\r\033[2K%smallow ▸%s %s %ss' "$CY" "$NC" "$hb_base" "$hb_s"
+		done
+	) &
+	HB_PID=$!
+}
+hb_stop() {
+	[ -n "$HB_PID" ] || return 0
+	kill "$HB_PID" 2>/dev/null || :
+	wait "$HB_PID" 2>/dev/null || :
+	HB_PID=''
+	if [ -t 1 ]; then printf '\r\033[2K'; fi
+}
+
+# rep repite el carácter $1 $2 veces (printf '%*s' con ancho dinámico no es
+# POSIX); chars cuenta caracteres — no bytes — con wc -m, porque ${#var} y
+# expr length no son consistentes entre shells con multibyte.
+#
+# wc -m solo cuenta multibyte bajo un locale UTF-8 *generado*; en una VM o
+# contenedor recién instalado el entorno puede no tenerlo y wc caería a contar
+# bytes (caja desalineada). C.UTF-8 existe sin generar en glibc moderno y en
+# musl todo es UTF-8; se sondea, y si tampoco sirve se usa el del entorno.
+if [ "$(printf '─' | LC_ALL=C.UTF-8 wc -m 2>/dev/null)" -eq 1 ] 2>/dev/null; then
+	WCLOC=C.UTF-8
+else
+	WCLOC=${LC_ALL:-}
+fi
+rep() {
+	out=''
+	i=0
+	while [ "$i" -lt "$2" ]; do out="$out$1"; i=$((i + 1)); done
+	printf '%s' "$out"
+}
+chars() { printf '%s' "$1" | LC_ALL=$WCLOC wc -m; }
+
+# banner dibuja la caja midiendo el contenido real: editar los textos no la
+# desalinea. Margen fijo de 3 espacios a cada lado.
 banner() {
-	printf '%s\n' "${CY}  ╭─────────────────────────────────╮${NC}"
-	printf '%s\n' "${CY}  │${NC}   ${BD}♪  Malody Mallow · maly${NC}       ${CY}│${NC}"
-	printf '%s\n' "${CY}  │${NC}   $(tr2 'Mallow Install — instalador ' 'Mallow Install — installer  ')  ${CY}│${NC}"
-	printf '%s\n' "${CY}  ╰─────────────────────────────────╯${NC}"
+	t1='♪  Malody Mallow · maly'
+	t2=$(tr2 'Mallow Install — instalador' 'Mallow Install — installer')
+	w1=$(( $(chars "$t1") ))
+	w2=$(( $(chars "$t2") ))
+	w=$w1
+	if [ "$w2" -gt "$w" ]; then w=$w2; fi
+	bar=$(rep '─' $((w + 6)))
+	printf '%s\n' "${CY}  ╭${bar}╮${NC}"
+	printf '%s\n' "${CY}  │${NC}   ${BD}${t1}${NC}$(rep ' ' $((w - w1)))   ${CY}│${NC}"
+	printf '%s\n' "${CY}  │${NC}   ${t2}$(rep ' ' $((w - w2)))   ${CY}│${NC}"
+	printf '%s\n' "${CY}  ╰${bar}╯${NC}"
 }
 
 # confirm pregunta por /dev/tty (stdin puede ser el propio script vía curl).
@@ -122,7 +204,7 @@ if [ "$UNINSTALL" -eq 1 ]; then
 fi
 
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/mallow.XXXXXX")
-trap 'st=$?; rm -rf "$TMP"; exit $st' EXIT INT TERM
+trap 'st=$?; hb_stop; rm -rf "$TMP"; exit $st' EXIT INT TERM
 
 # fetch baja una URL a un archivo con curl o wget, lo que haya.
 fetch() {
@@ -175,8 +257,10 @@ if [ -n "$NEED" ]; then
 fi
 
 if [ -z "$SRC" ]; then
-	msg 'clonando Malody Mallow…' 'cloning Malody Mallow…'
-	git clone --quiet --depth=1 "$REPO_URL" "$TMP/src"
+	hb_start 'clonando Malody Mallow…' 'cloning Malody Mallow…'
+	git clone --quiet --depth=1 "$REPO_URL" "$TMP/src" ||
+		{ hb_stop; die 'falló el clonado' 'clone failed'; }
+	hb_stop
 	SRC=$TMP/src
 else
 	msg "compilando desde el checkout: $SRC" "building from the checkout: $SRC"
@@ -239,10 +323,11 @@ else
 fi
 
 # ---- compilar ----
-msg 'compilando maly… (la primera vez baja dependencias de Go)' \
+hb_start 'compilando maly… (la primera vez baja dependencias de Go)' \
 	'building maly… (first run downloads Go dependencies)'
 (cd "$SRC" && "$GO" build -trimpath -ldflags '-s -w' -o "$TMP/maly" ./cmd/maly) ||
-	die 'falló la compilación' 'build failed'
+	{ hb_stop; die 'falló la compilación' 'build failed'; }
+hb_stop
 
 # ---- instalar binario y completions ----
 $SUDO install -Dm755 "$TMP/maly" "$BIN/maly"
@@ -267,6 +352,11 @@ if [ "$SYSTEM" -eq 1 ] || command -v zsh >/dev/null 2>&1; then
 fi
 
 # ---- avisos finales ----
+# sep imprime una línea en blanco antes del primer aviso del bloque, para
+# separarlo del log de instalación; si no hay avisos, no deja hueco doble.
+SEP=0
+sep() { if [ "$SEP" -eq 0 ]; then printf '\n'; SEP=1; fi; }
+
 if [ "$SYSTEM" -eq 0 ]; then
 	# Consejo según el shell de login: en fish lo idiomático (y persistente) es
 	# fish_add_path, no el export de POSIX.
@@ -275,9 +365,11 @@ if [ "$SYSTEM" -eq 0 ]; then
 		on_path=0
 		case ":$PATH:" in *":$BIN:"*) on_path=1 ;; esac
 		if [ "$on_path" -eq 0 ]; then
+			sep
 			warn "$BIN no está en tu PATH; agrégalo:  fish_add_path $BIN" \
 				"$BIN is not in your PATH; add it:  fish_add_path $BIN"
 		elif [ "$BIN_EXISTED" -eq 0 ]; then
+			sep
 			warn "$BIN se creó en esta instalación; para que futuras sesiones lo vean, agrégalo:  fish_add_path $BIN" \
 				"$BIN was created by this install; for future sessions to see it, add it:  fish_add_path $BIN"
 		fi
@@ -292,6 +384,7 @@ if [ "$SYSTEM" -eq 0 ]; then
 		esac
 		path_line="export PATH=\"$BIN:\$PATH\""
 		if ! grep -qF "$BIN" "$RC" 2>/dev/null; then
+			sep
 			if confirm "$RC no menciona $BIN; ¿agregar  $path_line ?" \
 				"$RC doesn't mention $BIN; add  $path_line ?"; then
 				printf '\n# added by mallow-install.sh\n%s\n' "$path_line" >> "$RC"
@@ -305,11 +398,13 @@ if [ "$SYSTEM" -eq 0 ]; then
 	fi
 fi
 if ! command -v pw-record >/dev/null 2>&1 && ! command -v parec >/dev/null 2>&1; then
+	sep
 	warn 'sin pw-record/parec el visualizador queda en modo animación (opcional: pipewire o pulseaudio-utils)' \
 		'without pw-record/parec the visualizer stays in animation mode (optional: pipewire or pulseaudio-utils)'
 fi
 
+printf '\n'
 ver=$("$TMP/maly" version | sed -n 1p)
-msg "listo: ${BD}${ver}${NC}" "done: ${BD}${ver}${NC}"
+ok "listo: ${BD}${ver}${NC}" "done: ${BD}${ver}${NC}"
 msg 'primer paso:  maly scan   (indexa ~/Music; acepta otra ruta) · luego:  maly' \
 	'first step:  maly scan   (indexes ~/Music; takes another path) · then:  maly'

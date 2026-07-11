@@ -277,3 +277,58 @@ func TestReadTags(t *testing.T) {
 		t.Errorf("ReadTags sin tags = %+v", got)
 	}
 }
+
+// TestRemoveFromPlaylist: quitar por posición 1-based respeta el orden que
+// muestran show/export, valida el rango y funciona aunque queden huecos en
+// la columna pos tras borrados previos.
+func TestRemoveFromPlaylist(t *testing.T) {
+	dir := fakeMusicDir(t, 3)
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	if _, err := lib.Scan(dir); err != nil {
+		t.Fatal(err)
+	}
+	all, err := lib.All()
+	if err != nil || len(all) != 3 {
+		t.Fatalf("All: %d pistas, %v", len(all), err)
+	}
+	if err := lib.CreatePlaylist("mix"); err != nil {
+		t.Fatal(err)
+	}
+	ids := []int64{all[0].ID, all[1].ID, all[2].ID}
+	if err := lib.AddToPlaylist("mix", ids); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := lib.RemoveFromPlaylist("mix", 2)
+	if err != nil || removed.ID != all[1].ID {
+		t.Fatalf("remove pos 2: %+v, %v", removed, err)
+	}
+	rest, err := lib.PlaylistTracks("mix")
+	if err != nil || len(rest) != 2 || rest[0].ID != all[0].ID || rest[1].ID != all[2].ID {
+		t.Fatalf("tras remove: %v, %v", rest, err)
+	}
+
+	// Con hueco en pos (quedó 1,3): la posición sigue siendo por orden.
+	removed, err = lib.RemoveFromPlaylist("mix", 2)
+	if err != nil || removed.ID != all[2].ID {
+		t.Fatalf("remove pos 2 con hueco: %+v, %v", removed, err)
+	}
+
+	// Fuera de rango, playlist vacía y playlist inexistente fallan con error.
+	if _, err := lib.RemoveFromPlaylist("mix", 2); err == nil {
+		t.Fatal("posición fuera de rango debe fallar")
+	}
+	if _, err := lib.RemoveFromPlaylist("mix", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.RemoveFromPlaylist("mix", 1); err == nil {
+		t.Fatal("quitar de playlist vacía debe fallar")
+	}
+	if _, err := lib.RemoveFromPlaylist("nada", 1); err == nil {
+		t.Fatal("playlist inexistente debe fallar")
+	}
+}

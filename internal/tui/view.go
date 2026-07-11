@@ -139,16 +139,20 @@ func (m *Model) libraryPanel(w, h int) string {
 		n := rows[i]
 		var text string
 		style := m.st.text
+		indent := strings.Repeat("  ", n.depth)
 		switch {
 		case m.tree.filter != "":
 			text = n.label
-		case n.kind == artistNode:
-			text = marker(n.expanded) + " " + n.label
-			style = m.st.accent.Bold(true)
-		case n.kind == albumNode:
-			text = "  " + marker(n.expanded) + " " + n.label
-		default:
-			text = "     " + n.label
+		case n.kind == trackNode:
+			text = indent + " " + n.label
+		default: // artista, álbum o playlist: expandibles, con marcador
+			text = indent + marker(n.expanded) + " " + n.label
+			switch n.kind {
+			case artistNode:
+				style = m.st.accent.Bold(true)
+			case playlistNode:
+				style = m.st.accent
+			}
 		}
 		if n.kind == trackNode && n.track.Path == playingPath {
 			style = m.st.playing

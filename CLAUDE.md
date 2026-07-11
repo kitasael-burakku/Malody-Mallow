@@ -91,6 +91,12 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   fuzzy genérico (`picker.go`, usado por ctrl+o canciones, ctrl+l playlists y
   `maly select`). Los modales tapan el footer: los flashes no se ven con un
   modal abierto (el panel de playlists los dibuja bajo el modal por eso).
+  El árbol de la biblioteca (`tree.go`) incluye las playlists como raíces
+  tras los artistas (`playlistNode`, pistas hijas directas numeradas por
+  posición); la indentación y la búsqueda de padre usan el campo `depth`,
+  no el kind. Toda mutación de playlists en la TUI (plActMsg) recarga el
+  árbol; las hechas por CLI desde otra terminal no se reflejan en vivo
+  (van directo a SQLite, sin demonio de por medio — limitación conocida).
 - `internal/i18n` — `T/Tf` (idioma global) y `TL/TLf` (por petición: el cliente
   manda `Request.Lang` y el demonio responde en ese idioma). `TestTableIntegrity`
   valida en/es al agregar claves.
@@ -131,10 +137,10 @@ Decisiones transversales:
 
 1. ~~`maly get`~~ — hecho (ver `cmd/maly` arriba).
 2. ~~Frescura de biblioteca (`LibGen`)~~ — hecho (ver `internal/daemon` arriba).
-3. **Playlists CLI completas**: `playlist show <nombre>` (PlaylistTracks ya
-   existe) y `playlist remove <nombre> <pos>`.
-4. **Tests de `internal/tui`** (hoy 0 tests; tree/picker/visibleQueue/clip son
-   puros) y de `internal/viz`.
+3. ~~Playlists CLI completas (`show`/`remove`) + playlists en el árbol de la
+   TUI~~ — hecho.
+4. **Tests de `internal/tui`** (empezados: `tree_test.go`; faltan
+   picker/visibleQueue/clip, que son puros) y de `internal/viz`.
 5. **Cierre**: README + instalador contra entorno limpio, bump 1.0.0,
    primer `git tag v1.0.0`, PKGBUILD para AUR.
 

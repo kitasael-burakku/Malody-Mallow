@@ -13,11 +13,13 @@ type nodeKind int
 const (
 	artistNode nodeKind = iota
 	albumNode
+	playlistNode
 	trackNode
 )
 
 type node struct {
 	kind     nodeKind
+	depth    int // nivel de indentación; el padre es el anterior menos profundo
 	label    string
 	track    library.Track // solo trackNode
 	children []*node
@@ -36,8 +38,16 @@ func (n *node) tracks() []library.Track {
 	return out
 }
 
-// libTree es el árbol Artista > Álbum > pista del panel Biblioteca, con una
-// vista aplanada (rows) de los nodos visibles y un filtro plano opcional.
+// plList es una playlist con sus pistas resueltas, lista para colgar del
+// árbol de la biblioteca.
+type plList struct {
+	name   string
+	tracks []library.Track
+}
+
+// libTree es el árbol del panel Biblioteca — Artista > Álbum > pista, más
+// las playlists como raíces propias al final — con una vista aplanada (rows)
+// de los nodos visibles y un filtro plano opcional.
 type libTree struct {
 	roots  []*node
 	rows   []*node
@@ -47,7 +57,7 @@ type libTree struct {
 	all    []library.Track
 }
 
-func buildTree(tracks []library.Track) *libTree {
+func buildTree(tracks []library.Track, lists []plList) *libTree {
 	t := &libTree{all: tracks}
 	var curArtist, curAlbum *node
 	for _, tr := range tracks {
@@ -65,14 +75,26 @@ func buildTree(tracks []library.Track) *libTree {
 			curAlbum = nil
 		}
 		if curAlbum == nil || curAlbum.label != album {
-			curAlbum = &node{kind: albumNode, label: album}
+			curAlbum = &node{kind: albumNode, depth: 1, label: album}
 			curArtist.children = append(curArtist.children, curAlbum)
 		}
 		label := tr.Title
 		if tr.TrackNo > 0 {
 			label = fmt.Sprintf("%02d %s", tr.TrackNo, tr.Title)
 		}
-		curAlbum.children = append(curAlbum.children, &node{kind: trackNode, label: label, track: tr})
+		curAlbum.children = append(curAlbum.children, &node{kind: trackNode, depth: 2, label: label, track: tr})
+	}
+	// Las playlists cuelgan al final, con sus pistas como hijas directas
+	// (numeradas por posición, la misma que usa `playlist remove`).
+	for _, p := range lists {
+		pn := &node{kind: playlistNode, label: fmt.Sprintf("♪ %s (%d)", p.name, len(p.tracks))}
+		for i, tr := range p.tracks {
+			pn.children = append(pn.children, &node{
+				kind: trackNode, depth: 1,
+				label: fmt.Sprintf("%2d %s", i+1, tr.String()), track: tr,
+			})
+		}
+		t.roots = append(t.roots, pn)
 	}
 	t.flatten()
 	return t
@@ -90,18 +112,18 @@ func (t *libTree) flatten() {
 			}
 		}
 	} else {
-		for _, a := range t.roots {
-			t.rows = append(t.rows, a)
-			if !a.expanded {
-				continue
+		var walk func(n *node)
+		walk = func(n *node) {
+			t.rows = append(t.rows, n)
+			if !n.expanded {
+				return
 			}
-			for _, al := range a.children {
-				t.rows = append(t.rows, al)
-				if !al.expanded {
-					continue
-				}
-				t.rows = append(t.rows, al.children...)
+			for _, c := range n.children {
+				walk(c)
 			}
+		}
+		for _, r := range t.roots {
+			walk(r)
 		}
 	}
 	if t.cursor >= len(t.rows) {
@@ -185,7 +207,7 @@ func (t *libTree) collapse(pageH int) {
 		return
 	}
 	for i := t.cursor - 1; i >= 0; i-- {
-		if t.rows[i].kind < n.kind { // el padre es el anterior menos profundo
+		if t.rows[i].depth < n.depth { // el padre es el anterior menos profundo
 			t.cursor = i
 			break
 		}

@@ -88,6 +88,33 @@ func (l *Library) AddToPlaylist(name string, trackIDs []int64) error {
 	return nil
 }
 
+// RemoveFromPlaylist quita la pista en la posición 1-based pos — el orden
+// que muestran `playlist show` y el export M3U. Devuelve la pista quitada
+// para el mensaje de confirmación. Las posiciones restantes no se renumeran:
+// pos solo ordena, y tanto esta función como los listados cuentan por orden,
+// no por el valor de la columna.
+func (l *Library) RemoveFromPlaylist(name string, pos int) (Track, error) {
+	tracks, err := l.PlaylistTracks(name)
+	if err != nil {
+		return Track{}, err
+	}
+	if len(tracks) == 0 {
+		return Track{}, errors.New(i18n.Tf("d.pl_empty", name))
+	}
+	if pos < 1 || pos > len(tracks) {
+		return Track{}, errors.New(i18n.Tf("lib.pl_pos", pos, name, len(tracks)))
+	}
+	id, err := l.playlistID(name)
+	if err != nil {
+		return Track{}, err
+	}
+	// rowid con OFFSET: inmune a huecos de pos y a pistas repetidas.
+	_, err = l.db.Exec(`DELETE FROM playlist_tracks WHERE rowid = (
+		SELECT rowid FROM playlist_tracks WHERE playlist_id = ?
+		ORDER BY pos LIMIT 1 OFFSET ?)`, id, pos-1)
+	return tracks[pos-1], err
+}
+
 // PlaylistTracks devuelve las pistas de una playlist en orden.
 func (l *Library) PlaylistTracks(name string) ([]Track, error) {
 	id, err := l.playlistID(name)

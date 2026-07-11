@@ -48,6 +48,8 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 - **Panel de playlists Ctrl+L**: gestiona tus playlists sin salir de la
   TUI (`enter` reproduce, `tab` encola, `ctrl+n` crea, `ctrl+x` borra), y
   con `A` mandas la selección de la biblioteca o la cola a una playlist.
+  Las playlists también cuelgan del árbol de la Biblioteca, con sus pistas
+  numeradas: `enter` las expande y `a` las encola como cualquier nodo.
 - **Navegación vim**: `h j k l`, `gg`, `G`, `ctrl+d`/`ctrl+u` en los
   paneles (las flechas siguen funcionando), y presets de controles con
   `maly controls` (`default` | `vim`).
@@ -261,8 +263,10 @@ maly search <consulta>         # busca en la biblioteca (funciona sin demonio)
 maly scan [ruta]               # (re)escanea (funciona sin demonio)
 maly get <url|búsqueda>        # descarga audio a la biblioteca (requiere yt-dlp y ffmpeg)
 maly playlist list
+maly playlist show <nombre>               # lista las pistas con su posición
 maly playlist create <nombre>
 maly playlist add <nombre> <consulta>
+maly playlist remove <nombre> <posición>  # quita la pista en esa posición
 maly playlist play <nombre>
 maly playlist delete <nombre>
 maly playlist export <nombre> [archivo]   # escribe la playlist como M3U

@@ -173,7 +173,7 @@ func completeTracks(args []string, cur string) []string {
 func completePlaylist(args []string, cur string) []string {
 	if len(args) == 0 {
 		var out []string
-		for _, sub := range []string{"list", "create", "delete", "add", "play", "export", "import"} {
+		for _, sub := range []string{"list", "show", "create", "delete", "add", "remove", "play", "export", "import"} {
 			if strings.HasPrefix(sub, cur) {
 				out = append(out, sub)
 			}
@@ -181,7 +181,7 @@ func completePlaylist(args []string, cur string) []string {
 		return out
 	}
 	switch args[0] {
-	case "play", "delete", "export":
+	case "play", "delete", "export", "show", "remove":
 		if len(args) == 1 {
 			return completePlaylistNames(cur)
 		}

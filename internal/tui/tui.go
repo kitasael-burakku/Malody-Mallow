@@ -98,6 +98,7 @@ type Model struct {
 type tickMsg time.Time
 type libraryMsg struct {
 	tracks []library.Track
+	lists  []plList
 	err    error
 }
 
@@ -134,7 +135,7 @@ func Run(cfg config.Config, embedded bool) error {
 		keys:        cfg.Keys,
 		sock:        config.SocketPath(),
 		embedded:    embedded,
-		tree:        buildTree(nil),
+		tree:        buildTree(nil, nil),
 		filterInput: ti,
 		vizOn:       cfg.Visualizer.Enabled,
 		langOpen:    cfg.Language == "",
@@ -213,7 +214,20 @@ func loadLibrary() tea.Msg {
 	}
 	defer lib.Close()
 	tracks, err := lib.All()
-	return libraryMsg{tracks: tracks, err: err}
+	if err != nil {
+		return libraryMsg{err: err}
+	}
+	// Las playlists también viven en el árbol; un error aquí no debe tirar
+	// la biblioteca entera (quedan fuera y ya).
+	var lists []plList
+	if pls, err := lib.Playlists(); err == nil {
+		for _, p := range pls {
+			if pt, err := lib.PlaylistTracks(p.Name); err == nil {
+				lists = append(lists, plList{name: p.Name, tracks: pt})
+			}
+		}
+	}
+	return libraryMsg{tracks: tracks, lists: lists}
 }
 
 // req manda una acción al demonio (conexión nueva por petición: es un socket
@@ -349,7 +363,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setFlash(i18n.Tf("tui.lib_err", msg.err.Error()), true)
 			return m, nil
 		}
-		m.tree = buildTree(msg.tracks)
+		m.tree = buildTree(msg.tracks, msg.lists)
 		if m.songsOpen {
 			m.songs.setItems(songItems(m.tree.all))
 		}
@@ -378,10 +392,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.setFlash(msg.msg, false)
+		// Toda mutación de playlists se refleja en el árbol de la biblioteca
+		// (las playlists cuelgan de él), además del picker si sigue abierto.
+		cmds := []tea.Cmd{loadLibrary}
 		if msg.reload && m.plOpen {
-			return m, loadPlaylists
+			cmds = append(cmds, loadPlaylists)
 		}
-		return m, nil
+		return m, tea.Batch(cmds...)
 
 	case statusMsg:
 		if msg.err != nil {

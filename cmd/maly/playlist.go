@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -48,6 +49,42 @@ func runPlaylist(args []string) error {
 	defer lib.Close()
 
 	switch sub {
+	case "show":
+		if len(args) == 0 {
+			return errors.New(i18n.T("pl.usage_show"))
+		}
+		name := strings.Join(args, " ")
+		tracks, err := lib.PlaylistTracks(name)
+		if err != nil {
+			return err
+		}
+		if len(tracks) == 0 {
+			fmt.Println(i18n.Tf("d.pl_empty", name))
+			return nil
+		}
+		for i, t := range tracks {
+			fmt.Printf("%3d. %s\n", i+1, t)
+		}
+		return nil
+
+	case "remove":
+		// La posición es el último argumento; lo demás es el nombre (que
+		// puede llevar espacios), como muestra `playlist show <nombre>`.
+		if len(args) < 2 {
+			return errors.New(i18n.T("pl.usage_remove"))
+		}
+		pos, convErr := strconv.Atoi(args[len(args)-1])
+		if convErr != nil || pos < 1 {
+			return errors.New(i18n.T("pl.usage_remove"))
+		}
+		name := strings.Join(args[:len(args)-1], " ")
+		t, err := lib.RemoveFromPlaylist(name, pos)
+		if err != nil {
+			return err
+		}
+		fmt.Println(i18n.Tf("pl.removed", t, name))
+		return nil
+
 	case "list":
 		lists, err := lib.Playlists()
 		if err != nil {

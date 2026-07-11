@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-0.6.0-blue)
+![version](https://img.shields.io/badge/version-1.0.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -357,6 +357,8 @@ bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
 # help = "?"
 # palette = "ctrl+p"
 # songs = "ctrl+o"
+# playlists = "ctrl+l"
+# playlist_add = "A"
 # toggle_viz = "v"
 ```
 
@@ -373,6 +375,7 @@ bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
 - Base de datos: `~/.local/share/maly/library.db` (SQLite puro Go, sin CGo).
 - maly lanza y supervisa su propio `mpv --idle --no-video` y lo controla por
   IPC JSON; al cerrar maly, su mpv muere con él.
+
 ## Licencia
 
 [MIT](LICENSE).

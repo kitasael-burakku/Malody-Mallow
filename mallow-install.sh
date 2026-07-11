@@ -402,6 +402,11 @@ if ! command -v pw-record >/dev/null 2>&1 && ! command -v parec >/dev/null 2>&1;
 	warn 'sin pw-record/parec el visualizador queda en modo animación (opcional: pipewire o pulseaudio-utils)' \
 		'without pw-record/parec the visualizer stays in animation mode (optional: pipewire or pulseaudio-utils)'
 fi
+if ! command -v yt-dlp >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
+	sep
+	warn 'sin yt-dlp y ffmpeg no funciona `maly get` (descargar música; opcional)' \
+		'without yt-dlp and ffmpeg `maly get` will not work (music download; optional)'
+fi
 
 printf '\n'
 ver=$("$TMP/maly" version | sed -n 1p)

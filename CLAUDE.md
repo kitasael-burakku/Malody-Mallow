@@ -13,8 +13,9 @@ escriben en español. Todo texto visible para el usuario sale de `internal/i18n`
 (tabla clave→[en, es]); nunca hardcodear cadenas en un solo idioma.
 
 Versión actual: la const en `internal/version/version.go` (+ badge del README, que
-se actualizan juntos en cada bump). **No hay git tags**: el primero será v1.0.0.
-La meta hacia 1.0.0 es código limpio y entendible, no acumular features.
+se actualizan juntos en cada bump). Los git tags empiezan en v1.0.0; cada
+release nueva lleva bump + tag anotado. La meta sigue siendo código limpio y
+entendible, no acumular features.
 
 ## Comandos de desarrollo
 
@@ -133,22 +134,18 @@ Decisiones transversales:
 
 ## Roadmap
 
-### Camino a 1.0.0 (decidido: sin 0.7.0 intermedia; v1.0.0 será el primer git tag)
+v1.0.0 publicada (primer git tag; se brincó la 0.7.0 a propósito). La
+distribución es vía `mallow-install.sh` — el dueño descartó hacer PKGBUILD
+para AUR. Notas de los pasos que dejaron trampas:
 
-1. ~~`maly get`~~ — hecho (ver `cmd/maly` arriba).
-2. ~~Frescura de biblioteca (`LibGen`)~~ — hecho (ver `internal/daemon` arriba).
-3. ~~Playlists CLI completas (`show`/`remove`) + playlists en el árbol de la
-   TUI~~ — hecho.
-4. ~~Tests de `internal/tui` y `internal/viz`~~ — hecho (tree, picker,
-   visibleQueue, clip/padTo; fftBars con seno puro, gravity, degradación a
-   fake). Ojo en viz: los tests construyen el `Viz` a mano (`newTestViz`)
-   porque `New()` arranca un pw-record/parec REAL en la máquina de
-   desarrollo.
-5. **Cierre**: README + instalador contra entorno limpio, bump 1.0.0,
-   primer `git tag v1.0.0`, PKGBUILD para AUR.
+- Tests de `internal/viz`: construyen el `Viz` a mano (`newTestViz`) porque
+  `New()` arranca un pw-record/parec REAL en la máquina de desarrollo.
 
 ### Post-1.0 (candidatos)
 
+- **Rediseño visual del instalador** (`mallow-install.sh`): el dueño quiere
+  que se vea más vistoso; hoy es funcional (banner, heartbeat, colores) pero
+  sobrio.
 - **`maly move <de> <a>`** + reorden en la TUI (J/K en cola): `queue.Move`,
   campo `To` en `ipc.Request`; la ventana gapless ya se realinea en `handle`.
 - Progreso de scan (fácil en CLI directa; por IPC requiere diseño).

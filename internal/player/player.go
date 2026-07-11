@@ -36,11 +36,30 @@ type Player struct {
 	reqID    int64
 	pending  map[int64]chan mpvReply
 	state    State
-	onEnd    func(reason string) // pista terminada: "eof" natural, "error" irreproducible
-	onChange func()             // cambio de estado observado (pausa, pista, posición…)
+	onEnd    func(reason, next string) // pista terminada; next = entrada anexada que mpv encadena
+	onChange func()                    // cambio de estado observado (pausa, pista, posición…)
 	closed   bool
 	done     chan struct{}
 	exited   chan struct{} // cerrado cuando el proceso mpv termina
+
+	// Espejo de la entrada anexada por SetNext (ventana gapless), para no
+	// re-consultar la playlist de mpv cuando no cambió nada. nextKnown se
+	// apaga cuando la playlist cambia por fuera (replace, stop, avance).
+	nextPath  string
+	nextKnown bool
+
+	// Un end-file (eof|error) queda pendiente hasta el evento que revela su
+	// desenlace: start-file (mpv encadenó a la anexada) o idle (no había
+	// nada que encadenar). Resolverlo al leer el end-file adivinaría: con
+	// archivos que fallan al instante, mpv decide antes de que un append en
+	// vuelo le llegue, y el espejo leído después miente. pendingGen congela
+	// la generación de cargas: si un loadfile replace propio se cruza, el
+	// desenlace ya no es de mpv y el evento pendiente se descarta.
+	pendingEnd string
+	pendingGen int64
+	loadGen    int64
+
+	loads int64 // loadfile replace emitidos; diagnóstico de gapless
 }
 
 type mpvReply struct {
@@ -59,10 +78,12 @@ type mpvEvent struct {
 
 // Start lanza mpv y conecta con su socket IPC. onEnd se invoca cuando una
 // pista termina sin intervención del demonio: reason "eof" si acabó por sí
-// sola, "error" si mpv no pudo reproducirla (el demonio decide avanzar o
-// saltarla); onChange, ante cambios de estado observados en mpv (lo usa el
-// demonio para refrescar MPRIS).
-func Start(socketPath string, onEnd func(reason string), onChange func()) (*Player, error) {
+// sola, "error" si mpv no pudo reproducirla; next es la ruta que SetNext
+// tenía anexada en ese momento ("" = ninguna) — mpv encadena a ella solo,
+// así que el demonio reconcilia sin consultar (justo tras el end-file mpv
+// está entre entradas y su propiedad path aún no existe). onChange se
+// invoca ante cambios de estado observados (lo usa el demonio para MPRIS).
+func Start(socketPath string, onEnd func(reason, next string), onChange func()) (*Player, error) {
 	mpvBin, err := exec.LookPath("mpv")
 	if err != nil {
 		return nil, errors.New(i18n.T("p.no_mpv"))
@@ -209,10 +230,28 @@ func (p *Player) handleEvent(ev mpvEvent) {
 			go p.onChange()
 		}
 	case "end-file":
+		p.mu.Lock()
+		p.nextKnown = false // la playlist de mpv cambió: espejo no confiable
 		// "stop" (Stop propio o loadfile replace) y "quit" no son fin de
 		// pista: solo el eof natural y el fallo de reproducción avanzan.
-		if (ev.Reason == "eof" || ev.Reason == "error") && p.onEnd != nil {
-			go p.onEnd(ev.Reason)
+		if ev.Reason == "eof" || ev.Reason == "error" {
+			p.pendingEnd = ev.Reason
+			p.pendingGen = p.loadGen
+		}
+		p.mu.Unlock()
+
+	case "start-file":
+		// Desenlace de un end-file pendiente: mpv arrancó otra entrada por
+		// su cuenta — la anexada por SetNext (nextPath sigue vigente: el
+		// espejo se invalida pero el valor no se pisa hasta otro SetNext).
+		if reason, next, ok := p.resolveEnd(); ok {
+			go p.onEnd(reason, next)
+		}
+
+	case "idle":
+		// Desenlace contrario: no había nada que encadenar.
+		if reason, _, ok := p.resolveEnd(); ok {
+			go p.onEnd(reason, "")
 		}
 	}
 }
@@ -247,8 +286,14 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 	}
 }
 
-// Load carga y reproduce un archivo (reemplaza lo que suene).
+// Load carga y reproduce un archivo (reemplaza lo que suene; en mpv,
+// loadfile replace limpia la playlist entera, incluida una anexada).
 func (p *Player) Load(path string) error {
+	p.mu.Lock()
+	p.nextKnown = false
+	p.loadGen++ // los desenlaces que siguen son de esta carga
+	p.loads++
+	p.mu.Unlock()
 	if _, err := p.command("loadfile", path, "replace"); err != nil {
 		return err
 	}
@@ -260,11 +305,109 @@ func (p *Player) Load(path string) error {
 // loadfile para que no llegue a sonar ni un instante). Lo usa el demonio al
 // restaurar la sesión: nunca debe arrancar sonando solo.
 func (p *Player) LoadPaused(path string) error {
+	p.mu.Lock()
+	p.nextKnown = false
+	p.loadGen++
+	p.loads++
+	p.mu.Unlock()
 	if err := p.SetPause(true); err != nil {
 		return err
 	}
 	_, err := p.command("loadfile", path, "replace")
 	return err
+}
+
+// resolveEnd consume el end-file pendiente y devuelve su reason y la
+// entrada anexada a la que mpv encadena. ok=false si no había pendiente, si
+// un loadfile replace propio se cruzó (el desenlace es de esa carga, no del
+// fin de pista) o si no hay callback.
+func (p *Player) resolveEnd() (reason, next string, ok bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	reason = p.pendingEnd
+	p.pendingEnd = ""
+	if reason == "" || p.pendingGen != p.loadGen || p.onEnd == nil {
+		return "", "", false
+	}
+	return reason, p.nextPath, true
+}
+
+// SetNext deja la playlist interna de mpv como ventana de dos entradas —
+// [actual, path], o solo [actual] con path vacío. Es el corazón del
+// gapless: al terminar la actual, mpv encadena a la anexada sin cortar el
+// audio.
+//
+// Usa playlist-clear (conserva la entrada actual) a propósito: es la única
+// operación segura en plena transición de pista. Las propiedades
+// playlist-pos/path van REZAGADAS justo tras un end-file (pos aún apunta a
+// la entrada vieja cuando la nueva ya suena), así que podar por índices
+// aquí puede quitar exactamente la entrada que mpv está encadenando —
+// verificado contra mpv real.
+func (p *Player) SetNext(path string) error {
+	p.mu.Lock()
+	if p.nextKnown && p.nextPath == path {
+		p.mu.Unlock()
+		return nil
+	}
+	p.mu.Unlock()
+
+	if _, err := p.command("playlist-clear"); err != nil {
+		return err
+	}
+	appended := ""
+	if path != "" {
+		// Con mpv idle esto deja una entrada huérfana que no suena sola
+		// (append no arranca reproducción) y que cualquier loadfile replace
+		// posterior se lleva; inofensiva.
+		if _, err := p.command("loadfile", path, "append"); err != nil {
+			return err
+		}
+		appended = path
+	}
+	p.mu.Lock()
+	p.nextPath = appended
+	p.nextKnown = true
+	p.mu.Unlock()
+	return nil
+}
+
+// CurrentPath consulta a mpv la ruta cargada en este instante ("" si está
+// idle o la consulta falla). Es la verdad viva: State().Path puede ir por
+// detrás de los eventos justo después de un cambio de pista.
+func (p *Player) CurrentPath() string {
+	data, err := p.command("get_property", "path")
+	if err != nil {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(data, &s) != nil {
+		return ""
+	}
+	return s
+}
+
+// PlaylistCount devuelve cuántas entradas tiene la playlist interna de mpv
+// (la ventana gapless: 1 sin promesa anexada, 2 con ella).
+func (p *Player) PlaylistCount() (int, error) { return p.intProp("playlist-count") }
+
+// LoadCount devuelve cuántos loadfile replace se han emitido. Un cambio de
+// pista que NO lo incrementa fue encadenado por mpv (gapless de verdad).
+func (p *Player) LoadCount() int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.loads
+}
+
+func (p *Player) intProp(name string) (int, error) {
+	data, err := p.command("get_property", name)
+	if err != nil {
+		return 0, err
+	}
+	var v int
+	if err := json.Unmarshal(data, &v); err != nil {
+		return 0, err
+	}
+	return v, nil
 }
 
 // SetPause pone o quita pausa.
@@ -295,8 +438,13 @@ func (p *Player) Toggle() error {
 	return nil
 }
 
-// Stop detiene y descarga la pista actual.
+// Stop detiene y descarga la pista actual (en mpv, stop además vacía la
+// playlist: se lleva también una entrada anexada por SetNext).
 func (p *Player) Stop() error {
+	p.mu.Lock()
+	p.nextKnown = false
+	p.loadGen++ // el idle que sigue es de este stop, no de un fin de pista
+	p.mu.Unlock()
 	_, err := p.command("stop")
 	return err
 }

@@ -47,6 +47,12 @@ type Daemon struct {
 	// propósito: se resetea con el eof natural y con cada carga manual.
 	errStreak int
 
+	// stopped marca silencio deliberado (stop, clear, la guarda de advance;
+	// bajo d.mu): un end-file en vuelo que llegue después de parar no debe
+	// rearrancar la reproducción ni contar para la racha de errores. Toda
+	// carga lo apaga.
+	stopped bool
+
 	// Suscriptores IPC (comando subscribe). Mutex propio: notify los marca
 	// desde caminos que ya tienen (o van a tomar) d.mu.
 	subMu sync.Mutex
@@ -100,8 +106,10 @@ func New(cfg config.Config) (*Daemon, error) {
 	d.pl = pl
 
 	// Reponer la sesión anterior antes del listener y de MPRIS, para que el
-	// primer cliente (y playerctl) ya vean el estado restaurado.
+	// primer cliente (y playerctl) ya vean el estado restaurado; la ventana
+	// gapless se arma de una vez (sin d.mu: aún no hay concurrencia).
 	d.restoreSession()
+	d.syncWindowLocked()
 	go d.sessionSaver()
 
 	ln, err := net.Listen("unix", sock)
@@ -195,20 +203,32 @@ func (d *Daemon) serve(conn net.Conn) {
 
 // advance es la política de avance de la cola cuando una pista termina sin
 // intervención de un cliente: eof natural o fallo de reproducción (archivo
-// corrupto, borrado…). Concentra la decisión de la siguiente pista y el
-// salto ante errores; el mecanismo de carga (hoy pl.Load, con gapless será
-// reconciliar lo que mpv ya encadenó) es lo único que cambiará después.
-func (d *Daemon) advance(reason string) {
+// corrupto, borrado…). Con gapless, mpv normalmente ya encadenó solo a la
+// entrada anexada por syncWindowLocked; aquí se reconcilia la cola con lo
+// que mpv hizo, se repara a mano cuando no pudo encadenar, y se re-arma la
+// ventana con la promesa siguiente. chained es la entrada que el player
+// tenía anexada al terminar la pista ("" = ninguna): mpv encadena a ella.
+func (d *Daemon) advance(reason, chained string) {
 	d.mu.Lock()
 	if reason == "error" {
+		if d.stopped {
+			// Eco de una entrada que seguía en vuelo cuando paramos a
+			// propósito: ni cuenta para la racha ni rearranca nada.
+			d.mu.Unlock()
+			return
+		}
 		if t, ok := d.q.Current(); ok {
 			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.track_failed", t))
 		}
 		d.errStreak++
 		if d.errStreak >= d.q.Len() {
 			// Una pasada entera sin nada reproducible (o cola ya vacía):
-			// detenerse; seguir saltando ciclaría para siempre con repeat all.
+			// detenerse; seguir saltando ciclaría para siempre con repeat
+			// all. Stop además vacía la playlist de mpv, cortando una
+			// entrada anexada que estuviera por fallar igual.
 			d.errStreak = 0
+			d.stopped = true
+			d.pl.Stop()
 			d.mu.Unlock()
 			fmt.Fprintln(os.Stderr, "maly: "+i18n.T("d.queue_failed"))
 			d.notify()
@@ -217,27 +237,52 @@ func (d *Daemon) advance(reason string) {
 	} else {
 		d.errStreak = 0
 	}
-	if t, ok := d.q.Next(true); ok {
-		// pl.Load directo, NO loadLocked: una carga de salto no abre pasada
-		// nueva o la racha se resetearía a cada intento y la guarda jamás
-		// cortaría el ciclo.
-		if err := d.pl.Load(t.Path); err != nil {
-			// mpv no contestó (murió, socket roto): sin end-file que reintente,
-			// se deja constancia; el usuario verá el estado detenido.
-			fmt.Fprintf(os.Stderr, "maly: %s: %v\n", i18n.Tf("d.track_failed", t), err)
+
+	if t, ok := d.q.PeekNext(); ok && chained == t.Path {
+		// mpv está encadenando a la promesa anexada (gapless): solo
+		// confirmar el avance en la cola, sin tocar la reproducción.
+		d.q.Next(true)
+	} else if chained == "" && !d.stopped {
+		// No había nada anexado (fin de cola, o el append falló): mpv quedó
+		// idle; cargar a mano, como antes de gapless. pl.Load directo y NO
+		// loadLocked: una carga de salto no abre pasada nueva o la racha se
+		// resetearía a cada intento y la guarda jamás cortaría el ciclo.
+		if t, ok := d.q.Next(true); ok {
+			if err := d.pl.Load(t.Path); err != nil {
+				// mpv no contestó (murió, socket roto): sin end-file que
+				// reintente, se deja constancia.
+				fmt.Fprintf(os.Stderr, "maly: %s: %v\n", i18n.Tf("d.track_failed", t), err)
+			}
 		}
 	}
+	// else: lo anexado ya no es la promesa — un comando mutó la cola (y
+	// cargó/realineó) entre el fin de pista y este punto; avanzar además
+	// saltearía una pista.
+	d.syncWindowLocked()
 	d.mu.Unlock()
 	d.notify()
 }
 
+// syncWindowLocked alinea la entrada anexada de mpv (la ventana gapless)
+// con la promesa vigente de la cola; requiere d.mu. Es best-effort: si el
+// append falla, el siguiente advance repara cargando a mano.
+func (d *Daemon) syncWindowLocked() {
+	next := ""
+	if t, ok := d.q.PeekNext(); ok {
+		next = t.Path
+	}
+	d.pl.SetNext(next)
+}
+
 // loadLocked carga t en el player (requiere d.mu). Una carga pedida por un
-// cliente que mpv acepta abre pasada nueva para la guarda de advance.
+// cliente que mpv acepta abre pasada nueva para la guarda de advance y
+// termina cualquier silencio deliberado.
 func (d *Daemon) loadLocked(t library.Track) error {
 	if err := d.pl.Load(t.Path); err != nil {
 		return err
 	}
 	d.errStreak = 0
+	d.stopped = false
 	return nil
 }
 
@@ -321,6 +366,13 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 		}
 		d.wakeSubs()
 	default:
+		// Cualquier mutador puede haber cambiado la promesa de la cola (add
+		// al final, remove de la prometida, shuffle…): realinear la ventana
+		// gapless de mpv antes de notificar. Con la promesa sin cambios es
+		// gratis (SetNext corta por su espejo).
+		d.mu.Lock()
+		d.syncWindowLocked()
+		d.mu.Unlock()
 		d.notify()
 	}
 	return resp
@@ -443,6 +495,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		if err := d.pl.Stop(); err != nil {
 			return fail(err)
 		}
+		d.stopped = true
 		return okStatus(i18n.TL(lang, "d.stopped"))
 
 	case "next":
@@ -528,11 +581,13 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 				if err := d.pl.Stop(); err != nil {
 					return fail(err)
 				}
+				d.stopped = true
 			case st.Paused:
 				if err := d.pl.LoadPaused(t.Path); err != nil {
 					return fail(err)
 				}
 				d.errStreak = 0
+				d.stopped = false
 			default:
 				if err := d.loadLocked(t); err != nil {
 					return fail(err)
@@ -544,6 +599,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	case "clear":
 		d.q.Clear()
 		d.pl.Stop()
+		d.stopped = true
 		return okStatus(i18n.TL(lang, "d.cleared"))
 
 	case "vol":
@@ -572,6 +628,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		default:
 			d.q.Shuffle = !d.q.Shuffle
 		}
+		d.q.Invalidate() // el sorteo prometido dependía del modo anterior
 		if d.q.Shuffle {
 			return okStatus(i18n.TL(lang, "d.shuffle_on"))
 		}
@@ -586,6 +643,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		default:
 			return fail(errors.New(i18n.TLf(lang, "d.repeat_invalid", req.Value)))
 		}
+		d.q.Invalidate() // repeat one/all cambian la promesa vigente
 		return okStatus(i18n.TLf(lang, "d.repeat", string(d.q.Repeat)))
 
 	case "playlist_play":

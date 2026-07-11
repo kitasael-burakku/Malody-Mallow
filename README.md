@@ -23,6 +23,9 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 ## Características
 
 - **Backend mpv**: MP3, FLAC, OGG, OPUS, M4A, WAV sin esfuerzo.
+- **Gapless**: la siguiente pista de la cola se anexa a mpv por adelantado
+  y el cambio ocurre sin cortar el audio — también con repeat one, con
+  shuffle y al saltar archivos dañados.
 - **Servicio + cliente**: la música sigue sonando aunque cierres la TUI
   (si lanzaste `maly daemon` aparte). Control desde cualquier terminal.
 - **La sesión sobrevive**: cola, volumen, shuffle/repeat y la pista actual

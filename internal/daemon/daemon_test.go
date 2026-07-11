@@ -431,6 +431,90 @@ func TestRemoveWhenStoppedStaysStopped(t *testing.T) {
 	}
 }
 
+// TestGaplessChain: con una pista sonando y otra en la cola, la playlist de
+// mpv debe tener la promesa anexada (2 entradas); al terminar la primera,
+// mpv encadena SOLO —sin ningún loadfile replace del demonio— y la ventana
+// se realinea: índice avanzado y una única entrada al final de la cola.
+func TestGaplessChain(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	b := filepath.Join(music, "b.wav")
+	writeWAV(t, a, 2)
+	writeWAV(t, b, 30)
+	for _, p := range []string{a, b} {
+		if resp := d.Do(ipc.Request{Cmd: "add", Query: p}); !resp.OK {
+			t.Fatalf("add %s: %s", p, resp.Error)
+		}
+	}
+	waitStatus(t, d, "a sonando", func(st *ipc.Status) bool {
+		return st.Playing && st.Track != nil && st.Track.Path == a
+	})
+	// La ventana debe armarse mientras a suena (b anexada).
+	waitWindow := func(want int, what string) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			if n, err := d.pl.PlaylistCount(); err == nil && n == want {
+				return
+			} else if time.Now().After(deadline) {
+				t.Fatalf("%s: playlist-count = %d (err %v), quería %d", what, n, err, want)
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	waitWindow(2, "ventana con promesa")
+
+	loadsBefore := d.pl.LoadCount()
+	st := waitStatus(t, d, "b sonando tras el eof de a", func(st *ipc.Status) bool {
+		return st.Playing && st.Track != nil && st.Track.Path == b
+	})
+	if st.QueueIndex != 1 {
+		t.Errorf("QueueIndex = %d, quería 1", st.QueueIndex)
+	}
+	if got := d.pl.LoadCount(); got != loadsBefore {
+		t.Errorf("hubo %d loadfile replace durante el cambio de pista: no fue gapless", got-loadsBefore)
+	}
+	// Sin siguiente (repeat off): la ventana queda en una sola entrada.
+	waitWindow(1, "ventana sin promesa al final de la cola")
+	// La propiedad path de mpv va rezagada durante la transición: pollear.
+	deadline := time.Now().Add(5 * time.Second)
+	for d.pl.CurrentPath() != b {
+		if time.Now().After(deadline) {
+			t.Fatalf("CurrentPath = %q, quería %q", d.pl.CurrentPath(), b)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// TestGaplessRepeatOne: la promesa de repeat one es la misma pista — mpv
+// debe encadenarla en bucle sin que el demonio la recargue.
+func TestGaplessRepeatOne(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	writeWAV(t, a, 1)
+	if resp := d.Do(ipc.Request{Cmd: "repeat", Value: "one"}); !resp.OK {
+		t.Fatalf("repeat: %s", resp.Error)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "add", Query: a}); !resp.OK {
+		t.Fatalf("add: %s", resp.Error)
+	}
+	waitStatus(t, d, "a sonando", func(st *ipc.Status) bool {
+		return st.Playing && st.Track != nil && st.Track.Path == a
+	})
+	loadsBefore := d.pl.LoadCount()
+	// En 2.5 s la pista de 1 s debe haber encadenado al menos dos veces.
+	time.Sleep(2500 * time.Millisecond)
+	st := d.Do(ipc.Request{Cmd: "status"}).Status
+	if !st.Playing || st.Track == nil || st.Track.Path != a || st.QueueIndex != 0 {
+		t.Fatalf("repeat one debería seguir sonando a: %+v", st)
+	}
+	if got := d.pl.LoadCount(); got != loadsBefore {
+		t.Errorf("repeat one recargó la pista %d veces: no fue gapless", got-loadsBefore)
+	}
+}
+
 // TestSessionPersistence es el round-trip completo: un demonio reproduce,
 // se cierra, y el siguiente arranca con la cola, el volumen, los modos y la
 // pista actual en pausa en la posición guardada.

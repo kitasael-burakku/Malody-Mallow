@@ -22,10 +22,11 @@ type Queue struct {
 	Shuffle bool
 	Repeat  RepeatMode
 	history []int // índices ya sonados en modo shuffle, para prev
+	peeked  int   // sorteo de shuffle prometido por PeekNext; -1 = ninguno
 }
 
 func New() *Queue {
-	return &Queue{Index: -1, Repeat: RepeatOff}
+	return &Queue{Index: -1, Repeat: RepeatOff, peeked: -1}
 }
 
 func (q *Queue) Len() int { return len(q.Items) }
@@ -48,6 +49,7 @@ func (q *Queue) Replace(tracks []library.Track) {
 	q.Items = append([]library.Track(nil), tracks...)
 	q.Index = -1
 	q.history = nil
+	q.peeked = -1
 }
 
 // Clear vacía la cola.
@@ -55,6 +57,7 @@ func (q *Queue) Clear() {
 	q.Items = nil
 	q.Index = -1
 	q.history = nil
+	q.peeked = -1
 }
 
 // RemoveAt quita la pista en la posición i. Devuelve true si la pista
@@ -66,6 +69,7 @@ func (q *Queue) RemoveAt(i int) bool {
 	wasCurrent := i == q.Index
 	q.Items = append(q.Items[:i], q.Items[i+1:]...)
 	q.history = nil
+	q.peeked = -1
 	if i < q.Index {
 		q.Index--
 	} else if wasCurrent {
@@ -85,46 +89,78 @@ func (q *Queue) JumpTo(i int) (library.Track, bool) {
 		q.history = append(q.history, q.Index)
 	}
 	q.Index = i
+	q.peeked = -1
 	return q.Items[i], true
 }
 
-// Next avanza según shuffle/repeat. ok=false significa fin de la cola.
-func (q *Queue) Next(natural bool) (library.Track, bool) {
-	n := len(q.Items)
-	if n == 0 {
+// PeekNext devuelve la pista que el avance natural (fin de pista) va a
+// elegir, sin avanzar: es la promesa que el demonio anexa a la playlist de
+// mpv para el encadenado gapless. El sorteo de shuffle se decide aquí y
+// Next lo honra; mutar la cola invalida la promesa.
+func (q *Queue) PeekNext() (library.Track, bool) {
+	i, ok := q.nextIndex(true)
+	if !ok {
 		return library.Track{}, false
 	}
-	// repeat one solo aplica al avance natural (fin de pista), no a `maly next`.
+	return q.Items[i], true
+}
+
+// Invalidate descarta la promesa vigente de PeekNext. Las mutaciones de la
+// cola invalidan solas; esto es para los cambios de Shuffle/Repeat, campos
+// públicos que el demonio toca directo.
+func (q *Queue) Invalidate() { q.peeked = -1 }
+
+// nextIndex calcula el índice al que se avanzaría. natural aplica repeat
+// one (el next manual lo ignora); en shuffle el sorteo se recuerda en
+// peeked hasta consumirse o invalidarse, para que la promesa anexada a mpv
+// y el avance real coincidan.
+func (q *Queue) nextIndex(natural bool) (int, bool) {
+	n := len(q.Items)
+	if n == 0 {
+		return 0, false
+	}
 	if natural && q.Repeat == RepeatOne && q.Index >= 0 {
-		return q.Items[q.Index], true
+		return q.Index, true
 	}
 	if q.Shuffle {
-		if q.Index >= 0 {
-			q.history = append(q.history, q.Index)
-			if len(q.history) > n*2 {
-				q.history = q.history[len(q.history)-n:]
+		if q.peeked < 0 || q.peeked >= n {
+			if n == 1 {
+				q.peeked = 0
+			} else {
+				next := rand.Intn(n - 1)
+				if next >= q.Index {
+					next++
+				}
+				q.peeked = next
 			}
 		}
-		if n == 1 {
-			q.Index = 0
-		} else {
-			next := rand.Intn(n - 1)
-			if next >= q.Index {
-				next++
-			}
-			q.Index = next
-		}
-		return q.Items[q.Index], true
+		return q.peeked, true
 	}
 	if q.Index+1 >= n {
 		if q.Repeat == RepeatAll {
-			q.Index = 0
-			return q.Items[0], true
+			return 0, true
 		}
+		return 0, false
+	}
+	return q.Index + 1, true
+}
+
+// Next avanza según shuffle/repeat, consumiendo la promesa de PeekNext.
+// natural=true es el fin de pista. ok=false significa fin de la cola.
+func (q *Queue) Next(natural bool) (library.Track, bool) {
+	i, ok := q.nextIndex(natural)
+	q.peeked = -1
+	if !ok {
 		return library.Track{}, false
 	}
-	q.Index++
-	return q.Items[q.Index], true
+	if q.Shuffle && q.Index >= 0 && i != q.Index {
+		q.history = append(q.history, q.Index)
+		if n := len(q.Items); len(q.history) > n*2 {
+			q.history = q.history[len(q.history)-n:]
+		}
+	}
+	q.Index = i
+	return q.Items[i], true
 }
 
 // Prev retrocede (en shuffle usa el historial).

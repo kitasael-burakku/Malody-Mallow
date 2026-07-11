@@ -139,8 +139,11 @@ Decisiones transversales:
 2. ~~Frescura de biblioteca (`LibGen`)~~ — hecho (ver `internal/daemon` arriba).
 3. ~~Playlists CLI completas (`show`/`remove`) + playlists en el árbol de la
    TUI~~ — hecho.
-4. **Tests de `internal/tui`** (empezados: `tree_test.go`; faltan
-   picker/visibleQueue/clip, que son puros) y de `internal/viz`.
+4. ~~Tests de `internal/tui` y `internal/viz`~~ — hecho (tree, picker,
+   visibleQueue, clip/padTo; fftBars con seno puro, gravity, degradación a
+   fake). Ojo en viz: los tests construyen el `Viz` a mano (`newTestViz`)
+   porque `New()` arranca un pw-record/parec REAL en la máquina de
+   desarrollo.
 5. **Cierre**: README + instalador contra entorno limpio, bump 1.0.0,
    primer `git tag v1.0.0`, PKGBUILD para AUR.
 

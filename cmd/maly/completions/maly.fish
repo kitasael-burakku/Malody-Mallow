@@ -13,3 +13,6 @@ complete -c maly -f -a '(__maly_complete)'
 
 # scan y add sí aceptan rutas: rehabilitar archivos además de los candidatos
 complete -c maly -n '__fish_seen_subcommand_from scan add' --force-files
+
+# playlist import/export toman un archivo .m3u
+complete -c maly -n '__fish_seen_subcommand_from playlist; and __fish_seen_subcommand_from import export' --force-files

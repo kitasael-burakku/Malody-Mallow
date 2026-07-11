@@ -131,7 +131,7 @@ func (l *logoModel) view(innerW int) []string {
 // suficiente y ninguna vista a pantalla completa lo tapa.
 func (m *Model) logoVisible() bool {
 	return m.height >= logoMinRows && m.width >= minWidth &&
-		!m.langOpen && !m.showHelp && !m.consoleOpen && !m.songsOpen
+		!m.langOpen && !m.showHelp && !m.consoleOpen && !m.songsOpen && !m.plOpen
 }
 
 // logoEnergy estima la energía del audio (0..1) como media de las barras del

@@ -30,8 +30,16 @@ _maly() {
     local ret=1
     (($#pairs)) && _describe 'maly' pairs -U && ret=0
 
-    # scan y add aceptan rutas además de los candidatos
-    case $words[2] in scan | add) _files && ret=0 ;; esac
+    # scan y add aceptan rutas además de los candidatos; playlist
+    # import/export toman un archivo .m3u
+    case $words[2] in
+        scan | add) _files && ret=0 ;;
+        playlist)
+            case $words[3] in
+                import) ((CURRENT >= 4)) && _files && ret=0 ;;
+                export) ((CURRENT >= 5)) && _files && ret=0 ;;
+            esac ;;
+    esac
     return $ret
 }
 

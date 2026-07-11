@@ -59,9 +59,17 @@ _maly() {
         fi
     fi
 
-    # scan y add aceptan rutas: caer al completado de archivos de readline
-    # cuando maly no devuelve candidatos
-    case ${COMP_WORDS[1]} in scan | add) compopt -o default ;; esac
+    # scan y add aceptan rutas (y playlist import/export un archivo .m3u):
+    # caer al completado de archivos de readline cuando maly no devuelve
+    # candidatos
+    case ${COMP_WORDS[1]} in
+        scan | add) compopt -o default ;;
+        playlist)
+            case ${COMP_WORDS[2]} in
+                import) ((COMP_CWORD >= 3)) && compopt -o default ;;
+                export) ((COMP_CWORD >= 4)) && compopt -o default ;;
+            esac ;;
+    esac
 }
 
 complete -F _maly maly

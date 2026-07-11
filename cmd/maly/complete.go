@@ -237,11 +237,7 @@ func completeJump(args []string, cur string) []string {
 		if !strings.HasPrefix(pos, cur) {
 			continue
 		}
-		name := t.Title
-		if t.Artist != "" {
-			name = t.Artist + " — " + t.Title
-		}
-		out = append(out, cand(pos, name))
+		out = append(out, cand(pos, t.String()))
 		if len(out) == maxCandidates {
 			break
 		}

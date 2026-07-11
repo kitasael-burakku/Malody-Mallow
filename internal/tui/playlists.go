@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -129,6 +130,11 @@ func plQueueCmd(sock, name string) tea.Cmd {
 		lib.Close()
 		if err != nil {
 			return actionMsg{err: err}
+		}
+		if len(tracks) == 0 {
+			// Sin esto, un add sin rutas cae en la rama de búsqueda del
+			// demonio y el error habla de una consulta que no existió.
+			return actionMsg{err: errors.New(i18n.Tf("d.pl_empty", name))}
 		}
 		paths := make([]string, len(tracks))
 		for i, t := range tracks {

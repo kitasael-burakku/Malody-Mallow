@@ -104,6 +104,8 @@ var table = map[string][2]string{
 	"help.toggle_viz":     {"toggle visualizer", "alternar visualizador"},
 	"help.palette":        {"command palette", "paleta de comandos"},
 	"help.songs":          {"song selector", "selector de canciones"},
+	"help.playlists":      {"playlist panel", "panel de playlists"},
+	"help.playlist_add":   {"add selection to a playlist", "agregar selección a una playlist"},
 	"help.quit":           {"quit", "salir"},
 	"help.vim_nav":        {"navigate (also arrows)", "navegar (también flechas)"},
 	"help.jump_scroll":    {"top / bottom · half page", "inicio / final · media página"},
@@ -139,6 +141,14 @@ var table = map[string][2]string{
 	"songs.added": {"added: %s", "agregada: %s"},
 	"sel.title":   {"Select Track", "Elegir canción"},
 	"sel.none":    {"  no matches", "  sin coincidencias"},
+
+	// ---- TUI: panel de playlists ----
+	"plsel.title":    {"Playlists", "Playlists"},
+	"plsel.ph":       {"search playlist…", "buscar playlist…"},
+	"plsel.hint":     {"%d · enter plays · tab queues · ctrl+n new · ctrl+x delete", "%d · enter reproduce · tab encola · ctrl+n crea · ctrl+x borra"},
+	"plsel.hint_add": {"%d · enter adds %d track(s) · ctrl+n creates & adds", "%d · enter agrega %d pista(s) · ctrl+n crea y agrega"},
+	"plsel.queued":   {"queued: %s", "encolada: %s"},
+	"plsel.empty":    {"  no playlists — type a name and press ctrl+n", "  no hay playlists — escribe un nombre y pulsa ctrl+n"},
 
 	// ---- Estado (CLI y consola) ----
 	"st.stopped": {"⏹ nothing playing  vol %d%%  shuffle: %s  repeat: %s  queue: %d track(s)", "⏹ nada suena  vol %d%%  shuffle: %s  repeat: %s  cola: %d pista(s)"},

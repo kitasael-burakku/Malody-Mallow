@@ -86,6 +86,9 @@ func (m *Model) View() string {
 	if m.songsOpen {
 		return m.songsView()
 	}
+	if m.plOpen {
+		return m.plView()
+	}
 
 	topH, vizH, logoH := m.layout()
 	leftW := m.width / 2
@@ -390,6 +393,8 @@ func (m *Model) helpView() string {
 		{k["toggle_viz"], i18n.T("help.toggle_viz")},
 		{k["palette"], i18n.T("help.palette")},
 		{k["songs"], i18n.T("help.songs")},
+		{k["playlists"], i18n.T("help.playlists")},
+		{k["playlist_add"], i18n.T("help.playlist_add")},
 		{k["quit"], i18n.T("help.quit")},
 	}
 	var b strings.Builder

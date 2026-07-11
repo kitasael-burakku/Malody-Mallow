@@ -60,6 +60,8 @@ func DefaultKeys() map[string]string {
 		"help":         "?",
 		"palette":      "ctrl+p",
 		"songs":        "ctrl+o",
+		"playlists":    "ctrl+l",
+		"playlist_add": "A",
 		"toggle_viz":   "v",
 	}
 }

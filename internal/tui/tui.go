@@ -81,6 +81,12 @@ type Model struct {
 	songsOpen bool
 	songs     *picker
 
+	// Panel de playlists (ctrl+l): picker fuzzy con dos modos.
+	plOpen    bool
+	pl        *picker
+	plMode    plMode
+	plPending []int64 // ids a agregar en modo destino
+
 	// gPending marca que se pulsó una `g` esperando la segunda (gg = inicio).
 	gPending bool
 }
@@ -341,6 +347,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case plListMsg:
+		if msg.err != nil {
+			m.setFlash(msg.err.Error(), true)
+			return m, nil
+		}
+		if m.plOpen {
+			m.pl.setItems(msg.items)
+		}
+		return m, nil
+
+	case plActMsg:
+		if msg.err != nil {
+			m.setFlash(msg.err.Error(), true)
+			return m, nil
+		}
+		m.setFlash(msg.msg, false)
+		if msg.reload && m.plOpen {
+			return m, loadPlaylists
+		}
+		return m, nil
+
 	case statusMsg:
 		if msg.err != nil {
 			m.connErr = true
@@ -416,11 +443,17 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.songsOpen {
 		return m.handleSongsKey(msg)
 	}
+	if m.plOpen {
+		return m.handlePlaylistsKey(msg)
+	}
 	if m.is("palette", msg) {
 		return m, m.openConsole()
 	}
 	if m.is("songs", msg) {
 		return m, m.openSongs()
+	}
+	if m.is("playlists", msg) {
+		return m, m.openPlaylists(plBrowse, nil)
 	}
 
 	// Cualquier tecla distinta de `g` rompe la secuencia gg pendiente; los
@@ -579,6 +612,20 @@ func (m *Model) handleLibraryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			return m, m.req(ipc.Request{Cmd: "add", Paths: paths})
 		}
+		if m.is("playlist_add", msg) {
+			n := m.tree.current()
+			if n == nil {
+				return m, nil
+			}
+			var ids []int64
+			for _, t := range n.tracks() {
+				ids = append(ids, t.ID)
+			}
+			if len(ids) == 0 {
+				return m, nil
+			}
+			return m, m.openPlaylists(plTarget, ids)
+		}
 	}
 	return m, nil
 }
@@ -655,6 +702,10 @@ func (m *Model) handleQueueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		if m.is("remove", msg) && m.queueCursor < len(vis) {
 			return m, m.req(ipc.Request{Cmd: "remove", Index: vis[m.queueCursor]})
+		}
+		if m.is("playlist_add", msg) && m.queueCursor < len(vis) {
+			t := m.queue[vis[m.queueCursor]]
+			return m, m.openPlaylists(plTarget, []int64{t.ID})
 		}
 	}
 	return m, nil

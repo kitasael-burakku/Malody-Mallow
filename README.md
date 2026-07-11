@@ -45,6 +45,9 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 - **Selector Ctrl+O / `maly select`**: búsqueda difusa sobre toda la
   biblioteca (`enter` reproduce, `tab` agrega a la cola); desde la CLI se
   abre como mini modal sin cargar la TUI completa.
+- **Panel de playlists Ctrl+L**: gestiona tus playlists sin salir de la
+  TUI (`enter` reproduce, `tab` encola, `ctrl+n` crea, `ctrl+x` borra), y
+  con `A` mandas la selección de la biblioteca o la cola a una playlist.
 - **Navegación vim**: `h j k l`, `gg`, `G`, `ctrl+d`/`ctrl+u` en los
   paneles (las flechas siguen funcionando), y presets de controles con
   `maly controls` (`default` | `vim`).
@@ -223,6 +226,8 @@ La primera vez se crea `~/.config/maly/config.toml` con los defaults.
 | `v` | alternar visualizador |
 | `ctrl+p` | paleta de comandos (consola integrada) |
 | `ctrl+o` | selector de canciones (fuzzy; `enter` reproduce, `tab` agrega) |
+| `ctrl+l` | panel de playlists (`enter` reproduce, `tab` encola, `ctrl+n` crea, `ctrl+x` borra) |
+| `A` | agregar la selección (pista, álbum o artista) a una playlist |
 | `?` | ayuda |
 | `q` | salir |
 

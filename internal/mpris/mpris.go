@@ -15,6 +15,7 @@ import (
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/godbus/dbus/v5/prop"
 
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 )
 
@@ -109,7 +110,7 @@ func Start(ctrl Controller, artDir string) (*Service, error) {
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		conn.Close()
-		return nil, fmt.Errorf("el nombre %s ya está en uso", busName)
+		return nil, fmt.Errorf("%s", i18n.Tf("m.name_taken", busName))
 	}
 	return s, nil
 }

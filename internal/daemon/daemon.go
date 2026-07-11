@@ -71,7 +71,7 @@ type subscriber struct {
 func New(cfg config.Config) (*Daemon, error) {
 	sock := config.SocketPath()
 	if err := os.MkdirAll(config.RuntimeDir(), 0o700); err != nil {
-		return nil, fmt.Errorf("creando %s: %w", config.RuntimeDir(), err)
+		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", config.RuntimeDir()), err)
 	}
 	if _, err := os.Stat(sock); err == nil {
 		if ipc.Ping(sock) {
@@ -108,7 +108,7 @@ func New(cfg config.Config) (*Daemon, error) {
 	if err != nil {
 		pl.Close()
 		lib.Close()
-		return nil, fmt.Errorf("no pude escuchar en %s: %w", sock, err)
+		return nil, fmt.Errorf("%s: %w", i18n.Tf("d.listen", sock), err)
 	}
 	d.ln = ln
 

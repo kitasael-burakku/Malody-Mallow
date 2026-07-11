@@ -268,6 +268,7 @@ var table = map[string][2]string{
 	"d.no_audio":         {"no audio files in %s", "no hay audio en %s"},
 	"d.track_failed":     {"cannot play %v; skipping", "no se pudo reproducir %v; saltando"},
 	"d.queue_failed":     {"no track in the queue could be played; stopping", "ninguna pista de la cola se pudo reproducir; deteniendo"},
+	"d.listen":           {"cannot listen on %s", "no pude escuchar en %s"},
 
 	// ---- IPC y arranque ----
 	"ipc.send":         {"sending to the daemon", "enviando al servicio"},
@@ -289,6 +290,12 @@ var table = map[string][2]string{
 	"p.configure":   {"configuring mpv", "configurando mpv"},
 	"p.not_running": {"mpv is not running", "mpv no está corriendo"},
 	"p.exited":      {"mpv exited", "mpv terminó"},
+	"p.write":       {"writing to mpv", "escribiendo a mpv"},
+	"p.no_reply":    {"mpv is not responding", "mpv no responde"},
+	"p.seek":        {"seek failed", "no pude hacer seek"},
+
+	// ---- MPRIS ----
+	"m.name_taken": {"bus name %s is already taken", "el nombre %s ya está en uso"},
 
 	// ---- Biblioteca ----
 	"lib.mkdir":     {"creating %s", "creando %s"},

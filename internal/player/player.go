@@ -232,7 +232,7 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 	_, err := p.conn.Write(append(msg, '\n'))
 	p.mu.Unlock()
 	if err != nil {
-		return nil, fmt.Errorf("escribiendo a mpv: %w", err)
+		return nil, fmt.Errorf("%s: %w", i18n.T("p.write"), err)
 	}
 	select {
 	case r := <-ch:
@@ -241,7 +241,7 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 		}
 		return r.Data, nil
 	case <-time.After(5 * time.Second):
-		return nil, errors.New("mpv no responde")
+		return nil, errors.New(i18n.T("p.no_reply"))
 	case <-p.done:
 		return nil, errors.New(i18n.T("p.exited"))
 	}
@@ -319,7 +319,7 @@ func (p *Player) seek(args ...any) error {
 	if err != nil {
 		time.Sleep(250 * time.Millisecond)
 		if _, err = p.command(args...); err != nil {
-			return fmt.Errorf("no pude hacer seek: %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("p.seek"), err)
 		}
 	}
 	if data, err := p.command("get_property", "time-pos"); err == nil {

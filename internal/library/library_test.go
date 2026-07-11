@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestFold(t *testing.T) {
@@ -40,7 +41,9 @@ func fakeMusicDir(t *testing.T, n int) string {
 
 // TestScanConcurrentSearch verifica (bajo -race) que Scan puede correr en
 // paralelo con lecturas de la biblioteca, como hace el demonio desde que
-// scan no toma su mutex.
+// scan no toma su mutex, y que ninguna lectura espera un flush entero: los
+// lotes retienen la única conexión solo milisegundos. n cruza varios límites
+// de lote a propósito.
 func TestScanConcurrentSearch(t *testing.T) {
 	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -48,7 +51,7 @@ func TestScanConcurrentSearch(t *testing.T) {
 	}
 	defer lib.Close()
 
-	const n = 300
+	const n = scanBatchSize*2 + 200
 	dir := fakeMusicDir(t, n)
 
 	type scanOut struct {
@@ -61,7 +64,9 @@ func TestScanConcurrentSearch(t *testing.T) {
 		done <- scanOut{res, err}
 	}()
 
-	// Lecturas concurrentes hasta que el escaneo termine.
+	// Lecturas concurrentes hasta que el escaneo termine. El tope de latencia
+	// es holgado (CI, -race): lo que caza es una transacción que retenga la
+	// conexión durante todo el escaneo, no un flush lento.
 	var out scanOut
 loop:
 	for {
@@ -69,11 +74,15 @@ loop:
 		case out = <-done:
 			break loop
 		default:
+			start := time.Now()
 			if _, err := lib.Search("pista"); err != nil {
 				t.Fatalf("Search durante el escaneo: %v", err)
 			}
 			if _, err := lib.Count(); err != nil {
 				t.Fatalf("Count durante el escaneo: %v", err)
+			}
+			if d := time.Since(start); d > time.Second {
+				t.Fatalf("lectura bloqueada %v durante el escaneo (¿transacción larga?)", d)
 			}
 		}
 	}
@@ -85,6 +94,47 @@ loop:
 	}
 	if total, _ := lib.Count(); total != n {
 		t.Fatalf("Count = %d, quería %d", total, n)
+	}
+}
+
+// TestScanRescanAccounting: un re-escaneo con una pista modificada y otra
+// borrada debe contar Updated/Removed exactos y dejar el total correcto (la
+// contabilidad ahora se suma por lote confirmado, no por Exec suelto).
+func TestScanRescanAccounting(t *testing.T) {
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	const n = 30
+	dir := fakeMusicDir(t, n)
+	res, err := lib.Scan(dir)
+	if err != nil || res.Added != n {
+		t.Fatalf("primer escaneo: %+v, %v", res, err)
+	}
+
+	// Sin cambios: el re-escaneo no debe tocar nada (mtimes iguales).
+	res, err = lib.Scan(dir)
+	if err != nil || res.Added != 0 || res.Updated != 0 || res.Removed != 0 {
+		t.Fatalf("re-escaneo sin cambios: %+v, %v", res, err)
+	}
+
+	// Una pista cambia de mtime, otra desaparece.
+	changed := filepath.Join(dir, "album01", "pista0001.mp3")
+	future := time.Now().Add(time.Hour)
+	if err := os.Chtimes(changed, future, future); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(dir, "album02", "pista0002.mp3")); err != nil {
+		t.Fatal(err)
+	}
+	res, err = lib.Scan(dir)
+	if err != nil || res.Added != 0 || res.Updated != 1 || res.Removed != 1 {
+		t.Fatalf("re-escaneo con cambios: %+v, %v", res, err)
+	}
+	if total, _ := lib.Count(); total != n-1 {
+		t.Fatalf("Count = %d, quería %d", total, n-1)
 	}
 }
 

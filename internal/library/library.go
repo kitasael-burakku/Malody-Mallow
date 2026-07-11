@@ -110,6 +110,22 @@ type ScanResult struct {
 	Errors  []string
 }
 
+// scanBatchSize es cuántas escrituras van en cada transacción del escaneo:
+// un fsync por lote en vez de uno por pista (cada Exec suelto es su propia
+// transacción implícita). El flush de un lote son milisegundos, así que una
+// búsqueda concurrente espera como mucho eso; entre lotes la conexión queda
+// libre.
+const scanBatchSize = 500
+
+const upsertTrack = `
+	INSERT INTO tracks (path, title, artist, album, album_artist, genre, track_no, year, mtime, search_text)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ON CONFLICT(path) DO UPDATE SET
+		title=excluded.title, artist=excluded.artist, album=excluded.album,
+		album_artist=excluded.album_artist, genre=excluded.genre,
+		track_no=excluded.track_no, year=excluded.year, mtime=excluded.mtime,
+		search_text=excluded.search_text`
+
 // Scan recorre root, indexa audio nuevo o modificado y elimina de la base
 // las entradas cuyos archivos ya no existen.
 func (l *Library) Scan(root string) (ScanResult, error) {
@@ -139,6 +155,64 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 	}
 	rows.Close()
 
+	// Las escrituras van en lotes dentro de transacciones cortas. NUNCA una
+	// transacción única para todo el escaneo: database/sql fija la conexión
+	// al Tx y, con la única conexión retenida de punta a punta, Search y
+	// ByPath quedarían bloqueados hasta el final (el mismo congelamiento que
+	// se arregló al sacar a scan de d.mu, a otro nivel). Leer tags —el costo
+	// dominante, IO de archivo— ocurre siempre fuera de toda transacción.
+	type pending struct {
+		t       Track
+		mtime   int64
+		fold    string
+		existed bool
+	}
+	var batch []pending
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		defer func() { batch = batch[:0] }()
+		fail := func(err error) {
+			for _, p := range batch {
+				res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", p.t.Path, err))
+			}
+		}
+		tx, err := l.db.Begin()
+		if err != nil {
+			fail(err)
+			return
+		}
+		stmt, err := tx.Prepare(upsertTrack)
+		if err != nil {
+			tx.Rollback()
+			fail(err)
+			return
+		}
+		added, updated := 0, 0
+		for _, p := range batch {
+			t := p.t
+			if _, err := stmt.Exec(t.Path, t.Title, t.Artist, t.Album, t.AlbumArtist,
+				t.Genre, t.TrackNo, t.Year, p.mtime, p.fold); err != nil {
+				res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", t.Path, err))
+				continue
+			}
+			if p.existed {
+				updated++
+			} else {
+				added++
+			}
+		}
+		stmt.Close()
+		// Los contadores se suman solo si el lote quedó aplicado de verdad.
+		if err := tx.Commit(); err != nil {
+			fail(err)
+			return
+		}
+		res.Added += added
+		res.Updated += updated
+	}
+
 	seen := map[string]bool{}
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -159,32 +233,22 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 			return nil
 		}
 		t := ReadTags(path)
-		_, dbErr := l.db.Exec(`
-			INSERT INTO tracks (path, title, artist, album, album_artist, genre, track_no, year, mtime, search_text)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(path) DO UPDATE SET
-				title=excluded.title, artist=excluded.artist, album=excluded.album,
-				album_artist=excluded.album_artist, genre=excluded.genre,
-				track_no=excluded.track_no, year=excluded.year, mtime=excluded.mtime,
-				search_text=excluded.search_text`,
-			path, t.Title, t.Artist, t.Album, t.AlbumArtist, t.Genre, t.TrackNo, t.Year, mtime,
-			Fold(t.Title+" "+t.Artist+" "+t.Album))
-		if dbErr != nil {
-			res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", path, dbErr))
-			return nil
-		}
-		if _, existed := known[path]; existed {
-			res.Updated++
-		} else {
-			res.Added++
+		_, existed := known[path]
+		batch = append(batch, pending{t: t, mtime: mtime, existed: existed,
+			fold: Fold(t.Title + " " + t.Artist + " " + t.Album)})
+		if len(batch) >= scanBatchSize {
+			flush()
 		}
 		return nil
 	})
+	flush() // lo indexado hasta aquí se conserva aunque el walk haya fallado
 	if walkErr != nil {
 		return res, walkErr
 	}
 
-	// Purgar archivos desaparecidos (solo los que estaban bajo root).
+	// Purgar archivos desaparecidos (solo los que estaban bajo root), también
+	// por lotes y contando solo lo confirmado.
+	var gone []string
 	for p := range known {
 		if seen[p] {
 			continue
@@ -192,9 +256,28 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 		if rel, err := filepath.Rel(root, p); err != nil || strings.HasPrefix(rel, "..") {
 			continue
 		}
-		if _, err := l.db.Exec(`DELETE FROM tracks WHERE path = ?`, p); err == nil {
-			res.Removed++
+		gone = append(gone, p)
+	}
+	for len(gone) > 0 {
+		n := min(scanBatchSize, len(gone))
+		chunk := gone[:n]
+		gone = gone[n:]
+		tx, err := l.db.Begin()
+		if err != nil {
+			res.Errors = append(res.Errors, err.Error())
+			break
 		}
+		removed := 0
+		for _, p := range chunk {
+			if _, err := tx.Exec(`DELETE FROM tracks WHERE path = ?`, p); err == nil {
+				removed++
+			}
+		}
+		if err := tx.Commit(); err != nil {
+			res.Errors = append(res.Errors, err.Error())
+			continue
+		}
+		res.Removed += removed
 	}
 	return res, nil
 }

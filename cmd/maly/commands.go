@@ -205,6 +205,7 @@ func helpText() string {
 	key("/", "help.filter")
 	key("ctrl+p", "help.palette")
 	key("ctrl+o", "help.songs")
+	key("ctrl+l", "help.playlists")
 	key("v", "help.toggle_viz")
 	key("?", "help.show")
 	key("q", "help.quit")

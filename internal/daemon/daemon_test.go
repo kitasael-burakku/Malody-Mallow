@@ -283,6 +283,154 @@ func TestScanDoesNotBlockStatus(t *testing.T) {
 	}
 }
 
+// writeBadAudio fabrica un archivo con extensión de audio que mpv no puede
+// reproducir (dispara end-file con reason "error").
+func writeBadAudio(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte("no es audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestAdvanceSkipsBadTrack: al terminar una pista, si la siguiente no se
+// puede reproducir, advance la salta y sigue con la que viene después.
+func TestAdvanceSkipsBadTrack(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "01a.wav")
+	bad := filepath.Join(music, "02bad.wav")
+	c := filepath.Join(music, "03c.wav")
+	writeWAV(t, a, 1) // 1 s: termina sola enseguida
+	writeBadAudio(t, bad)
+	writeWAV(t, c, 30)
+
+	for _, p := range []string{a, bad, c} {
+		if resp := d.Do(ipc.Request{Cmd: "add", Query: p}); !resp.OK {
+			t.Fatalf("add %s: %s", p, resp.Error)
+		}
+	}
+	// a suena, termina en ~1 s, bad falla y debe quedar sonando c.
+	st := waitStatus(t, d, "que c quede sonando tras saltar bad", func(st *ipc.Status) bool {
+		return st.Playing && st.Track != nil && st.Track.Path == c
+	})
+	if st.QueueIndex != 2 {
+		t.Errorf("QueueIndex = %d, quería 2", st.QueueIndex)
+	}
+	if st.QueueLen != 3 {
+		t.Errorf("QueueLen = %d; saltar no debe sacar la pista de la cola", st.QueueLen)
+	}
+}
+
+// TestAdvanceAllBadStops: con toda la cola irreproducible y repeat all, la
+// guarda de advance detiene tras una pasada completa en vez de ciclar para
+// siempre cargando pistas rotas.
+func TestAdvanceAllBadStops(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	for _, n := range []string{"x.wav", "y.wav", "z.wav"} {
+		writeBadAudio(t, filepath.Join(music, n))
+	}
+	if resp := d.Do(ipc.Request{Cmd: "repeat", Value: "all"}); !resp.OK {
+		t.Fatalf("repeat: %s", resp.Error)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "play", Query: music}); !resp.OK {
+		t.Fatalf("play: %s", resp.Error)
+	}
+
+	// Esperar el estado FINAL: detenido de forma estable. Durante la pasada
+	// de saltos Playing parpadea (idle breve entre error y la carga
+	// siguiente), así que se exige una racha de muestras sin reproducción.
+	deadline := time.Now().Add(20 * time.Second)
+	quiet := 0
+	for quiet < 10 {
+		if time.Now().After(deadline) {
+			t.Fatal("el demonio no se detuvo con la cola entera irreproducible")
+		}
+		if st := d.Do(ipc.Request{Cmd: "status"}).Status; st != nil && !st.Playing {
+			quiet++
+		} else {
+			quiet = 0
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	st := d.Do(ipc.Request{Cmd: "status"}).Status
+	if st.QueueLen != 3 {
+		t.Errorf("QueueLen = %d; detenerse no debe vaciar la cola", st.QueueLen)
+	}
+	d.mu.Lock()
+	streak := d.errStreak
+	d.mu.Unlock()
+	if streak != 0 {
+		t.Errorf("errStreak = %d tras detenerse, quería 0", streak)
+	}
+}
+
+// TestRemoveCurrentKeepsPause: quitar la pista actual estando en pausa carga
+// la siguiente también en pausa, no arranca a sonar sola.
+func TestRemoveCurrentKeepsPause(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	b := filepath.Join(music, "b.wav")
+	writeWAV(t, a, 30)
+	writeWAV(t, b, 30)
+
+	for _, r := range []ipc.Request{{Cmd: "add", Query: a}, {Cmd: "add", Query: b}} {
+		if resp := d.Do(r); !resp.OK {
+			t.Fatalf("%s: %s", r.Cmd, resp.Error)
+		}
+	}
+	waitStatus(t, d, "que a cargue", func(st *ipc.Status) bool {
+		return st.Playing && st.Duration > 0
+	})
+	if resp := d.Do(ipc.Request{Cmd: "pause"}); !resp.OK {
+		t.Fatalf("pause: %s", resp.Error)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "remove", Index: 0}); !resp.OK {
+		t.Fatalf("remove: %s", resp.Error)
+	}
+	st := waitStatus(t, d, "b cargada en pausa", func(st *ipc.Status) bool {
+		return st.Playing && st.Track != nil && st.Track.Path == b
+	})
+	if !st.Paused {
+		t.Error("la pausa no sobrevivió al remove de la pista actual")
+	}
+}
+
+// TestRemoveWhenStoppedStaysStopped: con el player detenido, quitar la pista
+// actual no debe arrancar la siguiente.
+func TestRemoveWhenStoppedStaysStopped(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	b := filepath.Join(music, "b.wav")
+	writeWAV(t, a, 30)
+	writeWAV(t, b, 30)
+
+	for _, r := range []ipc.Request{{Cmd: "add", Query: a}, {Cmd: "add", Query: b}} {
+		if resp := d.Do(r); !resp.OK {
+			t.Fatalf("%s: %s", r.Cmd, resp.Error)
+		}
+	}
+	waitStatus(t, d, "que a cargue", func(st *ipc.Status) bool { return st.Playing })
+	if resp := d.Do(ipc.Request{Cmd: "stop"}); !resp.OK {
+		t.Fatalf("stop: %s", resp.Error)
+	}
+	waitStatus(t, d, "detenido", func(st *ipc.Status) bool { return !st.Playing })
+	if resp := d.Do(ipc.Request{Cmd: "remove", Index: 0}); !resp.OK {
+		t.Fatalf("remove: %s", resp.Error)
+	}
+	// Dar margen a un arranque indebido antes de afirmar que sigue detenido.
+	time.Sleep(500 * time.Millisecond)
+	st := d.Do(ipc.Request{Cmd: "status"}).Status
+	if st.Playing {
+		t.Fatal("remove con el player detenido arrancó la reproducción")
+	}
+	if st.QueueLen != 1 {
+		t.Errorf("QueueLen = %d, quería 1", st.QueueLen)
+	}
+}
+
 // TestSessionPersistence es el round-trip completo: un demonio reproduce,
 // se cierra, y el siguiente arranca con la cola, el volumen, los modos y la
 // pista actual en pausa en la posición guardada.

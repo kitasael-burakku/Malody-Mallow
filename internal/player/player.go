@@ -36,8 +36,8 @@ type Player struct {
 	reqID    int64
 	pending  map[int64]chan mpvReply
 	state    State
-	onEOF    func() // pista terminada de forma natural
-	onChange func() // cambio de estado observado (pausa, pista, posición…)
+	onEnd    func(reason string) // pista terminada: "eof" natural, "error" irreproducible
+	onChange func()             // cambio de estado observado (pausa, pista, posición…)
 	closed   bool
 	done     chan struct{}
 	exited   chan struct{} // cerrado cuando el proceso mpv termina
@@ -57,10 +57,12 @@ type mpvEvent struct {
 	Err       string          `json:"error"`
 }
 
-// Start lanza mpv y conecta con su socket IPC. onEOF se invoca cuando una
-// pista termina por sí sola (para avanzar la cola); onChange, ante cambios
-// de estado observados en mpv (lo usa el demonio para refrescar MPRIS).
-func Start(socketPath string, onEOF, onChange func()) (*Player, error) {
+// Start lanza mpv y conecta con su socket IPC. onEnd se invoca cuando una
+// pista termina sin intervención del demonio: reason "eof" si acabó por sí
+// sola, "error" si mpv no pudo reproducirla (el demonio decide avanzar o
+// saltarla); onChange, ante cambios de estado observados en mpv (lo usa el
+// demonio para refrescar MPRIS).
+func Start(socketPath string, onEnd func(reason string), onChange func()) (*Player, error) {
 	mpvBin, err := exec.LookPath("mpv")
 	if err != nil {
 		return nil, errors.New(i18n.T("p.no_mpv"))
@@ -118,7 +120,7 @@ func Start(socketPath string, onEOF, onChange func()) (*Player, error) {
 		conn:     conn,
 		pending:  map[int64]chan mpvReply{},
 		state:    State{Idle: true, Volume: 100},
-		onEOF:    onEOF,
+		onEnd:    onEnd,
 		onChange: onChange,
 		done:     make(chan struct{}),
 		exited:   exited,
@@ -201,14 +203,16 @@ func (p *Player) handleEvent(ev mpvEvent) {
 			changed = p.state.Path != old
 		}
 		p.mu.Unlock()
-		// Async como onEOF: en línea bloquearía readLoop, y con él las
+		// Async como onEnd: en línea bloquearía readLoop, y con él las
 		// respuestas de mpv que el demonio pueda estar esperando.
 		if changed && p.onChange != nil {
 			go p.onChange()
 		}
 	case "end-file":
-		if ev.Reason == "eof" && p.onEOF != nil {
-			go p.onEOF()
+		// "stop" (Stop propio o loadfile replace) y "quit" no son fin de
+		// pista: solo el eof natural y el fallo de reproducción avanzan.
+		if (ev.Reason == "eof" || ev.Reason == "error") && p.onEnd != nil {
+			go p.onEnd(ev.Reason)
 		}
 	}
 }

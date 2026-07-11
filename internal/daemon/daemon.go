@@ -41,6 +41,12 @@ type Daemon struct {
 	mpris    *mpris.Service // nil si no hay bus de sesión
 	scanning atomic.Bool    // guarda contra escaneos simultáneos (scan corre sin d.mu)
 
+	// Pistas fallidas seguidas desde la última reproducción sana (bajo d.mu).
+	// Guarda de advance: al acumular una pasada completa de la cola sin que
+	// nada suene, se detiene en vez de ciclar para siempre. Es aproximada a
+	// propósito: se resetea con el eof natural y con cada carga manual.
+	errStreak int
+
 	// Suscriptores IPC (comando subscribe). Mutex propio: notify los marca
 	// desde caminos que ya tienen (o van a tomar) d.mu.
 	subMu sync.Mutex
@@ -86,7 +92,7 @@ func New(cfg config.Config) (*Daemon, error) {
 		sessStop: make(chan struct{}),
 	}
 
-	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.onTrackEnd, d.notify)
+	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.advance, d.notify)
 	if err != nil {
 		lib.Close()
 		return nil, err
@@ -187,14 +193,52 @@ func (d *Daemon) serve(conn net.Conn) {
 	}
 }
 
-// onTrackEnd avanza la cola cuando una pista termina por sí sola.
-func (d *Daemon) onTrackEnd() {
+// advance es la política de avance de la cola cuando una pista termina sin
+// intervención de un cliente: eof natural o fallo de reproducción (archivo
+// corrupto, borrado…). Concentra la decisión de la siguiente pista y el
+// salto ante errores; el mecanismo de carga (hoy pl.Load, con gapless será
+// reconciliar lo que mpv ya encadenó) es lo único que cambiará después.
+func (d *Daemon) advance(reason string) {
 	d.mu.Lock()
+	if reason == "error" {
+		if t, ok := d.q.Current(); ok {
+			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.track_failed", t))
+		}
+		d.errStreak++
+		if d.errStreak >= d.q.Len() {
+			// Una pasada entera sin nada reproducible (o cola ya vacía):
+			// detenerse; seguir saltando ciclaría para siempre con repeat all.
+			d.errStreak = 0
+			d.mu.Unlock()
+			fmt.Fprintln(os.Stderr, "maly: "+i18n.T("d.queue_failed"))
+			d.notify()
+			return
+		}
+	} else {
+		d.errStreak = 0
+	}
 	if t, ok := d.q.Next(true); ok {
-		d.pl.Load(t.Path)
+		// pl.Load directo, NO loadLocked: una carga de salto no abre pasada
+		// nueva o la racha se resetearía a cada intento y la guarda jamás
+		// cortaría el ciclo.
+		if err := d.pl.Load(t.Path); err != nil {
+			// mpv no contestó (murió, socket roto): sin end-file que reintente,
+			// se deja constancia; el usuario verá el estado detenido.
+			fmt.Fprintf(os.Stderr, "maly: %s: %v\n", i18n.Tf("d.track_failed", t), err)
+		}
 	}
 	d.mu.Unlock()
 	d.notify()
+}
+
+// loadLocked carga t en el player (requiere d.mu). Una carga pedida por un
+// cliente que mpv acepta abre pasada nueva para la guarda de advance.
+func (d *Daemon) loadLocked(t library.Track) error {
+	if err := d.pl.Load(t.Path); err != nil {
+		return err
+	}
+	d.errStreak = 0
+	return nil
 }
 
 // subscribe atiende una conexión en modo push desde la goroutine de serve:
@@ -373,7 +417,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 			}
 			d.q.Replace(tracks)
 			t, _ := d.q.JumpTo(0)
-			if err := d.pl.Load(t.Path); err != nil {
+			if err := d.loadLocked(t); err != nil {
 				return fail(err)
 			}
 			return okStatus(i18n.TLf(lang, "d.playing_n", t, len(tracks)))
@@ -406,7 +450,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		if !ok {
 			return fail(errors.New(i18n.TL(lang, "d.no_next")))
 		}
-		if err := d.pl.Load(t.Path); err != nil {
+		if err := d.loadLocked(t); err != nil {
 			return fail(err)
 		}
 		return okStatus(i18n.TLf(lang, "d.playing", t))
@@ -416,7 +460,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		if !ok {
 			return fail(errors.New(i18n.TL(lang, "d.queue_empty")))
 		}
-		if err := d.pl.Load(t.Path); err != nil {
+		if err := d.loadLocked(t); err != nil {
 			return fail(err)
 		}
 		return okStatus(i18n.TLf(lang, "d.playing", t))
@@ -431,7 +475,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 			d.q.Add(trackFromFile(d.lib, p))
 		}
 		t, _ := d.q.JumpTo(first)
-		if err := d.pl.Load(t.Path); err != nil {
+		if err := d.loadLocked(t); err != nil {
 			return fail(err)
 		}
 		return okStatus(i18n.TLf(lang, "d.playing", t))
@@ -454,7 +498,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		msg := i18n.TLf(lang, "d.added_n", len(tracks))
 		if wasEmpty && d.pl.State().Idle {
 			if t, ok := d.q.JumpTo(0); ok {
-				if err := d.pl.Load(t.Path); err != nil {
+				if err := d.loadLocked(t); err != nil {
 					return fail(err)
 				}
 				msg += i18n.TLf(lang, "d.also_playing", t)
@@ -467,7 +511,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		if !ok {
 			return fail(errors.New(i18n.TLf(lang, "d.jump_oob", req.Index+1)))
 		}
-		if err := d.pl.Load(t.Path); err != nil {
+		if err := d.loadLocked(t); err != nil {
 			return fail(err)
 		}
 		return okStatus(i18n.TLf(lang, "d.playing", t))
@@ -475,10 +519,24 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	case "remove":
 		wasCurrent := d.q.RemoveAt(req.Index)
 		if wasCurrent {
-			if t, ok := d.q.Current(); ok {
-				d.pl.Load(t.Path)
-			} else {
-				d.pl.Stop()
+			// Continuar con la siguiente respetando el estado del player:
+			// pausado sigue pausado, y si nada sonaba no se arranca nada.
+			st := d.pl.State()
+			t, ok := d.q.Current()
+			switch {
+			case st.Idle || !ok:
+				if err := d.pl.Stop(); err != nil {
+					return fail(err)
+				}
+			case st.Paused:
+				if err := d.pl.LoadPaused(t.Path); err != nil {
+					return fail(err)
+				}
+				d.errStreak = 0
+			default:
+				if err := d.loadLocked(t); err != nil {
+					return fail(err)
+				}
 			}
 		}
 		return okStatus(i18n.TL(lang, "d.removed"))
@@ -540,7 +598,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		}
 		d.q.Replace(tracks)
 		t, _ := d.q.JumpTo(0)
-		if err := d.pl.Load(t.Path); err != nil {
+		if err := d.loadLocked(t); err != nil {
 			return fail(err)
 		}
 		return okStatus(i18n.TLf(lang, "d.playing_pl", req.Value, len(tracks)))
@@ -592,7 +650,7 @@ func (d *Daemon) resumeLocked(lang string, fail func(error) ipc.Response, okStat
 			return fail(errors.New(i18n.TL(lang, "d.queue_empty_hint")))
 		}
 	}
-	if err := d.pl.Load(t.Path); err != nil {
+	if err := d.loadLocked(t); err != nil {
 		return fail(err)
 	}
 	return okStatus(i18n.TLf(lang, "d.playing", t))

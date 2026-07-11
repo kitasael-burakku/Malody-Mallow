@@ -266,6 +266,8 @@ var table = map[string][2]string{
 	"d.missing_query":    {"missing query or path", "falta la consulta o ruta"},
 	"d.no_results":       {"no results for %q (did you run maly scan?)", "sin resultados para %q (¿escaneaste con maly scan?)"},
 	"d.no_audio":         {"no audio files in %s", "no hay audio en %s"},
+	"d.track_failed":     {"cannot play %v; skipping", "no se pudo reproducir %v; saltando"},
+	"d.queue_failed":     {"no track in the queue could be played; stopping", "ninguna pista de la cola se pudo reproducir; deteniendo"},
 
 	// ---- IPC y arranque ----
 	"ipc.send":         {"sending to the daemon", "enviando al servicio"},

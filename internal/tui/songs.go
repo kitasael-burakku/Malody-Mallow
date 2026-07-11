@@ -21,10 +21,7 @@ import (
 func songItems(tracks []library.Track) []pickerItem {
 	items := make([]pickerItem, 0, len(tracks))
 	for _, t := range tracks {
-		label := t.Title
-		if t.Artist != "" {
-			label = t.Artist + " — " + t.Title
-		}
+		label := t.String()
 		if t.Album != "" {
 			label += "  [" + t.Album + "]"
 		}

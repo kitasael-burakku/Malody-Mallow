@@ -704,11 +704,7 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 	}
 	defer d.scanning.Store(false)
 
-	dir, origin := d.cfg.MusicDirOrigin()
-	explicit := strings.TrimSpace(query) != ""
-	if explicit {
-		dir = config.ExpandTilde(query)
-	}
+	dir, origin, explicit := d.cfg.ScanTarget(query)
 	res, err := d.lib.Scan(dir)
 	if err != nil {
 		if !explicit && errors.Is(err, fs.ErrNotExist) {
@@ -797,10 +793,6 @@ func (d *Daemon) resolveTracks(lang, q string) ([]library.Track, error) {
 	return tracks, nil
 }
 
-var audioExts = map[string]bool{
-	".mp3": true, ".flac": true, ".ogg": true, ".opus": true, ".m4a": true, ".wav": true,
-}
-
 func trackFromFile(lib *library.Library, path string) library.Track {
 	if t, ok := lib.ByPath(path); ok {
 		return t
@@ -813,7 +805,7 @@ func trackFromFile(lib *library.Library, path string) library.Track {
 func tracksFromDir(lang string, lib *library.Library, dir string) ([]library.Track, error) {
 	var out []library.Track
 	err := filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
-		if err != nil || e.IsDir() || !audioExts[strings.ToLower(filepath.Ext(path))] {
+		if err != nil || e.IsDir() || !library.IsAudio(path) {
 			return nil
 		}
 		out = append(out, trackFromFile(lib, path))

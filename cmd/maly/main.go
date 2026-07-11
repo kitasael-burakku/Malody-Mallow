@@ -116,11 +116,7 @@ func runScan(args []string) error {
 	if err != nil {
 		return err
 	}
-	dir, origin := cfg.MusicDirOrigin()
-	explicit := len(args) > 0
-	if explicit {
-		dir = config.ExpandTilde(args[0])
-	}
+	dir, origin, explicit := cfg.ScanTarget(strings.Join(args, " "))
 	lib, err := openLibrary()
 	if err != nil {
 		return err

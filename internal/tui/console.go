@@ -242,23 +242,20 @@ func statusLines(st styles, s *ipc.Status) []string {
 	}
 	if s.Track == nil {
 		return []string{st.dim.Render(i18n.Tf("st.stopped",
-			s.Volume, onOffStr(s.Shuffle), s.Repeat, s.QueueLen))}
+			s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueLen))}
 	}
 	icon := "▶"
 	if s.Paused {
 		icon = "⏸"
 	}
-	name := s.Track.Title
-	if s.Track.Artist != "" {
-		name = s.Track.Artist + " — " + s.Track.Title
-	}
+	name := s.Track.String()
 	if s.Track.Album != "" {
 		name += " [" + s.Track.Album + "]"
 	}
 	return []string{
 		st.text.Render(icon + " " + name),
-		st.dim.Render(i18n.Tf("st.line2", fmtTime(s.Position), fmtTime(s.Duration),
-			s.Volume, onOffStr(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen)),
+		st.dim.Render(i18n.Tf("st.line2", ipc.FmtTime(s.Position), ipc.FmtTime(s.Duration),
+			s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen)),
 	}
 }
 
@@ -276,30 +273,13 @@ func queueLines(st styles, resp ipc.Response) []string {
 		if i == cur {
 			mark, style = "▶ ", st.playing
 		}
-		name := t.Title
-		if t.Artist != "" {
-			name = t.Artist + " — " + t.Title
-		}
-		out = append(out, style.Render(fmt.Sprintf("%s%3d. %s", mark, i+1, name)))
+		out = append(out, style.Render(fmt.Sprintf("%s%3d. %s", mark, i+1, t)))
 	}
 	return out
 }
 
-func onOffStr(b bool) string {
-	if b {
-		return "on"
-	}
-	return "off"
-}
-
 func (m *Model) consoleView() string {
-	w := m.width * 2 / 3
-	if w < 50 {
-		w = m.width - 4
-	}
-	if w > 80 {
-		w = 80
-	}
+	w := pickerWidth(m.width)
 	innerW := w - 2
 	maxRows := m.height - 10
 	if maxRows > 16 {

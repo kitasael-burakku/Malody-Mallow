@@ -31,6 +31,12 @@ var audioExts = map[string]bool{
 	".wav":  true,
 }
 
+// IsAudio dice si la ruta tiene una extensión de audio que maly indexa; es
+// la fuente única del filtro (la usan Scan y el demonio al resolver rutas).
+func IsAudio(path string) bool {
+	return audioExts[strings.ToLower(filepath.Ext(path))]
+}
+
 type Track struct {
 	ID          int64
 	Path        string
@@ -224,7 +230,7 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 			res.Errors = append(res.Errors, err.Error())
 			return nil
 		}
-		if d.IsDir() || !audioExts[strings.ToLower(filepath.Ext(path))] {
+		if d.IsDir() || !IsAudio(path) {
 			return nil
 		}
 		seen[path] = true

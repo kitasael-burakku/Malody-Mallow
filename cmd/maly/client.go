@@ -109,39 +109,25 @@ func runClient(cmd string, args []string) error {
 	return nil
 }
 
-func fmtTime(sec float64) string {
-	if sec < 0 {
-		sec = 0
-	}
-	s := int(sec + 0.5)
-	if s >= 3600 {
-		return fmt.Sprintf("%d:%02d:%02d", s/3600, (s%3600)/60, s%60)
-	}
-	return fmt.Sprintf("%02d:%02d", s/60, s%60)
-}
-
 func printStatus(s *ipc.Status) {
 	if s == nil {
 		return
 	}
 	if s.Track == nil {
-		fmt.Println(i18n.Tf("st.stopped", s.Volume, onOff(s.Shuffle), s.Repeat, s.QueueLen))
+		fmt.Println(i18n.Tf("st.stopped", s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueLen))
 		return
 	}
 	icon := "▶"
 	if s.Paused {
 		icon = "⏸"
 	}
-	line := fmt.Sprintf("%s %s — %s", icon, s.Track.Artist, s.Track.Title)
-	if s.Track.Artist == "" {
-		line = fmt.Sprintf("%s %s", icon, s.Track.Title)
-	}
+	line := icon + " " + s.Track.String()
 	if s.Track.Album != "" {
 		line += fmt.Sprintf(" [%s]", s.Track.Album)
 	}
 	fmt.Println(line)
-	fmt.Println(i18n.Tf("st.line2", fmtTime(s.Position), fmtTime(s.Duration), s.Volume,
-		onOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen))
+	fmt.Println(i18n.Tf("st.line2", ipc.FmtTime(s.Position), ipc.FmtTime(s.Duration), s.Volume,
+		ipc.OnOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen))
 }
 
 func printQueue(resp ipc.Response) {
@@ -158,17 +144,6 @@ func printQueue(resp ipc.Response) {
 		if i == cur {
 			mark = "▶ "
 		}
-		name := t.Title
-		if t.Artist != "" {
-			name = t.Artist + " — " + t.Title
-		}
-		fmt.Printf("%s%3d. %s\n", mark, i+1, name)
+		fmt.Printf("%s%3d. %s\n", mark, i+1, t)
 	}
-}
-
-func onOff(b bool) string {
-	if b {
-		return "on"
-	}
-	return "off"
 }

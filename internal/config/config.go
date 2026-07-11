@@ -376,6 +376,18 @@ func (c Config) MusicDirOrigin() (path, originKey string) {
 	return resolveMusicDir(c.MusicDir)
 }
 
+// ScanTarget resuelve qué directorio escanear: la consulta explícita del
+// usuario (expandida) o, sin ella, el music_dir del config con su origen.
+// explicit decide el mensaje si la ruta no existe: con ruta escrita a mano el
+// usuario ya sabe qué pidió; con la implícita hay que decir de dónde salió.
+func (c Config) ScanTarget(query string) (dir, originKey string, explicit bool) {
+	dir, originKey = resolveMusicDir(c.MusicDir)
+	if q := strings.TrimSpace(query); q != "" {
+		return ExpandTilde(q), originKey, true
+	}
+	return dir, originKey, false
+}
+
 // SaveLanguage persiste solo la clave language en config.toml.
 func SaveLanguage(code string) error { return saveTopLevel("language", code) }
 

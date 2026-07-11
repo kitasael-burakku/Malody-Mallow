@@ -86,11 +86,7 @@ func (t *libTree) flatten() {
 		for _, tr := range t.all {
 			hay := library.Fold(tr.Title + " " + tr.Artist + " " + tr.Album)
 			if containsAll(hay, q) {
-				label := tr.Title
-				if tr.Artist != "" {
-					label = tr.Artist + " — " + tr.Title
-				}
-				t.rows = append(t.rows, &node{kind: trackNode, label: label, track: tr})
+				t.rows = append(t.rows, &node{kind: trackNode, label: tr.String(), track: tr})
 			}
 		}
 	} else {

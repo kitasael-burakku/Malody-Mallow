@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/i18n"
+	"maly/internal/ipc"
 )
 
 const (
@@ -198,10 +199,7 @@ func (m *Model) queuePanel(w, h int) string {
 	for v := m.queueOffset; v < end; v++ {
 		real := vis[v]
 		t := m.queue[real]
-		name := t.Title
-		if t.Artist != "" {
-			name = t.Artist + " — " + t.Title
-		}
+		name := t.String()
 		mark := "  "
 		style := m.st.text
 		if real == curIdx {
@@ -209,7 +207,7 @@ func (m *Model) queuePanel(w, h int) string {
 			style = m.st.playing.Bold(true)
 		}
 		line := fmt.Sprintf("%s%3d. %s", mark, real+1, name)
-		if dur := fmtTime(t.Duration); t.Duration > 0 && innerW > len(dur)+12 {
+		if dur := ipc.FmtTime(t.Duration); t.Duration > 0 && innerW > len(dur)+12 {
 			// Duración aprendida, alineada a la derecha. El hueco se mide
 			// sobre la izquierda YA recortada (una sola fuente de ancho:
 			// lipgloss) — recortar la línea compuesta pierde una celda
@@ -317,7 +315,7 @@ func (m *Model) nowPanel(w, h int) string {
 		case "one":
 			rep = m.st.accent.Render("⟲¹")
 		}
-		times := fmtTime(s.Position) + "/" + fmtTime(s.Duration)
+		times := ipc.FmtTime(s.Position) + "/" + ipc.FmtTime(s.Duration)
 		right = m.st.text.Render(times) + m.st.dim.Render(fmt.Sprintf("  vol %d%%  ", s.Volume)) + shuf + " " + rep + " "
 	}
 	rightW := lipgloss.Width(right)
@@ -332,10 +330,7 @@ func (m *Model) nowPanel(w, h int) string {
 		if s.Paused {
 			icon = "⏸"
 		}
-		name := s.Track.Title
-		if s.Track.Artist != "" {
-			name = s.Track.Artist + " — " + s.Track.Title
-		}
+		name := s.Track.String()
 		if s.Track.Album != "" {
 			name += " [" + s.Track.Album + "]"
 		}
@@ -415,13 +410,3 @@ func (m *Model) helpView() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }
 
-func fmtTime(sec float64) string {
-	if sec < 0 {
-		sec = 0
-	}
-	s := int(sec + 0.5)
-	if s >= 3600 {
-		return fmt.Sprintf("%d:%02d:%02d", s/3600, (s%3600)/60, s%60)
-	}
-	return fmt.Sprintf("%02d:%02d", s/60, s%60)
-}

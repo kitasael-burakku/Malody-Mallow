@@ -39,7 +39,15 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
 - `cmd/maly` — CLI. `commands.go` tiene la **tabla de comandos**: fuente única de
   verdad para dispatch, help y completions de shell (bash/fish/zsh vía
   `__complete` oculto). Al agregar un subcomando de playlist, actualizar la lista
-  fija de `TestCompletePlaylistSubs`.
+  fija de `TestCompletePlaylistSubs`. `get.go` es el wrapper de yt-dlp
+  (filosofía "como lazygit usa git": maly coordina herramientas externas, no
+  las reimplementa): descarga MP3 con metadata/carátula embebidas a `music_dir`
+  y re-escanea (vía IPC si el demonio responde, directo a la DB si no);
+  yt-dlp/ffmpeg opcionales vía `exec.LookPath` con mensaje de instalación; el
+  progreso de yt-dlp pasa directo al terminal, cero parsing. mp3 a propósito:
+  dhowden lee sus ID3 en el scan y la miniatura APIC es justo lo que
+  `mpris:artUrl` extrae. Tests sin red con un yt-dlp falso en el PATH
+  (`get_test.go`, mismo patrón que el mpv falso de `player_test.go`).
 - `internal/ipc` — protocolo (Request/Response/Status/TrackInfo), cliente, y
   `display.go` con los helpers de presentación compartidos (`TrackInfo.String`,
   `FmtTime`, `OnOff`) — no re-armar "Artista — Título" a mano.
@@ -113,40 +121,23 @@ Decisiones transversales:
 
 ## Roadmap
 
-### `maly get` — integración opcional con yt-dlp (siguiente feature grande)
+### Camino a 1.0.0 (decidido: sin 0.7.0 intermedia; v1.0.0 será el primer git tag)
 
-Filosofía: como lazygit usa git — maly coordina herramientas externas, no las
-reimplementa. Sin clientes de YouTube, sin APIs propias; toda la interacción web
-se delega a yt-dlp. KISS.
-
-- `maly get "<búsqueda>"` o `maly get <url>`: descarga el audio a `music_dir`,
-  re-escanea y la canción aparece de inmediato.
-- `cmd/maly/get.go` + entrada en la tabla de comandos (sección library).
-- `exec.LookPath` de `yt-dlp` y `ffmpeg`; si faltan, mensaje bilingüe con cómo
-  instalarlos (pacman/apt/dnf/pipx). Dependencia 100 % opcional.
-- Argumento con `://` → URL tal cual; si no → `ytsearch1:<query>`.
-- Invocación: `yt-dlp -x --audio-format mp3 --audio-quality 0 --embed-metadata
-  --embed-thumbnail -o "<music_dir>/%(artist,uploader)s - %(title)s.%(ext)s"`.
-  mp3 a propósito: dhowden lee sus ID3 en el scan y la miniatura embebida como
-  APIC es justo lo que `mpris:artUrl` ya extrae (carátula gratis en Waybar).
-- Progreso: stdout/stderr de yt-dlp pasan directo al terminal; maly solo pone
-  banner y resumen. Cero parsing.
-- Al terminar: scan vía IPC si el demonio responde (`ipc.Ping`), directo a la
-  DB si no.
-- Probar sin red: un `yt-dlp` falso en el PATH que copia un MP3 fixture al
-  destino (mismo patrón que el mpv falso de `player_test.go`).
-
-### Resto de candidatos (0.7.0+, camino a 1.0.0)
-
-1. **Frescura de biblioteca**: contador `LibGen` del demonio en respuestas/pushes
+1. ~~`maly get`~~ — hecho (ver `cmd/maly` arriba).
+2. **Frescura de biblioteca**: contador `LibGen` del demonio en respuestas/pushes
    para que las TUIs recarguen el árbol solas tras cualquier scan (hoy solo
    recarga quien lo dispara por consola). Complemento natural de `get`.
-2. **Playlists CLI completas**: `playlist show <nombre>` (PlaylistTracks ya
+3. **Playlists CLI completas**: `playlist show <nombre>` (PlaylistTracks ya
    existe) y `playlist remove <nombre> <pos>`.
-3. **`maly move <de> <a>`** + reorden en la TUI (J/K en cola): `queue.Move`,
-   campo `To` en `ipc.Request`; la ventana gapless ya se realinea en `handle`.
 4. **Tests de `internal/tui`** (hoy 0 tests; tree/picker/visibleQueue/clip son
    puros) y de `internal/viz`.
-5. Progreso de scan (fácil en CLI directa; por IPC requiere diseño).
-6. Opcionales viejos: shuffle-permutación, ratón en la TUI, duración masiva vía
-   `ffprobe` opcional.
+5. **Cierre**: README + instalador contra entorno limpio, bump 1.0.0,
+   primer `git tag v1.0.0`, PKGBUILD para AUR.
+
+### Post-1.0 (candidatos)
+
+- **`maly move <de> <a>`** + reorden en la TUI (J/K en cola): `queue.Move`,
+  campo `To` en `ipc.Request`; la ventana gapless ya se realinea en `handle`.
+- Progreso de scan (fácil en CLI directa; por IPC requiere diseño).
+- Opcionales viejos: shuffle-permutación, ratón en la TUI, duración masiva vía
+  `ffprobe` opcional.

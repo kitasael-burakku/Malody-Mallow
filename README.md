@@ -57,6 +57,10 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
   comandos, títulos reales de tu biblioteca, playlists y posiciones de la
   cola (ver [Autocompletado](#autocompletado-bash--fish--zsh)).
 - **Playlists** con export/import M3U, shuffle, repeat (off/all/one), cola en vivo.
+- **`maly get`**: descarga audio con yt-dlp directo a tu biblioteca
+  (`maly get "artista canción"` o una URL) — con metadata y carátula
+  embebidas, y re-escaneo automático. yt-dlp y ffmpeg son opcionales:
+  solo este comando los usa.
 - Tema y keybindings configurables por TOML; fondo transparente (usa el
   color de tu terminal).
 
@@ -84,7 +88,8 @@ completions de tu shell. Nada se instala sin preguntar.
 
 Dependencias de sistema: `mpv` (audio), Go ≥ 1.25 (para compilar) y, para
 el visualizador, PipeWire o PulseAudio con sus herramientas de línea de
-comandos.
+comandos. Opcionales: `yt-dlp` y `ffmpeg`, solo si quieres descargar
+música con `maly get`.
 
 **Arch Linux**
 
@@ -254,6 +259,7 @@ maly shuffle [on|off]
 maly repeat [off|all|one]
 maly search <consulta>         # busca en la biblioteca (funciona sin demonio)
 maly scan [ruta]               # (re)escanea (funciona sin demonio)
+maly get <url|búsqueda>        # descarga audio a la biblioteca (requiere yt-dlp y ffmpeg)
 maly playlist list
 maly playlist create <nombre>
 maly playlist add <nombre> <consulta>
@@ -267,9 +273,15 @@ maly completions <shell>       # script de autocompletado (bash | fish | zsh)
 maly version | -v              # también muestra la versión del servicio si corre
 ```
 
-Los comandos de biblioteca (`scan`, `search` y todo `playlist` salvo `play`)
-operan directo sobre SQLite y no necesitan el servicio. Los de reproducción sí
-lo piden: ábrelo con `maly` o `maly daemon`.
+Los comandos de biblioteca (`scan`, `search`, `get` y todo `playlist` salvo
+`play`) operan directo sobre SQLite y no necesitan el servicio. Los de
+reproducción sí lo piden: ábrelo con `maly` o `maly daemon`.
+
+`maly get` delega toda la interacción web en yt-dlp (como lazygit usa git):
+sin `://` busca la frase en YouTube y baja el primer resultado; con una URL
+la descarga tal cual. El audio queda como MP3 con metadata y carátula
+embebidas en `music_dir`, y la biblioteca se re-escanea sola (a través del
+servicio si está corriendo).
 
 ### MPRIS (playerctl, Waybar…)
 

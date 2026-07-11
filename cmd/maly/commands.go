@@ -59,6 +59,7 @@ var commands = []command{
 
 	{name: "scan", usage: "scan [<path>]", descKey: "cli.scan", section: "library", run: runScan},
 	{name: "search", usage: "search <query>", descKey: "cli.search", section: "library", run: runSearch},
+	{name: "get", usage: "get <url|query>", descKey: "cli.get", section: "library", run: runGet},
 	{name: "playlist", usage: "playlist <sub> [args]", descKey: "cli.playlist", section: "library", run: runPlaylist, complete: completePlaylist},
 
 	{name: "controls", usage: "controls [<preset>]", descKey: "cli.controls", section: "other", run: runControls, complete: completeControls},
@@ -197,6 +198,7 @@ func helpText() string {
 	example("maly shuffle on")
 	example("maly playlist add favs luna")
 	example("maly playlist export favs")
+	example("maly get \"aurora runaway\"")
 
 	sec(i18n.T("cli.sec_keys"), i18n.T("cli.sec_keys_note"))
 	key(i18n.T("help.space"), "help.play_pause")

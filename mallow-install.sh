@@ -540,6 +540,23 @@ else
 	case "$GOV" in go1.*) ;; *) die "respuesta rara de go.dev: $GOV" "odd reply from go.dev: $GOV" ;; esac
 	msg "bajando $GOV linux/$GOARCH…" "downloading $GOV linux/$GOARCH…"
 	fetch "https://go.dev/dl/$GOV.linux-$GOARCH.tar.gz" "$TMP/go.tgz"
+	# Verificar el SHA-256 publicado junto al tarball: TLS ya protege el
+	# transporte, esto cubre un mirror/caché comprometido. Sin sha256sum en
+	# el sistema (rarísimo: coreutils/busybox lo traen) se avisa y sigue.
+	if command -v sha256sum >/dev/null 2>&1; then
+		# dl.google.com sirve el .sha256 plano; go.dev/dl devolvería HTML.
+		fetch "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256"
+		IFS= read -r want < "$TMP/go.tgz.sha256"
+		want=${want%% *} # formatos viejos traen "hash  archivo"
+		got=$(sha256sum "$TMP/go.tgz")
+		got=${got%% *}
+		[ -n "$want" ] && [ "$got" = "$want" ] ||
+			die "el checksum del Go bajado no coincide (esperaba $want, obtuve $got)" \
+				"downloaded Go checksum mismatch (expected $want, got $got)"
+	else
+		warn 'sin sha256sum no puedo verificar la descarga de Go' \
+			'without sha256sum the Go download cannot be verified'
+	fi
 	rm -rf "$CACHE/go"
 	mkdir -p "$CACHE"
 	tar -C "$CACHE" -xzf "$TMP/go.tgz"

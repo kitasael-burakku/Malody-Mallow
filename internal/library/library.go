@@ -93,7 +93,9 @@ CREATE INDEX IF NOT EXISTS idx_pl_tracks ON playlist_tracks(playlist_id, pos);
 
 // Open abre (o crea) la base de datos en dbPath.
 func Open(dbPath string) (*Library, error) {
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
+	// 0700: la biblioteca revela hábitos de escucha; los archivos de SQLite
+	// dentro (db/-wal/-shm) quedan cubiertos por el directorio.
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", filepath.Dir(dbPath)), err)
 	}
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")

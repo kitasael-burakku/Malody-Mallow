@@ -303,6 +303,10 @@ var table = map[string][2]string{
 	"cfg.invalid":       {"invalid config at %s", "config inválido en %s"},
 	"cfg.runtime_bad":   {"runtime directory %s is not trustworthy (it must be a real directory owned by you); remove it or set XDG_RUNTIME_DIR", "el directorio runtime %s no es de fiar (debe ser un directorio real y tuyo); bórralo o define XDG_RUNTIME_DIR"},
 
+	"pl.export_overwrite": {"%s already exists; overwrite? [y/N] ", "%s ya existe; ¿sobrescribir? [s/N] "},
+	"pl.export_exists":    {"%s already exists (delete it or pick another name)", "%s ya existe (bórralo o elige otro nombre)"},
+	"pl.export_kept":      {"%s left untouched", "%s queda intacto"},
+
 	// ---- Reproductor (mpv) ----
 	"p.no_mpv":      {"mpv is not installed (Arch: pacman -S mpv, Ubuntu: apt install mpv)", "mpv no está instalado (Arch: pacman -S mpv, Ubuntu: apt install mpv)"},
 	"p.launch":      {"launching mpv", "lanzando mpv"},

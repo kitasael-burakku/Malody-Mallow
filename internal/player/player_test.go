@@ -1,6 +1,7 @@
 package player
 
 import (
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -57,5 +58,30 @@ func TestBoundedBuffer(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "FIN") {
 		t.Errorf("no conservó lo último escrito: …%q", got[len(got)-10:])
+	}
+}
+
+// TestCommandTimeoutCleansPending: un mpv que jamás contesta no debe dejar
+// canales acumulándose en pending — cada comando expirado retira el suyo.
+func TestCommandTimeoutCleansPending(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer srv.Close()
+	go func() { // drena lo que command escribe; nunca responde
+		buf := make([]byte, 4096)
+		for {
+			if _, err := srv.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+	p := &Player{conn: cli, pending: map[int64]chan mpvReply{}, done: make(chan struct{})}
+	if _, err := p.command("get_property", "pause"); err == nil {
+		t.Fatal("command debe expirar sin respuesta")
+	}
+	p.mu.Lock()
+	n := len(p.pending)
+	p.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("pending quedó con %d entradas tras el timeout", n)
 	}
 }

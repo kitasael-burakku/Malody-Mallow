@@ -62,7 +62,9 @@ func saveSession(s session) error {
 	}
 	path := sessionPath()
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), 0o644); err != nil {
+	// 0600: la sesión lista qué escuchas; el rename también aprieta un
+	// session.json 0644 de versiones anteriores.
+	if err := os.WriteFile(tmp, append(data, '\n'), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

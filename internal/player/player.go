@@ -280,6 +280,12 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 		}
 		return r.Data, nil
 	case <-time.After(5 * time.Second):
+		// Retirar la entrada abandonada: un mpv que nunca contesta iría
+		// acumulando canales en pending para siempre. Si la respuesta llega
+		// tarde igual no bloquea a readLoop (canal con capacidad 1).
+		p.mu.Lock()
+		delete(p.pending, id)
+		p.mu.Unlock()
 		return nil, errors.New(i18n.T("p.no_reply"))
 	case <-p.done:
 		return nil, errors.New(i18n.T("p.exited"))

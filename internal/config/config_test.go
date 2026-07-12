@@ -268,3 +268,26 @@ func TestEnsureRuntimeDir(t *testing.T) {
 		t.Fatal("un symlink en la ruta del runtime dir debe rechazarse")
 	}
 }
+
+// TestConfigPrivate: el config nace 0600 en un directorio 0700 — los
+// hábitos de escucha no le incumben a otros usuarios de la máquina.
+func TestConfigPrivate(t *testing.T) {
+	path := env(t)
+	if _, err := Load(); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Errorf("config.toml: %o, quería 0600", fi.Mode().Perm())
+	}
+	di, err := os.Stat(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if di.Mode().Perm() != 0o700 {
+		t.Errorf("dir del config: %o, quería 0700", di.Mode().Perm())
+	}
+}

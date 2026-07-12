@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"maly/internal/config"
@@ -124,6 +125,12 @@ func New(cfg config.Config) (*Daemon, error) {
 	if err != nil {
 		pl.Close()
 		lib.Close()
+		if errors.Is(err, syscall.EADDRINUSE) {
+			// Otro demonio ganó el socket entre el ping y este listen
+			// (arranques simultáneos): mismo diagnóstico que el chequeo
+			// inicial, no un error crudo.
+			return nil, ErrAlreadyRunning
+		}
 		return nil, fmt.Errorf("%s: %w", i18n.Tf("d.listen", sock), err)
 	}
 	d.ln = ln

@@ -377,10 +377,12 @@ func Load() (cfg Config, retErr error) {
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
-		if mkErr := os.MkdirAll(ConfigDir(), 0o755); mkErr != nil {
+		// 0700/0600: el config y (sobre todo) la biblioteca revelan hábitos
+		// de escucha; en una máquina multiusuario no son asunto de nadie más.
+		if mkErr := os.MkdirAll(ConfigDir(), 0o700); mkErr != nil {
 			return cfg, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", ConfigDir()), mkErr)
 		}
-		if wErr := os.WriteFile(path, []byte(defaultConfigTOML()), 0o644); wErr != nil {
+		if wErr := os.WriteFile(path, []byte(defaultConfigTOML()), 0o600); wErr != nil {
 			return cfg, fmt.Errorf("%s: %w", i18n.T("cfg.write_default"), wErr)
 		}
 		return cfg, nil
@@ -455,8 +457,8 @@ func saveTopLevel(key, value string) error {
 	if !done {
 		lines = append([]string{fmt.Sprintf("%s = %q", key, value)}, lines...)
 	}
-	if err := os.MkdirAll(ConfigDir(), 0o755); err != nil {
+	if err := os.MkdirAll(ConfigDir(), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600)
 }

@@ -444,3 +444,21 @@ func TestAddToPlaylistAtomic(t *testing.T) {
 		t.Fatalf("añadido sano tras rollback: %d pistas", len(tracks))
 	}
 }
+
+// TestOpenDirPrivate: el directorio de la base nace 0700; el db/-wal/-shm
+// de dentro quedan cubiertos por él.
+func TestOpenDirPrivate(t *testing.T) {
+	dbDir := filepath.Join(t.TempDir(), "data")
+	lib, err := Open(filepath.Join(dbDir, "library.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+	fi, err := os.Stat(dbDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o700 {
+		t.Errorf("dir de la base: %o, quería 0700", fi.Mode().Perm())
+	}
+}

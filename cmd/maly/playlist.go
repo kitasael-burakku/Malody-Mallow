@@ -9,6 +9,8 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"golang.org/x/sys/unix"
+
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
@@ -155,6 +157,17 @@ func runPlaylist(args []string) error {
 		if len(args) == 2 {
 			file = args[1]
 		}
+		if _, statErr := os.Stat(file); statErr == nil {
+			// Un archivo existente no se pisa sin preguntar; sin terminal
+			// (pipe, script) el error avisa en vez de adivinar que sí.
+			if !stdinIsTTY() {
+				return errors.New(i18n.Tf("pl.export_exists", file))
+			}
+			if !confirmOverwrite(file) {
+				fmt.Println(i18n.Tf("pl.export_kept", file))
+				return nil
+			}
+		}
 		n, err := lib.ExportM3U(name, file)
 		if err != nil {
 			return err
@@ -184,4 +197,25 @@ func runPlaylist(args []string) error {
 	default:
 		return fmt.Errorf("%s\n%s", i18n.Tf("pl.unknown", sub), i18n.T("pl.usage"))
 	}
+}
+
+// stdinIsTTY dice si stdin es un terminal (se puede preguntar). Es el ioctl
+// de verdad: mirar ModeCharDevice no basta, /dev/null también lo es.
+func stdinIsTTY() bool {
+	_, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TCGETS)
+	return err == nil
+}
+
+// confirmOverwrite pregunta sí/no por stdin; Enter o cualquier otra cosa es no.
+func confirmOverwrite(file string) bool {
+	fmt.Print(i18n.Tf("pl.export_overwrite", file))
+	var ans string
+	if _, err := fmt.Scanln(&ans); err != nil {
+		return false
+	}
+	switch strings.ToLower(ans) {
+	case "s", "si", "sí", "y", "yes":
+		return true
+	}
+	return false
 }

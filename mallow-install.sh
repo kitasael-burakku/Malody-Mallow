@@ -2,12 +2,16 @@
 # Mallow Install — el instalador de Malody Mallow (maly).
 #
 #   curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh | sh
-#   ./mallow-install.sh [--system] [--uninstall] [--help]
+#   ./mallow-install.sh [--install | --update | --uninstall] [--system] [--help]
 #
+# Interactivo por pantallas cuando hay terminal: acción (instalar/actualizar/
+# desinstalar) → ámbito (usuario/sistema) → dependencias (checklist con mpv y
+# git marcados; yt-dlp+ffmpeg y el visualizador son opcionales). Los flags
+# pre-contestan su pantalla; sin terminal corre entero con los defaults.
 # Compila maly desde main e instala el binario y las completions. Multi-distro:
-# detecta el gestor de paquetes para las dependencias (git, mpv) y, si el Go de
-# la distro no alcanza el mínimo de go.mod, baja el toolchain oficial de go.dev
-# a ~/.cache/mallow — solo para compilar, sin tocar el sistema. POSIX sh puro.
+# detecta el gestor de paquetes y, si el Go de la distro no alcanza el mínimo
+# de go.mod, baja el toolchain oficial de go.dev a ~/.cache/mallow — solo para
+# compilar, sin tocar el sistema. POSIX sh puro.
 set -eu
 
 REPO_URL="https://github.com/kitasael-burakku/Malody-Mallow.git"
@@ -117,47 +121,166 @@ banner() {
 	printf '%s\n' "${CY}  ╰${bar}╯${NC}"
 }
 
-# confirm pregunta por /dev/tty (stdin puede ser el propio script vía curl).
-# Sin terminal no adivina: devuelve que no.
+# ---- primitivas interactivas ----
+# Todas leen de /dev/tty: con `curl | sh` stdin es el propio script. Sin
+# terminal (TTY=0) cada pregunta devuelve su default sin imprimir nada: el
+# script entero corre no interactivo con los defaults, como siempre.
+# El sondeo va en subshell a propósito: `:` es un special builtin y POSIX
+# manda que una redirección fallida en uno TERMINE el shell — sin subshell,
+# el script entero moriría mudo justo aquí cuando no hay terminal.
+if ( : < /dev/tty; ) 2>/dev/null; then TTY=1; else TTY=0; fi
+
+# ask imprime un prompt y deja la línea leída en $REPLY (vacía → default $1).
+ask() {
+	REPLY=$1
+	[ "$TTY" -eq 1 ] || return 0
+	printf '%smallow ?%s %s ' "$CY" "$NC" "$(tr2 "$2" "$3")"
+	IFS= read -r REPLY < /dev/tty || { printf '\n'; REPLY=$1; }
+	[ -n "$REPLY" ] || REPLY=$1
+}
+
+# section separa las "pantallas" del flujo; no imprime nada sin terminal.
+section() {
+	[ "$TTY" -eq 1 ] || return 0
+	printf '\n%s── %s ──%s\n' "$BD" "$(tr2 "$1" "$2")" "$NC"
+}
+
+# confirm pregunta sí/no; sin terminal no adivina: devuelve que no.
 confirm() {
+	[ "$TTY" -eq 1 ] || return 1
 	printf '%smallow ?%s %s ' "$CY" "$NC" "$(tr2 "$1 [s/N]" "$2 [y/N]")"
-	if IFS= read -r ans 2>/dev/null < /dev/tty; then
-		:
-	else
+	if ! IFS= read -r ans < /dev/tty; then
 		printf '\n'
 		return 1
 	fi
 	case "$ans" in [sSyY]*) return 0 ;; *) return 1 ;; esac
 }
 
+# menu numera las opciones (pares es/en tras el conteo) y deja el número
+# elegido en $REPLY; Enter toma el default marcado con *.
+#   menu <default> <n> es1 en1 [es2 en2 …]
+menu() {
+	m_def=$1 m_n=$2
+	shift 2
+	if [ "$TTY" -eq 0 ]; then
+		REPLY=$m_def
+		return 0
+	fi
+	m_i=1
+	while [ "$m_i" -le "$m_n" ]; do
+		m_mark=' '
+		[ "$m_i" -eq "$m_def" ] && m_mark='*'
+		printf '  %s%s%s %d) %s\n' "$CY" "$m_mark" "$NC" "$m_i" "$(tr2 "$1" "$2")"
+		shift 2
+		m_i=$((m_i + 1))
+	done
+	while :; do
+		ask "$m_def" "elige [1-$m_n, Enter = $m_def]:" "choose [1-$m_n, Enter = $m_def]:"
+		case $REPLY in
+		[1-9]) if [ "$REPLY" -le "$m_n" ]; then return 0; fi ;;
+		esac
+	done
+}
+
 usage() {
 	printf '%s\n' "$(tr2 'Mallow Install — instala Malody Mallow (maly) compilando desde main.
 
 uso: mallow-install.sh [opciones]
+  --install     instala (o reinstala) sin pasar por el menú
+  --update      recompila y reinstala sobre una instalación existente
+  --uninstall   quita binario y completions (pregunta por config/biblioteca)
   --system      instala en /usr/local para todos los usuarios (pide sudo)
-  --uninstall   quita binario y completions (config y biblioteca quedan)
   --help        esta ayuda
 
-Sin opciones instala en ~/.local/bin. Re-ejecutarlo actualiza.' 'Mallow Install — installs Malody Mallow (maly) building from main.
+Sin opciones abre el flujo interactivo (o instala con los defaults si no
+hay terminal). yt-dlp+ffmpeg (para `maly get`) y el visualizador son
+opcionales y se eligen en la pantalla de dependencias.' 'Mallow Install — installs Malody Mallow (maly) building from main.
 
 usage: mallow-install.sh [options]
+  --install     install (or reinstall) skipping the menu
+  --update      rebuild and reinstall over an existing install
+  --uninstall   remove binary and completions (asks about config/library)
   --system      install to /usr/local for all users (asks for sudo)
-  --uninstall   remove binary and completions (config and library stay)
   --help        this help
 
-With no options it installs to ~/.local/bin. Re-running updates.')"
+With no options it opens the interactive flow (or installs with the
+defaults when there is no terminal). yt-dlp+ffmpeg (for `maly get`) and
+the visualizer are optional and picked on the dependencies screen.')"
 }
 
 # ---- argumentos ----
-SYSTEM=0 UNINSTALL=0
+# ACTION vacío = decidir en el menú (o el default sin terminal); un flag de
+# acción se salta esa pantalla. SYSTEM=-1 = preguntar el ámbito.
+ACTION='' SYSTEM=-1
 for a in "$@"; do
 	case "$a" in
+	--install | --update | --uninstall)
+		[ -z "$ACTION" ] || die 'elige una sola acción (--install | --update | --uninstall)' \
+			'pick a single action (--install | --update | --uninstall)'
+		ACTION=${a#--} ;;
 	--system) SYSTEM=1 ;;
-	--uninstall) UNINSTALL=1 ;;
-	-h|--help) usage; exit 0 ;;
+	-h | --help) usage; exit 0 ;;
 	*) usage >&2; die "opción desconocida: $a" "unknown option: $a" ;;
 	esac
 done
+
+# ---- instalaciones existentes (deciden defaults del menú y del ámbito) ----
+USR_BIN=$HOME/.local/bin/maly
+SYS_BIN=/usr/local/bin/maly
+USR_INST=0 SYS_INST=0
+[ -x "$USR_BIN" ] && USR_INST=1
+[ -x "$SYS_BIN" ] && SYS_INST=1
+
+banner
+
+# ---- pantalla 1: acción ----
+if [ -z "$ACTION" ]; then
+	a_def=1
+	[ "$USR_INST" -eq 1 ] || [ "$SYS_INST" -eq 1 ] && a_def=2
+	if [ "$TTY" -eq 1 ]; then
+		section 'acción' 'action'
+		if [ "$USR_INST" -eq 1 ]; then msg "detecté maly en $USR_BIN" "found maly at $USR_BIN"; fi
+		if [ "$SYS_INST" -eq 1 ]; then msg "detecté maly en $SYS_BIN" "found maly at $SYS_BIN"; fi
+	fi
+	menu "$a_def" 4 \
+		'instalar' 'install' \
+		'actualizar (recompilar y reinstalar)' 'update (rebuild and reinstall)' \
+		'desinstalar' 'uninstall' \
+		'salir' 'quit'
+	case $REPLY in
+	1) ACTION=install ;;
+	2) ACTION=update ;;
+	3) ACTION=uninstall ;;
+	4) exit 0 ;;
+	esac
+fi
+
+if [ "$ACTION" = update ] && [ "$USR_INST" -eq 0 ] && [ "$SYS_INST" -eq 0 ]; then
+	# Nada que actualizar: interactivo se ofrece instalar; por flag se avisa.
+	if confirm 'no encuentro maly instalado; ¿instalar desde cero?' \
+		"couldn't find an installed maly; install from scratch?"; then
+		ACTION=install
+	else
+		die 'no hay maly instalado que actualizar (usa --install)' \
+			'no installed maly to update (use --install)'
+	fi
+fi
+
+# ---- pantalla 2: ámbito (usuario/sistema) ----
+if [ "$SYSTEM" -lt 0 ]; then
+	s_def=1
+	# Con maly solo en /usr/local, actualizar/desinstalar apuntan ahí solos.
+	[ "$SYS_INST" -eq 1 ] && [ "$USR_INST" -eq 0 ] && s_def=2
+	if [ "$TTY" -eq 1 ] && { [ "$ACTION" = install ] || [ "$s_def" -eq 2 ] || [ "$SYS_INST" -eq 1 ]; }; then
+		section 'ámbito' 'scope'
+		menu "$s_def" 2 \
+			'usuario (~/.local/bin, sin sudo)' 'user (~/.local/bin, no sudo)' \
+			'sistema (/usr/local, para todos; pide sudo)' 'system (/usr/local, for everyone; asks for sudo)'
+		SYSTEM=$((REPLY - 1))
+	else
+		SYSTEM=$((s_def - 1))
+	fi
+fi
 
 # ---- rutas de instalación ----
 if [ "$SYSTEM" -eq 1 ]; then
@@ -182,14 +305,13 @@ BIN_EXISTED=1
 SUDO=''
 if [ "$SYSTEM" -eq 1 ] && [ "$(id -u)" -ne 0 ]; then
 	command -v sudo >/dev/null 2>&1 ||
-		die 'para --system necesitas sudo (o corre como root)' 'for --system you need sudo (or run as root)'
+		die 'para el ámbito de sistema necesitas sudo (o corre como root)' \
+			'for the system scope you need sudo (or run as root)'
 	SUDO=sudo
 fi
 
-banner
-
 # ---- desinstalar ----
-if [ "$UNINSTALL" -eq 1 ]; then
+if [ "$ACTION" = uninstall ]; then
 	found=0
 	for f in "$BIN/maly" "$BASHC/maly" "$FISHC/maly.fish" "$ZSHC/_maly"; do
 		if [ -e "$f" ]; then
@@ -199,7 +321,20 @@ if [ "$UNINSTALL" -eq 1 ]; then
 		fi
 	done
 	[ "$found" -eq 1 ] || warn 'no encontré nada que quitar en esas rutas' 'nothing to remove at those paths'
-	msg 'tu config, biblioteca y playlists quedan intactas' 'your config, library and playlists are untouched'
+
+	# Config y biblioteca son del usuario y por defecto se respetan; borrar
+	# es opción explícita (y sin terminal, jamás).
+	CFG_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/maly
+	DATA_DIR=${XDG_DATA_HOME:-$HOME/.local/share}/maly
+	if [ -d "$CFG_DIR" ] || [ -d "$DATA_DIR" ]; then
+		if confirm "¿borrar también tu config y biblioteca? ($CFG_DIR, $DATA_DIR)" \
+			"also delete your config and library? ($CFG_DIR, $DATA_DIR)"; then
+			rm -rf "$CFG_DIR" "$DATA_DIR"
+			msg 'config y biblioteca borradas' 'config and library deleted'
+		else
+			msg 'tu config, biblioteca y playlists quedan intactas' 'your config, library and playlists are untouched'
+		fi
+	fi
 	exit 0
 fi
 
@@ -221,7 +356,7 @@ if [ -n "$script_dir" ] && [ -f "$script_dir/go.mod" ] && [ -d "$script_dir/cmd/
 	SRC=$script_dir
 fi
 
-# ---- dependencias del sistema: git (si hay que clonar) y mpv ----
+# ---- gestor de paquetes ----
 INSTALL_CMD=''
 if command -v pacman >/dev/null 2>&1; then INSTALL_CMD='pacman -S --needed --noconfirm'
 elif command -v apt-get >/dev/null 2>&1; then INSTALL_CMD='apt-get install -y'
@@ -229,31 +364,120 @@ elif command -v dnf >/dev/null 2>&1; then INSTALL_CMD='dnf install -y'
 elif command -v zypper >/dev/null 2>&1; then INSTALL_CMD='zypper --non-interactive install'
 elif command -v xbps-install >/dev/null 2>&1; then INSTALL_CMD='xbps-install -y'
 fi
+PM=${INSTALL_CMD%% *}
 
-NEED=''
-if [ -z "$SRC" ] && ! command -v git >/dev/null 2>&1; then NEED="$NEED git"; fi
-command -v mpv >/dev/null 2>&1 || NEED="$NEED mpv"
+# ---- pantalla 3: dependencias ----
+# Solo aparecen las que faltan; mpv y git van marcados (sin ellos maly no
+# suena / no hay qué compilar), yt-dlp+ffmpeg y el visualizador son
+# opcionales y arrancan desmarcados. `maly get` es un comando opcional: sus
+# herramientas no deben colarse en una instalación por defecto.
+DEPS=''
+SEL_mpv=1 SEL_git=1 SEL_get=0 SEL_viz=0
+command -v mpv >/dev/null 2>&1 || DEPS="$DEPS mpv"
+if [ -z "$SRC" ] && ! command -v git >/dev/null 2>&1; then DEPS="$DEPS git"; fi
+if ! command -v yt-dlp >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
+	DEPS="$DEPS get"
+fi
+if ! command -v pw-record >/dev/null 2>&1 && ! command -v parec >/dev/null 2>&1; then
+	DEPS="$DEPS viz"
+fi
 
-if [ -n "$NEED" ]; then
+dep_label() {
+	case $1 in
+	mpv) tr2 'mpv — motor de audio (sin él maly no suena)' 'mpv — audio engine (maly cannot play without it)' ;;
+	git) tr2 'git — para clonar el repositorio' 'git — to clone the repository' ;;
+	get) tr2 'yt-dlp + ffmpeg — para `maly get`, descargar música (opcional)' 'yt-dlp + ffmpeg — for `maly get`, music download (optional)' ;;
+	viz) tr2 'pulseaudio-utils (parec) — visualizador con audio real (opcional)' 'pulseaudio-utils (parec) — real-audio visualizer (optional)' ;;
+	esac
+}
+
+# La actualización no re-ofrece opcionales: solo asegura lo imprescindible.
+if [ "$TTY" -eq 1 ] && [ "$ACTION" != update ] && [ -n "$DEPS" ]; then
+	section 'dependencias' 'dependencies'
+	msg 'esto falta en tu sistema; marca qué instalar:' 'these are missing on your system; pick what to install:'
+	while :; do
+		d_i=1
+		for d_k in $DEPS; do
+			eval "d_on=\$SEL_$d_k"
+			d_box='[ ]'
+			[ "$d_on" -eq 1 ] && d_box='[x]'
+			printf '  %s%d%s %s %s\n' "$CY" "$d_i" "$NC" "$d_box" "$(dep_label "$d_k")"
+			d_i=$((d_i + 1))
+		done
+		ask '' 'número para (des)marcar, Enter para continuar:' 'number to toggle, Enter to continue:'
+		[ -n "$REPLY" ] || break
+		d_i=1
+		for d_k in $DEPS; do
+			if [ "$REPLY" = "$d_i" ]; then eval "SEL_$d_k=\$((1 - SEL_$d_k))"; fi
+			d_i=$((d_i + 1))
+		done
+	done
+fi
+
+# git desmarcado con clon pendiente no tiene arreglo aguas abajo: cortar ya.
+case " $DEPS " in *' git '*)
+	[ "$SEL_git" -eq 1 ] ||
+		die 'sin git no puedo clonar; márcalo, instálalo tú, o corre el script desde un checkout' \
+			'without git I cannot clone; select it, install it yourself, or run the script from a checkout'
+	;;
+esac
+
+# ---- paquetes a instalar según la selección ----
+PKGS='' PIPX_YTDLP=0
+for d_k in $DEPS; do
+	eval "d_on=\$SEL_$d_k"
+	[ "$d_on" -eq 1 ] || continue
+	case $d_k in
+	mpv) PKGS="$PKGS mpv" ;;
+	git) PKGS="$PKGS git" ;;
+	get)
+		command -v ffmpeg >/dev/null 2>&1 || PKGS="$PKGS ffmpeg"
+		if ! command -v yt-dlp >/dev/null 2>&1; then
+			if [ "$PM" = apt-get ]; then
+				# Debian/Ubuntu empaquetan un yt-dlp viejo (2024) que ya no
+				# baja de YouTube: va vía pipx, que instala el actual.
+				PIPX_YTDLP=1
+				command -v pipx >/dev/null 2>&1 || PKGS="$PKGS pipx"
+			else
+				PKGS="$PKGS yt-dlp"
+			fi
+		fi ;;
+	viz)
+		# parec en vez de pw-record: existe en PulseAudio puro y en PipeWire
+		# (vía pipewire-pulse), así el paquete es el mismo casi en todos lados.
+		if [ "$PM" = pacman ]; then PKGS="$PKGS libpulse"; else PKGS="$PKGS pulseaudio-utils"; fi ;;
+	esac
+done
+
+if [ -n "$PKGS" ]; then
 	PKG_SUDO=''
 	[ "$(id -u)" -ne 0 ] && PKG_SUDO='sudo '
 	if [ -z "$INSTALL_CMD" ]; then
-		die "no reconozco tu gestor de paquetes; instala a mano:$NEED" \
-			"couldn't detect your package manager; install manually:$NEED"
+		die "no reconozco tu gestor de paquetes; instala a mano:$PKGS" \
+			"couldn't detect your package manager; install manually:$PKGS"
 	fi
-	msg "falta:$NEED" "missing:$NEED"
-	if confirm "¿instalar con \`$PKG_SUDO$INSTALL_CMD$NEED\`?" \
-		"install with \`$PKG_SUDO$INSTALL_CMD$NEED\`?"; then
+	msg "a instalar:$PKGS" "to install:$PKGS"
+	if confirm "¿instalar con \`$PKG_SUDO$INSTALL_CMD$PKGS\`?" \
+		"install with \`$PKG_SUDO$INSTALL_CMD$PKGS\`?"; then
 		[ -z "$PKG_SUDO" ] || command -v sudo >/dev/null 2>&1 ||
 			die 'no hay sudo; instala las dependencias como root y reintenta' \
 				'no sudo available; install the dependencies as root and retry'
 		# shellcheck disable=SC2086
-		$PKG_SUDO$INSTALL_CMD$NEED ||
+		$PKG_SUDO$INSTALL_CMD$PKGS ||
 			die 'falló la instalación de dependencias' 'dependency install failed'
 	else
-		die "instálalo tú y reintenta:  $PKG_SUDO$INSTALL_CMD$NEED" \
-			"install it yourself and retry:  $PKG_SUDO$INSTALL_CMD$NEED"
+		die "instálalo tú y reintenta:  $PKG_SUDO$INSTALL_CMD$PKGS" \
+			"install it yourself and retry:  $PKG_SUDO$INSTALL_CMD$PKGS"
 	fi
+fi
+
+if [ "$PIPX_YTDLP" -eq 1 ]; then
+	msg 'instalando yt-dlp actual vía pipx (el de los repos Debian/Ubuntu es de 2024 y ya no baja de YouTube)' \
+		'installing current yt-dlp via pipx (the Debian/Ubuntu repo one is from 2024 and no longer downloads from YouTube)'
+	pipx install yt-dlp ||
+		die 'falló `pipx install yt-dlp`' '`pipx install yt-dlp` failed'
+	msg 'yt-dlp quedó en ~/.local/bin (pipx); `pipx upgrade yt-dlp` lo actualiza' \
+		'yt-dlp lives in ~/.local/bin (pipx); `pipx upgrade yt-dlp` updates it'
 fi
 
 if [ -z "$SRC" ]; then
@@ -330,6 +554,8 @@ hb_start 'compilando maly… (la primera vez baja dependencias de Go)' \
 hb_stop
 
 # ---- instalar binario y completions ----
+# La versión previa se lee antes de pisar el binario, para el delta final.
+OLDVER=$("$BIN/maly" version 2>/dev/null | sed -n 's/.*\(v[0-9][0-9.]*\).*/\1/p' | sed -n 1p) || OLDVER=''
 $SUDO install -Dm755 "$TMP/maly" "$BIN/maly"
 msg "instalado: $BIN/maly" "installed: $BIN/maly"
 
@@ -397,12 +623,18 @@ if [ "$SYSTEM" -eq 0 ]; then
 		fi
 	fi
 fi
+if ! command -v mpv >/dev/null 2>&1; then
+	sep
+	warn 'sin mpv maly no puede reproducir nada; instálalo cuando puedas' \
+		'without mpv maly cannot play anything; install it when you can'
+fi
 if ! command -v pw-record >/dev/null 2>&1 && ! command -v parec >/dev/null 2>&1; then
 	sep
 	warn 'sin pw-record/parec el visualizador queda en modo animación (opcional: pipewire o pulseaudio-utils)' \
 		'without pw-record/parec the visualizer stays in animation mode (optional: pipewire or pulseaudio-utils)'
 fi
-if ! command -v yt-dlp >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
+if [ "$PIPX_YTDLP" -eq 0 ] &&
+	{ ! command -v yt-dlp >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; }; then
 	sep
 	warn 'sin yt-dlp y ffmpeg no funciona `maly get` (descargar música; opcional)' \
 		'without yt-dlp and ffmpeg `maly get` will not work (music download; optional)'
@@ -411,5 +643,9 @@ fi
 printf '\n'
 ver=$("$TMP/maly" version | sed -n 1p)
 ok "listo: ${BD}${ver}${NC}" "done: ${BD}${ver}${NC}"
+newver=$(printf '%s' "$ver" | sed -n 's/.*\(v[0-9][0-9.]*\).*/\1/p')
+if [ -n "$OLDVER" ] && [ -n "$newver" ] && [ "$OLDVER" != "$newver" ]; then
+	msg "actualizado: $OLDVER → $newver" "updated: $OLDVER → $newver"
+fi
 msg 'primer paso:  maly scan   (indexa ~/Music; acepta otra ruta) · luego:  maly' \
 	'first step:  maly scan   (indexes ~/Music; takes another path) · then:  maly'

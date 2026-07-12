@@ -134,18 +134,29 @@ Decisiones transversales:
 
 ## Roadmap
 
-v1.0.0 publicada (primer git tag; se brincó la 0.7.0 a propósito). La
-distribución es vía `mallow-install.sh` — el dueño descartó hacer PKGBUILD
-para AUR. Notas de los pasos que dejaron trampas:
+v1.0.1 publicada (v1.0.0 fue el primer git tag; se brincó la 0.7.0 a
+propósito). La 1.0.1 salió de una revisión de seguridad/brechas:
+`config.EnsureRuntimeDir` (valida dueño/permisos/symlink del runtime dir —
+el fallback en /tmp es predecible), `safeExt` en el caché de carátulas (el
+frame PIC de ID3v2.2 trae 3 bytes crudos en `pic.Ext`), `Ping` con timeout
+de 2 s, purga del scan sin falsos `..`, `LIKE … ESCAPE` en Search y
+`AddToPlaylist` transaccional. La distribución es vía `mallow-install.sh` —
+el dueño descartó hacer PKGBUILD para AUR. Notas de pasos que dejaron trampas:
 
 - Tests de `internal/viz`: construyen el `Viz` a mano (`newTestViz`) porque
   `New()` arranca un pw-record/parec REAL en la máquina de desarrollo.
 
 ### Post-1.0 (candidatos)
 
-- **Rediseño visual del instalador** (`mallow-install.sh`): el dueño quiere
-  que se vea más vistoso; hoy es funcional (banner, heartbeat, colores) pero
-  sobrio.
+- **Instalador nuevo** (`mallow-install.sh`): rediseño visual (el dueño lo
+  quiere más vistoso) y **hacerlo interactivo**. Motivo extra: en Debian/
+  Ubuntu el yt-dlp del repo es de 2024 y `maly get` falla con YouTube — el
+  instalador debería detectarlo y ofrecer `pipx install yt-dlp`. Con ese
+  ciclo van los hallazgos diferidos de la revisión: checksum del tarball de
+  Go que baja de go.dev, permisos 0600/0700 para config/sesión/DB, limpiar
+  `p.pending` en timeouts de mpv, confirmar sobrescritura en
+  `playlist export`, y mapear el fallo de `Listen` por carrera a
+  `ErrAlreadyRunning`.
 - **`maly move <de> <a>`** + reorden en la TUI (J/K en cola): `queue.Move`,
   campo `To` en `ipc.Request`; la ventana gapless ya se realinea en `handle`.
 - Progreso de scan (fácil en CLI directa; por IPC requiere diseño).

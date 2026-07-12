@@ -134,29 +134,37 @@ Decisiones transversales:
 
 ## Roadmap
 
-v1.0.1 publicada (v1.0.0 fue el primer git tag; se brincó la 0.7.0 a
-propósito). La 1.0.1 salió de una revisión de seguridad/brechas:
-`config.EnsureRuntimeDir` (valida dueño/permisos/symlink del runtime dir —
-el fallback en /tmp es predecible), `safeExt` en el caché de carátulas (el
-frame PIC de ID3v2.2 trae 3 bytes crudos en `pic.Ext`), `Ping` con timeout
-de 2 s, purga del scan sin falsos `..`, `LIKE … ESCAPE` en Search y
-`AddToPlaylist` transaccional. La distribución es vía `mallow-install.sh` —
-el dueño descartó hacer PKGBUILD para AUR. Notas de pasos que dejaron trampas:
+v1.0.2 publicada (v1.0.0 fue el primer git tag; se brincó la 0.7.0 a
+propósito). La 1.0.1 cerró la revisión de seguridad (`EnsureRuntimeDir`,
+`safeExt` en carátulas, `Ping` a 2 s, purga sin falsos `..`, `LIKE …
+ESCAPE`, `AddToPlaylist` transaccional). La 1.0.2 trajo el **instalador
+interactivo** por pantallas (menú instalar/actualizar/desinstalar, ámbito,
+checklist de dependencias con yt-dlp+ffmpeg y visualizador opcionales;
+en Debian/Ubuntu yt-dlp va vía pipx porque el del repo es de 2024 y no
+baja de YouTube; flags --install/--update/--uninstall/--system) y cerró
+los hallazgos menores diferidos: checksum SHA-256 del Go de go.dev (el
+`.sha256` plano vive en dl.google.com), permisos 0600/0700 en
+config/sesión/DB, `p.pending` sin fugas en timeout, `playlist export` sin
+clobber (el tty se detecta con el ioctl real: /dev/null también es char
+device) y EADDRINUSE → ErrAlreadyRunning. La distribución es vía
+`mallow-install.sh` — el dueño descartó hacer PKGBUILD para AUR.
+
+Trampas que dejaron estos ciclos:
 
 - Tests de `internal/viz`: construyen el `Viz` a mano (`newTestViz`) porque
   `New()` arranca un pw-record/parec REAL en la máquina de desarrollo.
+- El instalador sondea /dev/tty EN SUBSHELL: `:` es un special builtin y
+  POSIX manda que su redirección fallida termine el shell entero — sin
+  subshell, el modo no interactivo moría mudo.
+- Probar el instalador bajo tmux con HOME alterno: pasar GOMODCACHE/GOCACHE
+  reales al `go build` o deja un mod-cache de solo lectura en el sandbox
+  (`chmod -R u+w` antes de borrar).
 
 ### Post-1.0 (candidatos)
 
-- **Instalador nuevo** (`mallow-install.sh`): rediseño visual (el dueño lo
-  quiere más vistoso) y **hacerlo interactivo**. Motivo extra: en Debian/
-  Ubuntu el yt-dlp del repo es de 2024 y `maly get` falla con YouTube — el
-  instalador debería detectarlo y ofrecer `pipx install yt-dlp`. Con ese
-  ciclo van los hallazgos diferidos de la revisión: checksum del tarball de
-  Go que baja de go.dev, permisos 0600/0700 para config/sesión/DB, limpiar
-  `p.pending` en timeouts de mpv, confirmar sobrescritura en
-  `playlist export`, y mapear el fallo de `Listen` por carrera a
-  `ErrAlreadyRunning`.
+- **Rediseño visual del instalador**: la funcionalidad interactiva ya está;
+  falta lo vistoso que quiere el dueño (hoy conserva el banner/heartbeat
+  sobrios de siempre).
 - **`maly move <de> <a>`** + reorden en la TUI (J/K en cola): `queue.Move`,
   campo `To` en `ipc.Request`; la ventana gapless ya se realinea en `handle`.
 - Progreso de scan (fácil en CLI directa; por IPC requiere diseño).

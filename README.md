@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.0.1-blue)
+![version](https://img.shields.io/badge/version-1.0.2-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -74,15 +74,22 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh | sh
 ```
 
-El instalador detecta tu gestor de paquetes (pacman, apt, dnf, zypper, xbps)
-y ofrece instalar lo que falte (`git`, `mpv`); si el Go de tu distro no llega
-al mínimo, ofrece bajar el toolchain oficial de go.dev a `~/.cache/mallow` —
-solo para compilar, sin tocar el sistema (esquiva el `golang-go` viejo de
-Debian/Ubuntu). Compila desde `main`, instala en `~/.local/bin` y deja las
-completions de tu shell. Nada se instala sin preguntar.
+El instalador es interactivo, por pantallas: eliges la acción (instalar,
+actualizar o desinstalar), el ámbito (usuario o sistema) y qué dependencias
+instalar en un checklist — `mpv` y `git` vienen marcados; `yt-dlp`+`ffmpeg`
+(para `maly get`) y el visualizador son opcionales y arrancan desmarcados.
+Detecta tu gestor de paquetes (pacman, apt, dnf, zypper, xbps); en
+Debian/Ubuntu `yt-dlp` se instala vía `pipx` porque el del repo es viejo y
+ya no descarga de YouTube. Si el Go de tu distro no llega al mínimo, ofrece
+bajar el toolchain oficial de go.dev (verificado con su SHA-256) a
+`~/.cache/mallow` — solo para compilar, sin tocar el sistema. Compila desde
+`main`, instala en `~/.local/bin` y deja las completions de tu shell. Nada
+se instala sin preguntar; sin terminal corre entero con los defaults.
 
+- `--install` / `--update` / `--uninstall` saltan el menú de acción
+  (`--update` muestra el salto de versión; `--uninstall` ofrece borrar
+  también config y biblioteca — por defecto quedan).
 - `--system` instala en `/usr/local` para todos los usuarios (pide sudo).
-- `--uninstall` lo quita (tu config, biblioteca y playlists quedan).
 - Re-ejecutarlo actualiza a lo último de `main`.
 - Desde un checkout también funciona: `./mallow-install.sh`.
 

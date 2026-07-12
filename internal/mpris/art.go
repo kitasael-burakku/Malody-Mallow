@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/dhowden/tag"
 )
@@ -57,8 +58,8 @@ func (c *artCache) extract(path string) string {
 	}
 	sum := sha1.Sum(pic.Data)
 	name := hex.EncodeToString(sum[:])
-	if pic.Ext != "" {
-		name += "." + pic.Ext
+	if ext := safeExt(pic.Ext); ext != "" {
+		name += "." + ext
 	}
 	file := filepath.Join(c.dir, name)
 	if _, err := os.Stat(file); err != nil {
@@ -70,6 +71,19 @@ func (c *artCache) extract(path string) string {
 		}
 	}
 	return (&url.URL{Scheme: "file", Path: file}).String()
+}
+
+// safeExt filtra la extensión que reporta el tag: casi todos los formatos la
+// derivan de un allowlist en dhowden/tag, pero el frame PIC de ID3v2.2 copia
+// 3 bytes crudos del archivo — un tag malicioso podría meter separadores o
+// basura en el nombre del archivo del caché. Solo pasan las conocidas; sin
+// extensión los clientes MPRIS igual detectan la imagen por contenido.
+func safeExt(ext string) string {
+	switch strings.ToLower(ext) {
+	case "jpg", "jpeg", "png", "gif":
+		return strings.ToLower(ext)
+	}
+	return ""
 }
 
 // close borra el directorio de carátulas; nil-safe como el resto.

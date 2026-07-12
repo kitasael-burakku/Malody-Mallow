@@ -82,13 +82,16 @@ func Dial(socket string) (*Client, error) {
 	return &Client{conn: conn, r: bufio.NewReader(conn)}, nil
 }
 
-// Ping devuelve true si hay un demonio respondiendo en socket.
+// Ping devuelve true si hay un demonio respondiendo en socket. Timeout
+// corto propio: con el default de 30 s un demonio colgado (acepta pero no
+// contesta) congelaría el arranque de la TUI y de todo cliente que sondea.
 func Ping(socket string) bool {
 	c, err := Dial(socket)
 	if err != nil {
 		return false
 	}
 	defer c.Close()
+	c.Timeout = 2 * time.Second
 	resp, err := c.Do(Request{Cmd: "ping"})
 	return err == nil && resp.OK
 }

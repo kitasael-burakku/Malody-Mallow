@@ -91,6 +91,25 @@ func TestPing(t *testing.T) {
 	}
 }
 
+// TestPingHungDaemon: un demonio colgado (acepta y no contesta) no puede
+// congelar al que sondea — Ping usa su timeout corto, no los 30 s de Do.
+// Importa porque Ping corre en el arranque de la TUI y de daemon.New.
+func TestPingHungDaemon(t *testing.T) {
+	block := make(chan struct{})
+	defer close(block)
+	sock := serve(t, func(conn net.Conn) {
+		defer conn.Close()
+		<-block
+	})
+	start := time.Now()
+	if Ping(sock) {
+		t.Fatal("Ping = true con demonio mudo")
+	}
+	if el := time.Since(start); el > 5*time.Second {
+		t.Fatalf("Ping tardó %v con un demonio colgado", el)
+	}
+}
+
 // TestDoTimeout: con un demonio mudo, Do respeta c.Timeout en vez de colgarse
 // los 30 s del default.
 func TestDoTimeout(t *testing.T) {

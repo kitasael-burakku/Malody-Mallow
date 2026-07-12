@@ -137,3 +137,28 @@ func TestServiceMetadataArt(t *testing.T) {
 		t.Error("mpris:artUrl presente con el cache deshabilitado")
 	}
 }
+
+// TestSafeExt fija el filtro de extensiones del caché: el frame PIC de
+// ID3v2.2 trae 3 bytes crudos del archivo en pic.Ext, así que solo pasan
+// las conocidas; cualquier otra cosa se descarta y el archivo va sin
+// extensión (nunca con separadores o bytes raros en el nombre).
+func TestSafeExt(t *testing.T) {
+	cases := map[string]string{
+		"jpg":    "jpg",
+		"JPG":    "jpg",
+		"jpeg":   "jpeg",
+		"png":    "png",
+		"gif":    "gif",
+		"":       "",
+		"/..":    "",
+		"../":    "",
+		"a/b":    "",
+		"\x00xy": "",
+		"webp":   "", // no está en audioExts de MPRIS: mejor sin extensión
+	}
+	for in, want := range cases {
+		if got := safeExt(in); got != want {
+			t.Errorf("safeExt(%q) = %q, quería %q", in, got, want)
+		}
+	}
+}

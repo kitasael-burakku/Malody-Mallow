@@ -81,8 +81,10 @@ type subscriber struct {
 // New prepara el demonio: reclama el socket, abre la biblioteca y lanza mpv.
 func New(cfg config.Config) (*Daemon, error) {
 	sock := config.SocketPath()
-	if err := os.MkdirAll(config.RuntimeDir(), 0o700); err != nil {
-		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", config.RuntimeDir()), err)
+	// EnsureRuntimeDir además valida dueño/permisos: los sockets (maly, mpv)
+	// y el caché de carátulas solo se crean dentro de un directorio de fiar.
+	if _, err := config.EnsureRuntimeDir(); err != nil {
+		return nil, err
 	}
 	if _, err := os.Stat(sock); err == nil {
 		if ipc.Ping(sock) {

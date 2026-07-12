@@ -219,3 +219,52 @@ language = "no-soy-esa"
 		t.Fatalf("controls insertado no aplica: %q %v", cfg.Controls, cfg.Keys["remove"])
 	}
 }
+
+// TestEnsureRuntimeDir fija el contrato de seguridad del runtime dir: se
+// crea 0700, uno propio con permisos flojos se aprieta en vez de fallar, y
+// un symlink en la ruta (dir de otro, ataque clásico en /tmp) se rechaza.
+func TestEnsureRuntimeDir(t *testing.T) {
+	base := t.TempDir()
+
+	// Nuevo: se crea con 0700.
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(base, "rt"))
+	dir, err := EnsureRuntimeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o700 {
+		t.Fatalf("permisos del dir nuevo: %o", fi.Mode().Perm())
+	}
+
+	// Propio pero abierto (versión anterior, umask raro): se aprieta a 0700.
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := EnsureRuntimeDir(); err != nil {
+		t.Fatalf("dir propio con permisos flojos debe repararse: %v", err)
+	}
+	fi, _ = os.Stat(dir)
+	if fi.Mode().Perm() != 0o700 {
+		t.Fatalf("no apretó los permisos: %o", fi.Mode().Perm())
+	}
+
+	// Symlink donde debería estar el dir: rechazar aunque el destino exista.
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(base, "rt2"))
+	target := filepath.Join(base, "ajeno")
+	if err := os.MkdirAll(target, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(base, "rt2"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(base, "rt2", "maly")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := EnsureRuntimeDir(); err == nil {
+		t.Fatal("un symlink en la ruta del runtime dir debe rechazarse")
+	}
+}

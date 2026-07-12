@@ -301,6 +301,7 @@ var table = map[string][2]string{
 	"cfg.write_default": {"writing default config", "escribiendo config por defecto"},
 	"cfg.read":          {"reading %s", "leyendo %s"},
 	"cfg.invalid":       {"invalid config at %s", "config inválido en %s"},
+	"cfg.runtime_bad":   {"runtime directory %s is not trustworthy (it must be a real directory owned by you); remove it or set XDG_RUNTIME_DIR", "el directorio runtime %s no es de fiar (debe ser un directorio real y tuyo); bórralo o define XDG_RUNTIME_DIR"},
 
 	// ---- Reproductor (mpv) ----
 	"p.no_mpv":      {"mpv is not installed (Arch: pacman -S mpv, Ubuntu: apt install mpv)", "mpv no está instalado (Arch: pacman -S mpv, Ubuntu: apt install mpv)"},

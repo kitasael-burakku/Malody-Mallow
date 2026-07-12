@@ -3,11 +3,13 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/BurntSushi/toml"
 
@@ -187,6 +189,36 @@ func RuntimeDir() string {
 		return filepath.Join(d, "maly")
 	}
 	return filepath.Join(os.TempDir(), fmt.Sprintf("maly-%d", os.Getuid()))
+}
+
+// EnsureRuntimeDir crea el directorio runtime (0700) y verifica que sea de
+// fiar antes de poner sockets dentro: directorio real (no symlink), dueño el
+// usuario actual y sin acceso de grupo/otros. Importa porque el fallback sin
+// XDG_RUNTIME_DIR vive en /tmp (mundo-escribible) con nombre predecible:
+// otro usuario pudo pre-crear la ruta como suya, y MkdirAll sobre un dir
+// existente no falla ni corrige nada — el dueño del dir puede sustituir el
+// socket y suplantar al demonio.
+func EnsureRuntimeDir() (string, error) {
+	dir := RuntimeDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", dir), err)
+	}
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return "", err
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !fi.IsDir() || !ok || int(st.Uid) != os.Getuid() {
+		return "", errors.New(i18n.Tf("cfg.runtime_bad", dir))
+	}
+	if fi.Mode().Perm()&0o077 != 0 {
+		// Es nuestro pero quedó abierto (creado por una versión anterior o a
+		// mano): apretarlo basta, no hay que molestar al usuario.
+		if err := os.Chmod(dir, 0o700); err != nil {
+			return "", errors.New(i18n.Tf("cfg.runtime_bad", dir))
+		}
+	}
+	return dir, nil
 }
 
 func SocketPath() string { return filepath.Join(RuntimeDir(), "maly.sock") }

@@ -332,3 +332,115 @@ func TestRemoveFromPlaylist(t *testing.T) {
 		t.Fatal("playlist inexistente debe fallar")
 	}
 }
+
+// TestScanPurgeDotDotDir: el filtro de la purga distingue "fuera de root"
+// ("../…") de un directorio bajo root cuyo nombre empieza con ".." literal;
+// antes el prefijo sin separador dejaba esas entradas huérfanas en la DB
+// para siempre.
+func TestScanPurgeDotDotDir(t *testing.T) {
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	root := t.TempDir()
+	sub := filepath.Join(root, "..covers")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	track := filepath.Join(sub, "pista.mp3")
+	if err := os.WriteFile(track, []byte("no es audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := lib.Scan(root); err != nil || res.Added != 1 {
+		t.Fatalf("primer escaneo: %+v, %v", res, err)
+	}
+
+	// Una pista de OTRA raíz no debe purgarse al escanear root…
+	other := t.TempDir()
+	outside := filepath.Join(other, "ajena.mp3")
+	if err := os.WriteFile(outside, []byte("no es audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := lib.Scan(other); err != nil || res.Added != 1 {
+		t.Fatalf("escaneo de la otra raíz: %+v, %v", res, err)
+	}
+
+	// …pero el archivo borrado bajo root/..covers sí.
+	if err := os.Remove(track); err != nil {
+		t.Fatal(err)
+	}
+	res, err := lib.Scan(root)
+	if err != nil || res.Removed != 1 {
+		t.Fatalf("purga bajo ..covers: %+v, %v", res, err)
+	}
+	if _, ok := lib.ByPath(outside); !ok {
+		t.Fatal("la pista de otra raíz fue purgada por error")
+	}
+}
+
+// TestSearchLikeEscape: % y _ del usuario son texto, no comodines de LIKE.
+func TestSearchLikeEscape(t *testing.T) {
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	dir := t.TempDir()
+	for _, name := range []string{"100% puro.mp3", "100x puro.mp3", "cien_por.mp3", "cienXpor.mp3"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("no es audio"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := lib.Scan(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := lib.Search("100%")
+	if err != nil || len(got) != 1 || got[0].Title != "100% puro" {
+		t.Fatalf("Search(100%%) = %v, %v", got, err)
+	}
+	got, err = lib.Search("cien_por")
+	if err != nil || len(got) != 1 || got[0].Title != "cien_por" {
+		t.Fatalf("Search(cien_por) = %v, %v", got, err)
+	}
+}
+
+// TestAddToPlaylistAtomic: un id inválido a mitad de lista revierte el
+// añadido entero — nada de playlists a medias.
+func TestAddToPlaylistAtomic(t *testing.T) {
+	dir := fakeMusicDir(t, 2)
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	if _, err := lib.Scan(dir); err != nil {
+		t.Fatal(err)
+	}
+	all, err := lib.All()
+	if err != nil || len(all) != 2 {
+		t.Fatalf("All: %d pistas, %v", len(all), err)
+	}
+	if err := lib.CreatePlaylist("mix"); err != nil {
+		t.Fatal(err)
+	}
+
+	// El 999999 viola la foreign key de tracks: todo el lote debe caerse.
+	if err := lib.AddToPlaylist("mix", []int64{all[0].ID, 999999, all[1].ID}); err == nil {
+		t.Fatal("un id inexistente debe hacer fallar el añadido")
+	}
+	if tracks, err := lib.PlaylistTracks("mix"); err != nil || len(tracks) != 0 {
+		t.Fatalf("añadido parcial sobrevivió al rollback: %v, %v", tracks, err)
+	}
+
+	// Y el camino sano sigue funcionando después del rollback.
+	if err := lib.AddToPlaylist("mix", []int64{all[0].ID, all[1].ID}); err != nil {
+		t.Fatal(err)
+	}
+	if tracks, _ := lib.PlaylistTracks("mix"); len(tracks) != 2 {
+		t.Fatalf("añadido sano tras rollback: %d pistas", len(tracks))
+	}
+}

@@ -69,23 +69,35 @@ func (l *Library) DeletePlaylist(name string) error {
 	return err
 }
 
-// AddToPlaylist agrega pistas (por id) al final de la playlist.
+// AddToPlaylist agrega pistas (por id) al final de la playlist. Todo o nada
+// en una transacción: un id inválido a mitad de lista no deja un añadido
+// parcial, y el MAX(pos) leído dentro no puede cruzarse con otro proceso
+// escribiendo la misma playlist (CLI y demonio comparten la DB).
 func (l *Library) AddToPlaylist(name string, trackIDs []int64) error {
 	id, err := l.playlistID(name)
 	if err != nil {
 		return err
 	}
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
 	var pos int
-	l.db.QueryRow(`SELECT COALESCE(MAX(pos), 0) FROM playlist_tracks WHERE playlist_id = ?`, id).Scan(&pos)
+	if err := tx.QueryRow(
+		`SELECT COALESCE(MAX(pos), 0) FROM playlist_tracks WHERE playlist_id = ?`, id).Scan(&pos); err != nil {
+		tx.Rollback()
+		return err
+	}
 	for _, tid := range trackIDs {
 		pos++
-		if _, err := l.db.Exec(
+		if _, err := tx.Exec(
 			`INSERT INTO playlist_tracks (playlist_id, track_id, pos) VALUES (?, ?, ?)`,
 			id, tid, pos); err != nil {
+			tx.Rollback()
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
 // RemoveFromPlaylist quita la pista en la posición 1-based pos — el orden

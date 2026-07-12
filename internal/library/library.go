@@ -264,7 +264,11 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 		if seen[p] {
 			continue
 		}
-		if rel, err := filepath.Rel(root, p); err != nil || strings.HasPrefix(rel, "..") {
+		// Fuera de root es rel == ".." o "../…": el prefijo solo, sin el
+		// separador, también taparía entradas legítimas bajo un directorio
+		// cuyo nombre empiece con ".." literal (p. ej. root/..covers/).
+		rel, err := filepath.Rel(root, p)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			continue
 		}
 		gone = append(gone, p)
@@ -377,6 +381,10 @@ func Fold(s string) string {
 	return strings.ToLower(out)
 }
 
+// likeEscaper neutraliza los comodines de LIKE en el texto del usuario: sin
+// esto, buscar "100%" matchea cualquier cosa que empiece con "100".
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
 // Search busca cada palabra de q (normalizada) en título, artista o álbum.
 func (l *Library) Search(q string) ([]Track, error) {
 	words := strings.Fields(Fold(q))
@@ -386,8 +394,8 @@ func (l *Library) Search(q string) ([]Track, error) {
 	var conds []string
 	var args []any
 	for _, w := range words {
-		conds = append(conds, `search_text LIKE ?`)
-		args = append(args, "%"+w+"%")
+		conds = append(conds, `search_text LIKE ? ESCAPE '\'`)
+		args = append(args, "%"+likeEscaper.Replace(w)+"%")
 	}
 	return l.collect(`SELECT `+trackCols+` FROM tracks WHERE `+strings.Join(conds, " AND ")+
 		` ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE LIMIT 500`, args...)

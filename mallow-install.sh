@@ -358,6 +358,18 @@ fetch() {
 	fi
 }
 
+# fetch_small es fetch con tope TOTAL (60 s), solo para archivos de bytes
+# (VERSION, .sha256): cierra hasta los modos de atasco que el detector de
+# velocidad no alcanza a ver. Jamás usarlo para descargas grandes — un tope
+# total mataría un tarball legítimo en una conexión lenta.
+fetch_small() {
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --connect-timeout 30 --speed-limit 1 --speed-time 30 --max-time 60 -o "$2" "$1"
+	elif command -v wget >/dev/null 2>&1; then wget -q -T 20 -t 2 -O "$2" "$1"
+	else die 'necesito curl o wget para descargar' 'curl or wget needed to download'
+	fi
+}
+
 # fetch_show es fetch con barra de progreso, para descargas grandes (el
 # tarball de Go tarda minutos y sin salida parece un cuelgue). Redirigido a
 # un log, o con un wget viejo sin --show-progress, cae al fetch silencioso.
@@ -558,7 +570,7 @@ else
 	*) die "arquitectura sin binario oficial de Go: $(uname -m)" \
 		"no official Go binary for this architecture: $(uname -m)" ;;
 	esac
-	fetch 'https://go.dev/VERSION?m=text' "$TMP/gover" ||
+	fetch_small 'https://go.dev/VERSION?m=text' "$TMP/gover" ||
 		die 'no pude consultar la versión de Go en go.dev (¿red, proxy?)' \
 			"couldn't query the Go version from go.dev (network, proxy?)"
 	IFS= read -r GOV < "$TMP/gover" || GOV=''
@@ -570,28 +582,32 @@ else
 	# Verificar el SHA-256 publicado junto al tarball: TLS ya protege el
 	# transporte, esto cubre un mirror/caché comprometido. Sin sha256sum en
 	# el sistema (rarísimo: coreutils/busybox lo traen) se avisa y sigue.
-	# El msg de abajo también evita un silencio post-barra: en una VM lenta
-	# el checksum de 80 MB tarda, y sin salida parece otro cuelgue.
+	# Con heartbeat: hashear 80 MB en un disco lento son minutos — sin
+	# latido parece un cuelgue (visto en la VM de Mint; el ping salía limpio
+	# porque este tramo ni toca la red). die ya hace hb_stop.
 	if command -v sha256sum >/dev/null 2>&1; then
-		msg 'verificando la descarga…' 'verifying the download…'
+		hb_start 'verificando la descarga…' 'verifying the download…'
 		# dl.google.com sirve el .sha256 plano; go.dev/dl devolvería HTML.
-		fetch "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256" ||
+		fetch_small "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256" ||
 			die 'no pude bajar el checksum de Go' "couldn't download the Go checksum"
-		IFS= read -r want < "$TMP/go.tgz.sha256"
+		IFS= read -r want < "$TMP/go.tgz.sha256" || want=''
 		want=${want%% *} # formatos viejos traen "hash  archivo"
 		got=$(sha256sum "$TMP/go.tgz")
 		got=${got%% *}
 		[ -n "$want" ] && [ "$got" = "$want" ] ||
 			die "el checksum del Go bajado no coincide (esperaba $want, obtuve $got)" \
 				"downloaded Go checksum mismatch (expected $want, got $got)"
+		hb_stop
 	else
 		warn 'sin sha256sum no puedo verificar la descarga de Go' \
 			'without sha256sum the Go download cannot be verified'
 	fi
+	# El heartbeat arranca ANTES del rm: borrar un Go previo (~12 mil
+	# archivos) en un disco lento es otro tramo mudo de minutos, y extraer
+	# ~240 MB también.
+	hb_start "extrayendo Go en $CACHE/go…" "extracting Go into $CACHE/go…"
 	rm -rf "$CACHE/go"
 	mkdir -p "$CACHE"
-	# Con heartbeat: extraer ~240 MB en un disco lento son minutos mudos.
-	hb_start "extrayendo Go en $CACHE/go…" "extracting Go into $CACHE/go…"
 	tar -C "$CACHE" -xzf "$TMP/go.tgz" ||
 		{ hb_stop; die 'falló la extracción de Go (¿descarga incompleta, disco lleno?)' \
 			'extracting Go failed (incomplete download, disk full?)'; }

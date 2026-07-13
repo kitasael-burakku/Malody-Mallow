@@ -344,10 +344,15 @@ trap 'st=$?; hb_stop; rm -rf "$TMP"; exit $st' EXIT INT TERM
 # fetch baja una URL a un archivo con curl o wget, lo que haya. Timeouts y
 # reintentos acotados: el default de wget son 20 intentos EN SILENCIO — con
 # la red mal parecía que el instalador se colgaba y luego moría mudo.
+# En curl, --connect-timeout solo cubre el connect TCP: una conexión que
+# entra y luego se atasca esperaría PARA SIEMPRE (visto en una VM de Mint,
+# colgado tras el 100 % de la barra); --speed-limit/--speed-time abortan si
+# baja de 1 B/s por 30 s, el equivalente del -T 30 -t 3 que ya lleva wget.
 # OJO: quien llame a fetch debe manejar el fallo (`|| die …`); bajo set -eu
 # un fetch suelto que falla termina el script sin mensaje.
 fetch() {
-	if command -v curl >/dev/null 2>&1; then curl -fsSL --connect-timeout 30 -o "$2" "$1"
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --connect-timeout 30 --speed-limit 1 --speed-time 30 -o "$2" "$1"
 	elif command -v wget >/dev/null 2>&1; then wget -q -T 30 -t 3 -O "$2" "$1"
 	else die 'necesito curl o wget para descargar' 'curl or wget needed to download'
 	fi
@@ -359,7 +364,7 @@ fetch() {
 fetch_show() {
 	[ -t 1 ] || { fetch "$1" "$2"; return; }
 	if command -v curl >/dev/null 2>&1; then
-		curl -fSL --connect-timeout 30 --progress-bar -o "$2" "$1"
+		curl -fSL --connect-timeout 30 --speed-limit 1 --speed-time 30 --progress-bar -o "$2" "$1"
 	elif command -v wget >/dev/null 2>&1 && wget --help 2>/dev/null | grep -q -- --show-progress; then
 		wget -q --show-progress -T 30 -t 3 -O "$2" "$1"
 	else
@@ -565,7 +570,10 @@ else
 	# Verificar el SHA-256 publicado junto al tarball: TLS ya protege el
 	# transporte, esto cubre un mirror/caché comprometido. Sin sha256sum en
 	# el sistema (rarísimo: coreutils/busybox lo traen) se avisa y sigue.
+	# El msg de abajo también evita un silencio post-barra: en una VM lenta
+	# el checksum de 80 MB tarda, y sin salida parece otro cuelgue.
 	if command -v sha256sum >/dev/null 2>&1; then
+		msg 'verificando la descarga…' 'verifying the download…'
 		# dl.google.com sirve el .sha256 plano; go.dev/dl devolvería HTML.
 		fetch "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256" ||
 			die 'no pude bajar el checksum de Go' "couldn't download the Go checksum"
@@ -582,9 +590,12 @@ else
 	fi
 	rm -rf "$CACHE/go"
 	mkdir -p "$CACHE"
+	# Con heartbeat: extraer ~240 MB en un disco lento son minutos mudos.
+	hb_start "extrayendo Go en $CACHE/go…" "extracting Go into $CACHE/go…"
 	tar -C "$CACHE" -xzf "$TMP/go.tgz" ||
-		die 'falló la extracción de Go (¿descarga incompleta, disco lleno?)' \
-			'extracting Go failed (incomplete download, disk full?)'
+		{ hb_stop; die 'falló la extracción de Go (¿descarga incompleta, disco lleno?)' \
+			'extracting Go failed (incomplete download, disk full?)'; }
+	hb_stop
 	GO=$CACHE/go/bin/go
 fi
 

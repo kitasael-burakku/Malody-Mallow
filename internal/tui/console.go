@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/update"
 	"maly/internal/version"
 )
 
@@ -34,6 +36,15 @@ type conMsg struct {
 
 // getDoneMsg vuelve de yt-dlp (tea.ExecProcess); err nil = descarga ok.
 type getDoneMsg struct{ err error }
+
+// updRunMsg trae el instalador listo para correr (hay release nuevo);
+// updDoneMsg vuelve cuando terminó.
+type updRunMsg struct {
+	latest  string
+	cmd     *exec.Cmd
+	cleanup func()
+}
+type updDoneMsg struct{ err error }
 
 // conMaxLines limita el historial de salida de la consola.
 const conMaxLines = 200
@@ -179,6 +190,8 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		return m.conLang(args)
 	case "version":
 		return m, m.conVersion()
+	case "update":
+		return m, m.conUpdate()
 	case "scan", "rescan":
 		m.conPrint(m.st.dim.Render(i18n.T("con.scanning")))
 		return m, m.conScan(strings.Join(args, " "))
@@ -211,6 +224,7 @@ func (m *Model) conHelp() {
 		{"controls [preset]", i18n.T("cli.controls")},
 		{"lang [en|es]", i18n.T("cli.lang_cmd")},
 		{"version", i18n.T("cli.version_cmd")},
+		{"update", i18n.T("cli.update")},
 	}
 	for _, r := range rows {
 		m.conPrint("  " + m.st.accent.Render(padTo(r[0], 22)) + m.st.text.Render(r[1]))
@@ -392,6 +406,29 @@ func (m *Model) conLang(args []string) (tea.Model, tea.Cmd) {
 	// Recargar la biblioteca para que las etiquetas "(desconocido)" etc.
 	// se generen en el idioma elegido.
 	return m, loadLibrary
+}
+
+// conUpdate espeja `maly update`: chequea el último release y, si hay uno
+// nuevo, entrega el instalador en un updRunMsg para correrlo con
+// tea.ExecProcess (como get: la TUI se suspende y el instalador interactivo
+// usa el terminal).
+func (m *Model) conUpdate() tea.Cmd {
+	st := m.st
+	return func() tea.Msg {
+		latest, err := update.Latest()
+		if err != nil {
+			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
+		}
+		update.SaveCache(latest)
+		if !update.Newer(latest, version.Version) {
+			return conMsg{lines: []string{st.playing.Render(i18n.Tf("up.current", version.Version))}}
+		}
+		cmd, cleanup, err := update.InstallerCmd()
+		if err != nil {
+			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
+		}
+		return updRunMsg{latest: latest, cmd: cmd, cleanup: cleanup}
+	}
 }
 
 // conVersion espeja `maly version`: versión propia y, si el demonio

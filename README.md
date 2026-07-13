@@ -93,6 +93,12 @@ se instala sin preguntar; sin terminal corre entero con los defaults.
 - Re-ejecutarlo actualiza a lo último de `main`.
 - Desde un checkout también funciona: `./mallow-install.sh`.
 
+Con maly ya instalado, `maly update` hace todo esto solo: consulta los tags
+del repo con git, y si hay un release nuevo descarga el instalador y lo corre
+con `--update`. La TUI avisa en el pie cuando hay versión nueva (chequeo al
+abrir, uno por día como mucho; se apaga con `update_check = false` en el
+config).
+
 ### A mano
 
 Dependencias de sistema: `mpv` (audio), Go ≥ 1.25 (para compilar) y, para
@@ -280,6 +286,7 @@ maly playlist export <nombre> [archivo]   # escribe la playlist como M3U
 maly playlist import <archivo> [nombre]   # crea una playlist desde un M3U
 maly controls [default|vim]    # lista o cambia el preset de controles
 maly lang [en|es]              # cambia el idioma (sin arg abre el selector); alias -l
+maly update                    # busca un release nuevo y corre el instalador
 maly completions <shell>       # script de autocompletado (bash | fish | zsh)
 maly version | -v              # también muestra la versión del servicio si corre
 ```
@@ -331,6 +338,7 @@ y sigue funcionando sin MPRIS.
 music_dir = "~/Music"
 language = ""             # "" = preguntar al abrir la TUI; "en" | "es"
 controls = "default"      # esquema de teclas: default | vim (maly controls)
+update_check = true       # la TUI avisa si hay versión nueva (maly update)
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal

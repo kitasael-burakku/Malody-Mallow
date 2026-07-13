@@ -84,6 +84,7 @@ var table = map[string][2]string{
 	"tui.no_daemon":       {" the daemon is not responding…", " el servicio no responde…"},
 	"tui.viz_fake":        {"pw-record/parec not found: visualizer in animation mode", "sin pw-record/parec: visualizador en modo animación"},
 	"tui.svc_version":     {"the daemon runs v%s (another binary): restart it to update", "el servicio corre v%s (otro binario): reinícialo para actualizar"},
+	"tui.update_avail":    {"%s available — update with: maly update", "%s disponible — actualiza con: maly update"},
 	"tui.lib_err":         {"library: %s", "biblioteca: %s"},
 	"tui.lib_empty_flash": {"Library is empty: run `maly scan` or check music_dir in the config", "Biblioteca vacía: ejecuta `maly scan` o revisa music_dir en el config"},
 	"tui.filter_ph":       {"filter…", "filtrar…"},
@@ -187,6 +188,7 @@ var table = map[string][2]string{
 	"cli.completions":       {"print the shell completion script", "imprime el script de autocompletado del shell"},
 	"cli.help_cmd":          {"show this help", "muestra esta ayuda"},
 	"cli.version_cmd":       {"show version (and the running daemon's)", "muestra la versión (y la del servicio si corre)"},
+	"cli.update":            {"check for a new release and update maly", "busca una versión nueva y actualiza maly"},
 	"cli.version_svc":       {"daemon: v%s", "servicio: v%s"},
 	"cli.version_svc_old":   {"daemon: v%s — differs from the client; restart the daemon to update it", "servicio: v%s — distinta del cliente; reinicia el servicio para actualizarlo"},
 	"cli.lang_cmd":          {"change the interface language", "cambia el idioma de la interfaz"},
@@ -227,7 +229,15 @@ var table = map[string][2]string{
 	"cli.get_start":         {"Downloading %s → %s", "Descargando %s → %s"},
 	"cli.get_err":           {"yt-dlp failed: %v (see its output above)", "yt-dlp falló: %v (revisa su salida arriba)"},
 	"cli.get_scan":          {"Download finished — updating the library ...", "Descarga lista — actualizando la biblioteca ..."},
-	"cli.tbl_header":        {"ID\tARTIST\tALBUM\t#\tTITLE", "ID\tARTISTA\tÁLBUM\t#\tTÍTULO"},
+
+	// ---- maly update (chequeo de releases vía git + mallow-install.sh) ----
+	"up.current":     {"you're up to date (v%s)", "ya estás al día (v%s)"},
+	"up.found":       {"%s available (you have v%s) — launching the installer ...", "%s disponible (tienes v%s) — lanzando el instalador ..."},
+	"up.no_git":      {"the update check needs git, which is not in your PATH", "el chequeo de actualización necesita git, que no está en tu PATH"},
+	"up.no_tags":     {"no version tags found in the repository", "no hay tags de versión en el repositorio"},
+	"up.no_curl":     {"curl is not in your PATH — install it or run the installer yourself: %s", "curl no está en tu PATH — instálalo o corre el instalador a mano: %s"},
+	"up.done":        {"installer finished — restart the daemon and reopen the TUI to use the new version", "instalador terminado — reinicia el servicio y reabre la TUI para estrenar la versión nueva"},
+	"cli.tbl_header": {"ID\tARTIST\tALBUM\t#\tTITLE", "ID\tARTISTA\tÁLBUM\t#\tTÍTULO"},
 
 	// ---- CLI: playlists ----
 	"pl.usage":        {"usage:\n  maly playlist list                  list playlists\n  maly playlist show <name>           list the playlist's tracks\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist remove <name> <pos>   remove the track at that position\n  maly playlist play <name>           play the playlist (needs daemon)\n  maly playlist export <name> [file]  write the playlist as M3U\n  maly playlist import <file> [name]  create a playlist from an M3U", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist show <nombre>             lista las pistas de la playlist\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist remove <nombre> <pos>     quita la pista en esa posición\n  maly playlist play <nombre>             reproduce la playlist (requiere el servicio)\n  maly playlist export <nombre> [archivo] escribe la playlist como M3U\n  maly playlist import <archivo> [nombre] crea una playlist desde un M3U"},

@@ -105,6 +105,13 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
 - `internal/i18n` — `T/Tf` (idioma global) y `TL/TLf` (por petición: el cliente
   manda `Request.Lang` y el demonio responde en ese idioma). `TestTableIntegrity`
   valida en/es al agregar claves.
+- `internal/update` — chequeo de releases fiel a la filosofía "coordinar
+  herramientas": `git ls-remote --tags` contra el repo (nada de HTTP propio),
+  mayor tag semver vs `version.Version`, cache 24 h en
+  `XDG_DATA_HOME/maly/update.json`. `maly update` (CLI y paleta) descarga el
+  instalador con curl a un temporal y corre `sh <tmp> --update`; la TUI
+  chequea en `Init` (gated por `update_check` del config) y avisa en el pie
+  (`updAvail`, prioridad tras `verMismatch`).
 
 Decisiones transversales:
 - El demonio adjunta `Response.Version` en toda respuesta; CLI y TUI avisan si

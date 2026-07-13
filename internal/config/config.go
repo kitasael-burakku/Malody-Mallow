@@ -33,12 +33,13 @@ type Visualizer struct {
 }
 
 type Config struct {
-	MusicDir   string            `toml:"music_dir"`
-	Language   string            `toml:"language"` // "" = preguntar al abrir la TUI; "en" | "es"
-	Controls   string            `toml:"controls"` // preset de teclas: "default" | "vim"
-	Theme      Theme             `toml:"theme"`
-	Visualizer Visualizer        `toml:"visualizer"`
-	Keys       map[string]string `toml:"keys"`
+	MusicDir    string            `toml:"music_dir"`
+	Language    string            `toml:"language"`     // "" = preguntar al abrir la TUI; "en" | "es"
+	Controls    string            `toml:"controls"`     // preset de teclas: "default" | "vim"
+	UpdateCheck bool              `toml:"update_check"` // la TUI avisa si hay release nuevo (maly update)
+	Theme       Theme             `toml:"theme"`
+	Visualizer  Visualizer        `toml:"visualizer"`
+	Keys        map[string]string `toml:"keys"`
 }
 
 // DefaultKeys son los keybindings por defecto de la TUI; cualquier entrada
@@ -99,7 +100,8 @@ func ValidPreset(name string) bool {
 
 func Default() Config {
 	return Config{
-		MusicDir: collapseTilde(defaultMusicDir()),
+		MusicDir:    collapseTilde(defaultMusicDir()),
+		UpdateCheck: true,
 		Theme: Theme{
 			Transparent: true,
 			Accent:      "#89b4fa",
@@ -124,6 +126,7 @@ func Default() Config {
 const configTemplate = `music_dir = %q
 language = ""             # "" = preguntar al abrir la TUI; "en" | "es"
 controls = "default"      # esquema de teclas: default | vim (maly controls)
+update_check = true       # la TUI avisa si hay versión nueva (maly update)
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal

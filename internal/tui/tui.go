@@ -13,6 +13,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/update"
 	"maly/internal/version"
 	"maly/internal/viz"
 )
@@ -54,6 +55,10 @@ type Model struct {
 	// Versión del demonio si difiere de la del binario ("" = coincide o aún
 	// no se sabe): se muestra persistente en el pie hasta que lo reinicien.
 	verMismatch string
+
+	// Release nuevo disponible ("" = al día o sin chequear): aviso
+	// persistente en el pie, como verMismatch pero menos urgente.
+	updAvail string
 
 	filterMode  bool
 	filterInput textinput.Model
@@ -159,7 +164,30 @@ func (m *Model) Init() tea.Cmd {
 	if m.viz != nil {
 		cmds = append(cmds, vizTickCmd())
 	}
+	if m.cfg.UpdateCheck {
+		cmds = append(cmds, updateCheckCmd())
+	}
 	return tea.Batch(cmds...)
+}
+
+// updMsg trae el último release conocido ("" = no se pudo chequear).
+type updMsg struct{ latest string }
+
+// updateCheckCmd averigua el release más nuevo: usa el cache si sigue fresco
+// y solo entonces pregunta a la red (git ls-remote). Los fallos son mudos —
+// sin git o sin red simplemente no hay aviso.
+func updateCheckCmd() tea.Cmd {
+	return func() tea.Msg {
+		if latest, fresh := update.Cached(); fresh {
+			return updMsg{latest: latest}
+		}
+		latest, err := update.Latest()
+		if err != nil {
+			return updMsg{}
+		}
+		update.SaveCache(latest)
+		return updMsg{latest: latest}
+	}
 }
 
 // subRetryTicks separa los reintentos de suscripción en modo polling
@@ -390,6 +418,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
 		return m, m.conScan("")
+
+	case updMsg:
+		if update.Newer(msg.latest, version.Version) {
+			m.updAvail = msg.latest
+		}
+		return m, nil
+
+	case updRunMsg:
+		m.conPrint(m.st.dim.Render(i18n.Tf("up.found", msg.latest, version.Version)))
+		cleanup := msg.cleanup
+		return m, tea.ExecProcess(msg.cmd, func(err error) tea.Msg {
+			cleanup()
+			return updDoneMsg{err: err}
+		})
+
+	case updDoneMsg:
+		if msg.err != nil {
+			m.conErr(msg.err.Error())
+			return m, nil
+		}
+		m.conPrint(m.st.playing.Render(i18n.T("up.done")))
+		return m, nil
 
 	case plListMsg:
 		if msg.err != nil {

@@ -341,11 +341,29 @@ fi
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/mallow.XXXXXX")
 trap 'st=$?; hb_stop; rm -rf "$TMP"; exit $st' EXIT INT TERM
 
-# fetch baja una URL a un archivo con curl o wget, lo que haya.
+# fetch baja una URL a un archivo con curl o wget, lo que haya. Timeouts y
+# reintentos acotados: el default de wget son 20 intentos EN SILENCIO — con
+# la red mal parecía que el instalador se colgaba y luego moría mudo.
+# OJO: quien llame a fetch debe manejar el fallo (`|| die …`); bajo set -eu
+# un fetch suelto que falla termina el script sin mensaje.
 fetch() {
-	if command -v curl >/dev/null 2>&1; then curl -fsSLo "$2" "$1"
-	elif command -v wget >/dev/null 2>&1; then wget -qO "$2" "$1"
+	if command -v curl >/dev/null 2>&1; then curl -fsSL --connect-timeout 30 -o "$2" "$1"
+	elif command -v wget >/dev/null 2>&1; then wget -q -T 30 -t 3 -O "$2" "$1"
 	else die 'necesito curl o wget para descargar' 'curl or wget needed to download'
+	fi
+}
+
+# fetch_show es fetch con barra de progreso, para descargas grandes (el
+# tarball de Go tarda minutos y sin salida parece un cuelgue). Redirigido a
+# un log, o con un wget viejo sin --show-progress, cae al fetch silencioso.
+fetch_show() {
+	[ -t 1 ] || { fetch "$1" "$2"; return; }
+	if command -v curl >/dev/null 2>&1; then
+		curl -fSL --connect-timeout 30 --progress-bar -o "$2" "$1"
+	elif command -v wget >/dev/null 2>&1 && wget --help 2>/dev/null | grep -q -- --show-progress; then
+		wget -q --show-progress -T 30 -t 3 -O "$2" "$1"
+	else
+		fetch "$1" "$2"
 	fi
 }
 
@@ -535,17 +553,22 @@ else
 	*) die "arquitectura sin binario oficial de Go: $(uname -m)" \
 		"no official Go binary for this architecture: $(uname -m)" ;;
 	esac
-	fetch 'https://go.dev/VERSION?m=text' "$TMP/gover"
-	IFS= read -r GOV < "$TMP/gover"
+	fetch 'https://go.dev/VERSION?m=text' "$TMP/gover" ||
+		die 'no pude consultar la versión de Go en go.dev (¿red, proxy?)' \
+			"couldn't query the Go version from go.dev (network, proxy?)"
+	IFS= read -r GOV < "$TMP/gover" || GOV=''
 	case "$GOV" in go1.*) ;; *) die "respuesta rara de go.dev: $GOV" "odd reply from go.dev: $GOV" ;; esac
 	msg "bajando $GOV linux/$GOARCH…" "downloading $GOV linux/$GOARCH…"
-	fetch "https://go.dev/dl/$GOV.linux-$GOARCH.tar.gz" "$TMP/go.tgz"
+	fetch_show "https://go.dev/dl/$GOV.linux-$GOARCH.tar.gz" "$TMP/go.tgz" ||
+		die 'falló la descarga de Go; revisa tu conexión y reintenta' \
+			'the Go download failed; check your connection and retry'
 	# Verificar el SHA-256 publicado junto al tarball: TLS ya protege el
 	# transporte, esto cubre un mirror/caché comprometido. Sin sha256sum en
 	# el sistema (rarísimo: coreutils/busybox lo traen) se avisa y sigue.
 	if command -v sha256sum >/dev/null 2>&1; then
 		# dl.google.com sirve el .sha256 plano; go.dev/dl devolvería HTML.
-		fetch "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256"
+		fetch "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256" ||
+			die 'no pude bajar el checksum de Go' "couldn't download the Go checksum"
 		IFS= read -r want < "$TMP/go.tgz.sha256"
 		want=${want%% *} # formatos viejos traen "hash  archivo"
 		got=$(sha256sum "$TMP/go.tgz")
@@ -559,7 +582,9 @@ else
 	fi
 	rm -rf "$CACHE/go"
 	mkdir -p "$CACHE"
-	tar -C "$CACHE" -xzf "$TMP/go.tgz"
+	tar -C "$CACHE" -xzf "$TMP/go.tgz" ||
+		die 'falló la extracción de Go (¿descarga incompleta, disco lleno?)' \
+			'extracting Go failed (incomplete download, disk full?)'
 	GO=$CACHE/go/bin/go
 fi
 

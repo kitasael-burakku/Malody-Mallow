@@ -16,6 +16,16 @@ var langOptions = []struct{ code, label string }{
 	{"es", "Español"},
 }
 
+// langLabel devuelve el nombre visible de un código de idioma.
+func langLabel(code string) string {
+	for _, o := range langOptions {
+		if o.code == code {
+			return o.label
+		}
+	}
+	return code
+}
+
 func (m *Model) handleLangKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "up", "k":

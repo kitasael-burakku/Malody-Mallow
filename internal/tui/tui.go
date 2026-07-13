@@ -373,8 +373,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case conMsg:
-		m.conLines = append(m.conLines, msg.lines...)
+		for _, l := range msg.lines {
+			m.conPrint(l) // conPrint aplica el tope de historial
+		}
+		if msg.reload {
+			// Una mutación de playlists desde la consola: el árbol las
+			// incluye y debe reflejarla (a diferencia de la CLI externa).
+			return m, loadLibrary
+		}
 		return m, nil
+
+	case getDoneMsg:
+		if msg.err != nil {
+			m.conErr(i18n.Tf("cli.get_err", msg.err))
+			return m, nil
+		}
+		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
+		return m, m.conScan("")
 
 	case plListMsg:
 		if msg.err != nil {

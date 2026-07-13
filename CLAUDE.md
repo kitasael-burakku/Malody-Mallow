@@ -88,16 +88,20 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   embebida → cache SHA-1 en runtime dir, `art.go`).
 - `internal/tui` — Bubble Tea. Recibe estado por **suscripción push**
   (`subscribe`; fallback a polling de 500 ms con reintento). Paneles biblioteca/
-  cola + consola ctrl+p (tabla propia de comandos en `console.go`) + picker
+  cola + consola ctrl+p (tabla propia de comandos en `console.go`, con paridad
+  CLI completa: `playlist` en `console_playlist.go`, `get` vía
+  `tea.ExecProcess` + `internal/getter` compartido con la CLI, `controls`
+  aplica el preset en vivo recargando `m.keys`) + picker
   fuzzy genérico (`picker.go`, usado por ctrl+o canciones, ctrl+l playlists y
   `maly select`). Los modales tapan el footer: los flashes no se ven con un
   modal abierto (el panel de playlists los dibuja bajo el modal por eso).
   El árbol de la biblioteca (`tree.go`) incluye las playlists como raíces
   tras los artistas (`playlistNode`, pistas hijas directas numeradas por
   posición); la indentación y la búsqueda de padre usan el campo `depth`,
-  no el kind. Toda mutación de playlists en la TUI (plActMsg) recarga el
-  árbol; las hechas por CLI desde otra terminal no se reflejan en vivo
-  (van directo a SQLite, sin demonio de por medio — limitación conocida).
+  no el kind. Toda mutación de playlists en la TUI (plActMsg, y en la
+  consola `conMsg.reload`) recarga el árbol; las hechas por CLI desde otra
+  terminal no se reflejan en vivo (van directo a SQLite, sin demonio de
+  por medio — limitación conocida).
 - `internal/i18n` — `T/Tf` (idioma global) y `TL/TLf` (por petición: el cliente
   manda `Request.Lang` y el demonio responde en ese idioma). `TestTableIntegrity`
   valida en/es al agregar claves.

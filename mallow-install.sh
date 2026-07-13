@@ -401,16 +401,58 @@ elif command -v xbps-install >/dev/null 2>&1; then INSTALL_CMD='xbps-install -y'
 fi
 PM=${INSTALL_CMD%% *}
 
+# ytdlp_stale dice si el yt-dlp del PATH tiene más de YTDLP_STALE_DAYS
+# días. yt-dlp versiona por fecha (YYYY.MM.DD) y releasea casi semanal;
+# YouTube rompe las versiones viejas (los repos de apt van meses atrás),
+# así que un umbral de versión fija envejecería en semanas — la
+# antigüedad no. Solo usa `date +%…` POSIX: -d/+%s no son portables
+# (musl/busybox/BSD divergen). La aritmética es aproximada (meses de 30
+# días, sin bisiestos): con umbral de meses el margen sobra. Formato
+# irreconocible (fork, sufijo raro) = no determinable = NO obsoleto, para
+# no molestar builds legítimos. Deja versión y edad en YTDLP_VER/_AGE.
+YTDLP_STALE_DAYS=90
+YTDLP_VER='' YTDLP_AGE=''
+ytdlp_stale() {
+	YTDLP_VER=$(yt-dlp --version 2>/dev/null | sed -n 1p) || YTDLP_VER=''
+	case $YTDLP_VER in
+	[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9] | [0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].*) ;;
+	*) return 1 ;;
+	esac
+	yv_y=${YTDLP_VER%%.*}
+	yv_r=${YTDLP_VER#*.}
+	yv_m=${yv_r%%.*}
+	yv_r=${yv_r#*.}
+	yv_d=${yv_r%%.*}
+	yv_t=$(date +%Y.%m.%d)
+	yt_y=${yv_t%%.*}
+	yv_r=${yv_t#*.}
+	yt_m=${yv_r%%.*}
+	yt_d=${yv_r#*.}
+	# Pelar el cero líder: la aritmética POSIX leería 08/09 como octal roto.
+	yv_m=${yv_m#0} yv_d=${yv_d#0} yt_m=${yt_m#0} yt_d=${yt_d#0}
+	YTDLP_AGE=$(( (yt_y*365 + (yt_m-1)*30 + yt_d) - (yv_y*365 + (yv_m-1)*30 + yv_d) ))
+	[ "$YTDLP_AGE" -gt "$YTDLP_STALE_DAYS" ]
+}
+
 # ---- pantalla 3: dependencias ----
 # Solo aparecen las que faltan; mpv y git van marcados (sin ellos maly no
 # suena / no hay qué compilar), yt-dlp+ffmpeg y el visualizador son
 # opcionales y arrancan desmarcados. `maly get` es un comando opcional: sus
-# herramientas no deben colarse en una instalación por defecto.
+# herramientas no deben colarse en una instalación por defecto. Un yt-dlp
+# presente pero viejo cuenta como faltante: existir no le sirve de nada a
+# `maly get` si YouTube ya no le responde.
 DEPS=''
 SEL_mpv=1 SEL_git=1 SEL_get=0 SEL_viz=0
+YTDLP_STALE=0
+if command -v yt-dlp >/dev/null 2>&1; then
+	ytdlp_stale && YTDLP_STALE=1
+	YTDLP_MISSING=0
+else
+	YTDLP_MISSING=1
+fi
 command -v mpv >/dev/null 2>&1 || DEPS="$DEPS mpv"
 if [ -z "$SRC" ] && ! command -v git >/dev/null 2>&1; then DEPS="$DEPS git"; fi
-if ! command -v yt-dlp >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
+if [ "$YTDLP_MISSING" -eq 1 ] || [ "$YTDLP_STALE" -eq 1 ] || ! command -v ffmpeg >/dev/null 2>&1; then
 	DEPS="$DEPS get"
 fi
 if ! command -v pw-record >/dev/null 2>&1 && ! command -v parec >/dev/null 2>&1; then
@@ -429,6 +471,10 @@ dep_label() {
 # La actualización no re-ofrece opcionales: solo asegura lo imprescindible.
 if [ "$TTY" -eq 1 ] && [ "$ACTION" != update ] && [ -n "$DEPS" ]; then
 	section 'dependencias' 'dependencies'
+	if [ "$YTDLP_STALE" -eq 1 ]; then
+		warn "tu yt-dlp es de $YTDLP_VER (~$YTDLP_AGE días): YouTube cambia seguido y esa versión suele fallar — marcarlo instala uno reciente sin tocar el del sistema" \
+			"your yt-dlp is from $YTDLP_VER (~$YTDLP_AGE days old): YouTube changes often and that version tends to fail — selecting it installs a recent one without touching the system's"
+	fi
 	msg 'esto falta en tu sistema; marca qué instalar:' 'these are missing on your system; pick what to install:'
 	while :; do
 		d_i=1
@@ -467,13 +513,18 @@ for d_k in $DEPS; do
 	git) PKGS="$PKGS git" ;;
 	get)
 		command -v ffmpeg >/dev/null 2>&1 || PKGS="$PKGS ffmpeg"
-		if ! command -v yt-dlp >/dev/null 2>&1; then
+		# Faltante u obsoleto da igual: ambos necesitan uno fresco.
+		if [ "$YTDLP_MISSING" -eq 1 ] || [ "$YTDLP_STALE" -eq 1 ]; then
 			if [ "$PM" = apt-get ]; then
-				# Debian/Ubuntu empaquetan un yt-dlp viejo (2024) que ya no
-				# baja de YouTube: va vía pipx, que instala el actual.
+				# Debian/Ubuntu empaquetan un yt-dlp viejo que ya no baja
+				# de YouTube: va vía pipx, que instala el actual en
+				# ~/.local/bin sin tocar el del sistema.
 				PIPX_YTDLP=1
 				command -v pipx >/dev/null 2>&1 || PKGS="$PKGS pipx"
 			else
+				# En repos rodantes `install` del gestor también actualiza
+				# uno viejo (pacman --needed lo deja; ahí actualiza el
+				# sistema, no este script).
 				PKGS="$PKGS yt-dlp"
 			fi
 		fi ;;
@@ -507,9 +558,11 @@ if [ -n "$PKGS" ]; then
 fi
 
 if [ "$PIPX_YTDLP" -eq 1 ]; then
-	msg 'instalando yt-dlp actual vía pipx (el de los repos Debian/Ubuntu es de 2024 y ya no baja de YouTube)' \
-		'installing current yt-dlp via pipx (the Debian/Ubuntu repo one is from 2024 and no longer downloads from YouTube)'
-	pipx install yt-dlp ||
+	msg 'instalando yt-dlp actual vía pipx (el de los repos apt va meses atrás y YouTube lo rompe)' \
+		'installing current yt-dlp via pipx (the apt repo one lags months behind and YouTube breaks it)'
+	# --force: si el viejo era un pipx previo, reinstala en vez de fallar
+	# con "already installed".
+	pipx install --force yt-dlp ||
 		die 'falló `pipx install yt-dlp`' '`pipx install yt-dlp` failed'
 	msg 'yt-dlp quedó en ~/.local/bin (pipx); `pipx upgrade yt-dlp` lo actualiza' \
 		'yt-dlp lives in ~/.local/bin (pipx); `pipx upgrade yt-dlp` updates it'

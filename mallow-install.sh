@@ -342,20 +342,10 @@ TMP=$(mktemp -d "${TMPDIR:-/tmp}/mallow.XXXXXX")
 trap 'st=$?; hb_stop; rm -rf "$TMP"; exit $st' EXIT INT TERM
 
 # fetch baja una URL a un archivo con curl o wget, lo que haya.
-#
-# Sin límite de tiempo, un curl/wget colgado (DNS roto, NAT de una VM, mirror
-# caído a medio archivo) se queda ahí para siempre y el instalador parece
-# trabado sin ningún mensaje. connect-timeout corta si ni siquiera logra
-# conectar; speed-limit/speed-time (curl) y read-timeout (wget) cortan si la
-# conexión se estanca a mitad de la transferencia — no es un límite de tiempo
-# total, así que una descarga lenta pero que avanza no se corta de más.
 fetch() {
-	if command -v curl >/dev/null 2>&1; then
-		curl --connect-timeout 15 --speed-limit 1024 --speed-time 30 -fsSLo "$2" "$1"
-	elif command -v wget >/dev/null 2>&1; then
-		wget --timeout=20 --tries=1 -qO "$2" "$1"
-	else
-		die 'necesito curl o wget para descargar' 'curl or wget needed to download'
+	if command -v curl >/dev/null 2>&1; then curl -fsSLo "$2" "$1"
+	elif command -v wget >/dev/null 2>&1; then wget -qO "$2" "$1"
+	else die 'necesito curl o wget para descargar' 'curl or wget needed to download'
 	fi
 }
 
@@ -545,21 +535,17 @@ else
 	*) die "arquitectura sin binario oficial de Go: $(uname -m)" \
 		"no official Go binary for this architecture: $(uname -m)" ;;
 	esac
-	fetch 'https://go.dev/VERSION?m=text' "$TMP/gover" ||
-		die 'no pude contactar go.dev (revisa la red)' "couldn't reach go.dev (check the network)"
+	fetch 'https://go.dev/VERSION?m=text' "$TMP/gover"
 	IFS= read -r GOV < "$TMP/gover"
 	case "$GOV" in go1.*) ;; *) die "respuesta rara de go.dev: $GOV" "odd reply from go.dev: $GOV" ;; esac
-	hb_start "bajando $GOV linux/$GOARCH…" "downloading $GOV linux/$GOARCH…"
-	fetch "https://go.dev/dl/$GOV.linux-$GOARCH.tar.gz" "$TMP/go.tgz" ||
-		{ hb_stop; die "falló la descarga de $GOV (revisa la red)" "failed to download $GOV (check the network)"; }
-	hb_stop
+	msg "bajando $GOV linux/$GOARCH…" "downloading $GOV linux/$GOARCH…"
+	fetch "https://go.dev/dl/$GOV.linux-$GOARCH.tar.gz" "$TMP/go.tgz"
 	# Verificar el SHA-256 publicado junto al tarball: TLS ya protege el
 	# transporte, esto cubre un mirror/caché comprometido. Sin sha256sum en
 	# el sistema (rarísimo: coreutils/busybox lo traen) se avisa y sigue.
 	if command -v sha256sum >/dev/null 2>&1; then
 		# dl.google.com sirve el .sha256 plano; go.dev/dl devolvería HTML.
-		fetch "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256" ||
-			die 'no pude bajar el checksum de Go (revisa la red)' "couldn't download the Go checksum (check the network)"
+		fetch "https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256" "$TMP/go.tgz.sha256"
 		IFS= read -r want < "$TMP/go.tgz.sha256"
 		want=${want%% *} # formatos viejos traen "hash  archivo"
 		got=$(sha256sum "$TMP/go.tgz")

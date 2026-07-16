@@ -20,6 +20,8 @@ and an `mpc`/`playerctl`-style CLI, all in a single binary.
 
 ![Song selector](pictures/selector.jpg)
 
+![Maly in Hyprland](pictures/hyprland-maly.png)
+
 ---
 
 ## Features

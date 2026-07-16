@@ -4,6 +4,8 @@
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
+🇪🇸 [Español](README.md) · 🇬🇧 [English](README.en.md)
+
 Reproductor de música local para terminal (comando `maly`), estilo
 btop/lazygit: TUI con paneles, servicio en segundo plano con socket Unix
 y CLI tipo `mpc`/`playerctl`, todo en un solo binario.

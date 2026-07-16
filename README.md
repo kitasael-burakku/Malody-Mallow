@@ -63,8 +63,7 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
   (`maly get "artista canción"` o una URL) — con metadata y carátula
   embebidas, y re-escaneo automático. yt-dlp y ffmpeg son opcionales:
   solo este comando los usa.
-- Tema y keybindings configurables por TOML; fondo transparente (usa el
-  color de tu terminal).
+- **Tema y keybindings** configurables por TOML; fondo transparente (usa el color de tu terminal).
 
 ## Instalación
 
@@ -302,6 +301,33 @@ sin `://` busca la frase en YouTube y baja el primer resultado; con una URL
 la descarga tal cual. El audio queda como MP3 con metadata y carátula
 embebidas en `music_dir`, y la biblioteca se re-escanea sola (a través del
 servicio si está corriendo).
+
+### Hyprland
+
+Puedes agregar maly a tu configuración de Hyprland en Lua. Autostart del
+demonio:
+
+```lua
+hl.exec_cmd("maly daemon &") -- se agrega al módulo de autostart
+```
+
+Toggle de una terminal dedicada (abre/cierra una ventana de kitty con la
+TUI, filtrando por cliente para no matar el daemon del autostart):
+
+```lua
+-- Programs
+music = "hyprctl clients | grep -i 'title: maly' >/dev/null && pkill -f 'kitty --title maly' || kitty --title maly -e maly"
+```
+
+```lua
+-- Keybinds
+hl.bind(mainMod .. "+ M", hl.dsp.exec_cmd(Programs.music))
+```
+
+> Tip: al usar `kitty --title maly` en el toggle, filtra siempre por el
+> cliente vía `hyprctl` antes del `pkill -f`; sin ese filtro, `pkill -f`
+> puede alcanzar al propio proceso que lo invocó y matar el daemon del
+> autostart en vez de solo la ventana de kitty.
 
 ### MPRIS (playerctl, Waybar…)
 

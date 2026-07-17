@@ -87,11 +87,12 @@ func New(cfg config.Config) (*Daemon, error) {
 	if _, err := config.EnsureRuntimeDir(); err != nil {
 		return nil, err
 	}
-	if _, err := os.Stat(sock); err == nil {
-		if ipc.Ping(sock) {
-			return nil, ErrAlreadyRunning
-		}
-		os.Remove(sock) // socket huérfano de una sesión anterior
+	// Fallar rápido si ya hay demonio, ANTES de abrir DB y lanzar mpv. Solo
+	// sondea: el socket huérfano se limpia más abajo, tras el EADDRINUSE —
+	// borrarlo aquí podía desanclar el socket recién bindeado de otro demonio
+	// arrancando a la vez (TOCTOU entre el ping y el listen).
+	if ipc.Ping(sock) {
+		return nil, ErrAlreadyRunning
 	}
 
 	lib, err := library.Open(config.DBPath())
@@ -122,15 +123,27 @@ func New(cfg config.Config) (*Daemon, error) {
 	go d.sessionSaver()
 
 	ln, err := net.Listen("unix", sock)
+	if errors.Is(err, syscall.EADDRINUSE) {
+		// El path está ocupado: o hay un demonio vivo (arranques simultáneos:
+		// mismo diagnóstico que el ping inicial) o quedó un socket huérfano de
+		// una sesión que murió sin limpiar. Solo tras confirmar que nadie
+		// contesta se borra y se reintenta una vez.
+		if ipc.Ping(sock) {
+			pl.Close()
+			lib.Close()
+			return nil, ErrAlreadyRunning
+		}
+		os.Remove(sock)
+		ln, err = net.Listen("unix", sock)
+		if errors.Is(err, syscall.EADDRINUSE) {
+			pl.Close()
+			lib.Close()
+			return nil, ErrAlreadyRunning
+		}
+	}
 	if err != nil {
 		pl.Close()
 		lib.Close()
-		if errors.Is(err, syscall.EADDRINUSE) {
-			// Otro demonio ganó el socket entre el ping y este listen
-			// (arranques simultáneos): mismo diagnóstico que el chequeo
-			// inicial, no un error crudo.
-			return nil, ErrAlreadyRunning
-		}
 		return nil, fmt.Errorf("%s: %w", i18n.Tf("d.listen", sock), err)
 	}
 	d.ln = ln
@@ -485,6 +498,23 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		// mutex tomado, un escaneo largo congelaría play/status/TUI.
 		return d.scan(req.Lang, req.Query)
 	}
+
+	// play/add resuelven sus pistas ANTES de tomar d.mu: resolveTracks puede
+	// recorrer un directorio leyendo tags (IO lento) y trackFromFile leerlos
+	// de rutas fuera de la biblioteca — bajo el lock congelarían status, TUI
+	// y MPRIS, la misma lección que sacó a scan de aquí. lib es thread-safe.
+	var resolved []library.Track
+	var resolveErr error
+	switch {
+	case req.Cmd == "play" && strings.TrimSpace(req.Query) != "",
+		req.Cmd == "add" && len(req.Paths) == 0:
+		resolved, resolveErr = d.resolveTracks(req.Lang, req.Query)
+	case (req.Cmd == "add" || req.Cmd == "playnow") && len(req.Paths) > 0:
+		for _, p := range req.Paths {
+			resolved = append(resolved, trackFromFile(d.lib, p))
+		}
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -516,16 +546,15 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 
 	case "play":
 		if strings.TrimSpace(req.Query) != "" {
-			tracks, err := d.resolveTracks(lang, req.Query)
-			if err != nil {
-				return fail(err)
+			if resolveErr != nil {
+				return fail(resolveErr)
 			}
-			d.q.Replace(tracks)
+			d.q.Replace(resolved)
 			t, _ := d.q.JumpTo(0)
 			if err := d.loadLocked(t); err != nil {
 				return fail(err)
 			}
-			return okStatus(i18n.TLf(lang, "d.playing_n", t, len(tracks)))
+			return okStatus(i18n.TLf(lang, "d.playing_n", t, len(resolved)))
 		}
 		return d.resumeLocked(lang, fail, okStatus)
 
@@ -572,14 +601,13 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		return okStatus(i18n.TLf(lang, "d.playing", t))
 
 	case "playnow":
-		// Agrega pistas exactas (rutas) y salta a la primera; usado por la TUI.
-		if len(req.Paths) == 0 {
+		// Agrega pistas exactas (rutas, ya resueltas arriba) y salta a la
+		// primera; usado por la TUI.
+		if len(resolved) == 0 {
 			return fail(errors.New(i18n.TL(lang, "d.playnow_paths")))
 		}
 		first := d.q.Len()
-		for _, p := range req.Paths {
-			d.q.Add(trackFromFile(d.lib, p))
-		}
+		d.q.Add(resolved...)
 		t, _ := d.q.JumpTo(first)
 		if err := d.loadLocked(t); err != nil {
 			return fail(err)
@@ -587,18 +615,10 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		return okStatus(i18n.TLf(lang, "d.playing", t))
 
 	case "add":
-		var tracks []library.Track
-		var err error
-		if len(req.Paths) > 0 {
-			for _, p := range req.Paths {
-				tracks = append(tracks, trackFromFile(d.lib, p))
-			}
-		} else {
-			tracks, err = d.resolveTracks(lang, req.Query)
-			if err != nil {
-				return fail(err)
-			}
+		if resolveErr != nil {
+			return fail(resolveErr)
 		}
+		tracks := resolved
 		wasEmpty := d.q.Len() == 0
 		d.q.Add(tracks...)
 		msg := i18n.TLf(lang, "d.added_n", len(tracks))
@@ -623,7 +643,10 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		return okStatus(i18n.TLf(lang, "d.playing", t))
 
 	case "remove":
-		wasCurrent := d.q.RemoveAt(req.Index)
+		removed, wasCurrent := d.q.RemoveAt(req.Index)
+		if !removed {
+			return fail(errors.New(i18n.TLf(lang, "d.jump_oob", req.Index+1)))
+		}
 		if wasCurrent {
 			// Continuar con la siguiente respetando el estado del player:
 			// pausado sigue pausado, y si nada sonaba no se arranca nada.
@@ -744,8 +767,17 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 		d.libGen.Add(1)
 		d.wakeSubs()
 	}
-	return ipc.Response{OK: true, Msg: i18n.TLf(lang, "d.scan_done",
-		res.Added, res.Updated, res.Removed, total)}
+	msg := i18n.TLf(lang, "d.scan_done", res.Added, res.Updated, res.Removed, total)
+	if len(res.Errors) > 0 {
+		// Vía IPC los errores por archivo no viajan (serían cientos de
+		// líneas): el detalle va al stderr del demonio (como los fallos de
+		// pista) y la respuesta al menos dice cuántos hubo.
+		for _, e := range res.Errors {
+			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("cli.scan_warn", e))
+		}
+		msg += i18n.TLf(lang, "d.scan_errs", len(res.Errors))
+	}
+	return ipc.Response{OK: true, Msg: msg}
 }
 
 // resumeLocked reanuda: quita pausa si hay pista, o arranca la cola si mpv
@@ -776,13 +808,22 @@ func (d *Daemon) seekLocked(lang, val string) error {
 		return errors.New(i18n.TL(lang, "d.seek_usage"))
 	}
 	if strings.Contains(val, ":") {
-		parts := strings.SplitN(val, ":", 2)
-		mm, err1 := strconv.Atoi(parts[0])
-		ss, err2 := strconv.Atoi(parts[1])
-		if err1 != nil || err2 != nil || mm < 0 || ss < 0 || ss > 59 {
+		// mm:ss o hh:mm:ss (mixes y podcasts pasan de la hora).
+		parts := strings.Split(val, ":")
+		if len(parts) > 3 {
 			return errors.New(i18n.TLf(lang, "d.seek_mmss", val))
 		}
-		return d.pl.SeekAbs(float64(mm*60 + ss))
+		secs := 0
+		for i, p := range parts {
+			n, err := strconv.Atoi(p)
+			// Solo el campo más significativo (horas, o minutos sin horas)
+			// puede pasar de 59.
+			if err != nil || n < 0 || (i > 0 && n > 59) {
+				return errors.New(i18n.TLf(lang, "d.seek_mmss", val))
+			}
+			secs = secs*60 + n
+		}
+		return d.pl.SeekAbs(float64(secs))
 	}
 	if strings.HasPrefix(val, "+") || strings.HasPrefix(val, "-") {
 		n, err := strconv.ParseFloat(val, 64)
@@ -852,15 +893,20 @@ func tracksFromDir(lang string, lib *library.Library, dir string) ([]library.Tra
 	return out, nil
 }
 
+// errAdjust cubre todo valor inválido de parseAdjust. El caller arma el
+// mensaje visible con i18n (d.vol_invalid); estos errores nunca llegan al
+// usuario, por eso no llevan texto traducido.
+var errAdjust = errors.New("invalid adjust value")
+
 func parseAdjust(val string, cur, min, max float64) (float64, error) {
 	val = strings.TrimSpace(val)
 	if val == "" {
-		return 0, errors.New("valor vacío")
+		return 0, errAdjust
 	}
 	if strings.HasPrefix(val, "+") || strings.HasPrefix(val, "-") {
 		n, err := strconv.ParseFloat(val, 64)
 		if err != nil {
-			return 0, err
+			return 0, errAdjust
 		}
 		val := cur + n
 		if val < min {
@@ -873,7 +919,7 @@ func parseAdjust(val string, cur, min, max float64) (float64, error) {
 	}
 	n, err := strconv.ParseFloat(val, 64)
 	if err != nil || n < min || n > max {
-		return 0, errors.New("fuera de rango")
+		return 0, errAdjust
 	}
 	return n, nil
 }

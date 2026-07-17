@@ -190,6 +190,7 @@ uso: mallow-install.sh [opciones]
   --update      recompila y reinstala sobre una instalación existente
   --uninstall   quita binario y completions (pregunta por config/biblioteca)
   --system      instala en /usr/local para todos los usuarios (pide sudo)
+  --ref=<tag>   compila ese tag/rama en vez de main (lo usa maly update)
   --help        esta ayuda
 
 Sin opciones abre el flujo interactivo (o instala con los defaults si no
@@ -201,6 +202,7 @@ usage: mallow-install.sh [options]
   --update      rebuild and reinstall over an existing install
   --uninstall   remove binary and completions (asks about config/library)
   --system      install to /usr/local for all users (asks for sudo)
+  --ref=<tag>   build that tag/branch instead of main (used by maly update)
   --help        this help
 
 With no options it opens the interactive flow (or installs with the
@@ -210,8 +212,10 @@ the visualizer are optional and picked on the dependencies screen.')"
 
 # ---- argumentos ----
 # ACTION vacío = decidir en el menú (o el default sin terminal); un flag de
-# acción se salta esa pantalla. SYSTEM=-1 = preguntar el ámbito.
-ACTION='' SYSTEM=-1
+# acción se salta esa pantalla. SYSTEM=-1 = preguntar el ámbito. REF vacío =
+# compilar main; `maly update` pasa --ref=<tag> para instalar exactamente el
+# release que anunció (main puede ir adelante del último tag).
+ACTION='' SYSTEM=-1 REF=''
 for a in "$@"; do
 	case "$a" in
 	--install | --update | --uninstall)
@@ -219,6 +223,7 @@ for a in "$@"; do
 			'pick a single action (--install | --update | --uninstall)'
 		ACTION=${a#--} ;;
 	--system) SYSTEM=1 ;;
+	--ref=*) REF=${a#--ref=} ;;
 	-h | --help) usage; exit 0 ;;
 	*) usage >&2; die "opción desconocida: $a" "unknown option: $a" ;;
 	esac
@@ -569,12 +574,19 @@ if [ "$PIPX_YTDLP" -eq 1 ]; then
 fi
 
 if [ -z "$SRC" ]; then
-	hb_start 'clonando Malody Mallow…' 'cloning Malody Mallow…'
-	git clone --quiet --depth=1 "$REPO_URL" "$TMP/src" ||
+	if [ -n "$REF" ]; then
+		hb_start "clonando Malody Mallow ($REF)…" "cloning Malody Mallow ($REF)…"
+	else
+		hb_start 'clonando Malody Mallow…' 'cloning Malody Mallow…'
+	fi
+	# ${REF:+…}: --branch acepta tags; sin --ref se compila main, como siempre.
+	git clone --quiet --depth=1 ${REF:+--branch "$REF"} "$REPO_URL" "$TMP/src" ||
 		{ hb_stop; die 'falló el clonado' 'clone failed'; }
 	hb_stop
 	SRC=$TMP/src
 else
+	[ -z "$REF" ] || warn "corriendo desde un checkout: --ref=$REF se ignora, se compila lo que hay aquí" \
+		"running from a checkout: --ref=$REF is ignored, building what is here"
 	msg "compilando desde el checkout: $SRC" "building from the checkout: $SRC"
 fi
 
@@ -777,6 +789,18 @@ ok "listo: ${BD}${ver}${NC}" "done: ${BD}${ver}${NC}"
 newver=$(printf '%s' "$ver" | sed -n 's/.*\(v[0-9][0-9.]*\).*/\1/p')
 if [ -n "$OLDVER" ] && [ -n "$newver" ] && [ "$OLDVER" != "$newver" ]; then
 	msg "actualizado: $OLDVER → $newver" "updated: $OLDVER → $newver"
+fi
+# Un servicio maly vivo sigue corriendo el binario ANTERIOR hasta reiniciarlo
+# (la TUI lo avisa, pero desde CLI pura nadie se entera). Mismas rutas de
+# socket que config.RuntimeDir: $XDG_RUNTIME_DIR/maly o el fallback en tmp.
+if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+	MSOCK=$XDG_RUNTIME_DIR/maly/maly.sock
+else
+	MSOCK=${TMPDIR:-/tmp}/maly-$(id -u)/maly.sock
+fi
+if [ -S "$MSOCK" ]; then
+	warn 'el servicio maly sigue corriendo el binario anterior: reinícialo con  maly kill  (la música se pausa; la sesión se conserva)' \
+		'the maly service is still running the previous binary: restart it with  maly kill  (playback pauses; the session is kept)'
 fi
 msg 'primer paso:  maly scan   (indexa ~/Music; acepta otra ruta) · luego:  maly' \
 	'first step:  maly scan   (indexes ~/Music; takes another path) · then:  maly'

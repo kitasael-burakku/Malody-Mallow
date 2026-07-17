@@ -110,10 +110,12 @@ func Newer(remote, local string) bool {
 }
 
 // InstallerCmd descarga mallow-install.sh a un temporal y devuelve el
-// `sh <tmp> --update` listo para correr con el terminal, más el cleanup del
-// temporal. Se baja a archivo a propósito: a diferencia del pipe del README,
-// una descarga cortada no ejecuta medio script.
-func InstallerCmd() (*exec.Cmd, func(), error) {
+// `sh <tmp> --update --ref=<ref>` listo para correr con el terminal, más el
+// cleanup del temporal. Se baja a archivo a propósito: a diferencia del pipe
+// del README, una descarga cortada no ejecuta medio script. ref es el tag a
+// instalar (el que anunció el chequeo): sin él se compilaría el HEAD de
+// main, que puede ir adelante del release.
+func InstallerCmd(ref string) (*exec.Cmd, func(), error) {
 	if _, err := exec.LookPath("curl"); err != nil {
 		return nil, nil, fmt.Errorf("%s", i18n.Tf("up.no_curl", InstallerURL))
 	}
@@ -128,7 +130,11 @@ func InstallerCmd() (*exec.Cmd, func(), error) {
 		cleanup()
 		return nil, nil, fmt.Errorf("curl: %v: %s", err, bytes.TrimSpace(out))
 	}
-	return exec.Command("sh", f.Name(), "--update"), cleanup, nil
+	args := []string{f.Name(), "--update"}
+	if ref != "" {
+		args = append(args, "--ref="+ref)
+	}
+	return exec.Command("sh", args...), cleanup, nil
 }
 
 // cache es el último chequeo persistido, para no ir a la red en cada

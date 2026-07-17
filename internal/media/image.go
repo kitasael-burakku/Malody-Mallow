@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 
 	// Los formatos de carátula admitidos (los mismos que safeExt en mpris).
@@ -10,8 +11,19 @@ import (
 	_ "image/png"
 )
 
-// DecodeImage decodifica una carátula embebida (jpeg/png/gif).
+// maxDecodePixels acota la carátula a decodificar (~40 MP): un PNG malicioso
+// declara dimensiones enormes en KB comprimidos y el Decode reservaría GBs.
+// Ninguna carátula real se acerca; el tope solo frena bombas de descompresión.
+const maxDecodePixels = 40 << 20
+
+// DecodeImage decodifica una carátula embebida (jpeg/png/gif). Antes de
+// decodificar valida las dimensiones declaradas: DecodeConfig solo lee la
+// cabecera, sin reservar la imagen.
 func DecodeImage(data []byte) (image.Image, error) {
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err == nil && (cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width*cfg.Height > maxDecodePixels) {
+		return nil, fmt.Errorf("cover art dimensions out of bounds: %dx%d", cfg.Width, cfg.Height)
+	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	return img, err
 }

@@ -388,6 +388,9 @@ func Fold(s string) string {
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
 // Search busca cada palabra de q (normalizada) en título, artista o álbum.
+// Sin límite a propósito: play/add/playlist add operan sobre TODO lo que
+// matchea (un LIMIT los capaba en silencio), igual que la consulta vacía cae
+// en All. Quien necesite pocos resultados corta él mismo (completeTracks).
 func (l *Library) Search(q string) ([]Track, error) {
 	words := strings.Fields(Fold(q))
 	if len(words) == 0 {
@@ -400,7 +403,7 @@ func (l *Library) Search(q string) ([]Track, error) {
 		args = append(args, "%"+likeEscaper.Replace(w)+"%")
 	}
 	return l.collect(`SELECT `+trackCols+` FROM tracks WHERE `+strings.Join(conds, " AND ")+
-		` ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE LIMIT 500`, args...)
+		` ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE`, args...)
 }
 
 // All devuelve toda la biblioteca ordenada Artista > Álbum > pista.

@@ -54,6 +54,9 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   `FmtTime`, `OnOff`) — no re-armar "Artista — Título" a mano.
 - `internal/daemon` — `serve → handle → dispatch` (dispatch bajo `d.mu`; `handle`
   refleja mutadores a MPRIS/suscriptores y realinea la ventana gapless).
+  play/add/playnow resuelven sus pistas (directorios, tags, rutas) ANTES de
+  tomar `d.mu` — un `add <carpeta-grande>` bajo el lock congelaba
+  status/TUI/MPRIS, la misma lección que sacó a scan del mutex.
   `serve` intercepta `subscribe` y `shutdown` ANTES de `handle`: `shutdown`
   (op de `maly kill`) responde primero y luego llama `d.Close()` — dentro de
   `dispatch` deadlockearía con `d.mu`; `Close` es idempotente (`closeOnce`).
@@ -191,6 +194,22 @@ half-blocks + letras USLT/.lrc + viz, paquete `internal/media`),
 **`maly kill`** (op IPC `shutdown`, CLI y consola) y los **colores del logo
 configurables** (`[theme] logo` + comando `logo` en la paleta). La 1.0.3
 fue solo un bump de prueba del flujo de update.
+
+La **1.1.5** (2026-07-17) es el release de una **auditoría completa** del
+proyecto (se saltó 1.1.1–1.1.4 a propósito: tanda grande de fixes guiada a
+seguridad/robustez). Sus fixes: resolución de pistas fuera de `d.mu` (ver
+arriba), `maly update` instala el TAG anunciado (`--ref=` del instalador; sin
+él se compilaba el HEAD de main), `RemoveAt` distingue índice inválido (el
+demonio ya no responde OK a un remove fuera de rango), sorteo de shuffle sin
+sesgo con `Index -1`, tope `maxDecodePixels` en carátulas (bomba de
+descompresión), el scan vía IPC reporta cuántos archivos fallaron (detalle al
+stderr del demonio), TOCTOU del socket cerrado (el remove del huérfano va
+tras `EADDRINUSE` + ping fallido), `Search` sin `LIMIT 500` (capaba
+play/add/playlist add en silencio), `saveKey` exige `=` tras la clave (no
+prefijo), `seek` acepta `hh:mm:ss`, el instalador avisa reiniciar el servicio
+si el socket existe, buffer de 1 MB en ParseLRC y cache del folded de la cola
+en la TUI (`queueFolded`). Diferido a propósito: el retry de `player.seek`
+duerme 250 ms bajo `d.mu` (aceptable hasta que moleste).
 
 Trampas que dejaron estos ciclos:
 

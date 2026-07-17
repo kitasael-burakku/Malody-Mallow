@@ -23,7 +23,7 @@ func runUpdate([]string) error {
 		return nil
 	}
 	fmt.Println(i18n.Tf("up.found", latest, version.Version))
-	cmd, cleanup, err := update.InstallerCmd()
+	cmd, cleanup, err := update.InstallerCmd(latest)
 	if err != nil {
 		return err
 	}

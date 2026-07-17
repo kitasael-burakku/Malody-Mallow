@@ -39,6 +39,7 @@ type Model struct {
 
 	tree        *libTree
 	queue       []ipc.TrackInfo
+	queueFolded []string // texto normalizado por pista, perezoso (ver visibleQueue)
 	queueCursor int
 	queueOffset int
 	queueFilter string
@@ -331,6 +332,7 @@ func (m *Model) applyStatus(resp ipc.Response) tea.Cmd {
 	}
 	if resp.Queue != nil || (resp.Status != nil && resp.Status.QueueLen == 0) {
 		m.queue = resp.Queue
+		m.queueFolded = nil // el cache de visibleQueue se rehace al filtrar
 	}
 	vis := m.visibleQueue()
 	if m.queueCursor >= len(vis) {
@@ -784,11 +786,26 @@ func (m *Model) handleLibraryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // visibleQueue devuelve los índices reales de la cola que pasan el filtro.
+// El folded por pista se cachea (queueFolded): esto corre en cada render y,
+// con el visualizador animando a ~16 fps, plegar Unicode por pista por frame
+// pesaba con colas grandes.
 func (m *Model) visibleQueue() []int {
 	idx := make([]int, 0, len(m.queue))
 	q := library.Fold(m.queueFilter)
-	for i, t := range m.queue {
-		if q == "" || containsAll(library.Fold(t.Title+" "+t.Artist+" "+t.Album), q) {
+	if q == "" {
+		for i := range m.queue {
+			idx = append(idx, i)
+		}
+		return idx
+	}
+	if len(m.queueFolded) != len(m.queue) {
+		m.queueFolded = make([]string, len(m.queue))
+		for i, t := range m.queue {
+			m.queueFolded[i] = library.Fold(t.Title + " " + t.Artist + " " + t.Album)
+		}
+	}
+	for i := range m.queue {
+		if containsAll(m.queueFolded[i], q) {
 			idx = append(idx, i)
 		}
 	}
@@ -858,6 +875,12 @@ func (m *Model) handleQueueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.is("playlist_add", msg) && m.queueCursor < len(vis) {
 			t := m.queue[vis[m.queueCursor]]
+			if t.ID == 0 {
+				// Encolada por ruta, fuera de la biblioteca: las playlists
+				// referencian ids y AddToPlaylist fallaría con un error SQL.
+				m.setFlash(i18n.T("tui.pl_no_id"), true)
+				return m, nil
+			}
 			return m, m.openPlaylists(plTarget, []int64{t.ID})
 		}
 	}

@@ -154,13 +154,36 @@ func TestRemoveAt(t *testing.T) {
 	q := New()
 	q.Replace(mk(3))
 	q.JumpTo(2)
-	if q.RemoveAt(0) {
-		t.Fatal("quitar una pista anterior no es quitar la actual")
+	if removed, wasCurrent := q.RemoveAt(0); !removed || wasCurrent {
+		t.Fatal("quitar una pista anterior quita, pero no es la actual")
 	}
 	if q.Index != 1 {
 		t.Fatalf("el índice debe ajustarse a 1, fue %d", q.Index)
 	}
-	if !q.RemoveAt(1) {
-		t.Fatal("quitar la actual debe reportarlo")
+	if removed, wasCurrent := q.RemoveAt(1); !removed || !wasCurrent {
+		t.Fatal("quitar la actual debe reportar ambas cosas")
+	}
+	// Fuera de rango: no quita nada y lo dice (antes se confundía con
+	// "quité una que no era la actual").
+	if removed, _ := q.RemoveAt(99); removed {
+		t.Fatal("un índice fuera de rango no debe reportar eliminación")
+	}
+}
+
+// TestShuffleFirstDrawIncludesZero: sin pista actual (Index -1) el sorteo de
+// shuffle debe poder elegir cualquier índice; la exclusión de la "actual"
+// dejaba el 0 fuera para siempre.
+func TestShuffleFirstDrawIncludesZero(t *testing.T) {
+	seen := false
+	for i := 0; i < 200 && !seen; i++ {
+		q := New()
+		q.Replace(mk(3))
+		q.Shuffle = true
+		if tr, ok := q.PeekNext(); ok && tr.ID == 1 {
+			seen = true
+		}
+	}
+	if !seen {
+		t.Fatal("en 200 sorteos iniciales el índice 0 nunca salió")
 	}
 }

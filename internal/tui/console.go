@@ -481,7 +481,7 @@ func (m *Model) conUpdate() tea.Cmd {
 		if !update.Newer(latest, version.Version) {
 			return conMsg{lines: []string{st.playing.Render(i18n.Tf("up.current", version.Version))}}
 		}
-		cmd, cleanup, err := update.InstallerCmd()
+		cmd, cleanup, err := update.InstallerCmd(latest)
 		if err != nil {
 			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
 		}

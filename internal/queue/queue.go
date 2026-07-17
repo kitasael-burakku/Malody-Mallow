@@ -60,13 +60,14 @@ func (q *Queue) Clear() {
 	q.peeked = -1
 }
 
-// RemoveAt quita la pista en la posición i. Devuelve true si la pista
-// eliminada era la actual (el llamador decide qué reproducir después).
-func (q *Queue) RemoveAt(i int) bool {
+// RemoveAt quita la pista en la posición i. removed distingue el índice
+// fuera de rango (nada que quitar) y wasCurrent avisa si la eliminada era la
+// actual (el llamador decide qué reproducir después).
+func (q *Queue) RemoveAt(i int) (removed, wasCurrent bool) {
 	if i < 0 || i >= len(q.Items) {
-		return false
+		return false, false
 	}
-	wasCurrent := i == q.Index
+	wasCurrent = i == q.Index
 	q.Items = append(q.Items[:i], q.Items[i+1:]...)
 	q.history = nil
 	q.peeked = -1
@@ -77,7 +78,7 @@ func (q *Queue) RemoveAt(i int) bool {
 			q.Index = len(q.Items) - 1
 		}
 	}
-	return wasCurrent
+	return true, wasCurrent
 }
 
 // JumpTo selecciona la pista i como actual.
@@ -124,9 +125,14 @@ func (q *Queue) nextIndex(natural bool) (int, bool) {
 	}
 	if q.Shuffle {
 		if q.peeked < 0 || q.peeked >= n {
-			if n == 1 {
+			switch {
+			case n == 1:
 				q.peeked = 0
-			} else {
+			case q.Index < 0:
+				// Sin pista actual no hay nada que excluir: sortear entre
+				// todas (con la exclusión, el índice 0 jamás salía).
+				q.peeked = rand.Intn(n)
+			default:
 				next := rand.Intn(n - 1)
 				if next >= q.Index {
 					next++

@@ -551,7 +551,10 @@ func saveKey(section, key, rawValue string) error {
 			}
 			continue
 		}
-		if inSection && strings.HasPrefix(trim, key) {
+		// La clave debe ir seguida de "=" (con espacios opcionales): el
+		// prefijo solo confundiría "logo" con una futura "logo_algo".
+		if rest, found := strings.CutPrefix(trim, key); inSection && found &&
+			strings.HasPrefix(strings.TrimLeft(rest, " \t"), "=") {
 			lines[i] = newLine
 			done = true
 			break

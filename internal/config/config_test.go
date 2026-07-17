@@ -268,6 +268,24 @@ logo = "no-soy-esa"
 		t.Fatalf("tocó la clave de [keys]:\n%s", got)
 	}
 
+	// Una clave que empieza igual ("logotype") no es "logo": debe quedar
+	// intacta y la clave real reemplazarse aparte, no por prefijo.
+	orig = "[theme]\nlogotype = \"cuadrado\"\nlogo = [\"#111111\", \"#222222\"]\n"
+	if err := os.WriteFile(path, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveThemeLogo([]string{"#ff0000", "#00ff00"}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(path)
+	got = string(data)
+	if !strings.Contains(got, `logotype = "cuadrado"`) {
+		t.Fatalf("pisó logotype por matchear el prefijo:\n%s", got)
+	}
+	if !strings.Contains(got, `logo = ["#ff0000", "#00ff00"]`) {
+		t.Fatalf("no reemplazó la clave logo real:\n%s", got)
+	}
+
 	// [theme] sin la clave: se inserta dentro de la sección, no en [keys].
 	orig = "[theme]\naccent = \"#89b4fa\"\n\n[keys]\nnext = \"N\"\n"
 	if err := os.WriteFile(path, []byte(orig), 0o644); err != nil {

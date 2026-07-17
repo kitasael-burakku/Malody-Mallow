@@ -41,6 +41,9 @@ func ParseLRC(r io.Reader) []LyricLine {
 		timed    bool
 	)
 	sc := bufio.NewScanner(r)
+	// Más holgura que los 64 KB por defecto: una línea que se pase del
+	// buffer abortaría el Scan en silencio y truncaría las letras.
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	first := true
 	for sc.Scan() {
 		text := strings.TrimRight(sc.Text(), "\r")

@@ -6,13 +6,16 @@
 
 🇪🇸 [Español](README.md) · 🇬🇧 [English](README.en.md)
 
-Reproductor de música local para terminal (comando `maly`), estilo
-btop/lazygit: TUI con paneles, servicio en segundo plano con socket Unix
-y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
+**Malody Mallow** (`maly`) es un reproductor de música local que vive en
+tu terminal, al estilo de btop y lazygit: una TUI con paneles, carátulas,
+letras sincronizadas y visualizador de espectro; un servicio en segundo
+plano que sigue sonando cuando cierras la ventana; y una CLI tipo
+`mpc`/`playerctl` para manejarlo desde cualquier terminal — o desde el
+escritorio, vía MPRIS. Todo en un solo binario escrito en Go.
 
 ---
 
-## TUI
+## Capturas
 
 ![Vista previa de Malody Mallow: biblioteca, cola, visualizador y reproducción actual](pictures/maly.jpg)
 
@@ -21,7 +24,7 @@ y CLI tipo `mpc`/`playerctl`, todo en un solo binario.
 ![Selector de canciones](pictures/selector.jpg)
 
 ![Maly en Hyprland](pictures/hyprland-maly.png)
-s
+
 ---
 
 ## Características
@@ -44,6 +47,10 @@ s
 - **Visualizador de espectro**: FFT en vivo del monitor de
   PipeWire/PulseAudio, con gradiente de color; las barras siguen la
   amplitud suavizada (estilo CAVA).
+- **Pantalla "Ahora suena" (Ctrl+T)**: vista a pantalla completa con la
+  carátula embebida renderizada en el terminal, letras sincronizadas con
+  la reproducción (sidecar `.lrc`, o embebidas en la pista) y la franja
+  del visualizador.
 - **Paleta Ctrl+P**: consola integrada de comandos (`maly next`, `vol +5`,
   `status`…) con la salida dentro de la propia paleta.
 - **Selector Ctrl+O / `maly select`**: búsqueda difusa sobre toda la
@@ -67,7 +74,9 @@ s
   (`maly get "artista canción"` o una URL) — con metadata y carátula
   embebidas, y re-escaneo automático. yt-dlp y ffmpeg son opcionales:
   solo este comando los usa.
-- **Tema y keybindings** configurables por TOML; fondo transparente (usa el color de tu terminal).
+- **Tema y keybindings** configurables por TOML: fondo transparente (usa
+  el color de tu terminal), colores del banner en vivo (comando `logo` de
+  la paleta) y arte ASCII propio vía `logo.txt`.
 
 ## Instalación
 
@@ -247,6 +256,7 @@ La primera vez se crea `~/.config/maly/config.toml` con los defaults.
 | `ctrl+d` / `ctrl+u` | media página abajo / arriba |
 | `s` / `r` | shuffle / repeat |
 | `v` | alternar visualizador |
+| `ctrl+t` | pantalla "Ahora suena" (carátula y letras) |
 | `ctrl+p` | paleta de comandos (consola integrada) |
 | `ctrl+o` | selector de canciones (fuzzy; `enter` reproduce, `tab` agrega) |
 | `ctrl+l` | panel de playlists (`enter` reproduce, `tab` encola, `ctrl+n` crea, `ctrl+x` borra) |
@@ -262,6 +272,7 @@ en `[keys]` siempre gana sobre el preset.
 
 ```sh
 maly daemon                    # servicio sin TUI (headless)
+maly kill                      # apaga el servicio, esté donde esté
 maly play [consulta]           # reproduce; con consulta busca en la biblioteca
 maly select                    # mini selector fuzzy: enter reproduce, tab agrega
 maly pause | toggle | stop
@@ -407,6 +418,7 @@ bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
 # playlists = "ctrl+l"
 # playlist_add = "A"
 # toggle_viz = "v"
+# now_playing = "ctrl+t"
 ```
 
 ## Arquitectura

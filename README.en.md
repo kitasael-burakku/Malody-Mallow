@@ -1,18 +1,21 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.0.3-blue)
+![version](https://img.shields.io/badge/version-1.1.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
 🇪🇸 [Español](README.md) · 🇬🇧 [English](README.en.md)
 
-A local terminal music player (command `maly`), in the style of
-btop/lazygit: a TUI with panels, a background service over a Unix socket,
-and an `mpc`/`playerctl`-style CLI, all in a single binary.
+**Malody Mallow** (`maly`) is a local music player that lives in your
+terminal, in the spirit of btop and lazygit: a TUI with panels, cover
+art, synced lyrics, and a spectrum visualizer; a background service that
+keeps playing after you close the window; and an `mpc`/`playerctl`-style
+CLI to drive it from any terminal — or from the desktop, via MPRIS. All
+in a single binary written in Go.
 
 ---
 
-## TUI
+## Screenshots
 
 ![Malody Mallow preview: library, queue, visualizer, and now playing](pictures/maly.jpg)
 
@@ -43,6 +46,9 @@ and an `mpc`/`playerctl`-style CLI, all in a single binary.
   accent- and case-insensitive search ("aurea" finds "Áurea").
 - **Spectrum visualizer**: live FFT off the PipeWire/PulseAudio monitor,
   with a color gradient; bars follow smoothed amplitude (CAVA-style).
+- **"Now Playing" screen (Ctrl+T)**: a fullscreen view with the embedded
+  cover art rendered in the terminal, lyrics synced to playback (`.lrc`
+  sidecar, or embedded in the track), and the visualizer strip.
 - **Ctrl+P palette**: an integrated command console (`maly next`, `vol +5`,
   `status`…) with output shown right inside the palette.
 - **Ctrl+O selector / `maly select`**: fuzzy search across the whole
@@ -66,7 +72,9 @@ and an `mpc`/`playerctl`-style CLI, all in a single binary.
   (`maly get "artist song"` or a URL) — with embedded metadata and cover
   art, and automatic re-scan. yt-dlp and ffmpeg are optional: only this
   command uses them.
-- **Theme and keybindings** configurable via TOML; transparent background (uses your terminal's color).
+- **Theme and keybindings** configurable via TOML: transparent background
+  (uses your terminal's color), live banner colors (the palette's `logo`
+  command), and your own ASCII art via `logo.txt`.
 
 ## Installation
 
@@ -251,6 +259,7 @@ defaults.
 | `ctrl+d` / `ctrl+u` | half page down / up |
 | `s` / `r` | shuffle / repeat |
 | `v` | toggle visualizer |
+| `ctrl+t` | "Now Playing" screen (cover art and lyrics) |
 | `ctrl+p` | command palette (integrated console) |
 | `ctrl+o` | song selector (fuzzy; `enter` plays, `tab` adds) |
 | `ctrl+l` | playlist panel (`enter` plays, `tab` queues, `ctrl+n` creates, `ctrl+x` deletes) |
@@ -266,6 +275,7 @@ written in `[keys]` always wins over the preset.
 
 ```sh
 maly daemon                    # service without TUI (headless)
+maly kill                      # stops the service, wherever it lives
 maly play [query]              # plays; with a query, searches the library
 maly select                    # mini fuzzy selector: enter plays, tab adds
 maly pause | toggle | stop
@@ -280,7 +290,7 @@ maly seek +10 | seek -10 | seek 1:30
 maly shuffle [on|off]
 maly repeat [off|all|one]
 maly search <query>            # searches the library (works without the daemon)
-maly scan [path]                # (re)scans (works without the daemon)
+maly scan [path]               # (re)scans (works without the daemon)
 maly get <url|search>          # downloads audio into the library (requires yt-dlp and ffmpeg)
 maly playlist list
 maly playlist show <name>                 # lists tracks with their position
@@ -409,6 +419,7 @@ bars_gravity = 0.92       # 0-1: how long bars take to fall
 # playlists = "ctrl+l"
 # playlist_add = "A"
 # toggle_viz = "v"
+# now_playing = "ctrl+t"
 ```
 
 ## Architecture

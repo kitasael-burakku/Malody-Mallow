@@ -180,11 +180,11 @@ clobber (el tty se detecta con el ioctl real: /dev/null también es char
 device) y EADDRINUSE → ErrAlreadyRunning. La distribución es vía
 `mallow-install.sh` — el dueño descartó hacer PKGBUILD para AUR.
 
-Tras la 1.0.2 aterrizaron (sin release aún): la capa **"Ahora suena"**
-(ctrl+t: carátula half-blocks + letras USLT/.lrc + viz, paquete
-`internal/media`), **`maly kill`** (op IPC `shutdown`, CLI y consola) y los
-**colores del logo configurables** (`[theme] logo` + comando `logo` en la
-paleta). El bump de versión lo decide el dueño.
+La **1.1.0** (2026-07-17) trajo la capa **"Ahora suena"** (ctrl+t: carátula
+half-blocks + letras USLT/.lrc + viz, paquete `internal/media`),
+**`maly kill`** (op IPC `shutdown`, CLI y consola) y los **colores del logo
+configurables** (`[theme] logo` + comando `logo` en la paleta). La 1.0.3
+fue solo un bump de prueba del flujo de update.
 
 Trampas que dejaron estos ciclos:
 

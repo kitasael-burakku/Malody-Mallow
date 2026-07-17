@@ -54,6 +54,9 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   `FmtTime`, `OnOff`) — no re-armar "Artista — Título" a mano.
 - `internal/daemon` — `serve → handle → dispatch` (dispatch bajo `d.mu`; `handle`
   refleja mutadores a MPRIS/suscriptores y realinea la ventana gapless).
+  `serve` intercepta `subscribe` y `shutdown` ANTES de `handle`: `shutdown`
+  (op de `maly kill`) responde primero y luego llama `d.Close()` — dentro de
+  `dispatch` deadlockearía con `d.mu`; `Close` es idempotente (`closeOnce`).
   `advance(reason, chained)` es la política de avance y salto de pistas
   irreproducibles (guarda `errStreak`, silencio deliberado `stopped`).
   `scan` corre SIN `d.mu` (guarda `scanning` atómica) y sube `libGen` (la
@@ -85,7 +88,14 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   propiedades mapa y nunca borra claves — no volver a prop. Los métodos D-Bus
   despachan `ctrl.Do` en goroutine (en línea deadlockea vía SetMust).
   `metadataOf` es pura; el wrapper `Service.metadata` añade `artUrl` (carátula
-  embebida → cache SHA-1 en runtime dir, `art.go`).
+  embebida → cache SHA-1 en runtime dir, `art.go`; la extracción vive en
+  `internal/media`).
+- `internal/media` — extracción compartida de lo embebido en las pistas:
+  `ReadEmbedded` (carátula + letras USLT en una pasada de dhowden; OJO:
+  ffmpeg escribe `-metadata lyrics=` como TXXX, no como USLT real — dhowden
+  no lo ve), `DecodeImage`/`ScaleBox` (stdlib, box average) y `ParseLRC`/
+  `LyricsFor` (sidecar `.lrc` con prioridad sobre las embebidas; `At < 0` =
+  sin sincronía). Lo consumen mpris (artUrl) y la capa ctrl+t de la TUI.
 - `internal/tui` — Bubble Tea. Recibe estado por **suscripción push**
   (`subscribe`; fallback a polling de 500 ms con reintento). Paneles biblioteca/
   cola + consola ctrl+p (tabla propia de comandos en `console.go`, con paridad
@@ -101,7 +111,17 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   no el kind. Toda mutación de playlists en la TUI (plActMsg, y en la
   consola `conMsg.reload`) recarga el árbol; las hechas por CLI desde otra
   terminal no se reflejan en vivo (van directo a SQLite, sin demonio de
-  por medio — limitación conocida).
+  por medio — limitación conocida). La capa "Ahora suena" (ctrl+t,
+  `nowplaying.go`) es una vista fullscreen con carátula en half-blocks ANSI
+  (`artrender.go`, interfaz `coverRenderer` para enchufar kitty después),
+  letras (resaltado sincronizado por `Status.Position` si hay `.lrc`) y la
+  franja del viz (`vizLines` compartido con `vizPanel`); carga carátula y
+  letras SIEMPRE en goroutine (`loadNowMeta`, cache por pista `npTrack` +
+  render invalidado en resize), y `applyStatus` relanza la carga al cambiar
+  la pista. `playbackKey` centraliza las teclas de reproducción compartidas
+  entre la vista principal y la capa. El comando `logo` de la consola aplica
+  el gradiente del banner en vivo y lo persiste (`SaveThemeLogo` → `saveKey`,
+  que edita claves dentro de secciones TOML sin tocar el resto).
 - `internal/i18n` — `T/Tf` (idioma global) y `TL/TLf` (por petición: el cliente
   manda `Request.Lang` y el demonio responde en ese idioma). `TestTableIntegrity`
   valida en/es al agregar claves.
@@ -159,6 +179,12 @@ config/sesión/DB, `p.pending` sin fugas en timeout, `playlist export` sin
 clobber (el tty se detecta con el ioctl real: /dev/null también es char
 device) y EADDRINUSE → ErrAlreadyRunning. La distribución es vía
 `mallow-install.sh` — el dueño descartó hacer PKGBUILD para AUR.
+
+Tras la 1.0.2 aterrizaron (sin release aún): la capa **"Ahora suena"**
+(ctrl+t: carátula half-blocks + letras USLT/.lrc + viz, paquete
+`internal/media`), **`maly kill`** (op IPC `shutdown`, CLI y consola) y los
+**colores del logo configurables** (`[theme] logo` + comando `logo` en la
+paleta). El bump de versión lo decide el dueño.
 
 Trampas que dejaron estos ciclos:
 

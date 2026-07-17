@@ -220,6 +220,107 @@ language = "no-soy-esa"
 	}
 }
 
+// TestValidHex: solo #rrggbb exacto pasa.
+func TestValidHex(t *testing.T) {
+	for s, want := range map[string]bool{
+		"#7ab8b8": true, "#FFFFFF": true, "#000000": true,
+		"7ab8b8": false, "#7ab8b": false, "#7ab8b8f": false,
+		"#zzzzzz": false, "": false, "#7ab8g8": false,
+	} {
+		if got := ValidHex(s); got != want {
+			t.Errorf("ValidHex(%q) = %v, quería %v", s, got, want)
+		}
+	}
+}
+
+// TestSaveThemeLogo cubre saveKey con sección: reemplaza dentro de [theme]
+// sin tocar el resto, inserta la clave si falta, y crea la sección si no
+// existe (y Load ve el resultado).
+func TestSaveThemeLogo(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	orig := `music_dir = "~/Music"
+
+[theme]
+accent = "#89b4fa"  # mi acento
+logo = ["#111111", "#222222"]
+
+[keys]
+logo = "no-soy-esa"
+`
+	if err := os.WriteFile(path, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveThemeLogo([]string{"#ff0000", "#00ff00", "#0000ff"}); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	got := string(data)
+	if !strings.Contains(got, `logo = ["#ff0000", "#00ff00", "#0000ff"]`) {
+		t.Fatalf("logo no se actualizó:\n%s", got)
+	}
+	if !strings.Contains(got, `accent = "#89b4fa"  # mi acento`) {
+		t.Fatalf("pisó otras líneas de [theme]:\n%s", got)
+	}
+	if !strings.Contains(got, `logo = "no-soy-esa"`) {
+		t.Fatalf("tocó la clave de [keys]:\n%s", got)
+	}
+
+	// [theme] sin la clave: se inserta dentro de la sección, no en [keys].
+	orig = "[theme]\naccent = \"#89b4fa\"\n\n[keys]\nnext = \"N\"\n"
+	if err := os.WriteFile(path, []byte(orig), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveThemeLogo([]string{"#ff0000", "#00ff00"}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Theme.Logo) != 2 || cfg.Theme.Logo[0] != "#ff0000" {
+		t.Fatalf("logo insertado no aplica: %v", cfg.Theme.Logo)
+	}
+	if cfg.Keys["next"] != "N" {
+		t.Fatalf("perdió la clave de [keys]: %v", cfg.Keys["next"])
+	}
+
+	// Sin sección [theme]: se añade completa al final y Load la ve.
+	if err := os.WriteFile(path, []byte("music_dir = \"~/Music\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveThemeLogo([]string{"#123456", "#654321"}); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Theme.Logo) != 2 || cfg.Theme.Logo[1] != "#654321" {
+		t.Fatalf("logo con sección nueva no aplica: %v", cfg.Theme.Logo)
+	}
+}
+
+// TestLoadLogoSane: un gradiente inválido (una sola parada, o hex malos)
+// vuelve al default en Load.
+func TestLoadLogoSane(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("[theme]\nlogo = [\"#123456\"]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Theme.Logo) != 3 || cfg.Theme.Logo[0] != "#7ab8b8" {
+		t.Fatalf("logo inválido debía volver al default: %v", cfg.Theme.Logo)
+	}
+}
+
 // TestEnsureRuntimeDir fija el contrato de seguridad del runtime dir: se
 // crea 0700, uno propio con permisos flojos se aprieta en vez de fallar, y
 // un symlink en la ruta (dir de otro, ataque clásico en /tmp) se rechaza.

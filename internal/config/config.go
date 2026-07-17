@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"syscall"
@@ -17,12 +18,13 @@ import (
 )
 
 type Theme struct {
-	Transparent bool   `toml:"transparent"`
-	Accent      string `toml:"accent"`
-	Border      string `toml:"border"`
-	Text        string `toml:"text"`
-	Dim         string `toml:"dim"`
-	Playing     string `toml:"playing"`
+	Transparent bool     `toml:"transparent"`
+	Accent      string   `toml:"accent"`
+	Border      string   `toml:"border"`
+	Text        string   `toml:"text"`
+	Dim         string   `toml:"dim"`
+	Playing     string   `toml:"playing"`
+	Logo        []string `toml:"logo"` // paradas hex del gradiente del banner (≥2)
 }
 
 type Visualizer struct {
@@ -66,6 +68,7 @@ func DefaultKeys() map[string]string {
 		"playlists":    "ctrl+l",
 		"playlist_add": "A",
 		"toggle_viz":   "v",
+		"now_playing":  "ctrl+t",
 	}
 }
 
@@ -109,6 +112,9 @@ func Default() Config {
 			Text:        "#cdd6f4",
 			Dim:         "#6c7086",
 			Playing:     "#a6e3a1",
+			// La paleta "Kitasan Glass" del banner (ver internal/tui/styles.go);
+			// config no puede importar tui, así que los literales viven aquí.
+			Logo: []string{"#7ab8b8", "#8098a8", "#b85c50"},
 		},
 		Visualizer: Visualizer{
 			Enabled:     true,
@@ -135,6 +141,7 @@ border = "#45475a"
 text = "#cdd6f4"
 dim = "#6c7086"
 playing = "#a6e3a1"
+logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 o más)
 
 [visualizer]
 enabled = true
@@ -164,6 +171,7 @@ bars_gravity = 0.92
 # playlists = "ctrl+l"
 # playlist_add = "A"
 # toggle_viz = "v"
+# now_playing = "ctrl+t"
 `
 
 func ConfigDir() string {
@@ -399,7 +407,38 @@ func Load() (cfg Config, retErr error) {
 	if cfg.Visualizer.BarsGravity <= 0 || cfg.Visualizer.BarsGravity >= 1 {
 		cfg.Visualizer.BarsGravity = 0.92
 	}
+	if !validLogo(cfg.Theme.Logo) {
+		cfg.Theme.Logo = Default().Theme.Logo
+	}
 	return cfg, nil
+}
+
+// validLogo acepta un gradiente de banner: al menos dos paradas, todas hex.
+func validLogo(stops []string) bool {
+	if len(stops) < 2 {
+		return false
+	}
+	for _, s := range stops {
+		if !ValidHex(s) {
+			return false
+		}
+	}
+	return true
+}
+
+// ValidHex indica si s es un color #rrggbb.
+func ValidHex(s string) bool {
+	if len(s) != 7 || s[0] != '#' {
+		return false
+	}
+	for _, c := range s[1:] {
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'f', c >= 'A' && c <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // MusicPath devuelve music_dir con ~ expandido; si el config lo dejó vacío,
@@ -433,9 +472,25 @@ func SaveLanguage(code string) error { return saveTopLevel("language", code) }
 // SaveControls persiste solo el preset de controles en config.toml.
 func SaveControls(name string) error { return saveTopLevel("controls", name) }
 
-// saveTopLevel edita (o inserta arriba) una clave del bloque top-level del
-// TOML sin tocar el resto del archivo.
+// saveTopLevel edita (o inserta arriba) una clave string del bloque top-level
+// del TOML sin tocar el resto del archivo.
 func saveTopLevel(key, value string) error {
+	return saveKey("", key, fmt.Sprintf("%q", value))
+}
+
+// SaveThemeLogo persiste solo las paradas del gradiente del banner en [theme].
+func SaveThemeLogo(stops []string) error {
+	quoted := make([]string, len(stops))
+	for i, s := range stops {
+		quoted[i] = fmt.Sprintf("%q", s)
+	}
+	return saveKey("theme", "logo", "["+strings.Join(quoted, ", ")+"]")
+}
+
+// saveKey edita (o inserta) una clave en la sección dada ("" = bloque
+// top-level) del TOML sin tocar el resto del archivo. rawValue va tal cual,
+// ya formateado como TOML.
+func saveKey(section, key, rawValue string) error {
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -445,20 +500,37 @@ func saveTopLevel(key, value string) error {
 		data = []byte(defaultConfigTOML())
 	}
 	lines := strings.Split(string(data), "\n")
+	newLine := fmt.Sprintf("%s = %s", key, rawValue)
 	done := false
+	inSection := section == ""
+	insertAt := -1 // línea siguiente al header de la sección, si se encontró
 	for i, l := range lines {
 		trim := strings.TrimSpace(l)
 		if strings.HasPrefix(trim, "[") {
-			break // solo el bloque top-level puede tener la clave
+			if inSection {
+				break // se acabó el bloque buscado sin hallar la clave
+			}
+			if trim == "["+section+"]" {
+				inSection = true
+				insertAt = i + 1
+			}
+			continue
 		}
-		if strings.HasPrefix(trim, key) {
-			lines[i] = fmt.Sprintf("%s = %q", key, value)
+		if inSection && strings.HasPrefix(trim, key) {
+			lines[i] = newLine
 			done = true
 			break
 		}
 	}
 	if !done {
-		lines = append([]string{fmt.Sprintf("%s = %q", key, value)}, lines...)
+		switch {
+		case section == "":
+			lines = append([]string{newLine}, lines...)
+		case insertAt >= 0:
+			lines = slices.Insert(lines, insertAt, newLine)
+		default:
+			lines = append(lines, "["+section+"]", newLine, "")
+		}
 	}
 	if err := os.MkdirAll(ConfigDir(), 0o700); err != nil {
 		return err

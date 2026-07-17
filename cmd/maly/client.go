@@ -38,6 +38,27 @@ func runDaemon() error {
 	return d.Run()
 }
 
+// runKill apaga el demonio vía la op shutdown. Sin demonio corriendo no es
+// un error: el estado pedido ("no hay demonio") ya se cumple.
+func runKill([]string) error {
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		fmt.Println(i18n.T("cli.kill_none"))
+		return nil
+	}
+	defer c.Close()
+	resp, err := c.Do(ipc.Request{Cmd: "shutdown"})
+	if err != nil {
+		return err
+	}
+	if !resp.OK {
+		// Un demonio anterior a esta versión responde "comando desconocido".
+		return errors.New(resp.Error)
+	}
+	fmt.Println(resp.Msg)
+	return nil
+}
+
 // runClient traduce un subcomando CLI a una petición al demonio.
 func runClient(cmd string, args []string) error {
 	if cmd == "playlist" {

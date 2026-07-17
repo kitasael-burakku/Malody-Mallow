@@ -744,3 +744,37 @@ func TestLibGenBumpsOnScan(t *testing.T) {
 		t.Fatalf("LibGen tras scan sin cambios = %d, quería 2", st.LibGen)
 	}
 }
+
+// TestShutdownOp: la op shutdown responde OK ANTES de apagar (el cliente debe
+// recibir la despedida), Run retorna nil al caer el listener y el socket
+// desaparece del runtime dir.
+func TestShutdownOp(t *testing.T) {
+	d := newTestDaemon(t)
+	done := make(chan error, 1)
+	go func() { done <- d.Run() }()
+
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	resp, err := c.Do(ipc.Request{Cmd: "shutdown"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !resp.OK || resp.Msg == "" {
+		t.Fatalf("respuesta de shutdown: %+v", resp)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run devolvió %v tras shutdown", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run no retornó tras shutdown")
+	}
+	if _, err := os.Stat(config.SocketPath()); !os.IsNotExist(err) {
+		t.Fatalf("el socket sigue en el runtime dir (err=%v)", err)
+	}
+}

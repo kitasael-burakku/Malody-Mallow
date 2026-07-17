@@ -205,6 +205,15 @@ func (d *Daemon) serve(conn net.Conn) {
 			// el estado inicial y luego un push por cada cambio.
 			d.subscribe(conn, sc)
 			return
+		} else if req.Cmd == "shutdown" {
+			// Como subscribe, se intercepta antes de handle: la respuesta
+			// debe salir antes de que Close tumbe listener y conexiones, y
+			// dentro de dispatch el Close deadlockearía con d.mu.
+			resp = ipc.Response{OK: true, Msg: i18n.TL(req.Lang, "d.bye"), Version: version.Version}
+			data, _ := json.Marshal(resp)
+			conn.Write(append(data, '\n'))
+			d.Close()
+			return
 		} else {
 			resp = d.handle(req)
 		}

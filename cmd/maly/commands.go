@@ -65,6 +65,7 @@ var commands = []command{
 	{name: "controls", usage: "controls [<preset>]", descKey: "cli.controls", section: "other", run: runControls, complete: completeControls},
 	{name: "lang", aliases: []string{"-l", "--lang"}, usage: "lang [en|es], -l", descKey: "cli.lang_cmd", section: "other", run: runLang, complete: completeStatic("en", "es")},
 	{name: "update", usage: "update", descKey: "cli.update", section: "other", run: runUpdate},
+	{name: "kill", usage: "kill", descKey: "cli.kill", section: "other", run: runKill},
 	{name: "completions", usage: "completions <shell>", descKey: "cli.completions", section: "other", run: runCompletions, complete: completeStatic(supportedShells...)},
 	{name: "help", aliases: []string{"-h", "--help"}, usage: "help, -h", descKey: "cli.help_cmd", section: "other"}, // run se asigna en init()
 	{name: "version", aliases: []string{"-v", "--version"}, usage: "version, -v", descKey: "cli.version_cmd", section: "other", run: runVersion},
@@ -210,6 +211,7 @@ func helpText() string {
 	key("ctrl+o", "help.songs")
 	key("ctrl+l", "help.playlists")
 	key("v", "help.toggle_viz")
+	key("ctrl+t", "help.now_playing")
 	key("?", "help.show")
 	key("q", "help.quit")
 

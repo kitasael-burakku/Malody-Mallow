@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dhowden/tag"
+	"maly/internal/media"
 )
 
 // artCache extrae la carátula embebida de las pistas y la sirve como
@@ -43,22 +43,13 @@ func (c *artCache) urlFor(path string) string {
 }
 
 func (c *artCache) extract(path string) string {
-	f, err := os.Open(path)
-	if err != nil {
+	emb := media.ReadEmbedded(path)
+	if len(emb.Picture) == 0 {
 		return ""
 	}
-	defer f.Close()
-	md, err := tag.ReadFrom(f)
-	if err != nil {
-		return ""
-	}
-	pic := md.Picture()
-	if pic == nil || len(pic.Data) == 0 {
-		return ""
-	}
-	sum := sha1.Sum(pic.Data)
+	sum := sha1.Sum(emb.Picture)
 	name := hex.EncodeToString(sum[:])
-	if ext := safeExt(pic.Ext); ext != "" {
+	if ext := safeExt(emb.PictureExt); ext != "" {
 		name += "." + ext
 	}
 	file := filepath.Join(c.dir, name)
@@ -66,7 +57,7 @@ func (c *artCache) extract(path string) string {
 		// escritura atómica: que un cliente leyendo justo ahora no pueda
 		// ver una imagen a medias
 		tmp := file + ".tmp"
-		if os.WriteFile(tmp, pic.Data, 0o600) != nil || os.Rename(tmp, file) != nil {
+		if os.WriteFile(tmp, emb.Picture, 0o600) != nil || os.Rename(tmp, file) != nil {
 			return ""
 		}
 	}

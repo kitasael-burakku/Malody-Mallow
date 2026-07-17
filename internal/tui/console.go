@@ -115,6 +115,21 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "quit", "exit":
 		return m, tea.Quit
+	case "kill":
+		// Apaga el demonio y la TUI. Con demonio embebido basta salir: el
+		// defer d.Close() de runTUI lo apaga; con uno externo se le manda
+		// shutdown y luego se sale (la TUI se quedaría sin backend).
+		if m.embedded {
+			return m, tea.Quit
+		}
+		sock := m.sock
+		return m, func() tea.Msg {
+			if c, err := ipc.Dial(sock); err == nil {
+				c.Do(ipc.Request{Cmd: "shutdown"})
+				c.Close()
+			}
+			return tea.Quit()
+		}
 	case "cls":
 		m.conLines = nil
 		return m, nil
@@ -186,6 +201,8 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		return m.conGet(args)
 	case "controls":
 		return m.conControls(args)
+	case "logo":
+		return m.conLogo(args)
 	case "lang":
 		return m.conLang(args)
 	case "version":
@@ -222,9 +239,11 @@ func (m *Model) conHelp() {
 		{"get <url|q>", i18n.T("cli.get")},
 		{"playlist <sub> [args]", i18n.T("cli.playlist")},
 		{"controls [preset]", i18n.T("cli.controls")},
+		{"logo [hex… | default]", i18n.T("cli.logo")},
 		{"lang [en|es]", i18n.T("cli.lang_cmd")},
 		{"version", i18n.T("cli.version_cmd")},
 		{"update", i18n.T("cli.update")},
+		{"kill", i18n.T("cli.kill")},
 	}
 	for _, r := range rows {
 		m.conPrint("  " + m.st.accent.Render(padTo(r[0], 22)) + m.st.text.Render(r[1]))
@@ -378,6 +397,45 @@ func (m *Model) conControls(args []string) (tea.Model, tea.Cmd) {
 		m.keys = cfg.Keys
 	}
 	m.conPrint(m.st.playing.Render(i18n.Tf("cli.controls_set", name)))
+	return m, nil
+}
+
+// conLogo muestra o cambia las paradas del gradiente del banner MALODY;
+// aplica en vivo (recalcula el ramp) y persiste solo la clave logo de [theme].
+func (m *Model) conLogo(args []string) (tea.Model, tea.Cmd) {
+	if len(args) == 0 {
+		m.conPrint(m.st.accent.Render(i18n.T("cli.logo_current")) + " " + m.st.text.Render(strings.Join(m.cfg.Theme.Logo, " ")))
+		m.conPrint(m.st.dim.Render(i18n.T("cli.logo_usage")))
+		return m, nil
+	}
+	var stops []string
+	if len(args) == 1 && args[0] == "default" {
+		stops = config.Default().Theme.Logo
+	} else {
+		if len(args) < 2 || len(args) > 8 {
+			m.conErr(i18n.T("cli.logo_usage"))
+			return m, nil
+		}
+		stops = make([]string, len(args))
+		for i, a := range args {
+			s := strings.ToLower(a)
+			if !strings.HasPrefix(s, "#") {
+				s = "#" + s
+			}
+			if !config.ValidHex(s) {
+				m.conErr(i18n.Tf("cli.logo_invalid", a))
+				return m, nil
+			}
+			stops[i] = s
+		}
+	}
+	if err := config.SaveThemeLogo(stops); err != nil {
+		m.conErr(err.Error())
+		return m, nil
+	}
+	m.cfg.Theme.Logo = stops
+	m.logo.ramp = logoRamp(stops)
+	m.conPrint(m.st.playing.Render(i18n.T("cli.logo_set")))
 	return m, nil
 }
 

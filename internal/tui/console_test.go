@@ -46,6 +46,9 @@ func TestConsoleUsageErrors(t *testing.T) {
 		"get",
 		"lang xx",
 		"controls bogus",
+		"logo zzz",         // una sola parada: pide 2-8
+		"logo #ff0000 zzz", // parada que no es hex
+		"logo " + strings.Repeat("#123456 ", 9), // demasiadas paradas
 	}
 	for _, line := range lines {
 		m := newConModel()

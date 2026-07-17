@@ -33,9 +33,9 @@ func logoTickCmd() tea.Cmd {
 }
 
 // logoModel anima el logo con una onda horizontal: el color de cada columna
-// recorre el gradiente Kitasan según sin(col·freq − fase). La energía del
-// audio acelera la fase y abre el gradiente hacia el rojo; sin reproducción
-// la onda queda lenta y en la zona cian.
+// recorre el gradiente configurado ([theme] logo) según sin(col·freq − fase).
+// La energía del audio acelera la fase y abre el gradiente hacia la última
+// parada; sin reproducción la onda queda lenta en la zona de la primera.
 type logoModel struct {
 	cells  [][]rune // arte paddeado al mismo ancho
 	width  int
@@ -44,7 +44,7 @@ type logoModel struct {
 	ramp   []lipgloss.Style
 }
 
-func newLogo() logoModel {
+func newLogo(stops []string) logoModel {
 	rows := strings.Split(logoArt, "\n")
 	w := 0
 	for _, r := range rows {
@@ -56,23 +56,30 @@ func newLogo() logoModel {
 	for i, r := range rows {
 		cells[i] = []rune(r + strings.Repeat(" ", w-lipgloss.Width(r)))
 	}
-	return logoModel{cells: cells, width: w, ramp: logoRamp()}
+	return logoModel{cells: cells, width: w, ramp: logoRamp(stops)}
 }
 
-// logoRamp interpola cian → azul-grisáceo → rojo apagado en logoSteps pasos.
-func logoRamp() []lipgloss.Style {
-	stops := [][3]int{parseHex(kitasanCyan), parseHex(kitasanBlueGray), parseHex(kitasanRed)}
+// logoRamp interpola las paradas del gradiente del banner en logoSteps pasos.
+func logoRamp(stops []string) []lipgloss.Style {
+	if len(stops) < 2 {
+		// Defensa por si llega un config mutado: la paleta Kitasan de siempre.
+		stops = []string{kitasanCyan, kitasanBlueGray, kitasanRed}
+	}
+	hex := make([][3]int, len(stops))
+	for i, s := range stops {
+		hex[i] = parseHex(s)
+	}
 	ramp := make([]lipgloss.Style, logoSteps)
 	for i := range ramp {
-		f := float64(i) / float64(logoSteps-1) * float64(len(stops)-1)
+		f := float64(i) / float64(logoSteps-1) * float64(len(hex)-1)
 		s := int(f)
-		if s >= len(stops)-1 {
-			s = len(stops) - 2
+		if s >= len(hex)-1 {
+			s = len(hex) - 2
 		}
 		t := f - float64(s)
 		var c [3]int
 		for k := 0; k < 3; k++ {
-			c[k] = stops[s][k] + int(t*float64(stops[s+1][k]-stops[s][k]))
+			c[k] = hex[s][k] + int(t*float64(hex[s+1][k]-hex[s][k]))
 		}
 		ramp[i] = lipgloss.NewStyle().Foreground(
 			lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", c[0], c[1], c[2])))
@@ -131,7 +138,8 @@ func (l *logoModel) view(innerW int) []string {
 // suficiente y ninguna vista a pantalla completa lo tapa.
 func (m *Model) logoVisible() bool {
 	return m.height >= logoMinRows && m.width >= minWidth &&
-		!m.langOpen && !m.showHelp && !m.consoleOpen && !m.songsOpen && !m.plOpen
+		!m.langOpen && !m.showHelp && !m.consoleOpen && !m.songsOpen &&
+		!m.plOpen && !m.npOpen
 }
 
 // logoEnergy estima la energía del audio (0..1) como media de las barras del

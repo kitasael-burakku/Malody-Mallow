@@ -90,6 +90,9 @@ func (m *Model) View() string {
 	if m.plOpen {
 		return m.plView()
 	}
+	if m.npOpen {
+		return m.npView()
+	}
 
 	topH, vizH, logoH := m.layout()
 	leftW := m.width / 2
@@ -241,8 +244,12 @@ var vizBlocks = []rune(" ▁▂▃▄▅▆▇█")
 // vizPanel dibuja el espectro: una columna por barra que sigue la amplitud
 // suavizada, caracteres de octavos y gradiente vertical color_low → color_high.
 func (m *Model) vizPanel(w, h int) string {
-	innerW := w - 2
-	innerH := h - 2
+	return m.st.panel(i18n.T("tui.viz_title"), m.vizLines(w-2, h-2), w, h, false)
+}
+
+// vizLines arma las filas del espectro sin panel, para que la capa "Ahora
+// suena" pueda incrustarlas en el suyo.
+func (m *Model) vizLines(innerW, innerH int) []string {
 	styles := m.vizGradient(innerH)
 
 	lines := make([]string, innerH)
@@ -266,7 +273,7 @@ func (m *Model) vizPanel(w, h int) string {
 		}
 		lines[r] = styles[r].Render(string(cells))
 	}
-	return m.st.panel(i18n.T("tui.viz_title"), lines, w, h, false)
+	return lines
 }
 
 // vizGradient devuelve un estilo por fila interpolando el tema (cacheado).
@@ -392,6 +399,7 @@ func (m *Model) helpView() string {
 		{"gg/G ctrl+d/u", i18n.T("help.jump_scroll")},
 		{k["shuffle"] + " / " + k["repeat"], i18n.T("help.shuffle_repeat")},
 		{k["toggle_viz"], i18n.T("help.toggle_viz")},
+		{k["now_playing"], i18n.T("help.now_playing")},
 		{k["palette"], i18n.T("help.palette")},
 		{k["songs"], i18n.T("help.songs")},
 		{k["playlists"], i18n.T("help.playlists")},

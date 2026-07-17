@@ -3,6 +3,7 @@
 package tui
 
 import (
+	"image"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -13,6 +14,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/media"
 	"maly/internal/update"
 	"maly/internal/version"
 	"maly/internal/viz"
@@ -96,6 +98,18 @@ type Model struct {
 	plMode    plMode
 	plPending []int64 // ids a agregar en modo destino
 
+	// Capa "Ahora suena" (ctrl+t): pantalla completa con carátula y letras.
+	npOpen         bool
+	npTrack        string      // pista cuyos datos están cargados
+	npLoading      string      // pista con carga en vuelo ("" = ninguna)
+	npImg          image.Image // carátula decodificada (nil = sin carátula)
+	npArtLines     []string    // render de la carátula, cacheado
+	npArtW, npArtH int         // tamaño en celdas del render cacheado
+	npLyrics       []media.LyricLine
+	npSynced       bool
+	npScroll       int // desplazamiento manual (letras sin sincronía)
+	cover          coverRenderer
+
 	// gPending marca que se pulsó una `g` esperando la segunda (gg = inicio).
 	gPending bool
 }
@@ -144,7 +158,8 @@ func Run(cfg config.Config, embedded bool) error {
 		filterInput: ti,
 		vizOn:       cfg.Visualizer.Enabled,
 		langOpen:    cfg.Language == "",
-		logo:        newLogo(),
+		logo:        newLogo(cfg.Theme.Logo),
+		cover:       halfBlocks{},
 		subRetry:    subRetryTicks, // Init ya lanza el primer intento
 	}
 	m.filterInput.PromptStyle = m.st.accent
@@ -327,14 +342,22 @@ func (m *Model) applyStatus(resp ipc.Response) tea.Cmd {
 	// Otra generación de biblioteca: un scan (consola, maly scan o maly get,
 	// desde cualquier cliente) tocó la DB. La primera foto solo registra la
 	// generación — Init ya cargó el árbol.
+	var cmds []tea.Cmd
 	if s := resp.Status; s != nil && s.LibGen != m.libGen {
 		known := m.libGen != 0
 		m.libGen = s.LibGen
 		if known {
-			return loadLibrary
+			cmds = append(cmds, loadLibrary)
 		}
 	}
-	return nil
+	// La capa "Ahora suena" recarga carátula y letras al cambiar la pista.
+	if m.npOpen {
+		if p := m.currentTrackPath(); p != "" && p != m.npTrack && p != m.npLoading {
+			m.npLoading = p
+			cmds = append(cmds, loadNowMeta(p))
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -342,6 +365,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		m.filterInput.Width = m.width/2 - 6
+		m.npArtLines = nil // la carátula se re-escala al nuevo tamaño
 		return m, nil
 
 	case tickMsg:
@@ -511,6 +535,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(m.applyStatus(msg.resp), m.fetch())
 
+	case npMetaMsg:
+		if m.npLoading == msg.path {
+			m.npLoading = ""
+		}
+		// Carga pisada: la pista cambió mientras se leía del disco; el
+		// próximo push disparará la de la pista vigente.
+		if msg.path != m.currentTrackPath() {
+			return m, nil
+		}
+		m.npTrack = msg.path
+		m.npImg = msg.img
+		m.npArtLines = nil
+		m.npLyrics = msg.lyrics
+		m.npSynced = msg.synced
+		m.npScroll = 0
+		return m, nil
+
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	}
@@ -539,6 +580,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.plOpen {
 		return m.handlePlaylistsKey(msg)
 	}
+	if m.npOpen {
+		return m.handleNowKey(msg)
+	}
 	if m.is("palette", msg) {
 		return m, m.openConsole()
 	}
@@ -547,6 +591,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.is("playlists", msg) {
 		return m, m.openPlaylists(plBrowse, nil)
+	}
+	if m.is("now_playing", msg) {
+		return m, m.openNowPlaying()
 	}
 
 	// Cualquier tecla distinta de `g` rompe la secuencia gg pendiente; los
@@ -577,32 +624,15 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if cmd, ok := m.playbackKey(msg); ok {
+		return m, cmd
+	}
+
 	switch {
 	case m.is("quit", msg):
 		return m, tea.Quit
 	case m.is("help", msg):
 		m.showHelp = true
-		return m, nil
-	case m.is("play_pause", msg):
-		return m, m.req(ipc.Request{Cmd: "toggle"})
-	case m.is("next", msg):
-		return m, m.req(ipc.Request{Cmd: "next"})
-	case m.is("prev", msg):
-		return m, m.req(ipc.Request{Cmd: "prev"})
-	case m.is("vol_up", msg):
-		return m, m.req(ipc.Request{Cmd: "vol", Value: "+5"})
-	case m.is("vol_down", msg):
-		return m, m.req(ipc.Request{Cmd: "vol", Value: "-5"})
-	case m.is("seek_forward", msg):
-		return m, m.req(ipc.Request{Cmd: "seek", Value: "+5"})
-	case m.is("seek_back", msg):
-		return m, m.req(ipc.Request{Cmd: "seek", Value: "-5"})
-	case m.is("shuffle", msg):
-		return m, m.req(ipc.Request{Cmd: "shuffle"})
-	case m.is("repeat", msg):
-		return m, m.req(ipc.Request{Cmd: "repeat"})
-	case m.is("toggle_viz", msg):
-		m.vizOn = !m.vizOn
 		return m, nil
 	case m.is("switch_panel", msg):
 		if m.focus == panelLibrary {
@@ -624,6 +654,36 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLibraryKey(msg)
 	}
 	return m.handleQueueKey(msg)
+}
+
+// playbackKey resuelve las acciones de reproducción globales, compartidas
+// entre la vista principal y la capa "Ahora suena". ok=false si la tecla no
+// es de reproducción.
+func (m *Model) playbackKey(msg tea.KeyMsg) (cmd tea.Cmd, ok bool) {
+	switch {
+	case m.is("play_pause", msg):
+		return m.req(ipc.Request{Cmd: "toggle"}), true
+	case m.is("next", msg):
+		return m.req(ipc.Request{Cmd: "next"}), true
+	case m.is("prev", msg):
+		return m.req(ipc.Request{Cmd: "prev"}), true
+	case m.is("vol_up", msg):
+		return m.req(ipc.Request{Cmd: "vol", Value: "+5"}), true
+	case m.is("vol_down", msg):
+		return m.req(ipc.Request{Cmd: "vol", Value: "-5"}), true
+	case m.is("seek_forward", msg):
+		return m.req(ipc.Request{Cmd: "seek", Value: "+5"}), true
+	case m.is("seek_back", msg):
+		return m.req(ipc.Request{Cmd: "seek", Value: "-5"}), true
+	case m.is("shuffle", msg):
+		return m.req(ipc.Request{Cmd: "shuffle"}), true
+	case m.is("repeat", msg):
+		return m.req(ipc.Request{Cmd: "repeat"}), true
+	case m.is("toggle_viz", msg):
+		m.vizOn = !m.vizOn
+		return nil, true
+	}
+	return nil, false
 }
 
 // syncFilterInput carga en el input el filtro del panel enfocado.

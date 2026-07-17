@@ -321,6 +321,59 @@ func TestLoadLogoSane(t *testing.T) {
 	}
 }
 
+// TestLoadLogoArt: un logo.txt junto al config reemplaza el arte del banner
+// (sin \r ni líneas vacías al final); sin archivo, o vacío, queda nil = arte
+// de fábrica, y uno desmedido se recorta a maxLogoArt.
+func TestLoadLogoArt(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("music_dir = \"~/Music\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme.LogoArt != nil {
+		t.Fatalf("sin logo.txt esperaba nil, hubo %q", cfg.Theme.LogoArt)
+	}
+
+	if err := os.WriteFile(LogoArtPath(), []byte("MALY\r\nmini\n\n   \n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Theme.LogoArt) != 2 || cfg.Theme.LogoArt[0] != "MALY" || cfg.Theme.LogoArt[1] != "mini" {
+		t.Fatalf("arte mal cargado: %q", cfg.Theme.LogoArt)
+	}
+
+	if err := os.WriteFile(LogoArtPath(), []byte("\n\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme.LogoArt != nil {
+		t.Fatalf("logo.txt vacío esperaba nil, hubo %q", cfg.Theme.LogoArt)
+	}
+
+	big := strings.Repeat("x\n", maxLogoArt+5)
+	if err := os.WriteFile(LogoArtPath(), []byte(big), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Theme.LogoArt) != maxLogoArt {
+		t.Fatalf("arte desmedido debía recortarse a %d, hubo %d", maxLogoArt, len(cfg.Theme.LogoArt))
+	}
+}
+
 // TestEnsureRuntimeDir fija el contrato de seguridad del runtime dir: se
 // crea 0700, uno propio con permisos flojos se aprieta en vez de fallar, y
 // un symlink en la ruta (dir de otro, ataque clásico en /tmp) se rechaza.

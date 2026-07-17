@@ -121,7 +121,13 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   la pista. `playbackKey` centraliza las teclas de reproducción compartidas
   entre la vista principal y la capa. El comando `logo` de la consola aplica
   el gradiente del banner en vivo y lo persiste (`SaveThemeLogo` → `saveKey`,
-  que edita claves dentro de secciones TOML sin tocar el resto).
+  que edita claves dentro de secciones TOML sin tocar el resto). El **arte
+  ASCII** del banner se reemplaza con `logo.txt` junto al config
+  (`loadLogoArt` en `config.Load` → `Theme.LogoArt`, `toml:"-"`); a
+  propósito NO es clave TOML: un string multilínea rompería el parser por
+  líneas de `saveKey` y el escapado del `\` de figlet. La altura del panel
+  es dinámica (`panelH`/`minRows` del `logoModel`; el arte se recorta a
+  `maxLogoArt` líneas en config).
 - `internal/i18n` — `T/Tf` (idioma global) y `TL/TLf` (por petición: el cliente
   manda `Request.Lang` y el demonio responde en ese idioma). `TestTableIntegrity`
   valida en/es al agregar claves.

@@ -19,8 +19,7 @@ const logoArt = ` ███▄ ▄███▓ ▄▄▄       ██▓     ▒
 ░ ▒░   ░  ░ ▒▒   ▓▒█░░ ▒░▓  ░░ ▒░▒░▒░  ▒▒▓  ▒   ██▒▒▒`
 
 const (
-	logoPanelH   = 8  // 6 líneas de arte + bordes
-	logoMinRows  = 30 // altura mínima del terminal para mostrar el banner
+	logoBaseRows = 22 // filas de UI que deben caber además del panel del banner
 	logoSteps    = 24 // resolución del gradiente precalculado
 	logoFreq     = 0.22
 	logoInterval = 80 * time.Millisecond // ~12.5 fps
@@ -44,8 +43,13 @@ type logoModel struct {
 	ramp   []lipgloss.Style
 }
 
-func newLogo(stops []string) logoModel {
-	rows := strings.Split(logoArt, "\n")
+// newLogo arma el banner: art son las líneas de un logo.txt del usuario
+// (config.Theme.LogoArt); vacío = el MALODY de fábrica.
+func newLogo(stops, art []string) logoModel {
+	rows := art
+	if len(rows) == 0 {
+		rows = strings.Split(logoArt, "\n")
+	}
 	w := 0
 	for _, r := range rows {
 		if n := lipgloss.Width(r); n > w {
@@ -58,6 +62,13 @@ func newLogo(stops []string) logoModel {
 	}
 	return logoModel{cells: cells, width: w, ramp: logoRamp(stops)}
 }
+
+// panelH: líneas de arte + bordes del panel.
+func (l *logoModel) panelH() int { return len(l.cells) + 2 }
+
+// minRows: altura mínima del terminal para dibujar el banner sin aplastar el
+// resto de la UI (con el arte de fábrica equivale al viejo umbral de 30).
+func (l *logoModel) minRows() int { return logoBaseRows + l.panelH() }
 
 // logoRamp interpola las paradas del gradiente del banner en logoSteps pasos.
 func logoRamp(stops []string) []lipgloss.Style {
@@ -137,7 +148,7 @@ func (l *logoModel) view(innerW int) []string {
 // logoVisible: el banner se dibuja y su tick sigue vivo solo si hay altura
 // suficiente y ninguna vista a pantalla completa lo tapa.
 func (m *Model) logoVisible() bool {
-	return m.height >= logoMinRows && m.width >= minWidth &&
+	return m.height >= m.logo.minRows() && m.width >= minWidth &&
 		!m.langOpen && !m.showHelp && !m.consoleOpen && !m.songsOpen &&
 		!m.plOpen && !m.npOpen
 }

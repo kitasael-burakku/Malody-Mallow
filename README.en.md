@@ -379,6 +379,8 @@ border = "#45475a"
 text = "#cdd6f4"
 dim = "#6c7086"
 playing = "#a6e3a1"
+logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # banner gradient stops (2 or more)
+# banner art: create logo.txt next to this file with your own ASCII
 
 [visualizer]
 enabled = true

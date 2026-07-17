@@ -377,6 +377,8 @@ border = "#45475a"
 text = "#cdd6f4"
 dim = "#6c7086"
 playing = "#a6e3a1"
+logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 o más)
+# arte del banner: crea logo.txt junto a este archivo con tu propio ASCII
 
 [visualizer]
 enabled = true

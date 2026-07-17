@@ -158,7 +158,7 @@ func Run(cfg config.Config, embedded bool) error {
 		filterInput: ti,
 		vizOn:       cfg.Visualizer.Enabled,
 		langOpen:    cfg.Language == "",
-		logo:        newLogo(cfg.Theme.Logo),
+		logo:        newLogo(cfg.Theme.Logo, cfg.Theme.LogoArt),
 		cover:       halfBlocks{},
 		subRetry:    subRetryTicks, // Init ya lanza el primer intento
 	}

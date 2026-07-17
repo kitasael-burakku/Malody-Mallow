@@ -25,6 +25,9 @@ type Theme struct {
 	Dim         string   `toml:"dim"`
 	Playing     string   `toml:"playing"`
 	Logo        []string `toml:"logo"` // paradas hex del gradiente del banner (≥2)
+	// LogoArt no vive en el TOML: viene del logo.txt opcional junto al
+	// config (Load lo lee); nil = arte de fábrica.
+	LogoArt []string `toml:"-"`
 }
 
 type Visualizer struct {
@@ -142,6 +145,7 @@ text = "#cdd6f4"
 dim = "#6c7086"
 playing = "#a6e3a1"
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 o más)
+# arte del banner: crea logo.txt junto a este archivo con tu propio ASCII
 
 [visualizer]
 enabled = true
@@ -385,6 +389,8 @@ func Load() (cfg Config, retErr error) {
 		}
 	}
 
+	cfg.Theme.LogoArt = loadLogoArt()
+
 	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
@@ -411,6 +417,35 @@ func Load() (cfg Config, retErr error) {
 		cfg.Theme.Logo = Default().Theme.Logo
 	}
 	return cfg, nil
+}
+
+// LogoArtPath es el logo.txt opcional junto al config: si existe, sus líneas
+// reemplazan el arte ASCII del banner (los colores siguen siendo [theme] logo).
+func LogoArtPath() string { return filepath.Join(ConfigDir(), "logo.txt") }
+
+// maxLogoArt limita la altura del arte para que un logo.txt desmedido no se
+// coma el layout de la TUI.
+const maxLogoArt = 12
+
+// loadLogoArt lee logo.txt y devuelve sus líneas listas para el banner: sin
+// \r, sin líneas vacías al final y recortado a maxLogoArt. Cualquier problema
+// (no existe, ilegible, vacío) → nil = arte de fábrica, en silencio.
+func loadLogoArt() []string {
+	data, err := os.ReadFile(LogoArtPath())
+	if err != nil {
+		return nil
+	}
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r", ""), "\n")
+	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	if len(lines) > maxLogoArt {
+		lines = lines[:maxLogoArt]
+	}
+	return lines
 }
 
 // validLogo acepta un gradiente de banner: al menos dos paradas, todas hex.

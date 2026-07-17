@@ -21,8 +21,8 @@ const (
 // layout reparte la altura: logo (si cabe), fila superior (biblioteca+cola),
 // visualizador, ahora suena y una línea de pie.
 func (m *Model) layout() (topH, vizH, logoH int) {
-	if m.height >= logoMinRows {
-		logoH = logoPanelH
+	if m.height >= m.logo.minRows() {
+		logoH = m.logo.panelH()
 	}
 	vizH = 0
 	if m.vizOn && m.height >= vizMinRows {

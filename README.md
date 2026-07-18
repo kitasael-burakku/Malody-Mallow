@@ -25,6 +25,8 @@ escritorio, vía MPRIS. Todo en un solo binario escrito en Go.
 
 ![Maly en Hyprland](pictures/hyprland-maly.png)
 
+![Ahora Suena](pictures/Ahora-Suena.png)
+
 ---
 
 ## Características

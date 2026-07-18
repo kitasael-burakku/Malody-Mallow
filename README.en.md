@@ -25,6 +25,8 @@ in a single binary written in Go.
 
 ![Maly in Hyprland](pictures/hyprland-maly.png)
 
+![Now Playing](pictures/Ahora-Suena.png)
+
 ---
 
 ## Features

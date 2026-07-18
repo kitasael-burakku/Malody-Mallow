@@ -50,7 +50,9 @@ escritorio, vía MPRIS. Todo en un solo binario escrito en Go.
 - **Pantalla "Ahora suena" (Ctrl+T)**: vista a pantalla completa con la
   carátula embebida renderizada en el terminal, letras sincronizadas con
   la reproducción (sidecar `.lrc`, o embebidas en la pista) y la franja
-  del visualizador.
+  del visualizador. En kitty la carátula se dibuja como imagen real (su
+  protocolo gráfico, detectado solo); en cualquier otro terminal
+  truecolor sale en half-blocks.
 - **Paleta Ctrl+P**: consola integrada de comandos (`maly next`, `vol +5`,
   `status`…) con la salida dentro de la propia paleta.
 - **Selector Ctrl+O / `maly select`**: búsqueda difusa sobre toda la

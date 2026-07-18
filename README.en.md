@@ -48,7 +48,10 @@ in a single binary written in Go.
   with a color gradient; bars follow smoothed amplitude (CAVA-style).
 - **"Now Playing" screen (Ctrl+T)**: a fullscreen view with the embedded
   cover art rendered in the terminal, lyrics synced to playback (`.lrc`
-  sidecar, or embedded in the track), and the visualizer strip.
+  sidecar, or embedded in the track), and the visualizer strip. On kitty
+  the cover is drawn as a real image (its graphics protocol,
+  auto-detected); on any other truecolor terminal it falls back to
+  half-blocks.
 - **Ctrl+P palette**: an integrated command console (`maly next`, `vol +5`,
   `status`…) with output shown right inside the palette.
 - **Ctrl+O selector / `maly select`**: fuzzy search across the whole

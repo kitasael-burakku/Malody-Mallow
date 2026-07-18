@@ -117,7 +117,9 @@ func (m *Model) npView() string {
 	var art []string
 	if img != nil {
 		if m.npArtLines == nil || m.npArtW != artW || m.npArtH != artH {
-			m.npArtLines = m.cover.render(media.ScaleBox(img, artW, artH*2), artW, artH)
+			// El renderer escala a su propia densidad (half-blocks: 2 px por
+			// celda; kitty: kittyCellW×kittyCellH px por celda).
+			m.npArtLines = m.cover.render(img, artW, artH)
 			m.npArtW, m.npArtH = artW, artH
 		}
 		art = m.npArtLines

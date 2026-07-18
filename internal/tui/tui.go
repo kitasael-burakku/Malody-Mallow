@@ -160,7 +160,7 @@ func Run(cfg config.Config, embedded bool) error {
 		vizOn:       cfg.Visualizer.Enabled,
 		langOpen:    cfg.Language == "",
 		logo:        newLogo(cfg.Theme.Logo, cfg.Theme.LogoArt),
-		cover:       halfBlocks{},
+		cover:       pickCoverRenderer(),
 		subRetry:    subRetryTicks, // Init ya lanza el primer intento
 	}
 	m.filterInput.PromptStyle = m.st.accent

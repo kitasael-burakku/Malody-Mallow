@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"image"
 	"strings"
+
+	"maly/internal/media"
 )
 
-// coverRenderer convierte una carátula ya escalada (wCells × 2·hCells px) en
-// líneas listas para incrustar en el View. La implementación por defecto son
-// half-blocks ANSI, que funcionan en cualquier terminal truecolor; una futura
-// podría hablar el protocolo gráfico de kitty.
+// coverRenderer convierte la carátula decodificada en líneas listas para
+// incrustar en el View; cada implementación escala a su propia densidad. La
+// implementación por defecto son half-blocks ANSI, que funcionan en
+// cualquier terminal truecolor; en kitty se usa su protocolo gráfico
+// (kittyGfx, artkitty.go). pickCoverRenderer elige.
 type coverRenderer interface {
 	render(img image.Image, wCells, hCells int) []string
 }
@@ -20,7 +23,8 @@ type coverRenderer interface {
 // secuencia cuando cambia el par de colores.
 type halfBlocks struct{}
 
-func (halfBlocks) render(img image.Image, wCells, hCells int) []string {
+func (halfBlocks) render(src image.Image, wCells, hCells int) []string {
+	img := media.ScaleBox(src, wCells, hCells*2)
 	b := img.Bounds()
 	rgb := func(x, y int) (uint32, uint32, uint32) {
 		r, g, bl, _ := img.At(b.Min.X+x, b.Min.Y+y).RGBA()

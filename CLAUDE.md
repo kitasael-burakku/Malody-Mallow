@@ -115,8 +115,15 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   consola `conMsg.reload`) recarga el árbol; las hechas por CLI desde otra
   terminal no se reflejan en vivo (van directo a SQLite, sin demonio de
   por medio — limitación conocida). La capa "Ahora suena" (ctrl+t,
-  `nowplaying.go`) es una vista fullscreen con carátula en half-blocks ANSI
-  (`artrender.go`, interfaz `coverRenderer` para enchufar kitty después),
+  `nowplaying.go`) es una vista fullscreen con carátula (interfaz
+  `coverRenderer`, cada renderer escala a su densidad: half-blocks ANSI en
+  `artrender.go`, y en kitty el protocolo gráfico vía **Unicode
+  placeholders** en `artkitty.go` — la imagen vive en celdas U+10EEEE con
+  el id en la tinta y fila/columna en diacríticos de la tabla oficial, así
+  el diff de bubbletea, los modales y el cierre funcionan solos; la
+  transmisión t=d va pegada a la fila 0 del render cacheado → una vez por
+  pista, no por frame; `q=2` OBLIGATORIO o kitty contesta por stdin;
+  detección por TERM/KITTY_WINDOW_ID y bajo tmux cae a half-blocks),
   letras (resaltado sincronizado por `Status.Position` si hay `.lrc`) y la
   franja del viz (`vizLines` compartido con `vizPanel`); carga carátula y
   letras SIEMPRE en goroutine (`loadNowMeta`, cache por pista `npTrack` +

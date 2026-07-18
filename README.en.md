@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.2.0-blue)
+![version](https://img.shields.io/badge/version-1.2.1-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -328,6 +328,14 @@ first result; with a URL it downloads it as-is. The audio ends up as an
 MP3 with embedded metadata and cover art in `music_dir`, and the library
 re-scans itself (through the service, if it's running).
 
+For videos that require an account (age-restricted, etc), set
+`cookies_from_browser` in the config's `[ytdlp]` section: the value goes
+as-is to yt-dlp's `--cookies-from-browser` — `firefox`, `chrome`,
+`browser:profile`, or for derived browsers a profile path, e.g. Zen:
+`firefox:/home/your-user/.config/zen/<profile>`. Note: with Chromium-based
+browsers yt-dlp may ask to unlock the keyring, and if the cookie database
+is locked, close the browser and try again.
+
 ### Hyprland
 
 You can add maly to your Hyprland config in Lua. Daemon autostart:
@@ -405,6 +413,12 @@ enabled = true
 color_low = "#89b4fa"     # color at the base of the bars
 color_high = "#f38ba8"    # color at the tips
 bars_gravity = 0.92       # 0-1: how long bars take to fall
+
+[ytdlp]
+# browser to read cookies from for downloads that require an account
+# (age-restricted videos, etc); empty = disabled. Accepts browser:profile
+# (e.g. "firefox:default-release") — the value goes to yt-dlp as-is
+cookies_from_browser = ""
 
 [keys]
 # play_pause = " "

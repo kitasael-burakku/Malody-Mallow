@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.2.0-blue)
+![version](https://img.shields.io/badge/version-1.2.1-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -325,6 +325,14 @@ la descarga tal cual. El audio queda como MP3 con metadata y carátula
 embebidas en `music_dir`, y la biblioteca se re-escanea sola (a través del
 servicio si está corriendo).
 
+Para videos que piden cuenta (restricción de edad, etc), configura
+`cookies_from_browser` en la sección `[ytdlp]` del config: el valor viaja
+tal cual al `--cookies-from-browser` de yt-dlp — `firefox`, `chrome`,
+`navegador:perfil`, o para navegadores derivados una ruta de perfil, p. ej.
+Zen: `firefox:/home/tu-usuario/.config/zen/<perfil>`. Ojo: con navegadores
+Chromium yt-dlp puede pedir desbloquear el keyring, y si la base de cookies
+está bloqueada, cierra el navegador e intenta de nuevo.
+
 ### Hyprland
 
 Puedes agregar maly a tu configuración de Hyprland en Lua. Autostart del
@@ -404,6 +412,12 @@ enabled = true
 color_low = "#89b4fa"     # color de la base de las barras
 color_high = "#f38ba8"    # color de las puntas
 bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
+
+[ytdlp]
+# navegador del que leer cookies para descargas que piden cuenta
+# (restricción de edad, etc); vacío = desactivado. Acepta navegador:perfil
+# (p. ej. "firefox:default-release") — el valor va tal cual a yt-dlp
+cookies_from_browser = ""
 
 [keys]
 # play_pause = " "

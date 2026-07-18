@@ -45,7 +45,12 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   las reimplementa): descarga MP3 con metadata/carátula embebidas a `music_dir`
   y re-escanea (vía IPC si el demonio responde, directo a la DB si no);
   yt-dlp/ffmpeg opcionales vía `exec.LookPath` con mensaje de instalación; el
-  progreso de yt-dlp pasa directo al terminal, cero parsing. mp3 a propósito:
+  progreso de yt-dlp pasa directo al terminal, cero parsing.
+  `[ytdlp] cookies_from_browser` del config viaja tal cual a
+  `--cookies-from-browser` (passthrough sin validar, "" = sin flag; los
+  comentarios del template del config son estáticos en español, sin i18n);
+  navegadores derivados van con ruta de perfil, p. ej. Zen (base Firefox,
+  perfiles en `~/.config/zen/`): `firefox:/ruta/al/perfil`. mp3 a propósito:
   dhowden lee sus ID3 en el scan y la miniatura APIC es justo lo que
   `mpris:artUrl` extrae. Tests sin red con un yt-dlp falso en el PATH
   (`get_test.go`, mismo patrón que el mpv falso de `player_test.go`).
@@ -248,6 +253,13 @@ nada); tras un `ESC` se leen 2 bytes con `min 0 time 2` para
 distinguir flecha de ESC suelto; y `run_phase` separa el wizard (clear
 por pantalla) de la fase de ejecución (log corrido: la salida de
 pacman/go debe quedar en el scrollback).
+
+La **1.2.1** (2026-07-18) agregó `[ytdlp] cookies_from_browser` al config:
+passthrough tal cual a `--cookies-from-browser` de yt-dlp para videos que
+piden cuenta (restricción de edad). Sin validación ni parsing de errores a
+propósito (yt-dlp es el dueño de ambos); vacío = sin flag, configs viejos
+sin la sección cargan igual. Probado con el yt-dlp falso de `get_test.go`
+y en vivo con Zen Browser vía ruta de perfil.
 
 ### Post-1.0 (candidatos)
 

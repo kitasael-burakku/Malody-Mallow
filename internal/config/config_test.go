@@ -75,6 +75,48 @@ func TestLoadCreatesDefault(t *testing.T) {
 	if again.MusicDir != cfg.MusicDir || again.Keys["next"] != cfg.Keys["next"] {
 		t.Fatalf("recarga difiere: %q vs %q", again.MusicDir, cfg.MusicDir)
 	}
+	// El template trae la sección [ytdlp] documentada, con el default vacío
+	// (= sin flag de cookies en maly get).
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "[ytdlp]") || !strings.Contains(string(data), `cookies_from_browser = ""`) {
+		t.Fatalf("el template no documenta [ytdlp]:\n%s", data)
+	}
+	if cfg.Ytdlp.CookiesFromBrowser != "" {
+		t.Fatalf("cookies_from_browser default debía ser vacío: %q", cfg.Ytdlp.CookiesFromBrowser)
+	}
+}
+
+// TestLoadYtdlpCookies: la clave llega al struct tal cual, y un config viejo
+// sin la sección [ytdlp] sigue cargando con el zero-value (desactivado).
+func TestLoadYtdlpCookies(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("music_dir = \"~/Music\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Ytdlp.CookiesFromBrowser != "" {
+		t.Fatalf("sin [ytdlp] esperaba vacío, hubo %q", cfg.Ytdlp.CookiesFromBrowser)
+	}
+
+	body := "music_dir = \"~/Music\"\n\n[ytdlp]\ncookies_from_browser = \"firefox:default-release\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Ytdlp.CookiesFromBrowser != "firefox:default-release" {
+		t.Fatalf("cookies_from_browser = %q, quería firefox:default-release", cfg.Ytdlp.CookiesFromBrowser)
+	}
 }
 
 // TestLoadInvalidStillUsable: con TOML roto Load devuelve error, pero el

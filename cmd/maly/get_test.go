@@ -110,6 +110,41 @@ func TestGetURLGoesVerbatim(t *testing.T) {
 	}
 }
 
+// TestGetCookiesFromBrowser: con [ytdlp] cookies_from_browser en el config,
+// el valor llega tal cual a yt-dlp como --cookies-from-browser (sintaxis
+// navegador:perfil incluida) antes del spec. Sin la sección (los demás tests
+// de este archivo) el flag no aparece.
+func TestGetCookiesFromBrowser(t *testing.T) {
+	_, argsFile := getSandbox(t)
+	cfgPath := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "maly", "config.toml")
+	f, err := os.OpenFile(cfgPath, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("\n[ytdlp]\ncookies_from_browser = \"firefox:default-release\"\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	if err := runGet([]string{"aurora", "runaway"}); err != nil {
+		t.Fatal(err)
+	}
+	args := fakeArgs(t, argsFile)
+	idx := -1
+	for i, a := range args {
+		if a == "--cookies-from-browser" {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 || idx+1 >= len(args) || args[idx+1] != "firefox:default-release" {
+		t.Fatalf("falta --cookies-from-browser firefox:default-release: %v", args)
+	}
+	if got := args[len(args)-1]; got != "ytsearch1:aurora runaway" {
+		t.Errorf("el spec debía seguir al final, fue %q", got)
+	}
+}
+
 func TestGetMissingTool(t *testing.T) {
 	xdgSandbox(t)
 	// Un PATH con solo ffmpeg: el error debe nombrar a yt-dlp.

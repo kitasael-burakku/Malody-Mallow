@@ -361,7 +361,7 @@ func (m *Model) conGet(args []string) (tea.Model, tea.Cmd) {
 	}
 	spec := getter.Spec(strings.Join(args, " "))
 	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_start", spec, dir)))
-	cmd := getter.Command(dir, spec)
+	cmd := getter.Command(dir, spec, m.cfg.Ytdlp.CookiesFromBrowser)
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg { return getDoneMsg{err: err} })
 }
 

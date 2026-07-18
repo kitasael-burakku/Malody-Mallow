@@ -34,7 +34,7 @@ func runGet(args []string) error {
 
 	spec := getter.Spec(strings.Join(args, " "))
 	fmt.Println(i18n.Tf("cli.get_start", spec, dir))
-	cmd := getter.Command(dir, spec)
+	cmd := getter.Command(dir, spec, cfg.Ytdlp.CookiesFromBrowser)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

@@ -37,6 +37,16 @@ type Visualizer struct {
 	BarsGravity float64 `toml:"bars_gravity"`
 }
 
+// Ytdlp configura el passthrough hacia yt-dlp de `maly get`. maly no valida
+// estos valores: yt-dlp es quien los entiende, y si algo está mal el error
+// es suyo y sale tal cual al terminal (filosofía "cero parsing" de get).
+type Ytdlp struct {
+	// CookiesFromBrowser viaja tal cual a --cookies-from-browser cuando no
+	// está vacío ("" = sin flag). Acepta lo que yt-dlp acepte, incluido
+	// navegador:perfil.
+	CookiesFromBrowser string `toml:"cookies_from_browser"`
+}
+
 type Config struct {
 	MusicDir    string            `toml:"music_dir"`
 	Language    string            `toml:"language"`     // "" = preguntar al abrir la TUI; "en" | "es"
@@ -44,6 +54,7 @@ type Config struct {
 	UpdateCheck bool              `toml:"update_check"` // la TUI avisa si hay release nuevo (maly update)
 	Theme       Theme             `toml:"theme"`
 	Visualizer  Visualizer        `toml:"visualizer"`
+	Ytdlp       Ytdlp             `toml:"ytdlp"`
 	Keys        map[string]string `toml:"keys"`
 }
 
@@ -152,6 +163,17 @@ enabled = true
 color_low = "#89b4fa"
 color_high = "#f38ba8"
 bars_gravity = 0.92
+
+[ytdlp]
+# Navegador del que leer cookies para descargas que requieren cuenta
+# (videos con restricción de edad, etc). Vacío = desactivado.
+# Ejemplos: firefox, chrome, chromium, brave, edge, vivaldi
+# También acepta navegador:perfil (p. ej. "firefox:default-release")
+# si tienes varios perfiles — yt-dlp lo soporta nativo.
+# Ojo: con navegadores Chromium (chrome/brave/etc) yt-dlp puede pedir
+# desbloquear el keyring, y con el navegador abierto la base de cookies
+# puede estar bloqueada — si falla, ciérralo e intenta de nuevo.
+cookies_from_browser = ""
 
 [keys]
 # Remapea acciones a teclas de Bubble Tea, p. ej.:

@@ -41,11 +41,19 @@ func Spec(query string) string {
 
 // Command arma el yt-dlp que descarga spec a dir. mp3 a propósito: el scan
 // lee sus ID3 (dhowden) y la miniatura embebida como APIC es justo la
-// carátula que mpris:artUrl ya extrae.
-func Command(dir, spec string) *exec.Cmd {
-	return exec.Command("yt-dlp",
+// carátula que mpris:artUrl ya extrae. cookiesFromBrowser (config [ytdlp])
+// viaja tal cual a --cookies-from-browser cuando no está vacío, para videos
+// que piden cuenta (restricción de edad); maly no valida el valor: si está
+// mal, el error que sale al terminal es el de yt-dlp.
+func Command(dir, spec, cookiesFromBrowser string) *exec.Cmd {
+	args := []string{
 		"-x", "--audio-format", "mp3", "--audio-quality", "0",
 		"--embed-metadata", "--embed-thumbnail",
 		"-o", filepath.Join(dir, "%(artist,uploader)s - %(title)s.%(ext)s"),
-		"--", spec)
+	}
+	if cookiesFromBrowser != "" {
+		args = append(args, "--cookies-from-browser", cookiesFromBrowser)
+	}
+	args = append(args, "--", spec)
+	return exec.Command("yt-dlp", args...)
 }

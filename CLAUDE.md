@@ -229,8 +229,13 @@ Trampas que dejaron estos ciclos:
   reales al `go build` o deja un mod-cache de solo lectura en el sandbox
   (`chmod -R u+w` antes de borrar).
 
-Post-1.1.5 en main: **rediseño visual del instalador** (elegido por el
-dueño vía preguntas): wizard con pantalla limpia por paso y el banner
+La **1.2.0** (2026-07-17) empaqueta las dos features post-auditoría: la
+**carátula como imagen real en kitty** en "Ahora suena" (renderer
+`artkitty.go`, detalles en la sección de la TUI; la trampa que costó un
+ciclo: el placeholder del protocolo es U+10EEEE, no U+10FFFD, y con q=2
+kitty calla el mismatch — la referencia byte a byte es `kitten icat
+--unicode-placeholder`) y el **rediseño visual del instalador** (elegido
+por el dueño vía preguntas): wizard con pantalla limpia por paso y el banner
 MALODY en degradado Kitasan (fallback a la caja sobria si <58 columnas o
 sin stty), menús y checklist navegables con ↑↓/jk + espacio leyendo el
 tty crudo (`stty -icanon` + `dd`; `RAWOK` sondea y sin él cae al modo

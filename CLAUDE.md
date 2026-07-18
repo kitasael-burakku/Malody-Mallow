@@ -229,11 +229,23 @@ Trampas que dejaron estos ciclos:
   reales al `go build` o deja un mod-cache de solo lectura en el sandbox
   (`chmod -R u+w` antes de borrar).
 
+Post-1.1.5 en main: **rediseño visual del instalador** (elegido por el
+dueño vía preguntas): wizard con pantalla limpia por paso y el banner
+MALODY en degradado Kitasan (fallback a la caja sobria si <58 columnas o
+sin stty), menús y checklist navegables con ↑↓/jk + espacio leyendo el
+tty crudo (`stty -icanon` + `dd`; `RAWOK` sondea y sin él cae al modo
+numérico de siempre), confirm de una tecla, y spinner braille con
+tiempo (`hb_start`/`hb_done`; el sleep fraccional se sondea — sin él
+gira a 1 fps). Trampas: `raw_off` va en el trap (un Ctrl-C en pleno
+modo crudo dejaría el terminal sin eco ni cursor); el trap ahora se
+arma ANTES de las pantallas con `TMP=''` (rm -rf de vacío no toca
+nada); tras un `ESC` se leen 2 bytes con `min 0 time 2` para
+distinguir flecha de ESC suelto; y `run_phase` separa el wizard (clear
+por pantalla) de la fase de ejecución (log corrido: la salida de
+pacman/go debe quedar en el scrollback).
+
 ### Post-1.0 (candidatos)
 
-- **Rediseño visual del instalador**: la funcionalidad interactiva ya está;
-  falta lo vistoso que quiere el dueño (hoy conserva el banner/heartbeat
-  sobrios de siempre).
 - **`maly move <de> <a>`** + reorden en la TUI (J/K en cola): `queue.Move`,
   campo `To` en `ipc.Request`; la ventana gapless ya se realinea en `handle`.
 - Progreso de scan (fácil en CLI directa; por IPC requiere diseño).

@@ -88,10 +88,14 @@ escritorio, vía MPRIS. Todo en un solo binario escrito en Go.
 curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh | sh
 ```
 
-El instalador es interactivo, por pantallas: eliges la acción (instalar,
-actualizar o desinstalar), el ámbito (usuario o sistema) y qué dependencias
-instalar en un checklist — `mpv` y `git` vienen marcados; `yt-dlp`+`ffmpeg`
+El instalador es un wizard interactivo con el banner MALODY en degradado:
+eliges la acción (instalar, actualizar o desinstalar), el ámbito (usuario o
+sistema) y qué dependencias instalar en un checklist, navegando con
+`↑↓`/`jk` y marcando con espacio (si el terminal no da modo crudo, cae al
+modo numérico de siempre) — `mpv` y `git` vienen marcados; `yt-dlp`+`ffmpeg`
 (para `maly get`) y el visualizador son opcionales y arrancan desmarcados.
+Los pasos largos (clonar, compilar) laten con un spinner y el tiempo
+transcurrido.
 Detecta tu gestor de paquetes (pacman, apt, dnf, zypper, xbps); en
 Debian/Ubuntu `yt-dlp` se instala vía `pipx` porque el del repo es viejo y
 ya no descarga de YouTube. Si el Go de tu distro no llega al mínimo, ofrece

@@ -4,10 +4,13 @@
 #   curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh | sh
 #   ./mallow-install.sh [--install | --update | --uninstall] [--system] [--help]
 #
-# Interactivo por pantallas cuando hay terminal: acción (instalar/actualizar/
-# desinstalar) → ámbito (usuario/sistema) → dependencias (checklist con mpv y
-# git marcados; yt-dlp+ffmpeg y el visualizador son opcionales). Los flags
-# pre-contestan su pantalla; sin terminal corre entero con los defaults.
+# Interactivo por pantallas cuando hay terminal: wizard con el banner MALODY
+# en degradado, menús y checklist navegables con ↑↓/jk + espacio (fallback
+# numérico si el tty no da modo crudo) y spinner en los pasos largos. Flujo:
+# acción (instalar/actualizar/desinstalar) → ámbito (usuario/sistema) →
+# dependencias (checklist con mpv y git marcados; yt-dlp+ffmpeg y el
+# visualizador son opcionales). Los flags pre-contestan su pantalla; sin
+# terminal corre entero con los defaults, sin dibujar nada.
 # Compila maly desde main e instala el binario y las completions. Multi-distro:
 # detecta el gestor de paquetes y, si el Go de la distro no alcanza el mínimo
 # de go.mod, baja el toolchain oficial de go.dev a ~/.cache/mallow — solo para
@@ -43,11 +46,19 @@ case "$(sys_lang)" in es*) ES=1 ;; *) ES=0 ;; esac
 tr2() { if [ "$ES" -eq 1 ]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
 
 # ---- colores solo si stdout es un terminal ----
+# G0..G5: paleta Kitasan de maly interpolada (#7ab8b8 → #8098a8 → #b85c50),
+# un color por línea del banner MALODY. Truecolor: los terminales sin él
+# aproximan o ignoran, y sin terminal no se emite nada.
 if [ -t 1 ]; then
 	CY=$(printf '\033[36m') BD=$(printf '\033[1m') RD=$(printf '\033[31m')
 	YL=$(printf '\033[33m') GN=$(printf '\033[32m') NC=$(printf '\033[0m')
+	DM=$(printf '\033[2m')
+	G0=$(printf '\033[38;2;122;184;184m') G1=$(printf '\033[38;2;124;171;178m')
+	G2=$(printf '\033[38;2;127;158;171m') G3=$(printf '\033[38;2;139;140;150m')
+	G4=$(printf '\033[38;2;162;116;115m') G5=$(printf '\033[38;2;184;92;80m')
 else
-	CY='' BD='' RD='' YL='' GN='' NC=''
+	CY='' BD='' RD='' YL='' GN='' NC='' DM=''
+	G0='' G1='' G2='' G3='' G4='' G5=''
 fi
 
 msg()  { printf '%smallow ▸%s %s\n' "$CY" "$NC" "$(tr2 "$1" "$2")"; }
@@ -55,23 +66,33 @@ warn() { printf '%smallow ⚠%s %s\n' "$YL" "$NC" "$(tr2 "$1" "$2")"; }
 ok()   { printf '%smallow ✓%s %s\n' "$GN" "$NC" "$(tr2 "$1" "$2")"; }
 die()  { hb_stop; printf '%smallow ✗%s %s\n' "$RD" "$NC" "$(tr2 "$1" "$2")" >&2; exit 1; }
 
-# ---- heartbeat: latido para pasos largos (clone, build) ----
-# Cosmético: en hardware lento esos pasos tardan minutos sin salida y parece
-# que el instalador se colgó. Si stdout es un terminal, reescribe una línea
-# con el tiempo transcurrido cada 3 s; redirigido a un log no imprime nada
-# intermedio. hb_stop es idempotente; die y el trap lo llaman para no dejar
-# la línea a medias ni el proceso vivo.
+# ---- spinner: indicador vivo para pasos largos (clone, build) ----
+# En hardware lento esos pasos tardan minutos sin salida y parece que el
+# instalador se colgó. Con terminal: spinner braille girando con el tiempo
+# transcurrido, reescribiendo una línea; redirigido a un log cae al msg
+# estático de siempre (nada intermedio). hb_stop limpia en silencio (para
+# die y el trap: no dejar línea a medias ni proceso vivo); hb_done además
+# deja el paso rematado con ✓ en el scrollback. El sleep fraccional no es
+# POSIX estricto (GNU/busybox sí lo traen): se sondea una vez y sin él el
+# spinner gira a 1 fps, que igual late.
 HB_PID=''
+hb_base=''
+if sleep 0.1 2>/dev/null; then HBTICK=0.1 HBDIV=10; else HBTICK=1 HBDIV=1; fi
 hb_start() {
-	msg "$1" "$2"
-	[ -t 1 ] || return 0
 	hb_base=$(tr2 "$1" "$2")
+	if [ ! -t 1 ]; then
+		msg "$1" "$2"
+		return 0
+	fi
 	(
-		hb_s=0
+		hb_i=0
 		while :; do
-			sleep 3
-			hb_s=$((hb_s + 3))
-			printf '\r\033[2K%smallow ▸%s %s %ss' "$CY" "$NC" "$hb_base" "$hb_s"
+			for hb_f in ⣾ ⣽ ⣻ ⢿ ⡿ ⣟ ⣯ ⣷; do
+				printf '\r\033[2K%smallow %s%s %s %s%ss%s' \
+					"$CY" "$hb_f" "$NC" "$hb_base" "$DM" "$((hb_i / HBDIV))" "$NC"
+				sleep "$HBTICK"
+				hb_i=$((hb_i + 1))
+			done
 		done
 	) &
 	HB_PID=$!
@@ -82,6 +103,11 @@ hb_stop() {
 	wait "$HB_PID" 2>/dev/null || :
 	HB_PID=''
 	if [ -t 1 ]; then printf '\r\033[2K'; fi
+}
+# hb_done remata un paso exitoso: limpia el spinner y deja constancia.
+hb_done() {
+	hb_stop
+	[ ! -t 1 ] || printf '%smallow ✓%s %s\n' "$GN" "$NC" "$hb_base"
 }
 
 # rep repite el carácter $1 $2 veces (printf '%*s' con ancho dinámico no es
@@ -105,9 +131,29 @@ rep() {
 }
 chars() { printf '%s' "$1" | LC_ALL=$WCLOC wc -m; }
 
-# banner dibuja la caja midiendo el contenido real: editar los textos no la
-# desalinea. Margen fijo de 3 espacios a cada lado.
+# term_cols: columnas del terminal (0 = desconocido); stty puede faltar.
+term_cols() {
+	set -- $(stty size < /dev/tty 2>/dev/null || :)
+	if [ $# -eq 2 ]; then printf '%s' "$2"; else printf 0; fi
+}
+
+# banner: el MALODY de la TUI (figlet bloody) con el degradado Kitasan, una
+# parada de color por línea. En terminales angostos (o sin stty) cae a la
+# caja sobria de siempre, que se dibuja midiendo el contenido real.
 banner() {
+	cols=0
+	if [ -t 1 ]; then cols=$(term_cols); fi
+	if [ "$cols" -ge 58 ]; then
+		printf '%s\n' \
+			"${G0} ███▄ ▄███▓ ▄▄▄       ██▓     ▒█████  ▓█████▄▓██   ██▓${NC}" \
+			"${G1}▓██▒▀█▀ ██▒▒████▄    ▓██▒    ▒██▒  ██▒▒██▀ ██▌▒██  ██▒${NC}" \
+			"${G2}▓██    ▓██░▒██  ▀█▄  ▒██░    ▒██░  ██▒░██   █▌ ▒██ ██░${NC}" \
+			"${G3}▒██    ▒██ ░██▄▄▄▄██ ▒██░    ▒██   ██░░▓█▄   ▌ ░ ▐██▓░${NC}" \
+			"${G4}▒██▒   ░██▒ ▓█   ▓██▒░██████▒░ ████▓▒░░▒████▓  ░ ██▒▓░${NC}" \
+			"${G5}░ ▒░   ░  ░ ▒▒   ▓▒█░░ ▒░▓  ░░ ▒░▒░▒░  ▒▒▓  ▒   ██▒▒▒${NC}"
+		printf '\n      %s♪ %s%s\n' "$BD" "$(tr2 'Mallow Install — instalador de Malody Mallow' 'Mallow Install — the Malody Mallow installer')" "$NC"
+		return 0
+	fi
 	t1='♪  Malody Mallow · maly'
 	t2=$(tr2 'Mallow Install — instalador' 'Mallow Install — installer')
 	w1=$(( $(chars "$t1") ))
@@ -139,33 +185,82 @@ ask() {
 	[ -n "$REPLY" ] || REPLY=$1
 }
 
-# section separa las "pantallas" del flujo; no imprime nada sin terminal.
-section() {
-	[ "$TTY" -eq 1 ] || return 0
-	printf '\n%s── %s ──%s\n' "$BD" "$(tr2 "$1" "$2")" "$NC"
+# ---- teclado crudo (flechas/jk) ----
+# RAWOK: hay stty y el tty acepta modo crudo; sin él, menús y checklist caen
+# al modo numérico de siempre (número + Enter), que funciona en cualquier
+# parte. raw_off es idempotente y lo llama también el trap: un Ctrl-C a
+# mitad de menú no puede dejar el terminal mudo ni sin cursor.
+RAWOK=0
+if [ "$TTY" -eq 1 ] && command -v stty >/dev/null 2>&1 &&
+	stty -g < /dev/tty > /dev/null 2>&1; then
+	RAWOK=1
+fi
+SAVED_STTY=''
+ESCCH=$(printf '\033')
+raw_on() {
+	SAVED_STTY=$(stty -g < /dev/tty)
+	stty -icanon -echo min 1 time 0 < /dev/tty
+	printf '\033[?25l' > /dev/tty
+}
+raw_off() {
+	[ -n "$SAVED_STTY" ] || return 0
+	stty "$SAVED_STTY" < /dev/tty 2>/dev/null || :
+	SAVED_STTY=''
+	printf '\033[?25h' > /dev/tty
 }
 
-# confirm pregunta sí/no; sin terminal no adivina: devuelve que no.
+# key_read imprime un token por tecla: up down space enter digit-N esc other.
+# Las flechas llegan como ESC [ A/B: tras un ESC se leen hasta 2 bytes más
+# con timeout corto (min 0 time 2) para distinguirlas de un ESC suelto.
+key_read() {
+	k=$(dd bs=1 count=1 2>/dev/null < /dev/tty)
+	case $k in
+	k) printf up; return 0 ;;
+	j) printf down; return 0 ;;
+	' ') printf space; return 0 ;;
+	'') printf enter; return 0 ;; # \n y \r se pierden en $(): Enter
+	[0-9]) printf 'digit-%s' "$k"; return 0 ;;
+	"$ESCCH") ;;
+	*) printf other; return 0 ;;
+	esac
+	stty min 0 time 2 < /dev/tty
+	seq=$(dd bs=2 count=1 2>/dev/null < /dev/tty)
+	stty min 1 time 0 < /dev/tty
+	case $seq in
+	'[A') printf up ;;
+	'[B') printf down ;;
+	*) printf esc ;;
+	esac
+}
+
+# confirm pregunta sí/no; sin terminal no adivina: devuelve que no. Con modo
+# crudo basta UNA tecla (s/y = sí; cualquier otra = no) y se deja el eco de
+# la respuesta; sin él, la línea + Enter de siempre.
 confirm() {
 	[ "$TTY" -eq 1 ] || return 1
 	printf '%smallow ?%s %s ' "$CY" "$NC" "$(tr2 "$1 [s/N]" "$2 [y/N]")"
-	if ! IFS= read -r ans < /dev/tty; then
+	if [ "$RAWOK" -eq 1 ]; then
+		raw_on
+		ans=$(dd bs=1 count=1 2>/dev/null < /dev/tty)
+		raw_off
+	elif ! IFS= read -r ans < /dev/tty; then
 		printf '\n'
 		return 1
 	fi
-	case "$ans" in [sSyY]*) return 0 ;; *) return 1 ;; esac
+	case "$ans" in
+	[sSyY]*)
+		[ "$RAWOK" -eq 0 ] || printf '%s\n' "$(tr2 'sí' 'yes')"
+		return 0 ;;
+	*)
+		[ "$RAWOK" -eq 0 ] || printf '%s\n' "no"
+		return 1 ;;
+	esac
 }
 
-# menu numera las opciones (pares es/en tras el conteo) y deja el número
-# elegido en $REPLY; Enter toma el default marcado con *.
-#   menu <default> <n> es1 en1 [es2 en2 …]
-menu() {
+# menu_num: el menú numérico de siempre (fallback sin modo crudo).
+menu_num() {
 	m_def=$1 m_n=$2
 	shift 2
-	if [ "$TTY" -eq 0 ]; then
-		REPLY=$m_def
-		return 0
-	fi
 	m_i=1
 	while [ "$m_i" -le "$m_n" ]; do
 		m_mark=' '
@@ -181,6 +276,92 @@ menu() {
 		esac
 	done
 }
+
+# menu deja en $REPLY la opción elegida (pares es/en tras el conteo). Con
+# modo crudo: cursor ❯ que se mueve con ↑↓/jk, Enter elige, un dígito salta
+# directo; el bloque se redibuja en el sitio (cursor arriba + repintado).
+#   menu <default> <n> es1 en1 [es2 en2 …]
+menu() {
+	m_def=$1 m_n=$2
+	shift 2
+	if [ "$TTY" -eq 0 ]; then
+		REPLY=$m_def
+		return 0
+	fi
+	if [ "$RAWOK" -eq 0 ]; then
+		menu_num "$m_def" "$m_n" "$@"
+		return 0
+	fi
+	m_i=1
+	while [ "$m_i" -le "$m_n" ]; do
+		eval "M_$m_i=\$(tr2 \"\$1\" \"\$2\")"
+		shift 2
+		m_i=$((m_i + 1))
+	done
+	m_cur=$m_def
+	m_drawn=0
+	raw_on
+	while :; do
+		[ "$m_drawn" -eq 0 ] || printf '\033[%dA' "$((m_n + 1))" > /dev/tty
+		m_i=1
+		while [ "$m_i" -le "$m_n" ]; do
+			eval "m_lbl=\$M_$m_i"
+			if [ "$m_i" -eq "$m_cur" ]; then
+				printf '\r\033[2K  %s❯ %s%s\n' "$CY$BD" "$m_lbl" "$NC" > /dev/tty
+			else
+				printf '\r\033[2K    %s%s%s\n' "$DM" "$m_lbl" "$NC" > /dev/tty
+			fi
+			m_i=$((m_i + 1))
+		done
+		printf '\r\033[2K  %s%s%s\n' "$DM" "$(tr2 '↑↓ mover · Enter elegir' '↑↓ move · Enter select')" "$NC" > /dev/tty
+		m_drawn=1
+		case $(key_read) in
+		up) [ "$m_cur" -le 1 ] || m_cur=$((m_cur - 1)) ;;
+		down) [ "$m_cur" -ge "$m_n" ] || m_cur=$((m_cur + 1)) ;;
+		enter) break ;;
+		digit-1) m_cur=1; break ;;
+		digit-2) [ "$m_n" -ge 2 ] && { m_cur=2; break; } ;;
+		digit-3) [ "$m_n" -ge 3 ] && { m_cur=3; break; } ;;
+		digit-4) [ "$m_n" -ge 4 ] && { m_cur=4; break; } ;;
+		esac
+	done
+	raw_off
+	REPLY=$m_cur
+}
+
+# ---- wizard: pantallas limpias con banner fijo ----
+# Cada pantalla de preguntas limpia el terminal y redibuja banner + barra de
+# paso; la fase de ejecución (paquetes, clone, build) vuelve al log corrido
+# para no perder la salida de pacman/go en el scrollback. Sin terminal no se
+# dibuja nada, como siempre. STEP numera las pantallas que sí aparecen (las
+# pre-contestadas por flag no cuentan).
+STEP=0
+scr() {
+	[ "$TTY" -eq 1 ] || return 0
+	STEP=$((STEP + 1))
+	printf '\033[2J\033[H'
+	banner
+	printf '\n  %s── %d · %s ──%s\n\n' "$CY" "$STEP" "$(tr2 "$1" "$2")" "$NC"
+}
+# run_phase abre la fase de ejecución: pantalla limpia una vez y de ahí en
+# adelante log normal.
+run_phase() {
+	[ "$TTY" -eq 1 ] || return 0
+	printf '\033[2J\033[H'
+	banner
+	printf '\n'
+}
+
+# El trap va aquí, ANTES de la primera pantalla: raw_off debe correr aunque
+# el usuario corte con Ctrl-C a mitad de un menú crudo (si no, el terminal
+# queda sin eco ni cursor). TMP se crea después; vacío, rm -rf no toca nada.
+TMP=''
+cleanup() {
+	hb_stop
+	raw_off 2>/dev/null || :
+	[ -z "$TMP" ] || rm -rf "$TMP"
+}
+trap 'st=$?; cleanup; exit $st' EXIT INT TERM
 
 usage() {
 	printf '%s\n' "$(tr2 'Mallow Install — instala Malody Mallow (maly) compilando desde main.
@@ -243,7 +424,7 @@ if [ -z "$ACTION" ]; then
 	a_def=1
 	[ "$USR_INST" -eq 1 ] || [ "$SYS_INST" -eq 1 ] && a_def=2
 	if [ "$TTY" -eq 1 ]; then
-		section 'acción' 'action'
+		scr 'acción' 'action'
 		if [ "$USR_INST" -eq 1 ]; then msg "detecté maly en $USR_BIN" "found maly at $USR_BIN"; fi
 		if [ "$SYS_INST" -eq 1 ]; then msg "detecté maly en $SYS_BIN" "found maly at $SYS_BIN"; fi
 	fi
@@ -277,7 +458,7 @@ if [ "$SYSTEM" -lt 0 ]; then
 	# Con maly solo en /usr/local, actualizar/desinstalar apuntan ahí solos.
 	[ "$SYS_INST" -eq 1 ] && [ "$USR_INST" -eq 0 ] && s_def=2
 	if [ "$TTY" -eq 1 ] && { [ "$ACTION" = install ] || [ "$s_def" -eq 2 ] || [ "$SYS_INST" -eq 1 ]; }; then
-		section 'ámbito' 'scope'
+		scr 'ámbito' 'scope'
 		menu "$s_def" 2 \
 			'usuario (~/.local/bin, sin sudo)' 'user (~/.local/bin, no sudo)' \
 			'sistema (/usr/local, para todos; pide sudo)' 'system (/usr/local, for everyone; asks for sudo)'
@@ -317,6 +498,7 @@ fi
 
 # ---- desinstalar ----
 if [ "$ACTION" = uninstall ]; then
+	run_phase
 	found=0
 	for f in "$BIN/maly" "$BASHC/maly" "$FISHC/maly.fish" "$ZSHC/_maly"; do
 		if [ -e "$f" ]; then
@@ -344,7 +526,6 @@ if [ "$ACTION" = uninstall ]; then
 fi
 
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/mallow.XXXXXX")
-trap 'st=$?; hb_stop; rm -rf "$TMP"; exit $st' EXIT INT TERM
 
 # fetch baja una URL a un archivo con curl o wget, lo que haya. Timeouts y
 # reintentos acotados: el default de wget son 20 intentos EN SILENCIO — con
@@ -473,31 +654,86 @@ dep_label() {
 	esac
 }
 
+# dep_at devuelve la clave i-ésima (1-based) de $DEPS.
+dep_at() {
+	da_i=1
+	for da_k in $DEPS; do
+		if [ "$da_i" -eq "$1" ]; then
+			printf '%s' "$da_k"
+			return 0
+		fi
+		da_i=$((da_i + 1))
+	done
+}
+
 # La actualización no re-ofrece opcionales: solo asegura lo imprescindible.
 if [ "$TTY" -eq 1 ] && [ "$ACTION" != update ] && [ -n "$DEPS" ]; then
-	section 'dependencias' 'dependencies'
+	scr 'dependencias' 'dependencies'
 	if [ "$YTDLP_STALE" -eq 1 ]; then
 		warn "tu yt-dlp es de $YTDLP_VER (~$YTDLP_AGE días): YouTube cambia seguido y esa versión suele fallar — marcarlo instala uno reciente sin tocar el del sistema" \
 			"your yt-dlp is from $YTDLP_VER (~$YTDLP_AGE days old): YouTube changes often and that version tends to fail — selecting it installs a recent one without touching the system's"
 	fi
 	msg 'esto falta en tu sistema; marca qué instalar:' 'these are missing on your system; pick what to install:'
-	while :; do
-		d_i=1
-		for d_k in $DEPS; do
-			eval "d_on=\$SEL_$d_k"
-			d_box='[ ]'
-			[ "$d_on" -eq 1 ] && d_box='[x]'
-			printf '  %s%d%s %s %s\n' "$CY" "$d_i" "$NC" "$d_box" "$(dep_label "$d_k")"
-			d_i=$((d_i + 1))
+	d_n=0
+	for d_k in $DEPS; do d_n=$((d_n + 1)); done
+	if [ "$RAWOK" -eq 1 ]; then
+		# Checklist con cursor: ↑↓/jk mueve, espacio (o el dígito) marca,
+		# Enter continúa; se redibuja en el sitio como el menú.
+		d_cur=1
+		d_drawn=0
+		raw_on
+		while :; do
+			[ "$d_drawn" -eq 0 ] || printf '\033[%dA' "$((d_n + 1))" > /dev/tty
+			d_i=1
+			for d_k in $DEPS; do
+				eval "d_on=\$SEL_$d_k"
+				d_box='[ ]'
+				[ "$d_on" -eq 0 ] || d_box="[${GN}x${NC}]"
+				if [ "$d_i" -eq "$d_cur" ]; then
+					printf '\r\033[2K  %s❯%s %s %s%s%s\n' "$CY$BD" "$NC" "$d_box" "$BD" "$(dep_label "$d_k")" "$NC" > /dev/tty
+				else
+					printf '\r\033[2K    %s %s%s%s\n' "$d_box" "$DM" "$(dep_label "$d_k")" "$NC" > /dev/tty
+				fi
+				d_i=$((d_i + 1))
+			done
+			printf '\r\033[2K  %s%s%s\n' "$DM" "$(tr2 '↑↓ mover · espacio (des)marcar · Enter continuar' '↑↓ move · space toggle · Enter continue')" "$NC" > /dev/tty
+			d_drawn=1
+			d_tok=$(key_read)
+			case $d_tok in
+			up) [ "$d_cur" -le 1 ] || d_cur=$((d_cur - 1)) ;;
+			down) [ "$d_cur" -ge "$d_n" ] || d_cur=$((d_cur + 1)) ;;
+			space)
+				d_k=$(dep_at "$d_cur")
+				eval "SEL_$d_k=\$((1 - SEL_$d_k))" ;;
+			enter) break ;;
+			digit-*)
+				d_d=${d_tok#digit-}
+				if [ "$d_d" -ge 1 ] && [ "$d_d" -le "$d_n" ]; then
+					d_k=$(dep_at "$d_d")
+					eval "SEL_$d_k=\$((1 - SEL_$d_k))"
+				fi ;;
+			esac
 		done
-		ask '' 'número para (des)marcar, Enter para continuar:' 'number to toggle, Enter to continue:'
-		[ -n "$REPLY" ] || break
-		d_i=1
-		for d_k in $DEPS; do
-			if [ "$REPLY" = "$d_i" ]; then eval "SEL_$d_k=\$((1 - SEL_$d_k))"; fi
-			d_i=$((d_i + 1))
+		raw_off
+	else
+		while :; do
+			d_i=1
+			for d_k in $DEPS; do
+				eval "d_on=\$SEL_$d_k"
+				d_box='[ ]'
+				[ "$d_on" -eq 1 ] && d_box='[x]'
+				printf '  %s%d%s %s %s\n' "$CY" "$d_i" "$NC" "$d_box" "$(dep_label "$d_k")"
+				d_i=$((d_i + 1))
+			done
+			ask '' 'número para (des)marcar, Enter para continuar:' 'number to toggle, Enter to continue:'
+			[ -n "$REPLY" ] || break
+			d_i=1
+			for d_k in $DEPS; do
+				if [ "$REPLY" = "$d_i" ]; then eval "SEL_$d_k=\$((1 - SEL_$d_k))"; fi
+				d_i=$((d_i + 1))
+			done
 		done
-	done
+	fi
 fi
 
 # git desmarcado con clon pendiente no tiene arreglo aguas abajo: cortar ya.
@@ -507,6 +743,10 @@ case " $DEPS " in *' git '*)
 			'without git I cannot clone; select it, install it yourself, or run the script from a checkout'
 	;;
 esac
+
+# De aquí en adelante se ejecuta: pantalla limpia y log corrido con
+# scrollback (la salida de pacman/apt/go debe quedar visible).
+run_phase
 
 # ---- paquetes a instalar según la selección ----
 PKGS='' PIPX_YTDLP=0
@@ -582,7 +822,7 @@ if [ -z "$SRC" ]; then
 	# ${REF:+…}: --branch acepta tags; sin --ref se compila main, como siempre.
 	git clone --quiet --depth=1 ${REF:+--branch "$REF"} "$REPO_URL" "$TMP/src" ||
 		{ hb_stop; die 'falló el clonado' 'clone failed'; }
-	hb_stop
+	hb_done
 	SRC=$TMP/src
 else
 	[ -z "$REF" ] || warn "corriendo desde un checkout: --ref=$REF se ignora, se compila lo que hay aquí" \
@@ -671,7 +911,7 @@ else
 		[ "$got" = "$want" ] ||
 			die "el checksum del Go bajado no coincide: descarga corrupta (esperaba $want, obtuve $got)" \
 				"downloaded Go checksum mismatch: corrupt download (expected $want, got $got)"
-		hb_stop
+		hb_done
 	else
 		warn 'sin sha256sum no puedo verificar la descarga de Go' \
 			'without sha256sum the Go download cannot be verified'
@@ -685,7 +925,7 @@ else
 	tar -C "$CACHE" -xzf "$TMP/go.tgz" ||
 		{ hb_stop; die 'falló la extracción de Go (¿descarga incompleta, disco lleno?)' \
 			'extracting Go failed (incomplete download, disk full?)'; }
-	hb_stop
+	hb_done
 	GO=$CACHE/go/bin/go
 fi
 
@@ -694,7 +934,7 @@ hb_start 'compilando maly… (la primera vez baja dependencias de Go)' \
 	'building maly… (first run downloads Go dependencies)'
 (cd "$SRC" && "$GO" build -trimpath -ldflags '-s -w' -o "$TMP/maly" ./cmd/maly) ||
 	{ hb_stop; die 'falló la compilación' 'build failed'; }
-hb_stop
+hb_done
 
 # ---- instalar binario y completions ----
 # La versión previa se lee antes de pisar el binario, para el delta final.

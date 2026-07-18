@@ -87,11 +87,14 @@ in a single binary written in Go.
 curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh | sh
 ```
 
-The installer is interactive, screen by screen: you choose the action
-(install, update, or uninstall), the scope (user or system), and which
-dependencies to install from a checklist — `mpv` and `git` come checked;
-`yt-dlp`+`ffmpeg` (for `maly get`) and the visualizer are optional and
-start unchecked. It detects your package manager (pacman, apt, dnf,
+The installer is an interactive wizard with the MALODY banner in a color
+gradient: you choose the action (install, update, or uninstall), the scope
+(user or system), and which dependencies to install from a checklist,
+navigating with `↑↓`/`jk` and toggling with space (if the terminal can't do
+raw mode, it falls back to the classic numeric input) — `mpv` and `git`
+come checked; `yt-dlp`+`ffmpeg` (for `maly get`) and the visualizer are
+optional and start unchecked. Long steps (clone, build) pulse with a
+spinner and the elapsed time. It detects your package manager (pacman, apt, dnf,
 zypper, xbps); on Debian/Ubuntu `yt-dlp` is installed via `pipx` because
 the repo's version is old and no longer downloads from YouTube. If your
 distro's Go doesn't meet the minimum, it offers to download the official

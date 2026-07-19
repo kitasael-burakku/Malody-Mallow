@@ -322,6 +322,11 @@ func (m *Model) conLib(reload bool, fn func(*library.Library) ([]string, error))
 		if err != nil {
 			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
 		}
+		if reload {
+			// Mutó playlists: avisar al demonio para que las otras TUIs
+			// también recarguen (la propia recarga vía conMsg.reload).
+			notifyRefresh()
+		}
 		return conMsg{lines: lines, reload: reload}
 	}
 }

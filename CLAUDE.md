@@ -117,9 +117,12 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   tras los artistas (`playlistNode`, pistas hijas directas numeradas por
   posición); la indentación y la búsqueda de padre usan el campo `depth`,
   no el kind. Toda mutación de playlists en la TUI (plActMsg, y en la
-  consola `conMsg.reload`) recarga el árbol; las hechas por CLI desde otra
-  terminal no se reflejan en vivo (van directo a SQLite, sin demonio de
-  por medio — limitación conocida). La capa "Ahora suena" (ctrl+t,
+  consola `conMsg.reload`) recarga el árbol local Y manda `notifyRefresh`
+  (op IPC `refresh`, best-effort: el demonio sube `libGen` y las DEMÁS
+  TUIs recargan por el push; la CLI hace lo mismo tras sus 5 mutadores de
+  playlist). La doble recarga de la TUI que mutó — local + push propio —
+  es redundancia aceptada. Un panel ctrl+l ya ABIERTO en otra TUI no se
+  refresca (se relee al abrirse, limitación menor). La capa "Ahora suena" (ctrl+t,
   `nowplaying.go`) es una vista fullscreen con carátula (interfaz
   `coverRenderer`, cada renderer escala a su densidad: half-blocks ANSI en
   `artrender.go`, y en kitty el protocolo gráfico vía **Unicode

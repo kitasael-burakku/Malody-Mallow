@@ -150,6 +150,19 @@ func plQueueCmd(sock, name string) tea.Cmd {
 	}
 }
 
+// notifyRefresh avisa al demonio que la DB cambió por fuera de él (las
+// mutaciones de playlists de la TUI van directo a SQLite): sube libGen y las
+// DEMÁS TUIs suscritas recargan su árbol — la propia ya recarga localmente
+// vía plActMsg/conMsg.reload. Best-effort: sin demonio no pasa nada.
+func notifyRefresh() {
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		return
+	}
+	defer c.Close()
+	c.Do(ipc.Request{Cmd: "refresh"})
+}
+
 // plAddCmd agrega pistas a una playlist; con create primero la crea (ctrl+n
 // en modo destino).
 func plAddCmd(name string, ids []int64, create bool) tea.Cmd {
@@ -167,6 +180,7 @@ func plAddCmd(name string, ids []int64, create bool) tea.Cmd {
 		if err := lib.AddToPlaylist(name, ids); err != nil {
 			return plActMsg{err: err}
 		}
+		notifyRefresh()
 		return plActMsg{msg: i18n.Tf("pl.added", len(ids), name)}
 	}
 }
@@ -181,6 +195,7 @@ func plCreateCmd(name string) tea.Cmd {
 		if err := lib.CreatePlaylist(name); err != nil {
 			return plActMsg{err: err}
 		}
+		notifyRefresh()
 		return plActMsg{msg: i18n.Tf("pl.created", name), reload: true}
 	}
 }
@@ -195,6 +210,7 @@ func plDeleteCmd(name string) tea.Cmd {
 		if err := lib.DeletePlaylist(name); err != nil {
 			return plActMsg{err: err}
 		}
+		notifyRefresh()
 		return plActMsg{msg: i18n.Tf("pl.deleted", name), reload: true}
 	}
 }

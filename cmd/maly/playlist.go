@@ -85,6 +85,7 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		fmt.Println(i18n.Tf("pl.removed", t, name))
+		notifyRefresh()
 		return nil
 
 	case "list":
@@ -112,6 +113,7 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		fmt.Println(i18n.Tf("pl.created", name))
+		notifyRefresh()
 		return nil
 
 	case "delete":
@@ -123,6 +125,7 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		fmt.Println(i18n.Tf("pl.deleted", name))
+		notifyRefresh()
 		return nil
 
 	case "add":
@@ -146,6 +149,7 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		fmt.Println(i18n.Tf("pl.added", len(tracks), name))
+		notifyRefresh()
 		return nil
 
 	case "export":
@@ -192,11 +196,25 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		fmt.Println(i18n.Tf("pl.imported", name, added, file))
+		notifyRefresh()
 		return nil
 
 	default:
 		return fmt.Errorf("%s\n%s", i18n.Tf("pl.unknown", sub), i18n.T("pl.usage"))
 	}
+}
+
+// notifyRefresh avisa al demonio (si responde) que la DB cambió por fuera:
+// sube libGen y las TUIs suscritas recargan su árbol. Best-effort a
+// propósito — sin demonio no pasa nada (las TUIs releen al abrirse), y un
+// demonio viejo contesta "comando desconocido", igual de inofensivo.
+func notifyRefresh() {
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		return
+	}
+	defer c.Close()
+	c.Do(ipc.Request{Cmd: "refresh"})
 }
 
 // isTTY dice si f es un terminal (se puede preguntar/pintar). Es el ioctl

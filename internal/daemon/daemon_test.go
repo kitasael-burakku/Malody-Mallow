@@ -748,6 +748,37 @@ func TestSessionCorruptStartsClean(t *testing.T) {
 // TestLibGenBumpsOnScan: la generación de biblioteca arranca en 1, sube solo
 // cuando un scan cambia algo y el cambio llega como push a los suscriptores
 // (así todas las TUIs recargan el árbol sin que nadie se lo pida).
+// TestRefreshBumpsLibGen: la op refresh (aviso de mutación externa de la DB,
+// p. ej. maly playlist desde otra terminal) sube libGen y el push llega a los
+// suscriptores para que recarguen su árbol.
+func TestRefreshBumpsLibGen(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	sub, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	if first, err := sub.Subscribe(); err != nil || !first.OK {
+		t.Fatalf("subscribe: %v / %+v", err, first)
+	}
+
+	if resp := d.Do(ipc.Request{Cmd: "refresh"}); !resp.OK {
+		t.Fatalf("refresh: %s", resp.Error)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		resp := next(t, sub)
+		if resp.Status != nil && resp.Status.LibGen == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("nunca llegó el push con LibGen 2; último: %+v", resp.Status)
+		}
+	}
+}
+
 func TestLibGenBumpsOnScan(t *testing.T) {
 	d := newTestDaemon(t)
 	go d.Run()

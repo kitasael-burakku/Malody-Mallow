@@ -748,6 +748,14 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		}
 		return okStatus(i18n.TLf(lang, "d.playing_pl", req.Value, len(tracks)))
 
+	case "refresh":
+		// Aviso de que la DB cambió por fuera (mutadores de playlists de la
+		// CLI/TUI, que escriben SQLite directo): subir libGen basta — handle
+		// trata refresh como mutador y su notify despierta a los
+		// suscriptores, que recargan al ver la generación nueva.
+		d.libGen.Add(1)
+		return ipc.Response{OK: true}
+
 	default:
 		return fail(errors.New(i18n.TLf(lang, "d.unknown_cmd", req.Cmd)))
 	}

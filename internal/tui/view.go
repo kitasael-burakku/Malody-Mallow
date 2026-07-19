@@ -420,7 +420,20 @@ func (m *Model) helpView() string {
 	}
 	b.WriteString("\n" + m.st.dim.Render(i18n.T("help.close")))
 	lines := strings.Split(b.String(), "\n")
+	// Ancho a la medida de la fila más larga (los textos varían por idioma);
+	// panel rellena pero no recorta, y una fila larga rompería el borde.
 	w := 50
+	for _, l := range lines {
+		if lw := lipgloss.Width(l) + 2; lw > w {
+			w = lw
+		}
+	}
+	if w > m.width {
+		w = m.width
+		for i, l := range lines {
+			lines[i] = clip(l, w-2)
+		}
+	}
 	box := m.st.panel(i18n.T("tui.help_title"), lines, w, len(lines)+2, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

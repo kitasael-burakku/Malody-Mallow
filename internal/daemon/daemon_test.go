@@ -431,6 +431,45 @@ func TestRemoveWhenStoppedStaysStopped(t *testing.T) {
 	}
 }
 
+// TestMove: mover una pista reordena la cola y QueueIndex sigue apuntando a
+// la que suena; un índice fuera de rango falla sin tocar nada.
+func TestMove(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	paths := make([]string, 3)
+	for i, name := range []string{"a.wav", "b.wav", "c.wav"} {
+		paths[i] = filepath.Join(music, name)
+		writeWAV(t, paths[i], 30)
+		if resp := d.Do(ipc.Request{Cmd: "add", Query: paths[i]}); !resp.OK {
+			t.Fatalf("add %s: %s", name, resp.Error)
+		}
+	}
+	waitStatus(t, d, "que a cargue", func(st *ipc.Status) bool {
+		return st.Playing && st.QueueIndex == 0
+	})
+
+	// c (índice 2) al frente: la actual (a) pasa al índice 1.
+	if resp := d.Do(ipc.Request{Cmd: "move", Index: 2, To: 0}); !resp.OK {
+		t.Fatalf("move: %s", resp.Error)
+	}
+	q := d.Do(ipc.Request{Cmd: "queue"}).Queue
+	want := []string{paths[2], paths[0], paths[1]}
+	for i, p := range want {
+		if q[i].Path != p {
+			t.Fatalf("cola[%d] = %s, quería %s", i, q[i].Path, p)
+		}
+	}
+	st := d.Do(ipc.Request{Cmd: "status"}).Status
+	if st.QueueIndex != 1 || st.Track == nil || st.Track.Path != paths[0] {
+		t.Fatalf("QueueIndex = %d Track = %v; la actual debía seguir siendo a en 1",
+			st.QueueIndex, st.Track)
+	}
+
+	if resp := d.Do(ipc.Request{Cmd: "move", Index: 0, To: 9}); resp.OK {
+		t.Fatal("move fuera de rango debe fallar")
+	}
+}
+
 // TestLearnsDuration: cuando mpv reporta la duración de la pista que suena,
 // el demonio la aprende — en la cola (visible por IPC) y en la biblioteca.
 func TestLearnsDuration(t *testing.T) {

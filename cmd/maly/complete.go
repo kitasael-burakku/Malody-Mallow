@@ -221,6 +221,19 @@ func completeJump(args []string, cur string) []string {
 	if len(args) > 0 {
 		return nil
 	}
+	return queuePositions(cur)
+}
+
+// completeMove ofrece posiciones de la cola para ambos argumentos de move.
+func completeMove(args []string, cur string) []string {
+	if len(args) > 1 {
+		return nil
+	}
+	return queuePositions(cur)
+}
+
+// queuePositions lista las posiciones 1-based de la cola con su pista.
+func queuePositions(cur string) []string {
 	c, err := ipc.Dial(config.SocketPath())
 	if err != nil {
 		return nil

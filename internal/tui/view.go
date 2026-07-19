@@ -394,6 +394,7 @@ func (m *Model) helpView() string {
 		{"enter", i18n.T("help.enter")},
 		{k["add"], i18n.T("help.add")},
 		{k["remove"], i18n.T("help.remove")},
+		{k["move_up"] + " / " + k["move_down"], i18n.T("help.move")},
 		{k["filter"], i18n.T("help.filter")},
 		{"h j k l", i18n.T("help.vim_nav")},
 		{"gg/G ctrl+d/u", i18n.T("help.jump_scroll")},

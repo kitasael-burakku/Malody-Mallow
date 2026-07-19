@@ -48,6 +48,7 @@ var commands = []command{
 	{name: "next", usage: "next", descKey: "cli.next", section: "playback", run: client("next")},
 	{name: "prev", usage: "prev", descKey: "cli.prev", section: "playback", run: client("prev")},
 	{name: "jump", usage: "jump <pos>", descKey: "cli.jump", section: "playback", run: client("jump"), complete: completeJump},
+	{name: "move", usage: "move <from> <to>", descKey: "cli.move", section: "playback", run: client("move"), complete: completeMove},
 	{name: "add", usage: "add <query|path>", descKey: "cli.add", section: "playback", run: client("add"), complete: completeTracks},
 	{name: "queue", usage: "queue", descKey: "cli.queue", section: "playback", run: client("queue")},
 	{name: "clear", usage: "clear", descKey: "cli.clear", section: "playback", run: client("clear")},
@@ -194,6 +195,7 @@ func helpText() string {
 	sec(i18n.T("cli.sec_examples"), "")
 	example("maly play luna")
 	example("maly jump 3")
+	example("maly move 3 1")
 	example("maly add ~/Music/album")
 	example("maly vol +10")
 	example("maly seek 1:23")

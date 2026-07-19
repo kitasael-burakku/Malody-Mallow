@@ -73,6 +73,8 @@ func DefaultKeys() map[string]string {
 		"filter":       "/",
 		"add":          "a",
 		"remove":       "d",
+		"move_up":      "K",
+		"move_down":    "J",
 		"shuffle":      "s",
 		"repeat":       "r",
 		"quit":         "q",

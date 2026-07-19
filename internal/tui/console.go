@@ -162,6 +162,18 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.conReq(ipc.Request{Cmd: "jump", Index: n - 1})
+	case "move":
+		if len(args) != 2 {
+			m.conErr(i18n.T("con.usage_move"))
+			return m, nil
+		}
+		from, errF := strconv.Atoi(args[0])
+		to, errT := strconv.Atoi(args[1])
+		if errF != nil || errT != nil || from < 1 || to < 1 {
+			m.conErr(i18n.T("con.usage_move"))
+			return m, nil
+		}
+		return m, m.conReq(ipc.Request{Cmd: "move", Index: from - 1, To: to - 1})
 	case "vol":
 		if len(args) != 1 {
 			m.conErr(i18n.T("con.usage_vol"))
@@ -227,6 +239,7 @@ func (m *Model) conHelp() {
 		{"pause / toggle / stop", i18n.T("cli.toggle")},
 		{"next / prev", i18n.T("cli.next") + " · " + i18n.T("cli.prev")},
 		{"jump <pos>", i18n.T("cli.jump")},
+		{"move <from> <to>", i18n.T("cli.move")},
 		{"add <q>", i18n.T("cli.add")},
 		{"queue / status", i18n.T("cli.queue") + " · " + i18n.T("cli.status")},
 		{"vol <0-100|+N|-N>", i18n.T("cli.vol")},

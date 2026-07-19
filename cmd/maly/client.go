@@ -85,6 +85,19 @@ func runClient(cmd string, args []string) error {
 			return errors.New(i18n.T("cli.usage_jump_cmd"))
 		}
 		req.Index = n - 1
+	case "move":
+		// Igual que jump: posiciones 1-based de `maly queue`, 0-based en el
+		// servicio.
+		if len(args) != 2 {
+			return errors.New(i18n.T("cli.usage_move_cmd"))
+		}
+		from, errF := strconv.Atoi(args[0])
+		to, errT := strconv.Atoi(args[1])
+		if errF != nil || errT != nil || from < 1 || to < 1 {
+			return errors.New(i18n.T("cli.usage_move_cmd"))
+		}
+		req.Index = from - 1
+		req.To = to - 1
 	case "vol":
 		if len(args) != 1 {
 			return errors.New(i18n.T("cli.usage_vol_cmd"))

@@ -672,6 +672,16 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		}
 		return okStatus(i18n.TL(lang, "d.removed"))
 
+	case "move":
+		if !d.q.Move(req.Index, req.To) {
+			bad := req.Index
+			if bad >= 0 && bad < d.q.Len() {
+				bad = req.To
+			}
+			return fail(errors.New(i18n.TLf(lang, "d.jump_oob", bad+1)))
+		}
+		return okStatus(i18n.TL(lang, "d.moved"))
+
 	case "clear":
 		d.q.Clear()
 		d.pl.Stop()

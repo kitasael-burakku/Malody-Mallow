@@ -17,7 +17,8 @@ type Request struct {
 	Cmd   string   `json:"cmd"`
 	Query string   `json:"query,omitempty"` // play/add/search: consulta o ruta
 	Value string   `json:"value,omitempty"` // vol/seek/repeat/shuffle: argumento
-	Index int      `json:"index,omitempty"` // remove/jump: posición en la cola
+	Index int      `json:"index,omitempty"` // remove/jump/move: posición en la cola
+	To    int      `json:"to,omitempty"`    // move: posición destino
 	Paths []string `json:"paths,omitempty"` // add/playnow: rutas exactas (TUI)
 	Lang  string   `json:"lang,omitempty"`  // idioma del cliente; el demonio responde en él
 }

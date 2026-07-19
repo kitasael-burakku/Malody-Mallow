@@ -4,6 +4,7 @@ package tui
 
 import (
 	"image"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -565,6 +566,19 @@ func (m *Model) is(action string, msg tea.KeyMsg) bool {
 	return m.keys[action] == msg.String()
 }
 
+// keyRepeats cuenta cuántas pulsaciones de key trae s (bubbletea fusiona
+// teclas rápidas en un solo KeyMsg, como las dos g de "gg"); 0 = otra tecla.
+func keyRepeats(key, s string) int {
+	if key == "" || len(s) == 0 || len(s)%len(key) != 0 {
+		return 0
+	}
+	n := len(s) / len(key)
+	if strings.Repeat(key, n) != s {
+		return 0
+	}
+	return n
+}
+
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
@@ -872,6 +886,28 @@ func (m *Model) handleQueueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		if m.is("remove", msg) && m.queueCursor < len(vis) {
 			return m, m.req(ipc.Request{Cmd: "remove", Index: vis[m.queueCursor]})
+		}
+		// Reordenar solo sin filtro: con la cola filtrada las posiciones
+		// visibles no son contiguas y el reorden sería ambiguo. Las
+		// pulsaciones rápidas llegan fusionadas en un KeyMsg (como "gg"):
+		// n repeticiones = mover n posiciones en una sola petición.
+		if m.queueFilter == "" && m.queueCursor < len(vis) {
+			if n := keyRepeats(m.keys["move_up"], msg.String()); n > 0 {
+				if real := vis[m.queueCursor]; real > 0 {
+					to := max(real-n, 0)
+					m.queueCursor -= real - to
+					clamp()
+					return m, m.req(ipc.Request{Cmd: "move", Index: real, To: to})
+				}
+			}
+			if n := keyRepeats(m.keys["move_down"], msg.String()); n > 0 {
+				if real := vis[m.queueCursor]; real < len(m.queue)-1 {
+					to := min(real+n, len(m.queue)-1)
+					m.queueCursor += to - real
+					clamp()
+					return m, m.req(ipc.Request{Cmd: "move", Index: real, To: to})
+				}
+			}
 		}
 		if m.is("playlist_add", msg) && m.queueCursor < len(vis) {
 			t := m.queue[vis[m.queueCursor]]

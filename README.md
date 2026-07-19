@@ -258,6 +258,7 @@ La primera vez se crea `~/.config/maly/config.toml` con los defaults.
 | `enter` | reproducir pista / expandir nodo |
 | `a` | agregar a la cola (pista, álbum o artista) |
 | `d` | quitar de la cola |
+| `K` / `J` | subir / bajar la pista en la cola |
 | `/` | filtrar el panel actual |
 | `h j k l` | navegación vim (`h`/`l` pliega/expande en la biblioteca) |
 | `gg` / `G` | inicio / final de la lista |
@@ -286,6 +287,7 @@ maly select                    # mini selector fuzzy: enter reproduce, tab agreg
 maly pause | toggle | stop
 maly next | prev
 maly jump <pos>                # salta a esa posición de la cola (ver maly queue)
+maly move <de> <a>             # mueve una pista de la cola a otra posición
 maly add <consulta|ruta>       # agrega a la cola (acepta archivos y carpetas)
 maly queue                     # muestra la cola
 maly clear                     # vacía la cola

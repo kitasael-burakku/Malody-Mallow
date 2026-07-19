@@ -81,6 +81,33 @@ func (q *Queue) RemoveAt(i int) (removed, wasCurrent bool) {
 	return true, wasCurrent
 }
 
+// Move traslada la pista en from a la posición to; devuelve false si algún
+// índice está fuera de rango. Index se ajusta para seguir apuntando a la
+// misma pista.
+func (q *Queue) Move(from, to int) bool {
+	n := len(q.Items)
+	if from < 0 || from >= n || to < 0 || to >= n {
+		return false
+	}
+	if from == to {
+		return true
+	}
+	t := q.Items[from]
+	q.Items = append(q.Items[:from], q.Items[from+1:]...)
+	q.Items = append(q.Items[:to], append([]library.Track{t}, q.Items[to:]...)...)
+	switch {
+	case from == q.Index:
+		q.Index = to
+	case from < q.Index && to >= q.Index:
+		q.Index--
+	case from > q.Index && to <= q.Index:
+		q.Index++
+	}
+	q.history = nil
+	q.peeked = -1
+	return true
+}
+
 // JumpTo selecciona la pista i como actual.
 func (q *Queue) JumpTo(i int) (library.Track, bool) {
 	if i < 0 || i >= len(q.Items) {

@@ -170,6 +170,77 @@ func TestRemoveAt(t *testing.T) {
 	}
 }
 
+func TestMove(t *testing.T) {
+	ids := func(q *Queue) []int64 {
+		out := make([]int64, len(q.Items))
+		for i, tr := range q.Items {
+			out[i] = tr.ID
+		}
+		return out
+	}
+	eq := func(got []int64, want ...int64) bool {
+		if len(got) != len(want) {
+			return false
+		}
+		for i := range got {
+			if got[i] != want[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	q := New()
+	q.Replace(mk(3))
+	q.JumpTo(1)
+	// Mover la actual: Index la sigue.
+	if !q.Move(1, 0) {
+		t.Fatal("mover índices válidos debe funcionar")
+	}
+	if got := ids(q); !eq(got, 2, 1, 3) || q.Index != 0 {
+		t.Fatalf("Move(1,0) = %v Index=%d, quería [2 1 3] Index=0", got, q.Index)
+	}
+	// Otra pista cruza por encima de la actual: Index se corre.
+	if !q.Move(2, 0) {
+		t.Fatal("Move(2,0) debe funcionar")
+	}
+	if got := ids(q); !eq(got, 3, 2, 1) || q.Index != 1 {
+		t.Fatalf("Move(2,0) = %v Index=%d, quería [3 2 1] Index=1", got, q.Index)
+	}
+	// Y de vuelta por debajo.
+	if !q.Move(0, 2) {
+		t.Fatal("Move(0,2) debe funcionar")
+	}
+	if got := ids(q); !eq(got, 2, 1, 3) || q.Index != 0 {
+		t.Fatalf("Move(0,2) = %v Index=%d, quería [2 1 3] Index=0", got, q.Index)
+	}
+	// Fuera de rango: no toca nada.
+	if q.Move(0, 99) || q.Move(-1, 0) {
+		t.Fatal("índices fuera de rango no deben mover")
+	}
+	if got := ids(q); !eq(got, 2, 1, 3) || q.Index != 0 {
+		t.Fatalf("un Move fallido no debe mutar: %v Index=%d", got, q.Index)
+	}
+}
+
+// TestMoveInvalidatesPeek: mover invalida la promesa como toda mutación; si
+// sobreviviera como índice crudo, tras el move apuntaría a la pista actual.
+func TestMoveInvalidatesPeek(t *testing.T) {
+	q := New()
+	q.Replace(mk(2))
+	q.Shuffle = true
+	q.JumpTo(0)
+	if tr, _ := q.PeekNext(); tr.ID != 2 {
+		t.Fatalf("con 2 pistas la promesa es la otra, fue %v", tr.ID)
+	}
+	// La actual pasa al índice prometido: sin invalidar, la promesa
+	// repetiría la pista actual.
+	q.Move(0, 1)
+	if tr, ok := q.PeekNext(); !ok || tr.ID != 2 {
+		t.Fatalf("tras el move la promesa debe recalcularse a la 2, fue %v %v", tr.ID, ok)
+	}
+}
+
 // TestShuffleFirstDrawIncludesZero: sin pista actual (Index -1) el sorteo de
 // shuffle debe poder elegir cualquier índice; la exclusión de la "actual"
 // dejaba el 0 fuera para siempre.

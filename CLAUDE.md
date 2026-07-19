@@ -261,10 +261,17 @@ propósito (yt-dlp es el dueño de ambos); vacío = sin flag, configs viejos
 sin la sección cargan igual. Probado con el yt-dlp falso de `get_test.go`
 y en vivo con Zen Browser vía ruta de perfil.
 
+Post-1.2.1 se implementó **`maly move <de> <a>`** + reorden en la TUI
+(`queue.Move` sigue a `Index` e invalida la promesa; campo `To` en
+`ipc.Request`; la ventana gapless se realinea sola vía el `default` de
+`handle`). En la TUI son las teclas `move_up`/`move_down` (K/J, solo con el
+filtro vacío: con la cola filtrada el reorden sería ambiguo); las pulsaciones
+rápidas fusionadas se cuentan con `keyRepeats` y viajan como UN move de n
+posiciones. Paridad completa: consola ctrl+p, help `?`, completions de ambos
+argumentos (`completeMove`/`queuePositions`).
+
 ### Post-1.0 (candidatos)
 
-- **`maly move <de> <a>`** + reorden en la TUI (J/K en cola): `queue.Move`,
-  campo `To` en `ipc.Request`; la ventana gapless ya se realinea en `handle`.
 - Progreso de scan (fácil en CLI directa; por IPC requiere diseño).
 - Opcionales viejos: shuffle-permutación, ratón en la TUI, duración masiva vía
   `ffprobe` opcional.

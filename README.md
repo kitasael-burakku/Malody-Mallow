@@ -19,13 +19,13 @@ escritorio, vía MPRIS. Todo en un solo binario escrito en Go.
 
 ![Vista previa de Malody Mallow: biblioteca, cola, visualizador y reproducción actual](pictures/maly.jpg)
 
+![Ahora Suena](pictures/Ahora-Suena.png)
+
 ![Paleta de comandos](pictures/commands.jpg)
 
 ![Selector de canciones](pictures/selector.jpg)
 
 ![Maly en Hyprland](pictures/hyprland-maly.png)
-
-![Ahora Suena](pictures/Ahora-Suena.png)
 
 ---
 
@@ -335,11 +335,52 @@ está bloqueada, cierra el navegador e intenta de nuevo.
 
 ### Hyprland
 
-Puedes agregar maly a tu configuración de Hyprland en Lua. Autostart del
-demonio:
+Puedes agregar maly a tu configuración de Hyprland en Lua. Lo recomendable
+es dejar que `systemd --user` administre el demonio en vez de lanzarlo con
+`&` desde el autostart: obtienes reinicio automático si falla, logs
+centralizados y un apagado limpio del socket y del `mpv` hijo.
+
+Crea `~/.config/systemd/user/maly.service`:
+
+```ini
+[Unit]
+Description=Maly Music Daemon
+PartOf=graphical-session.target
+After=graphical-session.target
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/maly daemon
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
+```
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable maly.service
+```
+
+Y en el autostart de Hyprland:
 
 ```lua
-hl.exec_cmd("maly daemon &") -- se agrega al módulo de autostart
+hl.exec_cmd("systemctl --user start maly") -- se agrega al módulo de autostart
+```
+
+Con esto tienes `systemctl --user status maly` y `journalctl --user -u
+maly` para logs, más reinicio automático (`Restart=on-failure`) si el
+demonio crashea. El `SIGTERM` que systemd manda al detener el servicio ya
+dispara un apagado limpio: cierra el socket, guarda la sesión y mata su
+`mpv` hijo.
+
+Si prefieres el modo simple sin systemd, sigue funcionando igual:
+
+```lua
+hl.exec_cmd("maly daemon &") -- alternativa sin systemd, sin supervisión
 ```
 
 Toggle de una terminal dedicada (abre/cierra una ventana de kitty con la

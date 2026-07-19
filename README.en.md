@@ -19,13 +19,13 @@ in a single binary written in Go.
 
 ![Malody Mallow preview: library, queue, visualizer, and now playing](pictures/maly.jpg)
 
+![Now Playing](pictures/Ahora-Suena.png)
+
 ![Command palette](pictures/commands.jpg)
 
 ![Song selector](pictures/selector.jpg)
 
 ![Maly in Hyprland](pictures/hyprland-maly.png)
-
-![Now Playing](pictures/Ahora-Suena.png)
 
 ---
 
@@ -338,10 +338,52 @@ is locked, close the browser and try again.
 
 ### Hyprland
 
-You can add maly to your Hyprland config in Lua. Daemon autostart:
+You can add maly to your Hyprland config in Lua. It's best to let
+`systemd --user` manage the daemon instead of launching it with `&` from
+autostart: you get automatic restart on failure, centralized logs, and a
+clean shutdown of the socket and its child `mpv`.
+
+Create `~/.config/systemd/user/maly.service`:
+
+```ini
+[Unit]
+Description=Maly Music Daemon
+PartOf=graphical-session.target
+After=graphical-session.target
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/maly daemon
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
+```
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable maly.service
+```
+
+And in Hyprland's autostart:
 
 ```lua
-hl.exec_cmd("maly daemon &") -- add to the autostart module
+hl.exec_cmd("systemctl --user start maly") -- add to the autostart module
+```
+
+This gives you `systemctl --user status maly` and `journalctl --user -u
+maly` for logs, plus automatic restart (`Restart=on-failure`) if the
+daemon crashes. The `SIGTERM` systemd sends on stop already triggers a
+clean shutdown: it closes the socket, saves the session, and kills its
+child `mpv`.
+
+If you'd rather skip systemd, the plain mode still works:
+
+```lua
+hl.exec_cmd("maly daemon &") -- systemd-free alternative, no supervision
 ```
 
 Toggle for a dedicated terminal (opens/closes a kitty window with the

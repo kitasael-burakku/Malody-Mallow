@@ -261,7 +261,9 @@ propósito (yt-dlp es el dueño de ambos); vacío = sin flag, configs viejos
 sin la sección cargan igual. Probado con el yt-dlp falso de `get_test.go`
 y en vivo con Zen Browser vía ruta de perfil.
 
-Post-1.2.1 se implementó **`maly move <de> <a>`** + reorden en la TUI
+La **1.3.0** (2026-07-18) empaqueta `maly move`, el progreso de scan y el
+ancho dinámico de la ayuda `?` (la caja se ajusta a la fila más larga; panel
+rellena pero no recorta). Se implementó **`maly move <de> <a>`** + reorden en la TUI
 (`queue.Move` sigue a `Index` e invalida la promesa; campo `To` en
 `ipc.Request`; la ventana gapless se realinea sola vía el `default` de
 `handle`). En la TUI son las teclas `move_up`/`move_down` (K/J, solo con el
@@ -270,7 +272,7 @@ rápidas fusionadas se cuentan con `keyRepeats` y viajan como UN move de n
 posiciones. Paridad completa: consola ctrl+p, help `?`, completions de ambos
 argumentos (`completeMove`/`queuePositions`).
 
-También post-1.2.1: **progreso de scan**. `Library.Scan` acepta un callback
+También en la 1.3.0: **progreso de scan**. `Library.Scan` acepta un callback
 `progress(seen)` (nil = mudo; cuenta archivos de audio vistos, incluidos los
 saltados por mtime — el total no se conoce por adelantado, es contador a
 propósito, no porcentaje). El demonio lo publica en `Status.Scanning/ScanSeen`

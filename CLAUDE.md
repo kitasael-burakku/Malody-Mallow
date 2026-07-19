@@ -294,5 +294,5 @@ mutaciones de playlists se reflejan en vivo en todos los clientes vía la op
 
 ### Post-1.0 (candidatos)
 
-- Opcionales viejos: shuffle-permutación, ratón en la TUI, duración masiva vía
-  `ffprobe` opcional.
+- Opcionales viejos: shuffle-permutación y duración masiva vía `ffprobe`
+  opcional (el ratón en la TUI se descartó).

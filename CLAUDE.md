@@ -288,6 +288,10 @@ en el footer; `maly scan` directo pinta `\r` en stderr (solo si es tty, ioctl
 suscrita mientras `Do` bloquea (los pushes de Status traen el avance; `Do` lee
 una sola línea, por eso no puede ser la misma conexión).
 
+La **1.3.1** (2026-07-18) cerró la última limitación conocida: las
+mutaciones de playlists se reflejan en vivo en todos los clientes vía la op
+`refresh` (detalles en la sección de la TUI).
+
 ### Post-1.0 (candidatos)
 
 - Opcionales viejos: shuffle-permutación, ratón en la TUI, duración masiva vía

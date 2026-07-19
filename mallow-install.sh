@@ -820,7 +820,9 @@ if [ -z "$SRC" ]; then
 		hb_start 'clonando Malody Mallow…' 'cloning Malody Mallow…'
 	fi
 	# ${REF:+…}: --branch acepta tags; sin --ref se compila main, como siempre.
-	git clone --quiet --depth=1 ${REF:+--branch "$REF"} "$REPO_URL" "$TMP/src" ||
+	# advice.detachedHead: clonar un tag deja checkout suelto y git imprime su
+	# consejo de "detached HEAD" AUNQUE lleve --quiet — puro susto en el wizard.
+	git -c advice.detachedHead=false clone --quiet --depth=1 ${REF:+--branch "$REF"} "$REPO_URL" "$TMP/src" ||
 		{ hb_stop; die 'falló el clonado' 'clone failed'; }
 	hb_done
 	SRC=$TMP/src

@@ -251,6 +251,7 @@ func TestScanDoesNotBlockStatus(t *testing.T) {
 
 	sampled := 0
 	busyChecked := false
+	sawProgress := false
 	for d.scanning.Load() {
 		start := time.Now()
 		resp := d.Do(ipc.Request{Cmd: "status"})
@@ -260,6 +261,11 @@ func TestScanDoesNotBlockStatus(t *testing.T) {
 		}
 		if elapsed > time.Second {
 			t.Fatalf("status tardó %v durante el escaneo (¿d.mu tomado por scan?)", elapsed)
+		}
+		// El status debe reportar el scan en vuelo; el avance (ScanSeen)
+		// tarda unos archivos en arrancar, basta verlo alguna vez.
+		if resp.Status.Scanning && resp.Status.ScanSeen > 0 {
+			sawProgress = true
 		}
 		sampled++
 		// Un segundo scan simultáneo debe rechazarse, no encolarse ni correr.
@@ -272,6 +278,8 @@ func TestScanDoesNotBlockStatus(t *testing.T) {
 	}
 	if sampled == 0 {
 		t.Log("el escaneo terminó antes de poder muestrear status; sube n si pasa seguido")
+	} else if !sawProgress {
+		t.Error("ningún status durante el escaneo reportó Scanning con ScanSeen > 0")
 	}
 
 	resp := <-scanDone
@@ -280,6 +288,9 @@ func TestScanDoesNotBlockStatus(t *testing.T) {
 	}
 	if total, err := d.lib.Count(); err != nil || total != n {
 		t.Fatalf("Count = %d, %v; quería %d", total, err, n)
+	}
+	if st := d.Do(ipc.Request{Cmd: "status"}).Status; st.Scanning || st.ScanSeen != 0 {
+		t.Fatalf("tras el escaneo el status debe limpiarse, fue %+v", st)
 	}
 }
 
@@ -775,12 +786,24 @@ func TestLibGenBumpsOnScan(t *testing.T) {
 		}
 	}
 
-	// Re-escanear sin cambios no debe subir la generación (ni recargar nada).
+	// Re-escanear sin cambios no debe subir la generación (ni recargar nada),
+	// pero SÍ despierta a los suscriptores al terminar: sin ese push final se
+	// quedarían con el "escaneando…" pintado.
 	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
 		t.Fatalf("re-scan: %s", resp.Error)
 	}
 	if st := d.Do(ipc.Request{Cmd: "status"}).Status; st.LibGen != 2 {
 		t.Fatalf("LibGen tras scan sin cambios = %d, quería 2", st.LibGen)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		resp := next(t, sub)
+		if resp.Status != nil && !resp.Status.Scanning && resp.Status.LibGen == 2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("nunca llegó el push final del re-scan; último: %+v", resp.Status)
+		}
 	}
 }
 

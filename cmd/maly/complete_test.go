@@ -117,7 +117,7 @@ func TestCompleteTracksAndPlaylists(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := lib.Scan(music); err != nil {
+	if _, err := lib.Scan(music, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := lib.CreatePlaylist("favoritas"); err != nil {

@@ -48,6 +48,8 @@ type Status struct {
 	Repeat     string     `json:"repeat"` // off | all | one
 	QueueIndex int        `json:"queue_index"`
 	QueueLen   int        `json:"queue_len"`
+	Scanning   bool       `json:"scanning,omitempty"`  // hay un scan en vuelo en el demonio
+	ScanSeen   int        `json:"scan_seen,omitempty"` // archivos de audio vistos por ese scan
 	// LibGen es la generación de la biblioteca del demonio: crece con cada
 	// scan, así los clientes detectan en cualquier respuesta o push que la
 	// biblioteca cambió y recargan su copia. 0 = demonio sin soporte (< 0.7).

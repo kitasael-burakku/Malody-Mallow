@@ -369,6 +369,10 @@ func (m *Model) footer() string {
 		line = m.st.errSt.Render(" " + m.flash)
 	case m.flash != "":
 		line = m.st.playing.Render(" " + m.flash)
+	case m.status != nil && m.status.Scanning:
+		// Progreso del scan en vuelo (propio o de otro cliente): llega por
+		// los pushes de suscripción en Status.Scanning/ScanSeen.
+		line = m.st.accent.Render(" " + i18n.Tf("cli.scan_progress", m.status.ScanSeen))
 	case m.verMismatch != "":
 		line = m.st.errSt.Render(" " + i18n.Tf("tui.svc_version", m.verMismatch))
 	case m.updAvail != "":

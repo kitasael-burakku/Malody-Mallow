@@ -160,7 +160,7 @@ func runPlaylist(args []string) error {
 		if _, statErr := os.Stat(file); statErr == nil {
 			// Un archivo existente no se pisa sin preguntar; sin terminal
 			// (pipe, script) el error avisa en vez de adivinar que sí.
-			if !stdinIsTTY() {
+			if !isTTY(os.Stdin) {
 				return errors.New(i18n.Tf("pl.export_exists", file))
 			}
 			if !confirmOverwrite(file) {
@@ -199,10 +199,10 @@ func runPlaylist(args []string) error {
 	}
 }
 
-// stdinIsTTY dice si stdin es un terminal (se puede preguntar). Es el ioctl
+// isTTY dice si f es un terminal (se puede preguntar/pintar). Es el ioctl
 // de verdad: mirar ModeCharDevice no basta, /dev/null también lo es.
-func stdinIsTTY() bool {
-	_, err := unix.IoctlGetTermios(int(os.Stdin.Fd()), unix.TCGETS)
+func isTTY(f *os.File) bool {
+	_, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
 	return err == nil
 }
 

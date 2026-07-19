@@ -140,8 +140,11 @@ const upsertTrack = `
 		search_text=excluded.search_text`
 
 // Scan recorre root, indexa audio nuevo o modificado y elimina de la base
-// las entradas cuyos archivos ya no existen.
-func (l *Library) Scan(root string) (ScanResult, error) {
+// las entradas cuyos archivos ya no existen. progress (opcional, nil = mudo)
+// recibe el acumulado de archivos de audio vistos — también los saltados por
+// mtime, porque reflejan el avance real del walk; el total no se conoce por
+// adelantado y el throttling es responsabilidad del llamador.
+func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error) {
 	var res ScanResult
 	info, err := os.Stat(root)
 	if err != nil {
@@ -236,6 +239,9 @@ func (l *Library) Scan(root string) (ScanResult, error) {
 			return nil
 		}
 		seen[path] = true
+		if progress != nil {
+			progress(len(seen))
+		}
 		fi, err := d.Info()
 		if err != nil {
 			res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", path, err))

@@ -61,7 +61,7 @@ func TestScanConcurrentSearch(t *testing.T) {
 	}
 	done := make(chan scanOut, 1)
 	go func() {
-		res, err := lib.Scan(dir)
+		res, err := lib.Scan(dir, nil)
 		done <- scanOut{res, err}
 	}()
 
@@ -101,6 +101,43 @@ loop:
 // TestScanRescanAccounting: un re-escaneo con una pista modificada y otra
 // borrada debe contar Updated/Removed exactos y dejar el total correcto (la
 // contabilidad ahora se suma por lote confirmado, no por Exec suelto).
+// TestScanProgress: el callback recibe el acumulado creciente de archivos de
+// audio vistos y llega al total; los saltados por mtime también cuentan.
+func TestScanProgress(t *testing.T) {
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	const n = 30
+	dir := fakeMusicDir(t, n)
+	// Un archivo no-audio no debe contarse.
+	if err := os.WriteFile(filepath.Join(dir, "portada.jpg"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	check := func(label string) {
+		t.Helper()
+		prev := 0
+		if _, err := lib.Scan(dir, func(seen int) {
+			if seen != prev+1 {
+				t.Fatalf("%s: progreso saltó de %d a %d", label, prev, seen)
+			}
+			prev = seen
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if prev != n {
+			t.Fatalf("%s: el progreso terminó en %d, quería %d", label, prev, n)
+		}
+	}
+	check("primer escaneo")
+	// Re-escaneo sin cambios: todo se salta por mtime pero el avance se
+	// reporta igual.
+	check("re-escaneo")
+}
+
 func TestScanRescanAccounting(t *testing.T) {
 	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -110,13 +147,13 @@ func TestScanRescanAccounting(t *testing.T) {
 
 	const n = 30
 	dir := fakeMusicDir(t, n)
-	res, err := lib.Scan(dir)
+	res, err := lib.Scan(dir, nil)
 	if err != nil || res.Added != n {
 		t.Fatalf("primer escaneo: %+v, %v", res, err)
 	}
 
 	// Sin cambios: el re-escaneo no debe tocar nada (mtimes iguales).
-	res, err = lib.Scan(dir)
+	res, err = lib.Scan(dir, nil)
 	if err != nil || res.Added != 0 || res.Updated != 0 || res.Removed != 0 {
 		t.Fatalf("re-escaneo sin cambios: %+v, %v", res, err)
 	}
@@ -130,7 +167,7 @@ func TestScanRescanAccounting(t *testing.T) {
 	if err := os.Remove(filepath.Join(dir, "album02", "pista0002.mp3")); err != nil {
 		t.Fatal(err)
 	}
-	res, err = lib.Scan(dir)
+	res, err = lib.Scan(dir, nil)
 	if err != nil || res.Added != 0 || res.Updated != 1 || res.Removed != 1 {
 		t.Fatalf("re-escaneo con cambios: %+v, %v", res, err)
 	}
@@ -148,7 +185,7 @@ func TestSetDurationSurvivesRescan(t *testing.T) {
 	}
 	defer lib.Close()
 	dir := fakeMusicDir(t, 3)
-	if _, err := lib.Scan(dir); err != nil {
+	if _, err := lib.Scan(dir, nil); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, "album01", "pista0001.mp3")
@@ -164,7 +201,7 @@ func TestSetDurationSurvivesRescan(t *testing.T) {
 	if err := os.Chtimes(path, future, future); err != nil {
 		t.Fatal(err)
 	}
-	if res, err := lib.Scan(dir); err != nil || res.Updated != 1 {
+	if res, err := lib.Scan(dir, nil); err != nil || res.Updated != 1 {
 		t.Fatalf("re-escaneo: %+v, %v", res, err)
 	}
 	if got, _ := lib.ByPath(path); got.Duration != 245.3 {
@@ -288,7 +325,7 @@ func TestRemoveFromPlaylist(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lib.Close()
-	if _, err := lib.Scan(dir); err != nil {
+	if _, err := lib.Scan(dir, nil); err != nil {
 		t.Fatal(err)
 	}
 	all, err := lib.All()
@@ -353,7 +390,7 @@ func TestScanPurgeDotDotDir(t *testing.T) {
 	if err := os.WriteFile(track, []byte("no es audio"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if res, err := lib.Scan(root); err != nil || res.Added != 1 {
+	if res, err := lib.Scan(root, nil); err != nil || res.Added != 1 {
 		t.Fatalf("primer escaneo: %+v, %v", res, err)
 	}
 
@@ -363,7 +400,7 @@ func TestScanPurgeDotDotDir(t *testing.T) {
 	if err := os.WriteFile(outside, []byte("no es audio"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if res, err := lib.Scan(other); err != nil || res.Added != 1 {
+	if res, err := lib.Scan(other, nil); err != nil || res.Added != 1 {
 		t.Fatalf("escaneo de la otra raíz: %+v, %v", res, err)
 	}
 
@@ -371,7 +408,7 @@ func TestScanPurgeDotDotDir(t *testing.T) {
 	if err := os.Remove(track); err != nil {
 		t.Fatal(err)
 	}
-	res, err := lib.Scan(root)
+	res, err := lib.Scan(root, nil)
 	if err != nil || res.Removed != 1 {
 		t.Fatalf("purga bajo ..covers: %+v, %v", res, err)
 	}
@@ -394,7 +431,7 @@ func TestSearchLikeEscape(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := lib.Scan(dir); err != nil {
+	if _, err := lib.Scan(dir, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -417,7 +454,7 @@ func TestAddToPlaylistAtomic(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lib.Close()
-	if _, err := lib.Scan(dir); err != nil {
+	if _, err := lib.Scan(dir, nil); err != nil {
 		t.Fatal(err)
 	}
 	all, err := lib.All()

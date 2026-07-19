@@ -135,7 +135,39 @@ func runScan(args []string) error {
 	if c, err := ipc.Dial(config.SocketPath()); err == nil {
 		defer c.Close()
 		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
+
+		// Progreso: Do lee una sola línea al final, así que el avance llega
+		// por una SEGUNDA conexión suscrita (el demonio empuja Status con
+		// Scanning/ScanSeen). Un demonio viejo no manda los campos y la
+		// goroutine simplemente no pinta nada.
+		stopProgress := func() {}
+		if isTTY(os.Stderr) {
+			if sub, err := ipc.Dial(config.SocketPath()); err == nil {
+				exited := make(chan struct{})
+				go func() {
+					defer close(exited)
+					if _, err := sub.Subscribe(); err != nil {
+						return
+					}
+					for {
+						resp, err := sub.Next()
+						if err != nil {
+							return
+						}
+						if resp.Status != nil && resp.Status.Scanning {
+							fmt.Fprint(os.Stderr, "\r\033[K"+i18n.Tf("cli.scan_progress", resp.Status.ScanSeen))
+						}
+					}
+				}()
+				stopProgress = func() {
+					sub.Close() // desbloquea el Next y la goroutine termina
+					<-exited
+					fmt.Fprint(os.Stderr, "\r\033[K")
+				}
+			}
+		}
 		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: query})
+		stopProgress()
 		if err != nil {
 			return err
 		}
@@ -151,7 +183,21 @@ func runScan(args []string) error {
 		return err
 	}
 	defer lib.Close()
-	res, err := lib.Scan(dir)
+	var progress func(int)
+	if isTTY(os.Stderr) {
+		var last time.Time
+		progress = func(seen int) {
+			if time.Since(last) < 100*time.Millisecond {
+				return
+			}
+			last = time.Now()
+			fmt.Fprint(os.Stderr, "\r\033[K"+i18n.Tf("cli.scan_progress", seen))
+		}
+	}
+	res, err := lib.Scan(dir, progress)
+	if progress != nil {
+		fmt.Fprint(os.Stderr, "\r\033[K")
+	}
 	if err != nil {
 		// Ruta por defecto que no existe: decir de dónde salió y cómo apuntar
 		// a la música. Con ruta explícita el usuario ya sabe qué escribió.

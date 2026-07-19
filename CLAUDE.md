@@ -270,8 +270,20 @@ rápidas fusionadas se cuentan con `keyRepeats` y viajan como UN move de n
 posiciones. Paridad completa: consola ctrl+p, help `?`, completions de ambos
 argumentos (`completeMove`/`queuePositions`).
 
+También post-1.2.1: **progreso de scan**. `Library.Scan` acepta un callback
+`progress(seen)` (nil = mudo; cuenta archivos de audio vistos, incluidos los
+saltados por mtime — el total no se conoce por adelantado, es contador a
+propósito, no porcentaje). El demonio lo publica en `Status.Scanning/ScanSeen`
+(atómica `scanSeen`) despertando suscriptores en cada callback (el dirty cap 1
++ los 250 ms mínimos del bucle del suscriptor colapsan la avalancha), y al
+terminar hace `wakeSubs` SIEMPRE — tras bajar `scanning`, o el push final
+diría "escaneando" — para que los clientes limpien el estado. La TUI lo pinta
+en el footer; `maly scan` directo pinta `\r` en stderr (solo si es tty, ioctl
+`isTTY` compartido con playlist export) y vía IPC abre una SEGUNDA conexión
+suscrita mientras `Do` bloquea (los pushes de Status traen el avance; `Do` lee
+una sola línea, por eso no puede ser la misma conexión).
+
 ### Post-1.0 (candidatos)
 
-- Progreso de scan (fácil en CLI directa; por IPC requiere diseño).
 - Opcionales viejos: shuffle-permutación, ratón en la TUI, duración masiva vía
   `ffprobe` opcional.

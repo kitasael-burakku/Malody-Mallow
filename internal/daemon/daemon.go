@@ -41,6 +41,7 @@ type Daemon struct {
 	ln       net.Listener
 	mpris    *mpris.Service // nil si no hay bus de sesión
 	scanning atomic.Bool    // guarda contra escaneos simultáneos (scan corre sin d.mu)
+	scanSeen atomic.Int64   // archivos vistos por el scan en vuelo (progreso en Status)
 
 	// libGen es la generación de la biblioteca: arranca en 1 y crece con
 	// cada scan exitoso. statusLocked la adjunta a todo Status, y los
@@ -759,10 +760,22 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 	if !d.scanning.CompareAndSwap(false, true) {
 		return ipc.Response{Error: i18n.TL(lang, "d.scan_busy")}
 	}
-	defer d.scanning.Store(false)
+	// Al terminar, despertar SIEMPRE a los suscriptores (aun sin cambios o
+	// con error) para que limpien el "escaneando…" de su Status — y hacerlo
+	// DESPUÉS de bajar scanning, o el push final aún lo reportaría en true.
+	defer func() {
+		d.scanning.Store(false)
+		d.wakeSubs()
+	}()
 
 	dir, origin, explicit := d.cfg.ScanTarget(query)
-	res, err := d.lib.Scan(dir)
+	d.scanSeen.Store(0)
+	// Los suscriptores ven el avance en Status (Scanning/ScanSeen); el dirty
+	// con cap 1 y el mínimo de 250 ms entre pushes ya colapsan la avalancha.
+	res, err := d.lib.Scan(dir, func(seen int) {
+		d.scanSeen.Store(int64(seen))
+		d.wakeSubs()
+	})
 	if err != nil {
 		if !explicit && errors.Is(err, fs.ErrNotExist) {
 			return ipc.Response{Error: i18n.TLf(lang, "cli.scan_noexist", dir, i18n.TL(lang, origin))}
@@ -771,11 +784,10 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 	}
 	total, _ := d.lib.Count()
 	if res.Added+res.Updated+res.Removed > 0 {
-		// La biblioteca cambió de generación: despertar a los suscriptores
-		// aquí mismo (handle trata scan como solo-lectura y no lo haría). Un
-		// scan sin cambios no recarga el árbol de nadie.
+		// La biblioteca cambió de generación (handle trata scan como
+		// solo-lectura y no la subiría). Un scan sin cambios no recarga el
+		// árbol de nadie; el wakeSubs va en el defer de arriba.
 		d.libGen.Add(1)
-		d.wakeSubs()
 	}
 	msg := i18n.TLf(lang, "d.scan_done", res.Added, res.Updated, res.Removed, total)
 	if len(res.Errors) > 0 {
@@ -961,6 +973,10 @@ func (d *Daemon) statusLocked() *ipc.Status {
 		QueueIndex: d.q.Index,
 		QueueLen:   d.q.Len(),
 		LibGen:     d.libGen.Load(),
+	}
+	if d.scanning.Load() {
+		s.Scanning = true
+		s.ScanSeen = int(d.scanSeen.Load())
 	}
 	if t, ok := d.q.Current(); ok && !st.Idle {
 		info := infoOf(t)

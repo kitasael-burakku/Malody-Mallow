@@ -235,6 +235,7 @@ var table = map[string][2]string{
 	"cli.daemon_listening":  {"maly daemon listening on %s", "servicio de maly escuchando en %s"},
 	"cli.queue_empty":       {"The queue is empty. Use maly add <query> or maly play <query>.", "La cola está vacía. Usa maly add <consulta> o maly play <consulta>."},
 	"cli.scan_start":        {"Scanning %s ...", "Escaneando %s ..."},
+	"cli.scan_progress":     {"scanning… %d files", "escaneando… %d archivos"},
 	"cli.scan_warn":         {"  warning: %s", "  aviso: %s"},
 	"cli.scan_done":         {"Done: %d new, %d updated, %d removed (%d tracks total)", "Listo: %d nuevas, %d actualizadas, %d eliminadas (%d pistas en total)"},
 	"cli.scan_empty":        {"The library is empty. Is there music in %s? You can pass another path: maly scan <path>", "La biblioteca está vacía. ¿Hay música en %s? Puedes indicar otra ruta: maly scan <ruta>"},

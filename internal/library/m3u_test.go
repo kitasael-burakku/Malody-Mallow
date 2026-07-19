@@ -16,7 +16,7 @@ func m3uLib(t *testing.T, nTracks int) (*Library, []Track) {
 	}
 	t.Cleanup(func() { lib.Close() })
 	dir := fakeMusicDir(t, nTracks)
-	if _, err := lib.Scan(dir); err != nil {
+	if _, err := lib.Scan(dir, nil); err != nil {
 		t.Fatal(err)
 	}
 	tracks, err := lib.Search("pista")

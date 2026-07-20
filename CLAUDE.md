@@ -61,7 +61,13 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   refleja mutadores a MPRIS/suscriptores y realinea la ventana gapless).
   play/add/playnow resuelven sus pistas (directorios, tags, rutas) ANTES de
   tomar `d.mu` — un `add <carpeta-grande>` bajo el lock congelaba
-  status/TUI/MPRIS, la misma lección que sacó a scan del mutex.
+  status/TUI/MPRIS, la misma lección que sacó a scan del mutex. `seek` es la
+  tercera excepción por lo mismo (cerró B11): `player.seek` reintenta con
+  250 ms de sueño y cada intento espera hasta 5 s a mpv, y bajo el lock eso
+  además apilaba goroutines de `notify`. `d.seek` solo parsea y habla con el
+  player (mutex propio), así que no toca estado del demonio; a cambio un
+  seek concurrente con el next de otro cliente puede caer en la pista nueva
+  (daño menor, aceptado como en las otras dos excepciones).
   `serve` intercepta `subscribe` y `shutdown` ANTES de `handle`: `shutdown`
   (op de `maly kill`) responde primero y luego llama `d.Close()` — dentro de
   `dispatch` deadlockearía con `d.mu`; `Close` es idempotente (`closeOnce`).
@@ -73,7 +79,16 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   su copia al verla cambiar (la TUI en `applyStatus`). Por eso `maly scan`
   CLI escanea VÍA IPC si el demonio responde (rutas relativas absolutizadas
   antes de mandarlas: el demonio tiene otro cwd) y directo a la DB si no —
-  `maly get` reutiliza ese mismo camino. Sesión en
+  `maly get` reutiliza ese mismo camino. El scan tiene una SEGUNDA FASE
+  (duraciones con ffprobe, gated por `[scan_durations]` del config y por
+  `probe.Available()`): también fuera de `d.mu` y bajo la misma atómica
+  `scanning`, publica su avance en `Status.ScanTotal` (>0 marca la fase; la
+  de indexado no conoce su total por adelantado, por eso el número solo ya
+  distingue y no hace falta un campo de fase), sube `libGen` aunque no haya
+  altas/bajas si aprendió algo, y termina con `refreshQueueDurations` — la
+  cola en memoria hay que refrescarla A MANO porque `learnDuration` compara
+  contra ella y no contra la DB (las lecturas van fuera del lock, el
+  emparejamiento por ruta). Sesión en
   `session.go` (JSON atómico en XDG_DATA_HOME, guardado cada 15 s si dirty y en
   Close; restaura la pista actual EN PAUSA).
 - `internal/player` — wrapper de mpv. Gapless: `SetNext` mantiene una ventana de
@@ -96,9 +111,25 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   Búsqueda por columna `search_text` (minúsculas sin diacríticos vía `Fold`,
   que usa un `sync.Pool` porque los transformers tienen estado). Scan por LOTES
   de 500 (`flush` = Begin→N Exec→Commit); NUNCA una transacción única: fija la
-  conexión y bloquearía Search/ByPath todo el escaneo. La columna `duration` se
-  aprende perezosamente de mpv (`learnDuration` en el demonio); el upsert del
-  scan no la toca. `IsAudio` es el filtro único de extensiones.
+  conexión y bloquearía Search/ByPath todo el escaneo. La columna `duration`
+  se aprende por DOS vías y el upsert del scan nunca la toca: perezosa desde
+  mpv al reproducir (`learnDuration` en el demonio) y masiva con ffprobe
+  (`FillDurations`, fase 2 del scan). `FillDurations` MATERIALIZA los
+  candidatos (`duration <= 0`, filtrados con `underRoot`) y CIERRA el `rows`
+  antes de probar ninguno: con `SetMaxOpenConns(1)`, llamar a ffprobe dentro
+  del bucle de filas retendría la única conexión durante todo el relleno —
+  peor que la transacción larga que los lotes evitan; lo cuida
+  `TestFillDurationsConcurrentSearch`. Escribe en lotes de `fillBatchSize`
+  (50, no 500: cada elemento cuesta un ffprobe) y lo que falla queda en 0
+  para que el próximo scan reintente (nada de centinelas: todos los
+  consumidores prueban `> 0`). `IsAudio` es el filtro único de extensiones.
+- `internal/probe` — ffprobe para las duraciones, en la línea de "coordinar
+  herramientas" de `internal/getter`. A diferencia de `getter.Tools`, la
+  ausencia NO es error: `Available()` falso = la fase se salta en silencio.
+  La ruta va tras `-i` (un archivo que empiece con `-` sería flag) y cada
+  consulta lleva timeout (un montaje de red caído colgaría el scan entero).
+  `library` no lo importa: el prober se INYECTA en `FillDurations`, lo que
+  además permite testear sin ffprobe ni audio real.
 - `internal/mpris` — MPRIS2 (godbus). `props.go` es una implementación PROPIA de
   org.freedesktop.DBus.Properties porque godbus/prop tiene una data race con
   propiedades mapa y nunca borra claves — no volver a prop. Los métodos D-Bus
@@ -171,7 +202,13 @@ Decisiones transversales:
 - `config.Load()` mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del
   usuario, vía un defer con retorno con nombre — mantener ese orden si se toca.
   `ScanTarget` resuelve el directorio a escanear (query explícita o music_dir
-  con origen para mensajes de error).
+  con origen para mensajes de error). Una clave booleana que deba venir
+  ACTIVA por defecto se puebla en `Default()` (`update_check`,
+  `scan_durations`): `toml.Decode` corre sobre el struct ya inicializado, así
+  que un config viejo que no la menciona conserva el default. El zero-value
+  solo sirve para las que nacen apagadas (`[ytdlp]`). El template únicamente
+  se escribe cuando el config NO existe: una clave nueva jamás aparece en
+  configs existentes y tiene que funcionar sin tocarlos.
 - bubbletea fusiona teclas rápidas: dos `g` llegan como UN KeyMsg `"gg"` — los
   paneles manejan ambos casos.
 
@@ -231,8 +268,8 @@ tras `EADDRINUSE` + ping fallido), `Search` sin `LIMIT 500` (capaba
 play/add/playlist add en silencio), `saveKey` exige `=` tras la clave (no
 prefijo), `seek` acepta `hh:mm:ss`, el instalador avisa reiniciar el servicio
 si el socket existe, buffer de 1 MB en ParseLRC y cache del folded de la cola
-en la TUI (`queueFolded`). Diferido a propósito: el retry de `player.seek`
-duerme 250 ms bajo `d.mu` (aceptable hasta que moleste).
+en la TUI (`queueFolded`). El único hallazgo diferido de esa tanda (B11: el
+retry de `player.seek` durmiendo 250 ms bajo `d.mu`) se cerró en la 1.5.0.
 
 Trampas que dejaron estos ciclos:
 
@@ -310,7 +347,22 @@ el `canNext` de MPRIS queda optimista con el ciclo agotado (el Next
 sobrante falla inofensivo, comentado en `mpris.go`). Sin cambios de
 IPC/TUI/CLI: `Items` nunca se reordena.
 
+La **1.5.0** (2026-07-20) vació la lista de candidatos con las dos últimas
+piezas. **Duraciones masivas con ffprobe**: paquete nuevo `internal/probe`
+y `Library.FillDurations` como segunda fase del scan (detalles en las
+secciones de library/probe/daemon), con la clave `scan_durations` (default
+TRUE, precedente de `update_check`: los configs viejos que no la traen la
+reciben activada) y un campo nuevo `Status.ScanTotal` para el progreso. El
+pago visible: el panel de cola de la TUI muestra la duración de pistas que
+nunca se reprodujeron. **B11 cerrado**: el seek se resuelve fuera de `d.mu`
+como tercera excepción del dispatch. El retry de `player.seek` se dejó tal
+cual a propósito — afinarlo (p. ej. no dormir si mpv murió) exigiría
+comparar mensajes de error que salen de i18n y cambian con el idioma del
+proceso. `newTestDaemon` apaga `ScanDurations`: si no, en una máquina con
+ffprobe los tests que escanean miles de dummies lanzarían un proceso por
+archivo y el resultado dependería de tenerlo instalado.
+
 ### Post-1.0 (candidatos)
 
-- Opcionales viejos: duración masiva vía `ffprobe` opcional (el ratón en la
-  TUI se descartó).
+Sin candidatos pendientes: la lista quedó vacía con la 1.5.0 (el ratón en la
+TUI se descartó, y shuffle-permutación, ffprobe y B11 ya están hechos).

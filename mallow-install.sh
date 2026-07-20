@@ -649,7 +649,7 @@ dep_label() {
 	case $1 in
 	mpv) tr2 'mpv — motor de audio (sin él maly no suena)' 'mpv — audio engine (maly cannot play without it)' ;;
 	git) tr2 'git — para clonar el repositorio' 'git — to clone the repository' ;;
-	get) tr2 'yt-dlp + ffmpeg — para `maly get`, descargar música (opcional)' 'yt-dlp + ffmpeg — for `maly get`, music download (optional)' ;;
+	get) tr2 'yt-dlp + ffmpeg — descargar música y leer duraciones (opcional)' 'yt-dlp + ffmpeg — music download and track durations (optional)' ;;
 	viz) tr2 'pulseaudio-utils (parec) — visualizador con audio real (opcional)' 'pulseaudio-utils (parec) — real-audio visualizer (optional)' ;;
 	esac
 }

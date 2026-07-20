@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.2.1-blue)
+![version](https://img.shields.io/badge/version-1.5.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -124,7 +124,8 @@ disabled with `update_check = false` in the config).
 System dependencies: `mpv` (audio), Go ≥ 1.25 (to build), and, for the
 visualizer, PipeWire or PulseAudio with their command-line tools.
 Optional: `yt-dlp` and `ffmpeg`, only if you want to download music with
-`maly get`.
+`maly get`; `ffprobe` (shipped with `ffmpeg`) also lets the scan learn track
+durations without having to play each one.
 
 **Arch Linux**
 
@@ -439,6 +440,7 @@ music_dir = "~/Music"
 language = ""             # "" = ask on TUI open; "en" | "es"
 controls = "default"      # key scheme: default | vim (maly controls)
 update_check = true       # the TUI warns if a new version is out (maly update)
+scan_durations = true     # on scan, read missing durations with ffprobe (skipped if not installed)
 
 [theme]
 transparent = true        # no background; use the terminal's

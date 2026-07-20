@@ -496,12 +496,29 @@ func (d *Daemon) wakeSubs() {
 	d.subMu.Unlock()
 }
 
-// dispatch ejecuta el comando bajo el mutex del demonio.
+// dispatch ejecuta el comando bajo el mutex del demonio, salvo las
+// excepciones que se resuelven antes de tomarlo (scan, la resolución de
+// pistas de play/add y el seek): todas hacen IO o esperan a mpv, y bajo el
+// lock congelarían status, TUI y MPRIS.
 func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	if req.Cmd == "scan" {
 		// Sin d.mu: solo toca lib (thread-safe) y cfg (inmutable). Con el
 		// mutex tomado, un escaneo largo congelaría play/status/TUI.
 		return d.scan(req.Lang, req.Query)
+	}
+
+	// seek también se resuelve ANTES de d.mu: player.seek reintenta una vez
+	// con 250 ms de sueño de por medio, y cada intento espera hasta 5 s la
+	// respuesta de mpv — bajo el lock eso congelaba status, TUI y MPRIS, y
+	// apilaba goroutines de notify() esperando el mutex. d.seek solo parsea
+	// y habla con el player (que tiene mutex propio): no toca la cola ni
+	// ningún otro estado, así que nada se corrompe fuera de d.mu. A cambio,
+	// un seek concurrente con el next de otro cliente puede caer en la
+	// pista nueva: daño menor y el mismo carácter que las excepciones de
+	// scan y de la resolución de pistas.
+	var seekErr error
+	if req.Cmd == "seek" {
+		seekErr = d.seek(req.Lang, req.Value)
 	}
 
 	// play/add resuelven sus pistas ANTES de tomar d.mu: resolveTracks puede
@@ -705,8 +722,10 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		return okStatus(i18n.TLf(lang, "d.vol_set", int(v)))
 
 	case "seek":
-		if err := d.seekLocked(lang, req.Value); err != nil {
-			return fail(err)
+		// Ya se ejecutó arriba, fuera del lock; aquí solo se reporta. El
+		// Status lleva la posición nueva (player.seek la refresca).
+		if seekErr != nil {
+			return fail(seekErr)
 		}
 		return okStatus("")
 
@@ -904,7 +923,9 @@ func (d *Daemon) resumeLocked(lang string, fail func(error) ipc.Response, okStat
 	return okStatus(i18n.TLf(lang, "d.playing", t))
 }
 
-func (d *Daemon) seekLocked(lang, val string) error {
+// seek parsea el valor y se lo pasa al player. Corre SIN d.mu (ver dispatch):
+// no toca la cola ni ningún otro estado del demonio.
+func (d *Daemon) seek(lang, val string) error {
 	val = strings.TrimSpace(val)
 	if val == "" {
 		return errors.New(i18n.TL(lang, "d.seek_usage"))

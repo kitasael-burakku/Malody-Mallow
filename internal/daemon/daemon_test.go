@@ -569,6 +569,18 @@ func TestScanFillsDurations(t *testing.T) {
 	}
 }
 
+// TestSeekErrorsOutsideLock: el seek se resuelve antes de tomar d.mu, así
+// que sus errores de parseo deben seguir llegando al cliente igual (y una
+// sola vez).
+func TestSeekErrorsOutsideLock(t *testing.T) {
+	d := newTestDaemon(t)
+	for _, bad := range []string{"", "abc", "+x", "1:2:3:4"} {
+		if resp := d.Do(ipc.Request{Cmd: "seek", Value: bad}); resp.OK {
+			t.Fatalf("seek %q debía fallar", bad)
+		}
+	}
+}
+
 // TestGaplessChain: con una pista sonando y otra en la cola, la playlist de
 // mpv debe tener la promesa anexada (2 entradas); al terminar la primera,
 // mpv encadena SOLO —sin ningún loadfile replace del demonio— y la ventana

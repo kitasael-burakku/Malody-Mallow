@@ -468,6 +468,12 @@ func (p *Player) SeekAbs(sec float64) error {
 // seek reintenta una vez: mpv rechaza seeks mientras el archivo aún carga
 // (p. ej. un seek inmediatamente después de next). Luego refresca la posición
 // para que el estado devuelto ya sea el nuevo.
+//
+// El sueño de 250 ms ya no bloquea al demonio: dispatch resuelve el seek
+// fuera de d.mu, así que solo lo paga el cliente cuyo seek mpv rechazó. No
+// se afina más (p. ej. saltarlo cuando mpv murió) porque distinguir el
+// motivo exigiría comparar mensajes de error que salen de i18n y cambian
+// con el idioma del proceso.
 func (p *Player) seek(args ...any) error {
 	_, err := p.command(args...)
 	if err != nil {

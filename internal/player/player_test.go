@@ -1,6 +1,9 @@
 package player
 
 import (
+	"bufio"
+	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -58,6 +61,79 @@ func TestBoundedBuffer(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "FIN") {
 		t.Errorf("no conservó lo último escrito: …%q", got[len(got)-10:])
+	}
+}
+
+// TestSeekRetries: mpv rechaza el seek mientras el archivo carga, así que
+// seek reintenta una vez. Con un mpv de mentira que falla el primer intento
+// y acepta el segundo, SeekAbs debe terminar bien y dejar la posición ya
+// refrescada. (El sueño de 250 ms entre intentos ya no bloquea al demonio:
+// dispatch resuelve el seek fuera de d.mu.)
+func TestSeekRetries(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer srv.Close()
+
+	seeks := 0
+	go func() {
+		sc := bufio.NewScanner(srv)
+		for sc.Scan() {
+			var req struct {
+				Command   []any `json:"command"`
+				RequestID int64 `json:"request_id"`
+			}
+			if json.Unmarshal(sc.Bytes(), &req) != nil || len(req.Command) == 0 {
+				continue
+			}
+			status := "success"
+			var data string
+			switch req.Command[0] {
+			case "seek":
+				seeks++
+				if seeks == 1 {
+					status = "property unavailable" // aún cargando
+				}
+			case "get_property":
+				data = `,"data":42.5`
+			}
+			fmt.Fprintf(srv, `{"error":"%s","request_id":%d%s}`+"\n", status, req.RequestID, data)
+		}
+	}()
+
+	p := &Player{conn: cli, pending: map[int64]chan mpvReply{}, done: make(chan struct{})}
+	go p.readLoop()
+
+	if err := p.SeekAbs(30); err != nil {
+		t.Fatalf("SeekAbs debe salir bien tras el reintento: %v", err)
+	}
+	if seeks != 2 {
+		t.Fatalf("mpv recibió %d seeks, quería 2 (uno rechazado + el reintento)", seeks)
+	}
+	if pos := p.State().Position; pos != 42.5 {
+		t.Fatalf("la posición debe quedar refrescada tras el seek, fue %v", pos)
+	}
+}
+
+// TestSeekGivesUp: si mpv rechaza las dos veces, el error sale al cliente.
+func TestSeekGivesUp(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer srv.Close()
+	go func() {
+		sc := bufio.NewScanner(srv)
+		for sc.Scan() {
+			var req struct {
+				RequestID int64 `json:"request_id"`
+			}
+			if json.Unmarshal(sc.Bytes(), &req) != nil {
+				continue
+			}
+			fmt.Fprintf(srv, `{"error":"property unavailable","request_id":%d}`+"\n", req.RequestID)
+		}
+	}()
+	p := &Player{conn: cli, pending: map[int64]chan mpvReply{}, done: make(chan struct{})}
+	go p.readLoop()
+
+	if err := p.SeekAbs(30); err == nil {
+		t.Fatal("con mpv rechazando siempre, SeekAbs debe fallar")
 	}
 }
 

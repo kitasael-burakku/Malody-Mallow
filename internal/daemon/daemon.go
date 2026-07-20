@@ -709,13 +709,12 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	case "shuffle":
 		switch req.Value {
 		case "on":
-			d.q.Shuffle = true
+			d.q.SetShuffle(true)
 		case "off":
-			d.q.Shuffle = false
+			d.q.SetShuffle(false)
 		default:
-			d.q.Shuffle = !d.q.Shuffle
+			d.q.SetShuffle(!d.q.Shuffle)
 		}
-		d.q.Invalidate() // el sorteo prometido dependía del modo anterior
 		if d.q.Shuffle {
 			return okStatus(i18n.TL(lang, "d.shuffle_on"))
 		}

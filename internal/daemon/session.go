@@ -130,7 +130,9 @@ func (d *Daemon) restoreSession() {
 		idx = -1
 	}
 	d.q.Index = idx
-	d.q.Shuffle = s.Shuffle
+	// Tras fijar Index: así la pista restaurada encabeza la permutación.
+	// El orden del ciclo anterior no se persiste; se regenera.
+	d.q.SetShuffle(s.Shuffle)
 	switch m := queue.RepeatMode(s.Repeat); m {
 	case queue.RepeatAll, queue.RepeatOne:
 		d.q.Repeat = m

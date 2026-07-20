@@ -369,6 +369,8 @@ func snapshotOf(st *ipc.Status) snapshot {
 		loop:     loopOf(st),
 		shuffle:  st.Shuffle,
 		volume:   float64(st.Volume) / 100,
+		// Optimista con el ciclo shuffle agotado (Status no expone el
+		// avance de la permutación): el Next sobrante falla inofensivo.
 		canNext:  st.QueueLen > 0 && (st.Shuffle || st.Repeat == "all" || st.QueueIndex+1 < st.QueueLen),
 		canPrev:  st.QueueLen > 0,
 		canPlay:  st.Playing || st.QueueLen > 0,

@@ -82,8 +82,16 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   evento siguiente (start-file = encadenó, idle = no había nada); `loadGen`
   descarta desenlaces pisados por cargas propias. Callbacks (`onEnd`,
   `onChange`) SIEMPRE async con `go` — en línea deadlockean readLoop.
-- `internal/queue` — cola con shuffle/repeat; `PeekNext()` promete el avance
-  natural (la promesa que SetNext anexa); las mutaciones la invalidan.
+- `internal/queue` — cola con shuffle/repeat. El shuffle es por PERMUTACIÓN
+  (`order`/`pos`; `staged` guarda el ciclo siguiente en el wrap de repeat
+  all): nada se repite hasta agotar el ciclo, y sin repeat all el ciclo
+  agotado TERMINA (paridad con el secuencial). `Shuffle` se cambia SOLO vía
+  `SetShuffle` (regenera/suelta order); `Repeat` sigue siendo escritura
+  directa + `Invalidate`. `PeekNext()` promete el avance natural (la promesa
+  que SetNext anexa); los mutadores mantienen la permutación con cirugía
+  incremental (Add entra al tramo no sonado, Move REMAPEA — la promesa sigue
+  a la pista movida —, JumpTo recoloca como siguiente y consume) y `Prev`
+  camina order hacia atrás (ya no hay history que las mutaciones borren).
 - `internal/library` — SQLite (modernc, sin CGo, `SetMaxOpenConns(1)`, WAL).
   Búsqueda por columna `search_text` (minúsculas sin diacríticos vía `Fold`,
   que usa un `sync.Pool` porque los transformers tienen estado). Scan por LOTES
@@ -292,7 +300,17 @@ La **1.3.1** (2026-07-18) cerró la última limitación conocida: las
 mutaciones de playlists se reflejan en vivo en todos los clientes vía la op
 `refresh` (detalles en la sección de la TUI).
 
+La **1.4.0** (2026-07-19) cambió el shuffle a **permutación** (detalles en
+la sección de queue): `history`/`peeked` desaparecen a favor de
+`order`/`pos`/`staged`, con dos cambios de comportamiento deliberados —
+shuffle + repeat off ahora TERMINA al agotar el ciclo (antes sorteaba por
+siempre), y el next manual también camina la permutación. La sesión NO
+persiste el orden (se regenera al restaurar; `sessionVersion` sigue en 1) y
+el `canNext` de MPRIS queda optimista con el ciclo agotado (el Next
+sobrante falla inofensivo, comentado en `mpris.go`). Sin cambios de
+IPC/TUI/CLI: `Items` nunca se reordena.
+
 ### Post-1.0 (candidatos)
 
-- Opcionales viejos: shuffle-permutación y duración masiva vía `ffprobe`
-  opcional (el ratón en la TUI se descartó).
+- Opcionales viejos: duración masiva vía `ffprobe` opcional (el ratón en la
+  TUI se descartó).

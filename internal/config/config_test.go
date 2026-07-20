@@ -87,6 +87,42 @@ func TestLoadCreatesDefault(t *testing.T) {
 	if cfg.Ytdlp.CookiesFromBrowser != "" {
 		t.Fatalf("cookies_from_browser default debía ser vacío: %q", cfg.Ytdlp.CookiesFromBrowser)
 	}
+	if !strings.Contains(string(data), "scan_durations = true") {
+		t.Fatalf("el template no documenta scan_durations:\n%s", data)
+	}
+}
+
+// TestLoadScanDurations: a diferencia de [ytdlp], esta clave está ACTIVA por
+// defecto, así que un config viejo que no la trae debe conservar el true de
+// Default() (toml.Decode no toca lo que el archivo no menciona); ponerla en
+// false la apaga.
+func TestLoadScanDurations(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("music_dir = \"~/Music\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ScanDurations {
+		t.Fatal("un config sin scan_durations debe quedar activado")
+	}
+
+	body := "music_dir = \"~/Music\"\nscan_durations = false\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ScanDurations {
+		t.Fatal("scan_durations = false debe apagarlo")
+	}
 }
 
 // TestLoadYtdlpCookies: la clave llega al struct tal cual, y un config viejo

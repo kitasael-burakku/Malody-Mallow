@@ -50,6 +50,12 @@ type Status struct {
 	QueueLen   int        `json:"queue_len"`
 	Scanning   bool       `json:"scanning,omitempty"`  // hay un scan en vuelo en el demonio
 	ScanSeen   int        `json:"scan_seen,omitempty"` // archivos de audio vistos por ese scan
+	// ScanTotal > 0 marca la segunda fase del scan (leer duraciones con
+	// ffprobe), donde ScanSeen pasa a significar "cuántas van de ScanTotal".
+	// La fase de indexado no conoce su total por adelantado —esa es su
+	// propiedad definitoria—, así que el número solo ya distingue la fase y
+	// no hace falta un campo aparte.
+	ScanTotal int `json:"scan_total,omitempty"`
 	// LibGen es la generación de la biblioteca del demonio: crece con cada
 	// scan, así los clientes detectan en cualquier respuesta o push que la
 	// biblioteca cambió y recargan su copia. 0 = demonio sin soporte (< 0.7).

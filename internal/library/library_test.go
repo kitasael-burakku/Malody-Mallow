@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -210,6 +211,158 @@ func TestSetDurationSurvivesRescan(t *testing.T) {
 	// Pista fuera de la biblioteca: el UPDATE no toca filas ni falla.
 	if err := lib.SetDuration("/no/existe.mp3", 10); err != nil {
 		t.Fatalf("SetDuration fuera de la biblioteca: %v", err)
+	}
+}
+
+// openScanned abre una biblioteca nueva y escanea n pistas dummy.
+func openScanned(t *testing.T, n int) (*Library, string) {
+	t.Helper()
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { lib.Close() })
+	dir := fakeMusicDir(t, n)
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	return lib, dir
+}
+
+// TestFillDurations: el relleno aprende las que faltan, informa el avance
+// contra un total conocido y no vuelve a probar lo ya aprendido.
+func TestFillDurations(t *testing.T) {
+	lib, dir := openScanned(t, 5)
+	probes := 0
+	probe := func(string) (float64, error) { probes++; return 123.5, nil }
+
+	var lastDone, lastTotal int
+	learned, failed, err := lib.FillDurations(dir, probe, func(done, total int) {
+		if done != lastDone+1 {
+			t.Fatalf("progreso no consecutivo: %d tras %d", done, lastDone)
+		}
+		lastDone, lastTotal = done, total
+	})
+	if err != nil || learned != 5 || failed != 0 {
+		t.Fatalf("FillDurations = %d %d %v, quería 5 0 nil", learned, failed, err)
+	}
+	if lastDone != 5 || lastTotal != 5 {
+		t.Fatalf("el progreso terminó en %d/%d, quería 5/5", lastDone, lastTotal)
+	}
+	if got, _ := lib.ByPath(filepath.Join(dir, "album01", "pista0001.mp3")); got.Duration != 123.5 {
+		t.Fatalf("la duración no quedó guardada: %v", got.Duration)
+	}
+	// Segunda pasada: ya no hay candidatos, el prober no se toca.
+	probes = 0
+	learned, _, err = lib.FillDurations(dir, probe, nil)
+	if err != nil || learned != 0 || probes != 0 {
+		t.Fatalf("segunda pasada: learned=%d probes=%d err=%v, quería 0 0 nil", learned, probes, err)
+	}
+}
+
+// TestFillDurationsSkipsOutsideRoot: escanear un subdirectorio no debe
+// probar (ni tocar) el resto de la biblioteca.
+func TestFillDurationsSkipsOutsideRoot(t *testing.T) {
+	lib, dir := openScanned(t, 4)
+	otro := fakeMusicDir(t, 3)
+	if _, err := lib.Scan(otro, nil); err != nil {
+		t.Fatal(err)
+	}
+	learned, _, err := lib.FillDurations(otro, func(string) (float64, error) { return 60, nil }, nil)
+	if err != nil || learned != 3 {
+		t.Fatalf("FillDurations sobre el segundo árbol = %d %v, quería 3", learned, err)
+	}
+	if got, _ := lib.ByPath(filepath.Join(dir, "album00", "pista0000.mp3")); got.Duration != 0 {
+		t.Fatalf("una pista fuera de root quedó con duración %v", got.Duration)
+	}
+}
+
+// TestFillDurationsFailuresStayZero: lo que ffprobe no sabe leer queda en 0
+// y se vuelve a ofrecer en la pasada siguiente (auto-curativo).
+func TestFillDurationsFailuresStayZero(t *testing.T) {
+	lib, dir := openScanned(t, 4)
+	roto := filepath.Join(dir, "album02", "pista0002.mp3")
+	probe := func(p string) (float64, error) {
+		if p == roto {
+			return 0, fmt.Errorf("basura")
+		}
+		return 42, nil
+	}
+	learned, failed, err := lib.FillDurations(dir, probe, nil)
+	if err != nil || learned != 3 || failed != 1 {
+		t.Fatalf("FillDurations = %d %d %v, quería 3 1 nil", learned, failed, err)
+	}
+	if got, _ := lib.ByPath(roto); got.Duration != 0 {
+		t.Fatalf("la fallida debe quedar en 0, fue %v", got.Duration)
+	}
+	// La rota sigue siendo candidata; las aprendidas no.
+	var offered []string
+	lib.FillDurations(dir, func(p string) (float64, error) {
+		offered = append(offered, p)
+		return 0, fmt.Errorf("sigue rota")
+	}, nil)
+	if len(offered) != 1 || offered[0] != roto {
+		t.Fatalf("la pasada siguiente debía ofrecer solo la rota, ofreció %v", offered)
+	}
+}
+
+// TestFillDurationsEmpty: sin candidatos no se prueba nada ni se abre
+// ninguna transacción.
+func TestFillDurationsEmpty(t *testing.T) {
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	probes := 0
+	learned, failed, err := lib.FillDurations(t.TempDir(),
+		func(string) (float64, error) { probes++; return 1, nil }, nil)
+	if err != nil || learned != 0 || failed != 0 || probes != 0 {
+		t.Fatalf("biblioteca vacía: %d %d %d %v", learned, failed, probes, err)
+	}
+}
+
+// TestFillDurationsConcurrentSearch es el hermano de
+// TestScanConcurrentSearch y caza el pecado propio del relleno: probar con
+// el *sql.Rows de los candidatos todavía abierto. Con SetMaxOpenConns(1) eso
+// retiene la única conexión durante TODOS los ffprobe y deja muertas a
+// Search y ByPath. El prober se queda bloqueado a propósito: si la conexión
+// está retenida, la lectura de abajo no vuelve nunca.
+func TestFillDurationsConcurrentSearch(t *testing.T) {
+	lib, dir := openScanned(t, 5)
+
+	probing := make(chan struct{})   // el relleno ya empezó a probar
+	release := make(chan struct{})   // el test deja continuar al prober
+	var once sync.Once
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := lib.FillDurations(dir, func(string) (float64, error) {
+			once.Do(func() { close(probing); <-release })
+			return 30, nil
+		}, nil)
+		done <- err
+	}()
+
+	<-probing
+	// Con el prober detenido, la conexión tiene que estar libre.
+	read := make(chan error, 1)
+	go func() {
+		_, err := lib.Search("pista")
+		read <- err
+	}()
+	select {
+	case err := <-read:
+		if err != nil {
+			t.Fatalf("Search durante el relleno: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		close(release)
+		t.Fatal("Search se quedó esperando la conexión mientras el relleno probaba (¿rows abierto?)")
+	}
+
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatalf("FillDurations: %v", err)
 	}
 }
 

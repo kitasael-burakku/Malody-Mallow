@@ -41,7 +41,12 @@ func testEnv(t *testing.T) {
 func newTestDaemon(t *testing.T) *Daemon {
 	t.Helper()
 	testEnv(t)
-	d, err := New(config.Default())
+	cfg := config.Default()
+	// Sin la fase de duraciones: si no, en una máquina con ffprobe los tests
+	// que escanean miles de dummies lanzarían un proceso por archivo, y el
+	// resultado dependería de si ffprobe está instalado.
+	cfg.ScanDurations = false
+	d, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -513,6 +518,54 @@ func TestLearnsDuration(t *testing.T) {
 	got, ok := d.lib.ByPath(a)
 	if !ok || got.Duration < 29 {
 		t.Fatalf("biblioteca sin duración aprendida: %v %v", got.Duration, ok)
+	}
+}
+
+// TestScanFillsDurations: con la clave activa, el escaneo aprende las
+// duraciones SIN reproducir nada, y además las refleja en la cola ya
+// cargada (que learnDuration no tocaría hasta que cada pista sonara).
+func TestScanFillsDurations(t *testing.T) {
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe no está en PATH")
+	}
+	testEnv(t)
+	cfg := config.Default() // aquí sí queremos la fase de duraciones
+	d, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	writeWAV(t, a, 30)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	got, ok := d.lib.ByPath(a)
+	if !ok || got.Duration < 29 {
+		t.Fatalf("el escaneo no aprendió la duración: %v %v", got.Duration, ok)
+	}
+
+	// La cola cargada ANTES de un segundo escaneo debe quedar al día: se
+	// borra la duración y se re-escanea para forzar el relleno.
+	if resp := d.Do(ipc.Request{Cmd: "add", Query: "a"}); !resp.OK {
+		t.Fatalf("add: %s", resp.Error)
+	}
+	if err := d.lib.SetDuration(a, 0); err != nil {
+		t.Fatal(err)
+	}
+	d.mu.Lock()
+	for i := range d.q.Items {
+		d.q.Items[i].Duration = 0
+	}
+	d.mu.Unlock()
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("re-scan: %s", resp.Error)
+	}
+	resp := d.Do(ipc.Request{Cmd: "queue"})
+	if len(resp.Queue) != 1 || resp.Queue[0].Duration < 29 {
+		t.Fatalf("la cola no recibió la duración del relleno: %+v", resp.Queue)
 	}
 }
 

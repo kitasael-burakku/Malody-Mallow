@@ -48,14 +48,17 @@ type Ytdlp struct {
 }
 
 type Config struct {
-	MusicDir    string            `toml:"music_dir"`
-	Language    string            `toml:"language"`     // "" = preguntar al abrir la TUI; "en" | "es"
-	Controls    string            `toml:"controls"`     // preset de teclas: "default" | "vim"
-	UpdateCheck bool              `toml:"update_check"` // la TUI avisa si hay release nuevo (maly update)
-	Theme       Theme             `toml:"theme"`
-	Visualizer  Visualizer        `toml:"visualizer"`
-	Ytdlp       Ytdlp             `toml:"ytdlp"`
-	Keys        map[string]string `toml:"keys"`
+	MusicDir    string `toml:"music_dir"`
+	Language    string `toml:"language"`     // "" = preguntar al abrir la TUI; "en" | "es"
+	Controls    string `toml:"controls"`     // preset de teclas: "default" | "vim"
+	UpdateCheck bool   `toml:"update_check"` // la TUI avisa si hay release nuevo (maly update)
+	// ScanDurations: al escanear, rellenar con ffprobe las duraciones que
+	// falten. Sin ffprobe instalado el escaneo se comporta igual que antes.
+	ScanDurations bool              `toml:"scan_durations"`
+	Theme         Theme             `toml:"theme"`
+	Visualizer    Visualizer        `toml:"visualizer"`
+	Ytdlp         Ytdlp             `toml:"ytdlp"`
+	Keys          map[string]string `toml:"keys"`
 }
 
 // DefaultKeys son los keybindings por defecto de la TUI; cualquier entrada
@@ -119,8 +122,9 @@ func ValidPreset(name string) bool {
 
 func Default() Config {
 	return Config{
-		MusicDir:    collapseTilde(defaultMusicDir()),
-		UpdateCheck: true,
+		MusicDir:      collapseTilde(defaultMusicDir()),
+		UpdateCheck:   true,
+		ScanDurations: true,
 		Theme: Theme{
 			Transparent: true,
 			Accent:      "#89b4fa",
@@ -149,6 +153,7 @@ const configTemplate = `music_dir = %q
 language = ""             # "" = preguntar al abrir la TUI; "en" | "es"
 controls = "default"      # esquema de teclas: default | vim (maly controls)
 update_check = true       # la TUI avisa si hay versión nueva (maly update)
+scan_durations = true     # al escanear, leer con ffprobe las duraciones que falten (si no está, se salta)
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal

@@ -19,6 +19,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/probe"
 )
 
 func main() {
@@ -154,8 +155,13 @@ func runScan(args []string) error {
 						if err != nil {
 							return
 						}
-						if resp.Status != nil && resp.Status.Scanning {
-							fmt.Fprint(os.Stderr, "\r\033[K"+i18n.Tf("cli.scan_progress", resp.Status.ScanSeen))
+						if st := resp.Status; st != nil && st.Scanning {
+							// ScanTotal > 0 = segunda fase (duraciones).
+							line := i18n.Tf("cli.scan_progress", st.ScanSeen)
+							if st.ScanTotal > 0 {
+								line = i18n.Tf("cli.scan_durations", st.ScanSeen, st.ScanTotal)
+							}
+							fmt.Fprint(os.Stderr, "\r\033[K"+line)
 						}
 					}
 				}()
@@ -209,8 +215,36 @@ func runScan(args []string) error {
 	for _, e := range res.Errors {
 		fmt.Fprintln(os.Stderr, i18n.Tf("cli.scan_warn", e))
 	}
+
+	// Segunda fase: las duraciones que los tags no traen. Opcional de
+	// verdad: sin ffprobe (o con la clave apagada) el escaneo termina aquí.
+	learned, dfailed := 0, 0
+	if cfg.ScanDurations && probe.Available() {
+		var dprog func(int, int)
+		if isTTY(os.Stderr) {
+			var last time.Time
+			dprog = func(done, total int) {
+				if done < total && time.Since(last) < 100*time.Millisecond {
+					return
+				}
+				last = time.Now()
+				fmt.Fprint(os.Stderr, "\r\033[K"+i18n.Tf("cli.scan_durations", done, total))
+			}
+		}
+		learned, dfailed, _ = lib.FillDurations(dir, probe.Duration, dprog)
+		if dprog != nil {
+			fmt.Fprint(os.Stderr, "\r\033[K")
+		}
+	}
+
 	total, _ := lib.Count()
 	fmt.Println(i18n.Tf("cli.scan_done", res.Added, res.Updated, res.Removed, total))
+	if learned > 0 {
+		fmt.Println(i18n.Tf("cli.dur_done", learned))
+	}
+	if dfailed > 0 {
+		fmt.Fprintln(os.Stderr, i18n.Tf("cli.dur_errs", dfailed))
+	}
 	if total == 0 {
 		fmt.Println(i18n.Tf("cli.scan_empty", dir))
 	}

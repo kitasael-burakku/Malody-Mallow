@@ -236,7 +236,10 @@ var table = map[string][2]string{
 	"cli.queue_empty":       {"The queue is empty. Use maly add <query> or maly play <query>.", "La cola está vacía. Usa maly add <consulta> o maly play <consulta>."},
 	"cli.scan_start":        {"Scanning %s ...", "Escaneando %s ..."},
 	"cli.scan_progress":     {"scanning… %d files", "escaneando… %d archivos"},
+	"cli.scan_durations":    {"reading durations… %d/%d", "leyendo duraciones… %d/%d"},
 	"cli.scan_warn":         {"  warning: %s", "  aviso: %s"},
+	"cli.dur_done":          {"Durations: %d read with ffprobe", "Duraciones: %d leídas con ffprobe"},
+	"cli.dur_errs":          {"  %d files without readable duration", "  %d archivos sin duración legible"},
 	"cli.scan_done":         {"Done: %d new, %d updated, %d removed (%d tracks total)", "Listo: %d nuevas, %d actualizadas, %d eliminadas (%d pistas en total)"},
 	"cli.scan_empty":        {"The library is empty. Is there music in %s? You can pass another path: maly scan <path>", "La biblioteca está vacía. ¿Hay música en %s? Puedes indicar otra ruta: maly scan <ruta>"},
 	"cli.scan_noexist":      {"%s does not exist (from %s). Point maly at your music with: maly scan <path>", "%s no existe (viene de %s). Indica dónde está tu música con: maly scan <ruta>"},
@@ -309,6 +312,8 @@ var table = map[string][2]string{
 	"d.scan_busy":        {"a scan is already in progress", "ya hay un escaneo en curso"},
 	"d.scan_done":        {"Scan done: %d new, %d updated, %d removed (%d total)", "Escaneo listo: %d nuevas, %d actualizadas, %d eliminadas (%d en total)"},
 	"d.scan_errs":        {" — %d files failed (details on the service's stderr)", " — %d archivos con error (detalles en el stderr del servicio)"},
+	"d.dur_done":         {" — %d durations read", " — %d duraciones leídas"},
+	"d.dur_errs":         {" — %d without readable duration", " — %d sin duración legible"},
 	"d.unknown_cmd":      {"unknown command %q", "comando desconocido %q"},
 	"d.seek_usage":       {"usage: seek <+N|-N|mm:ss>", "uso: seek <+N|-N|mm:ss>"},
 	"d.seek_mmss":        {"invalid position %q (use mm:ss or hh:mm:ss)", "posición inválida %q (usa mm:ss o hh:mm:ss)"},
@@ -349,6 +354,9 @@ var table = map[string][2]string{
 	"p.write":       {"writing to mpv", "escribiendo a mpv"},
 	"p.no_reply":    {"mpv is not responding", "mpv no responde"},
 	"p.seek":        {"seek failed", "no pude hacer seek"},
+
+	// ---- ffprobe (duraciones) ----
+	"probe.bad_duration": {"ffprobe reported no usable duration for %s", "ffprobe no dio una duración usable para %s"},
 
 	// ---- MPRIS ----
 	"m.name_taken": {"bus name %s is already taken", "el nombre %s ya está en uso"},

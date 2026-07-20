@@ -272,11 +272,7 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 		if seen[p] {
 			continue
 		}
-		// Fuera de root es rel == ".." o "../…": el prefijo solo, sin el
-		// separador, también taparía entradas legítimas bajo un directorio
-		// cuyo nombre empiece con ".." literal (p. ej. root/..covers/).
-		rel, err := filepath.Rel(root, p)
-		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		if !underRoot(root, p) {
 			continue
 		}
 		gone = append(gone, p)
@@ -334,6 +330,14 @@ func ReadTags(path string) Track {
 	return t
 }
 
+// underRoot dice si p cuelga de root. Fuera de root es rel == ".." o "../…":
+// el prefijo solo, sin el separador, también taparía entradas legítimas bajo
+// un directorio cuyo nombre empiece con ".." literal (p. ej. root/..covers/).
+func underRoot(root, p string) bool {
+	rel, err := filepath.Rel(root, p)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
 const trackCols = `id, path, title, artist, album, album_artist, genre, track_no, year, duration`
 
 func scanTrack(row interface{ Scan(...any) error }) (Track, error) {
@@ -343,12 +347,119 @@ func scanTrack(row interface{ Scan(...any) error }) (Track, error) {
 }
 
 // SetDuration guarda la duración de una pista. Los tags no la traen
-// (dhowden no decodifica audio), así que se aprende perezosamente: el
-// demonio la escribe cuando mpv la reporta al reproducir. El upsert del
-// escaneo no la toca, así que un re-scan la conserva.
+// (dhowden no decodifica audio), así que se aprende por dos vías: el demonio
+// la escribe cuando mpv la reporta al reproducir, y el escaneo rellena las
+// que faltan con ffprobe (FillDurations). El upsert del escaneo no la toca,
+// así que un re-scan la conserva.
 func (l *Library) SetDuration(path string, secs float64) error {
 	_, err := l.db.Exec(`UPDATE tracks SET duration = ? WHERE path = ?`, secs, path)
 	return err
+}
+
+// fillBatchSize es más chico que scanBatchSize porque aquí cada elemento del
+// lote cuesta un ffprobe (decenas de ms), no un ReadTags: con 500 pasarían
+// muchos segundos entre commits y un corte perdería todo ese trabajo.
+const fillBatchSize = 50
+
+// FillDurations rellena las duraciones que faltan (duration <= 0) de las
+// pistas bajo root, preguntándole a probe. probe se inyecta —library no
+// ejecuta procesos, igual que no imprime: quién sabe leer duraciones lo
+// decide el llamador (internal/probe usa ffprobe)—, lo que además permite
+// testear sin ffprobe ni audio real. progress (opcional, nil = mudo) recibe
+// cuántas van de cuántas; aquí el total SÍ se conoce por adelantado, a
+// diferencia de Scan. El throttling es del llamador.
+//
+// Las pistas cuya duración no se pudo leer quedan en 0 y cuentan en failed:
+// el próximo escaneo las reintenta (auto-curativo si el fallo era
+// transitorio) y mpv la aprenderá igual si se reproducen. Marcarlas con un
+// centinela le inventaría semántica a una columna que todos los
+// consumidores prueban con "> 0".
+func (l *Library) FillDurations(root string, probe func(path string) (float64, error),
+	progress func(done, total int)) (learned, failed int, err error) {
+
+	// Los candidatos se materializan ANTES de probar ninguno: con
+	// SetMaxOpenConns(1), llamar a ffprobe dentro del bucle de rows
+	// retendría la única conexión durante todo el relleno (minutos) y
+	// dejaría muertos a Search y ByPath — peor todavía que una transacción
+	// larga, que es justo lo que el escaneo evita con sus lotes.
+	rows, qerr := l.db.Query(`SELECT path FROM tracks WHERE duration <= 0`)
+	if qerr != nil {
+		return 0, 0, qerr
+	}
+	var cand []string
+	for rows.Next() {
+		var p string
+		if serr := rows.Scan(&p); serr != nil {
+			rows.Close()
+			return 0, 0, serr
+		}
+		if underRoot(root, p) {
+			cand = append(cand, p)
+		}
+	}
+	rows.Close()
+	if rerr := rows.Err(); rerr != nil {
+		return 0, 0, rerr
+	}
+	if len(cand) == 0 {
+		return 0, 0, nil
+	}
+
+	type upd struct {
+		path string
+		secs float64
+	}
+	var batch []upd
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+		defer func() { batch = batch[:0] }()
+		tx, terr := l.db.Begin()
+		if terr != nil {
+			failed += len(batch)
+			return
+		}
+		stmt, perr := tx.Prepare(`UPDATE tracks SET duration = ? WHERE path = ?`)
+		if perr != nil {
+			tx.Rollback()
+			failed += len(batch)
+			return
+		}
+		done := 0
+		for _, u := range batch {
+			if _, eerr := stmt.Exec(u.secs, u.path); eerr != nil {
+				failed++
+				continue
+			}
+			done++
+		}
+		stmt.Close()
+		// Como en el escaneo, el contador solo sube si el lote quedó
+		// aplicado de verdad.
+		if cerr := tx.Commit(); cerr != nil {
+			failed += done
+			return
+		}
+		learned += done
+	}
+
+	for i, p := range cand {
+		secs, perr := probe(p)
+		if perr != nil || secs <= 0 {
+			failed++
+		} else {
+			batch = append(batch, upd{p, secs})
+			if len(batch) >= fillBatchSize {
+				flush()
+			}
+		}
+		if progress != nil {
+			progress(i+1, len(cand))
+		}
+	}
+	flush()
+	return learned, failed, nil
 }
 
 func (l *Library) collect(query string, args ...any) ([]Track, error) {

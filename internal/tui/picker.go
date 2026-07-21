@@ -55,6 +55,25 @@ func (p *picker) setItems(items []pickerItem) {
 	p.filter()
 }
 
+// setItemsKeeping reemplaza los ítems conservando la selección por valor. Es
+// para las recargas en vivo (otro cliente tocó la biblioteca): el cursor es
+// un índice, así que sin esto un elemento que desaparezca más arriba corre la
+// lista bajo los dedos del usuario — y con ctrl+x de por medio, eso borra
+// otra playlist. Si lo seleccionado ya no está, queda el clamp de siempre.
+func (p *picker) setItemsKeeping(items []pickerItem) {
+	sel, had := p.current()
+	p.setItems(items)
+	if !had {
+		return
+	}
+	for mi, idx := range p.matches {
+		if p.items[idx].value == sel.value {
+			p.cursor = mi
+			return
+		}
+	}
+}
+
 // filter recalcula los resultados según el texto del input.
 func (p *picker) filter() {
 	q := strings.TrimSpace(library.Fold(p.input.Value()))

@@ -100,6 +100,109 @@ func buildTree(tracks []library.Track, lists []plList) *libTree {
 	return t
 }
 
+// treeState es lo que el usuario "tiene puesto" en el árbol: qué abrió, dónde
+// está y qué filtró. Una recarga de la biblioteca (scan de cualquier cliente,
+// mutación de playlists) reconstruye los nodos desde cero con buildTree, así
+// que sin esto el árbol se colapsaría entero y el cursor saltaría al tope
+// cada vez.
+type treeState struct {
+	expanded map[string]bool
+	cursor   string // clave del nodo bajo el cursor
+	row      int    // índice de respaldo si esa clave ya no existe
+	offset   int
+	filter   string
+}
+
+// nodeKey identifica un nodo entre recargas. Las pistas se distinguen por su
+// ruta (única, y disponible también en las filas sintéticas que fabrica el
+// filtro); los demás nodos, por su camino de labels desde la raíz: un álbum
+// "Grandes éxitos" puede colgar de dos artistas distintos.
+func nodeKey(parent string, n *node) string {
+	if n.kind == trackNode {
+		return parent + "\x1f" + n.track.Path
+	}
+	return parent + "\x1f" + n.label
+}
+
+// keys mapea cada nodo del árbol a su clave, de una pasada. Las filas
+// sintéticas del modo filtrado no salen aquí: se resuelven con nodeKey("", n),
+// que para una pista es su ruta.
+func (t *libTree) keys() map[*node]string {
+	out := map[*node]string{}
+	var walk func(parent string, n *node)
+	walk = func(parent string, n *node) {
+		k := nodeKey(parent, n)
+		out[n] = k
+		for _, c := range n.children {
+			walk(k, c)
+		}
+	}
+	for _, r := range t.roots {
+		walk("", r)
+	}
+	return out
+}
+
+// keyOf devuelve la clave de un nodo visible, venga del árbol o de una fila
+// sintética del filtro.
+func keyOf(keys map[*node]string, n *node) string {
+	if k, ok := keys[n]; ok {
+		return k
+	}
+	return nodeKey("", n)
+}
+
+// snapshot captura el estado navegable antes de reconstruir el árbol.
+func (t *libTree) snapshot() treeState {
+	s := treeState{
+		expanded: map[string]bool{},
+		row:      t.cursor,
+		offset:   t.offset,
+		filter:   t.filter,
+	}
+	keys := t.keys()
+	for n, k := range keys {
+		if n.expanded {
+			s.expanded[k] = true
+		}
+	}
+	if n := t.current(); n != nil {
+		s.cursor = keyOf(keys, n)
+	}
+	return s
+}
+
+// restore reaplica el estado sobre un árbol recién construido.
+func (t *libTree) restore(s treeState, pageH int) {
+	if s.expanded == nil {
+		return // primera carga: nada que restaurar
+	}
+	t.filter = s.filter
+	keys := t.keys()
+	for n, k := range keys {
+		if s.expanded[k] {
+			n.expanded = true
+		}
+	}
+	t.cursor = s.row
+	t.offset = s.offset
+	t.flatten() // reencuadra el cursor si el árbol encogió
+	if s.cursor == "" {
+		t.scrollTo(pageH)
+		return
+	}
+	// Volver a poner el cursor sobre el MISMO nodo: con el índice a secas,
+	// algo que desapareciera más arriba correría la lista bajo el usuario y
+	// enter reproduciría otra cosa.
+	for i, n := range t.rows {
+		if keyOf(keys, n) == s.cursor {
+			t.cursor = i
+			break
+		}
+	}
+	t.scrollTo(pageH)
+}
+
 // flatten reconstruye rows según expansión y filtro, y reencuadra el cursor.
 func (t *libTree) flatten() {
 	t.rows = t.rows[:0]

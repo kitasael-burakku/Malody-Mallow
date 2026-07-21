@@ -7,6 +7,67 @@ import (
 	"maly/internal/library"
 )
 
+// TestTreeStateSurvivesReload: una recarga de la biblioteca reconstruye el
+// árbol desde cero, así que snapshot/restore tienen que devolverle al usuario
+// lo que tenía abierto y dónde estaba — antes cada scan o mutación de
+// playlist colapsaba todo y mandaba el cursor al tope.
+func TestTreeStateSurvivesReload(t *testing.T) {
+	tracks := []library.Track{
+		{ID: 1, Artist: "Ana", Album: "Uno", Title: "alfa", Path: "/m/a.mp3"},
+		{ID: 2, Artist: "Ana", Album: "Uno", Title: "beta", Path: "/m/b.mp3"},
+		{ID: 3, Artist: "Beto", Album: "Dos", Title: "gama", Path: "/m/c.mp3"},
+	}
+	build := func() *libTree {
+		tr := buildTree(tracks, nil)
+		tr.cursor = 0
+		tr.toggle() // Ana
+		tr.cursor = 1
+		tr.toggle() // Uno
+		tr.cursor = 3
+		return tr
+	}
+
+	// Recarga con el mismo contenido: misma pista bajo el cursor y los nodos
+	// siguen abiertos.
+	old := build()
+	want := old.current().track.Path
+	st := old.snapshot()
+	tr := buildTree(tracks, nil)
+	tr.restore(st, 10)
+	if n := tr.current(); n == nil || n.track.Path != want {
+		t.Fatalf("tras recargar el cursor debía seguir en %s: %+v", want, n)
+	}
+	if len(tr.rows) != len(old.rows) {
+		t.Fatalf("la expansión no se restauró: %d filas, quería %d", len(tr.rows), len(old.rows))
+	}
+
+	// Una playlist nueva no mueve nada de lo anterior.
+	tr = buildTree(tracks, []plList{{name: "favs", tracks: tracks[:1]}})
+	tr.restore(old.snapshot(), 10)
+	if n := tr.current(); n == nil || n.track.Path != want {
+		t.Fatalf("con una playlist nueva el cursor se movió: %+v", n)
+	}
+
+	// Si la pista del cursor desaparece, el índice de respaldo lo deja dentro
+	// de rango en vez de romper.
+	tr = buildTree(tracks[:1], nil)
+	tr.restore(old.snapshot(), 10)
+	if tr.cursor < 0 || tr.cursor >= len(tr.rows) {
+		t.Fatalf("cursor fuera de rango tras encoger: %d de %d", tr.cursor, len(tr.rows))
+	}
+
+	// El filtro activo también se conserva (rows son filas sintéticas).
+	old = build()
+	old.filter = "alfa"
+	old.flatten()
+	old.cursor = 0
+	tr = buildTree(tracks, nil)
+	tr.restore(old.snapshot(), 10)
+	if tr.filter != "alfa" || len(tr.rows) != 1 || tr.rows[0].track.Path != "/m/a.mp3" {
+		t.Fatalf("el filtro no sobrevivió: %q, %d filas", tr.filter, len(tr.rows))
+	}
+}
+
 // TestBuildTreeWithPlaylists: las playlists cuelgan del árbol como raíces
 // tras los artistas, con sus pistas numeradas como hijas directas; expandir,
 // plegar (por profundidad) y tracks() funcionan igual que en artistas/álbumes.

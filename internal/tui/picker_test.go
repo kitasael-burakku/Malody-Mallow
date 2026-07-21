@@ -63,6 +63,43 @@ func TestPickerCursorClamp(t *testing.T) {
 	}
 }
 
+// TestPickerSetItemsKeeping: en una recarga en vivo el cursor debe quedarse
+// sobre el MISMO elemento aunque la lista cambie por arriba. Con setItems a
+// secas el índice se queda quieto y la selección se corre sola — y en el
+// panel de playlists eso significa que ctrl+x borra otra.
+func TestPickerSetItemsKeeping(t *testing.T) {
+	items := func(labels ...string) []pickerItem {
+		out := make([]pickerItem, 0, len(labels))
+		for _, l := range labels {
+			out = append(out, newPickerItem(l, l))
+		}
+		return out
+	}
+
+	p := pickerWith("ambient", "jazz", "rock", "trap")
+	p.cursor = 2 // rock
+	// Desaparece una de arriba y entra otra: el índice 2 pasaría a ser trap.
+	p.setItemsKeeping(items("blues", "jazz", "rock", "trap"))
+	if it, _ := p.current(); it.value != "rock" {
+		t.Fatalf("la selección se movió a %q, quería rock", it.value)
+	}
+
+	// Con el elegido fuera de la lista, el cursor queda dentro de rango.
+	p.setItemsKeeping(items("blues", "jazz"))
+	if p.cursor < 0 || p.cursor >= len(p.matches) {
+		t.Fatalf("cursor fuera de rango: %d de %d", p.cursor, len(p.matches))
+	}
+
+	// El filtro escrito sigue mandando tras la recarga.
+	p = pickerWith("ambient", "jazz", "rock")
+	p.input.SetValue("ja")
+	p.filter()
+	p.setItemsKeeping(items("ambient", "jazz", "jarana", "rock"))
+	if len(p.matches) != 2 {
+		t.Fatalf("el filtro debía seguir aplicándose: %d resultados", len(p.matches))
+	}
+}
+
 // TestPickerWidth cubre los tres tramos: proporcional, mínimo y tope.
 func TestPickerWidth(t *testing.T) {
 	cases := []struct{ term, want int }{

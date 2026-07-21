@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"maly/internal/ipc"
+	"maly/internal/library"
 )
 
 // TestVisibleQueue: el filtro de la cola devuelve índices reales (no
@@ -30,6 +31,50 @@ func TestVisibleQueue(t *testing.T) {
 	m.queueFilter = "nada"
 	if got := m.visibleQueue(); len(got) != 0 {
 		t.Fatalf("filtro sin resultados: %v", got)
+	}
+}
+
+// TestLibraryMsgRefreshesPlaylists cubre la limitación que esto vino a
+// cerrar: un panel ctrl+l ya ABIERTO no se enteraba de lo que otro cliente
+// hacía con las playlists (solo se releía al reabrirlo). Ahora la recarga de
+// biblioteca —que es lo que dispara el push de LibGen— también lo refresca,
+// sin mover la selección.
+func TestLibraryMsgRefreshesPlaylists(t *testing.T) {
+	tracks := []library.Track{{ID: 1, Artist: "Ana", Album: "Uno", Title: "alfa", Path: "/m/a.mp3"}}
+	lists := []plList{
+		{name: "ambient", tracks: tracks},
+		{name: "rock", tracks: tracks},
+	}
+	m := &Model{plOpen: true, pl: newPicker(styles{}, "")}
+	m.pl.setItems(plItems(lists))
+	m.pl.cursor = 1 // rock
+
+	// Otro cliente borra la primera y crea una nueva al final.
+	nuevas := []plList{
+		{name: "rock", tracks: tracks},
+		{name: "trap", tracks: tracks},
+	}
+	m.Update(libraryMsg{tracks: tracks, lists: nuevas})
+
+	if len(m.pl.items) != 2 {
+		t.Fatalf("el panel no se refrescó: %d entradas", len(m.pl.items))
+	}
+	if it, _ := m.pl.current(); it.value != "rock" {
+		t.Fatalf("la selección saltó a %q, quería rock", it.value)
+	}
+	var names []string
+	for _, it := range m.pl.items {
+		names = append(names, it.value)
+	}
+	if names[0] != "rock" || names[1] != "trap" {
+		t.Fatalf("contenido del panel: %v", names)
+	}
+
+	// Con el panel cerrado no se toca nada (ni se paga el trabajo).
+	m2 := &Model{pl: newPicker(styles{}, "")}
+	m2.Update(libraryMsg{tracks: tracks, lists: nuevas})
+	if len(m2.pl.items) != 0 {
+		t.Fatalf("panel cerrado: no debía cargarse nada, hubo %d", len(m2.pl.items))
 	}
 }
 

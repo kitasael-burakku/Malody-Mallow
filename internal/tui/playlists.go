@@ -37,10 +37,11 @@ type plListMsg struct {
 }
 
 // plActMsg es el resultado de una operación de escritura (create/delete/add).
+// No lleva un flag de recarga: toda mutación dispara loadLibrary, y esa
+// recarga ya refresca el árbol y el picker abierto.
 type plActMsg struct {
-	msg    string
-	err    error
-	reload bool // la lista cambió: recargarla si el panel sigue abierto
+	msg string
+	err error
 }
 
 func (m *Model) openPlaylists(mode plMode, pending []int64) tea.Cmd {
@@ -51,8 +52,28 @@ func (m *Model) openPlaylists(mode plMode, pending []int64) tea.Cmd {
 	return tea.Batch(textinput.Blink, loadPlaylists)
 }
 
+// plItem arma la entrada del picker para una playlist. Fuente única del
+// formato: lo usan la apertura del panel (loadPlaylists, que lee el conteo de
+// la DB) y las recargas en vivo (plItems, sobre las listas que ya trae
+// libraryMsg).
+func plItem(name string, tracks int) pickerItem {
+	return newPickerItem(fmt.Sprintf("%s  (%d)", name, tracks), name)
+}
+
+// plItems convierte las playlists que el árbol ya cargó en entradas del
+// picker, sin volver a consultar la base.
+func plItems(lists []plList) []pickerItem {
+	items := make([]pickerItem, 0, len(lists))
+	for _, l := range lists {
+		items = append(items, plItem(l.name, len(l.tracks)))
+	}
+	return items
+}
+
 // loadPlaylists lee las playlists con su número de pistas (apertura
-// transitoria de la DB, como loadLibrary).
+// transitoria de la DB, como loadLibrary). Solo para abrir el panel: más
+// barato que cargar la biblioteca entera. Una vez abierto, lo refrescan las
+// recargas de libraryMsg.
 func loadPlaylists() tea.Msg {
 	lib, err := library.Open(config.DBPath())
 	if err != nil {
@@ -65,7 +86,7 @@ func loadPlaylists() tea.Msg {
 	}
 	items := make([]pickerItem, 0, len(lists))
 	for _, p := range lists {
-		items = append(items, newPickerItem(fmt.Sprintf("%s  (%d)", p.Name, p.Tracks), p.Name))
+		items = append(items, plItem(p.Name, p.Tracks))
 	}
 	return plListMsg{items: items}
 }
@@ -153,7 +174,8 @@ func plQueueCmd(sock, name string) tea.Cmd {
 // notifyRefresh avisa al demonio que la DB cambió por fuera de él (las
 // mutaciones de playlists de la TUI van directo a SQLite): sube libGen y las
 // DEMÁS TUIs suscritas recargan su árbol — la propia ya recarga localmente
-// vía plActMsg/conMsg.reload. Best-effort: sin demonio no pasa nada.
+// vía la recarga que dispara plActMsg/conMsg. Best-effort: sin demonio no
+// pasa nada.
 func notifyRefresh() {
 	c, err := ipc.Dial(config.SocketPath())
 	if err != nil {
@@ -196,7 +218,7 @@ func plCreateCmd(name string) tea.Cmd {
 			return plActMsg{err: err}
 		}
 		notifyRefresh()
-		return plActMsg{msg: i18n.Tf("pl.created", name), reload: true}
+		return plActMsg{msg: i18n.Tf("pl.created", name)}
 	}
 }
 
@@ -211,7 +233,7 @@ func plDeleteCmd(name string) tea.Cmd {
 			return plActMsg{err: err}
 		}
 		notifyRefresh()
-		return plActMsg{msg: i18n.Tf("pl.deleted", name), reload: true}
+		return plActMsg{msg: i18n.Tf("pl.deleted", name)}
 	}
 }
 

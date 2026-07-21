@@ -418,9 +418,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setFlash(i18n.Tf("tui.lib_err", msg.err.Error()), true)
 			return m, nil
 		}
+		// Punto único de refresco: aquí llegan tanto las recargas propias
+		// como las de otros clientes (LibGen cambió). El árbol se
+		// reconstruye desde cero, así que hay que devolverle al usuario lo
+		// que tenía puesto, y los pickers abiertos se re-alimentan sin
+		// consultar la base otra vez ni mover su selección.
+		var st treeState
+		if m.tree != nil {
+			st = m.tree.snapshot()
+		}
 		m.tree = buildTree(msg.tracks, msg.lists)
+		m.tree.restore(st, m.libPageH())
 		if m.songsOpen {
-			m.songs.setItems(songItems(m.tree.all))
+			m.songs.setItemsKeeping(songItems(m.tree.all))
+		}
+		if m.plOpen {
+			m.pl.setItemsKeeping(plItems(msg.lists))
 		}
 		if len(msg.tracks) == 0 {
 			m.setFlash(i18n.T("tui.lib_empty_flash"), true)
@@ -485,12 +498,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.setFlash(msg.msg, false)
 		// Toda mutación de playlists se refleja en el árbol de la biblioteca
-		// (las playlists cuelgan de él), además del picker si sigue abierto.
-		cmds := []tea.Cmd{loadLibrary}
-		if msg.reload && m.plOpen {
-			cmds = append(cmds, loadPlaylists)
-		}
-		return m, tea.Batch(cmds...)
+		// (las playlists cuelgan de él); esa misma recarga refresca el picker
+		// abierto, así que no hace falta un loadPlaylists aparte.
+		return m, loadLibrary
 
 	case statusMsg:
 		if msg.err != nil {

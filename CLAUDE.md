@@ -444,7 +444,49 @@ dueño): el contenido correcto es el feedback, y los flashes se reservan para
 las acciones propias. `plActMsg` perdió su flag `reload`: con la recarga
 única ya no hacía falta.
 
+La **1.6.0** (2026-07-21) es el release de una **segunda auditoría de
+seguridad** completa, pedida por el dueño sobre la 1.5.1: 13 hallazgos,
+**ninguno crítico**, de los que se cerraron los seis accionables en dos
+tandas. Se saltó la 1.5.2 a propósito, como en su día la 1.1.5: es una
+tanda grande guiada a seguridad, no un parche.
+
+*Tanda 1 — validar la entrada ajena.* **Inyección ANSI/OSC desde los tags**
+era el único hallazgo que cruzaba una frontera de confianza externa real:
+basta con indexar un mp3 ajeno para que un título con `ESC ]0;…BEL`
+secuestre el título de la ventana, y con OSC 52 escriba el portapapeles.
+Agravado porque `clip()` usa `reflow/truncate`, que es ANSI-aware y por
+tanto CONSERVA los escapes. Paquete nuevo `internal/safetext` y saneado en
+las dos fronteras (ver Decisiones transversales). El otro: **`NaN` e `Inf`
+evadían la validación** y congelaban el demonio 5 s bajo `d.mu` —medido,
+con un `status` concurrente bloqueado 4,7 s—, porque `NaN` es false en toda
+comparación y `json.Marshal` los rechaza con su error descartado. La
+trampa que costó un ciclo: sanear en `ReadTags` + `ipc.Do` NO basta, el
+PoC seguía pasando; el punto de salida bueno es `library.scanTrack`.
+
+*Tanda 2 — ciclo de vida y recursos.* **mpv quedaba huérfano** (verificado:
+dos procesos tras un SIGKILL), y al detallarlo apareció que **nadie manejaba
+SIGHUP**, ni maly ni bubbletea — cerrar la ventana del terminal mataba el
+proceso sin un solo defer. Además, el reorden del arranque que se había
+elegido introducía por sí solo una regresión (el socket queda bindeado sin
+atender varios segundos y otro maly lo tomaría por huérfano), y de ahí que
+la identidad del demonio pase a reclamarse con **flock**, lo que de paso
+cierra la carrera de doble arranque que la auditoría no había logrado
+reproducir. Con ello, el **caché de carátulas acotado** a 32 MB y los
+**permisos del directorio de datos** (0700/0600, que colgaban de un modo de
+directorio que nadie comprobaba). Detalles de las tres en sus secciones.
+
+Los tests se verificaron en AMBAS direcciones —revirtiendo el código de
+producción desde HEAD y conservando los tests nuevos— y esa disciplina
+pagó: dos de los tests de arranque pasaban también sin el arreglo, así que
+se añadió `TestNoRoboElSocketDeUnDemonioArrancando`, el único que encoda de
+verdad el invariante del lock.
+
 ### Post-1.0 (candidatos)
 
-Sin candidatos pendientes: la lista quedó vacía con la 1.5.0 (el ratón en la
-TUI se descartó, y shuffle-permutación, ffprobe y B11 ya están hechos).
+La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del
+2026-07-21. Pendiente el hallazgo **#4**: `search`, `playlist_play` y
+`learnDuration`→`SetDuration` siguen haciendo IO no acotado DENTRO de
+`d.mu`, justo lo que sacó de ahí a scan, a la resolución de pistas y a
+seek — el invariante está aplicado a medias. Sin planificar quedan los
+menores (#5 los clientes no validan el runtime dir, #8, #10-#13). El ratón
+en la TUI sigue descartado.

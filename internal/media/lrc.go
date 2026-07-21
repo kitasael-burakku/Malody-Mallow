@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"maly/internal/safetext"
 )
 
 // LyricLine es una línea de letra; At es el instante en segundos en que
@@ -46,7 +48,10 @@ func ParseLRC(r io.Reader) []LyricLine {
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
 	first := true
 	for sc.Scan() {
-		text := strings.TrimRight(sc.Text(), "\r")
+		// La letra es texto ajeno —sidecar .lrc o USLT embebido— y se pinta en
+		// la capa ctrl+t: fuera los controles antes de parsear nada. Saneando
+		// aquí quedan cubiertas de una vez las líneas con y sin marca.
+		text := safetext.Clean(strings.TrimRight(sc.Text(), "\r"))
 		if first {
 			text = strings.TrimPrefix(text, "\uFEFF") // BOM
 			first = false

@@ -2,6 +2,7 @@ package mpris
 
 import (
 	"bytes"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -45,6 +46,47 @@ func writeTrack(t *testing.T, path string, img []byte) {
 	}
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// El caché tenía que caber en el runtime dir, que es tmpfs (o sea RAM
+// compartida con todo el escritorio) y solo se vaciaba en close() — algo que un
+// SIGKILL o un SIGHUP nunca llegan a ejecutar.
+func TestArtCacheEvicta(t *testing.T) {
+	music := t.TempDir()
+	c := newArtCache(t.TempDir())
+	if c == nil {
+		t.Fatal("newArtCache devolvió nil")
+	}
+	c.max = 40 // bytes: con carátulas de 25, cualquier par se pasa del tope
+
+	var paths, urls []string
+	for i := 0; i < 4; i++ {
+		img := append([]byte("\x89PNG-"), bytes.Repeat([]byte{byte('a' + i)}, 20)...)
+		p := filepath.Join(music, fmt.Sprintf("t%d.mp3", i))
+		writeTrack(t, p, img)
+		paths = append(paths, p)
+		urls = append(urls, c.urlFor(p))
+	}
+
+	if c.bytes > c.max {
+		t.Errorf("bytes = %d, por encima del tope %d", c.bytes, c.max)
+	}
+	// La carátula más reciente NUNCA se evicta: es la de la pista que suena, y
+	// es justo la URL que los clientes MPRIS acaban de recibir.
+	last := strings.TrimPrefix(urls[len(urls)-1], "file://")
+	if _, err := os.Stat(last); err != nil {
+		t.Errorf("se evictó la carátula más reciente: %v", err)
+	}
+	// Y ninguna entrada del memo puede apuntar a un archivo ya borrado.
+	for i, p := range paths {
+		u, ok := c.memo[p]
+		if !ok || u == "" {
+			continue // purgada con su archivo: correcto
+		}
+		if _, err := os.Stat(strings.TrimPrefix(u, "file://")); err != nil {
+			t.Errorf("memo de la pista %d apunta a un archivo borrado: %v", i, err)
+		}
 	}
 }
 

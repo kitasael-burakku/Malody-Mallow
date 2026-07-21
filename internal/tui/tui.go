@@ -4,7 +4,10 @@ package tui
 
 import (
 	"image"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -172,7 +175,26 @@ func Run(cfg config.Config, embedded bool) error {
 		defer m.viz.Close()
 	}
 
-	_, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	// SIGHUP: cerrar la ventana del terminal mata el proceso sin ejecutar un
+	// solo defer, y bubbletea solo atiende SIGINT y SIGTERM. Sin esto se
+	// pierde el guardado final de la sesión y quedan huérfanos mpv (con el
+	// demonio embebido) y pw-record (el visualizador). Pedirle a bubbletea que
+	// salga —en vez de morir aquí— deja además el terminal restaurado.
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	defer signal.Stop(hup)
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-hup:
+			p.Quit() // Run retorna, corren los defers y Close guarda la sesión
+		case <-done:
+		}
+	}()
+
+	_, err := p.Run()
 	return err
 }
 

@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeMpv instala en un dir nuevo (al frente del PATH) un ejecutable "mpv"
@@ -139,6 +141,84 @@ func TestSeekGivesUp(t *testing.T) {
 
 // TestCommandTimeoutCleansPending: un mpv que jamás contesta no debe dejar
 // canales acumulándose en pending — cada comando expirado retira el suyo.
+// reapStale le pide que salga a un mpv de una sesión anterior. Sin esto se
+// acumulaban: verificado en vivo, dos procesos mpv con la misma ruta de socket
+// tras un SIGKILL al demonio, y el viejo siguiendo sonando sin controlador.
+func TestReapStale(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "mpv.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	got := make(chan string, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		line, _ := bufio.NewReader(conn).ReadString('\n')
+		got <- line
+	}()
+
+	reapStale(sock)
+	select {
+	case line := <-got:
+		if !strings.Contains(line, `"quit"`) {
+			t.Errorf("al mpv viejo le llegó %q, se esperaba un quit", line)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no llegó nada al mpv viejo")
+	}
+}
+
+// Sin nadie al otro lado no debe bloquear ni explotar: es el caso normal (un
+// archivo de socket muerto, o directamente ninguno).
+func TestReapStaleSinNadie(t *testing.T) {
+	dir := t.TempDir()
+	reapStale(filepath.Join(dir, "no-existe.sock"))
+
+	noSock := filepath.Join(dir, "no-es-un-socket")
+	if err := os.WriteFile(noSock, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reapStale(noSock)
+}
+
+// json.Marshal rechaza NaN e Inf. Antes ese error se descartaba: se escribía un
+// "\n" pelado que mpv ignora, la petición quedaba registrada en pending y se
+// esperaban los 5 s completos de timeout — con d.mu tomado, en el caso de vol,
+// eso congelaba el demonio entero.
+func TestCommandValorNoSerializable(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer srv.Close()
+	go func() { // drena lo que se escriba; nunca responde
+		buf := make([]byte, 4096)
+		for {
+			if _, err := srv.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+	p := &Player{conn: cli, pending: map[int64]chan mpvReply{}, done: make(chan struct{})}
+
+	inicio := time.Now()
+	if _, err := p.command("set_property", "volume", math.NaN()); err == nil {
+		t.Fatal("command debe rechazar un valor no serializable")
+	}
+	if tardo := time.Since(inicio); tardo > time.Second {
+		t.Errorf("command tardó %v: se fue al timeout en vez de fallar al serializar", tardo)
+	}
+	p.mu.Lock()
+	n := len(p.pending)
+	p.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("pending quedó con %d entradas tras un marshal fallido", n)
+	}
+}
+
 func TestCommandTimeoutCleansPending(t *testing.T) {
 	cli, srv := net.Pipe()
 	defer srv.Close()

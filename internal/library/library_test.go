@@ -468,6 +468,54 @@ func TestReadTags(t *testing.T) {
 	}
 }
 
+// Los tags son texto ajeno: uno con secuencias de escape secuestra el terminal
+// de quien haga `maly search` o abra la TUI (el recorte de la TUI es
+// ANSI-aware, así que los conserva). ReadTags es la barrera de ingesta.
+func TestReadTagsSaneaControles(t *testing.T) {
+	dir := t.TempDir()
+	pad := func(s string, n int) []byte {
+		b := make([]byte, n)
+		copy(b, s)
+		return b
+	}
+	// Título con CSI (color) y OSC (cambia el título de la ventana).
+	id3v1 := append([]byte("TAG"), pad("\x1b[31mHACK\x1b]0;X\x07", 30)...)
+	id3v1 = append(id3v1, pad("art\x07ista", 30)...)
+	id3v1 = append(id3v1, pad("al\tbum", 30)...) // el tab correría tabwriter
+	id3v1 = append(id3v1, pad("2026", 4)...)
+	id3v1 = append(id3v1, make([]byte, 30)...)
+	id3v1 = append(id3v1, 255)
+
+	sucio := filepath.Join(dir, "sucio.mp3")
+	if err := os.WriteFile(sucio, append([]byte("relleno que no es audio "), id3v1...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := ReadTags(sucio)
+	if got.Title != "[31mHACK]0;X" {
+		t.Errorf("Title = %q: los escapes tenían que caer", got.Title)
+	}
+	if got.Artist != "artista" {
+		t.Errorf("Artist = %q, quería %q", got.Artist, "artista")
+	}
+	if got.Album != "album" {
+		t.Errorf("Album = %q, quería %q", got.Album, "album")
+	}
+	// Path NO se sanea: tiene que seguir abriendo el archivo.
+	if got.Path != sucio {
+		t.Errorf("Path = %q, debía quedar intacto", got.Path)
+	}
+
+	// El nombre del archivo también es texto ajeno, y es de donde sale el
+	// título cuando no hay tags legibles.
+	raro := filepath.Join(dir, "nom\x1b[31mbre.mp3")
+	if err := os.WriteFile(raro, []byte("no es audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ReadTags(raro); got.Title != "nom[31mbre" {
+		t.Errorf("título desde el nombre de archivo = %q", got.Title)
+	}
+}
+
 // TestRemoveFromPlaylist: quitar por posición 1-based respeta el orden que
 // muestran show/export, valida el rango y funciona aunque queden huecos en
 // la columna pos tras borrados previos.
@@ -650,5 +698,47 @@ func TestOpenDirPrivate(t *testing.T) {
 	}
 	if fi.Mode().Perm() != 0o700 {
 		t.Errorf("dir de la base: %o, quería 0700", fi.Mode().Perm())
+	}
+}
+
+// El caso de arriba —directorio recién creado— era justo el que NO fallaba.
+// MkdirAll no aprieta un directorio que ya existía (instalaciones anteriores a
+// la 1.0.1, backups restaurados con otro umask), y los archivos de SQLite nacen
+// 0644: toda la privacidad de la biblioteca colgaba de un permiso de directorio
+// que nadie comprobaba.
+func TestOpenAprietaPermisosExistentes(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := filepath.Join(dir, "library.db")
+
+	lib, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	// Una escritura, para que existan de verdad el -wal y el -shm.
+	if _, err := lib.Scan(t.TempDir(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if fi, err := os.Stat(dir); err != nil {
+		t.Fatal(err)
+	} else if fi.Mode().Perm() != 0o700 {
+		t.Errorf("dir de la base: %o, quería 0700", fi.Mode().Perm())
+	}
+	// Se comprueban con la base ABIERTA: un Close limpio hace checkpoint y se
+	// lleva el -wal y el -shm.
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		p := dbPath + suffix
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Errorf("%s no existe: %v", filepath.Base(p), err)
+			continue
+		}
+		if fi.Mode().Perm() != 0o600 {
+			t.Errorf("%s: %o, quería 0600", filepath.Base(p), fi.Mode().Perm())
+		}
 	}
 }

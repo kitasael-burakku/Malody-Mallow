@@ -354,6 +354,7 @@ var table = map[string][2]string{
 	"p.write":       {"writing to mpv", "escribiendo a mpv"},
 	"p.no_reply":    {"mpv is not responding", "mpv no responde"},
 	"p.seek":        {"seek failed", "no pude hacer seek"},
+	"p.bad_value":   {"invalid value (not a finite number)", "valor inválido (no es un número finito)"},
 
 	// ---- ffprobe (duraciones) ----
 	"probe.bad_duration": {"ffprobe reported no usable duration for %s", "ffprobe no dio una duración usable para %s"},

@@ -2,7 +2,9 @@ package daemon
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +40,163 @@ func testEnv(t *testing.T) {
 }
 
 // newTestDaemon arranca un demonio real (con mpv) en un entorno XDG aislado.
+// NaN es el caso peligroso de parseAdjust: sobrevive a TODA comparación
+// (`NaN < 0` y `NaN > 100` son ambos false), así que atravesaba la validación
+// de rango y llegaba hasta mpv — donde json.Marshal lo rechaza, el error se
+// descartaba, el comando se perdía y costaba 5 s de timeout con d.mu tomado.
+// No necesita mpv: la función es pura.
+func TestParseAdjustRechazaNoFinitos(t *testing.T) {
+	for _, val := range []string{
+		"NaN", "nan", "Inf", "inf", "Infinity", "+Inf", "-Inf", "+inf", "1e400", "-1e400",
+	} {
+		if got, err := parseAdjust(val, 50, 0, 100); err == nil {
+			t.Errorf("parseAdjust(%q) = %v, se esperaba error", val, got)
+		}
+	}
+	// Y los valores legítimos siguen pasando: absolutos, y relativos con clamp.
+	for _, c := range []struct {
+		val  string
+		want float64
+	}{
+		{"0", 0}, {"42", 42}, {"100", 100},
+		{"+10", 60}, {"-10", 40}, {"+999", 100}, {"-999", 0},
+	} {
+		got, err := parseAdjust(c.val, 50, 0, 100)
+		if err != nil || got != c.want {
+			t.Errorf("parseAdjust(%q) = %v, %v; quería %v", c.val, got, err, c.want)
+		}
+	}
+}
+
+// El mismo agujero en seek. Aquí hace falta demonio (habla con el player), pero
+// lo que se comprueba es que vuelva EN EL ACTO: antes del arreglo el valor
+// llegaba a mpv, que nunca contestaba, y el retry doblaba el timeout a ~10 s.
+func TestSeekRechazaNoFinitos(t *testing.T) {
+	d := newTestDaemon(t)
+	for _, val := range []string{"NaN", "Inf", "+Inf", "-Inf"} {
+		inicio := time.Now()
+		err := d.seek("es", val)
+		tardo := time.Since(inicio)
+		if err == nil {
+			t.Errorf("seek(%q) no dio error", val)
+		}
+		if tardo > time.Second {
+			t.Errorf("seek(%q) tardó %v: se fue a mpv en vez de rechazarlo", val, tardo)
+		}
+	}
+}
+
+// newRawDaemon arranca un demonio sin los helpers de newTestDaemon, para los
+// tests que necesitan controlar el ciclo de vida (arrancar dos, cerrar y
+// reabrir). testEnv ya salta el test si no hay mpv.
+func newRawDaemon(t *testing.T) (*Daemon, error) {
+	t.Helper()
+	cfg := config.Default()
+	cfg.ScanDurations = false
+	return New(cfg)
+}
+
+// Con un demonio vivo, el segundo rebota — y sobre todo NO le desmonta el
+// socket al primero. Esa era la regresión de la lógica vieja: borraba el socket
+// en cuanto un ping fallaba, y un demonio ocupado arrancando (abrir la base,
+// esperar a mpv, reponer la sesión) no contesta al ping aunque esté vivo.
+func TestSegundoDemonioRebota(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	if _, err := newRawDaemon(t); !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("New con demonio vivo = %v, quería ErrAlreadyRunning", err)
+	}
+
+	// El primero sigue atendiendo en su socket de siempre.
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatalf("el socket del primer demonio desapareció: %v", err)
+	}
+	defer c.Close()
+	if resp, err := c.Do(ipc.Request{Cmd: "ping"}); err != nil || !resp.OK {
+		t.Fatalf("el primer demonio dejó de responder: %v / %+v", err, resp)
+	}
+}
+
+// LA regresión de verdad, y la razón de que la identidad se reclame con flock:
+// un demonio a medio arrancar —lock tomado y socket bindeado, pero todavía sin
+// atender porque está abriendo la base o esperando hasta 5 s a que mpv cree su
+// socket— NO puede confundirse con un socket huérfano. La lógica vieja
+// pingueaba y, al no recibir respuesta en 2 s, daba el socket por muerto, lo
+// borraba y bindeaba encima: dos demonios vivos y el primero inalcanzable.
+//
+// Los otros dos tests de arranque cubren casos que la lógica vieja ya resolvía
+// bien; este es el que solo pasa con el lock.
+func TestNoRoboElSocketDeUnDemonioArrancando(t *testing.T) {
+	testEnv(t)
+	if _, err := config.EnsureRuntimeDir(); err != nil {
+		t.Fatal(err)
+	}
+	// El que está arrancando: tiene el lock y el socket, pero aún no contesta.
+	lock, err := acquireLock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	ln, err := net.Listen("unix", config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	d, err := newRawDaemon(t)
+	if err == nil {
+		d.Close()
+		t.Fatal("New se coló mientras otro demonio estaba arrancando")
+	}
+	if !errors.Is(err, ErrAlreadyRunning) {
+		t.Fatalf("New = %v, quería ErrAlreadyRunning", err)
+	}
+	if _, err := os.Stat(config.SocketPath()); err != nil {
+		t.Errorf("le borramos el socket al demonio que arrancaba: %v", err)
+	}
+}
+
+// Un archivo de socket suelto, sin nadie escuchando, es el resto normal de una
+// sesión que murió sin limpiar: no debe impedir el arranque.
+func TestReclamaSocketHuerfano(t *testing.T) {
+	testEnv(t)
+	if _, err := config.EnsureRuntimeDir(); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Abandonarlo sin borrar, como haría un SIGKILL.
+	ln.(*net.UnixListener).SetUnlinkOnClose(false)
+	ln.Close()
+
+	d, err := newRawDaemon(t)
+	if err != nil {
+		t.Fatalf("New con socket huérfano: %v", err)
+	}
+	d.Close()
+}
+
+// Close suelta el lock: si no, el demonio siguiente rebotaría contra el
+// cadáver del anterior.
+func TestCierraLiberaElLock(t *testing.T) {
+	testEnv(t)
+	d1, err := newRawDaemon(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d1.Close()
+
+	d2, err := newRawDaemon(t)
+	if err != nil {
+		t.Fatalf("New tras Close: %v", err)
+	}
+	d2.Close()
+}
+
 func newTestDaemon(t *testing.T) *Daemon {
 	t.Helper()
 	testEnv(t)

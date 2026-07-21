@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"os/exec"
@@ -93,6 +94,7 @@ func Start(socketPath string, onEnd func(reason, next string), onChange func()) 
 	if err := os.MkdirAll(filepath.Dir(socketPath), 0o700); err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", filepath.Dir(socketPath)), err)
 	}
+	reapStale(socketPath)
 	os.Remove(socketPath)
 
 	// --input-terminal=no (en vez de --no-terminal) evita que mpv toque la
@@ -155,6 +157,27 @@ func Start(socketPath string, onEnd func(reason, next string), onChange func()) 
 		}
 	}
 	return p, nil
+}
+
+// reapStale le pide que salga a un mpv de una sesión anterior que siguiera
+// escuchando en socketPath. Sin esto se acumulaban: el demonio no mata a mpv
+// cuando muere sin ejecutar Close (SIGKILL, OOM, pánico), y el arranque
+// siguiente se limitaba a borrar el socket y lanzar OTRO — verificado en vivo,
+// dos procesos mpv con la misma ruta de socket, y el viejo siguiendo sonando
+// sin que nadie pudiera pararlo.
+//
+// Es seguro porque quien llama ya tiene el lock del demonio (ver daemon.New):
+// si alguien contesta en este socket es forzosamente un resto, no el mpv de
+// otro demonio vivo. No se espera a que muera: si tarda, se queda con un socket
+// ya desenlazado, que es inofensivo.
+func reapStale(socketPath string) {
+	conn, err := net.DialTimeout("unix", socketPath, 500*time.Millisecond)
+	if err != nil {
+		return // nadie escuchando: es un archivo de socket muerto
+	}
+	defer conn.Close()
+	conn.SetWriteDeadline(time.Now().Add(500 * time.Millisecond))
+	conn.Write([]byte("{\"command\":[\"quit\"]}\n"))
 }
 
 func (p *Player) readLoop() {
@@ -265,10 +288,20 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 	}
 	p.reqID++
 	id := p.reqID
+	// Serializar ANTES de registrar en pending: json.Marshal rechaza NaN e Inf,
+	// y con su error descartado se escribía un "\n" pelado que mpv ignora — la
+	// petición quedaba registrada esperando una respuesta que no iba a llegar
+	// hasta agotar los 5 s de timeout. Bajo d.mu (vol) eso congelaba el
+	// demonio entero. El id gastado simplemente se salta: es inocuo.
+	msg, err := json.Marshal(map[string]any{"command": args, "request_id": id})
+	if err != nil {
+		p.mu.Unlock()
+		// La única causa realista es un float no finito en args.
+		return nil, fmt.Errorf("%s: %w", i18n.T("p.bad_value"), err)
+	}
 	ch := make(chan mpvReply, 1)
 	p.pending[id] = ch
-	msg, _ := json.Marshal(map[string]any{"command": args, "request_id": id})
-	_, err := p.conn.Write(append(msg, '\n'))
+	_, err = p.conn.Write(append(msg, '\n'))
 	p.mu.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", i18n.T("p.write"), err)
@@ -495,6 +528,11 @@ func (p *Player) seek(args ...any) error {
 
 // SetVolume fija el volumen (0-100).
 func (p *Player) SetVolume(v float64) error {
+	// Última barrera antes de mpv: los clamps de abajo son < y >, y NaN es
+	// false en ambos, así que se colaría entero hasta json.Marshal.
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return errors.New(i18n.T("p.bad_value"))
+	}
 	if v < 0 {
 		v = 0
 	}
@@ -520,8 +558,9 @@ func (p *Player) Close() {
 		return
 	}
 	p.closed = true
-	msg, _ := json.Marshal(map[string]any{"command": []any{"quit"}})
-	p.conn.Write(append(msg, '\n'))
+	if msg, err := json.Marshal(map[string]any{"command": []any{"quit"}}); err == nil {
+		p.conn.Write(append(msg, '\n'))
+	}
 	p.conn.Close()
 	p.mu.Unlock()
 

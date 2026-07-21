@@ -19,6 +19,7 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 	"maly/internal/i18n"
+	"maly/internal/safetext"
 	_ "modernc.org/sqlite"
 )
 
@@ -93,10 +94,19 @@ CREATE INDEX IF NOT EXISTS idx_pl_tracks ON playlist_tracks(playlist_id, pos);
 
 // Open abre (o crea) la base de datos en dbPath.
 func Open(dbPath string) (*Library, error) {
-	// 0700: la biblioteca revela hábitos de escucha; los archivos de SQLite
-	// dentro (db/-wal/-shm) quedan cubiertos por el directorio.
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0o700); err != nil {
-		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", filepath.Dir(dbPath)), err)
+	// 0700: la biblioteca revela hábitos de escucha.
+	dir := filepath.Dir(dbPath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", dir), err)
+	}
+	// MkdirAll NO aprieta un directorio que YA existía: uno creado por una
+	// versión anterior a la 1.0.1, o restaurado de un backup con otro umask, se
+	// queda en 0755 para siempre. Y los archivos de SQLite nacen 0644, así que
+	// toda la privacidad colgaba de un permiso de directorio que nadie
+	// comprobaba nunca. Mismo criterio correctivo que config.EnsureRuntimeDir:
+	// apretar en silencio, sin molestar ni negarse a abrir.
+	if fi, err := os.Stat(dir); err == nil && fi.Mode().Perm()&0o077 != 0 {
+		os.Chmod(dir, 0o700)
 	}
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
@@ -111,7 +121,22 @@ func Open(dbPath string) (*Library, error) {
 	// Migración para bases anteriores a 0.6.0 (CREATE IF NOT EXISTS no
 	// agrega columnas); si la columna ya existe el ALTER falla y se ignora.
 	db.Exec(`ALTER TABLE tracks ADD COLUMN duration REAL NOT NULL DEFAULT 0`)
+	// El schema ya creó el archivo: apretarlo ahora. SQLite crea el -wal y el
+	// -shm con el modo del principal, así que esto cubre también a los que
+	// nazcan después; los que ya estuvieran ahí se aprietan aquí mismo.
+	tighten(dbPath)
 	return &Library{db: db}, nil
+}
+
+// tighten deja la base y sus acompañantes de WAL en 0600 si estaban más
+// abiertos. Los que aún no existen se ignoran: SQLite los crea perezosamente,
+// en el primer escritura.
+func tighten(dbPath string) {
+	for _, p := range []string{dbPath, dbPath + "-wal", dbPath + "-shm"} {
+		if fi, err := os.Stat(p); err == nil && fi.Mode().Perm()&0o177 != 0 {
+			os.Chmod(p, 0o600)
+		}
+	}
 }
 
 func (l *Library) Close() error { return l.db.Close() }
@@ -121,6 +146,15 @@ type ScanResult struct {
 	Updated int
 	Removed int
 	Errors  []string
+}
+
+// addErr acumula un error del escaneo ya saneado. Sus entradas se imprimen tal
+// cual (cli.scan_warn, al stderr de la CLI y del demonio) y arrastran nombres
+// de archivo, que son texto ajeno: uno con secuencias de escape secuestraría el
+// terminal. Sanear aquí, en el productor, le da la garantía a Errors entero en
+// vez de repetirla en cada consumidor.
+func (r *ScanResult) addErr(format string, args ...any) {
+	r.Errors = append(r.Errors, safetext.Clean(fmt.Sprintf(format, args...)))
 }
 
 // scanBatchSize es cuántas escrituras van en cada transacción del escaneo:
@@ -191,7 +225,7 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 		defer func() { batch = batch[:0] }()
 		fail := func(err error) {
 			for _, p := range batch {
-				res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", p.t.Path, err))
+				res.addErr("%s: %v", p.t.Path, err)
 			}
 		}
 		tx, err := l.db.Begin()
@@ -210,7 +244,7 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 			t := p.t
 			if _, err := stmt.Exec(t.Path, t.Title, t.Artist, t.Album, t.AlbumArtist,
 				t.Genre, t.TrackNo, t.Year, p.mtime, p.fold); err != nil {
-				res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", t.Path, err))
+				res.addErr("%s: %v", t.Path, err)
 				continue
 			}
 			if p.existed {
@@ -232,7 +266,7 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 	seen := map[string]bool{}
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			res.Errors = append(res.Errors, err.Error())
+			res.addErr("%s", err)
 			return nil
 		}
 		if d.IsDir() || !IsAudio(path) {
@@ -244,7 +278,7 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 		}
 		fi, err := d.Info()
 		if err != nil {
-			res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", path, err))
+			res.addErr("%s: %v", path, err)
 			return nil
 		}
 		mtime := fi.ModTime().Unix()
@@ -283,7 +317,7 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 		gone = gone[n:]
 		tx, err := l.db.Begin()
 		if err != nil {
-			res.Errors = append(res.Errors, err.Error())
+			res.addErr("%s", err)
 			break
 		}
 		removed := 0
@@ -293,7 +327,7 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 			}
 		}
 		if err := tx.Commit(); err != nil {
-			res.Errors = append(res.Errors, err.Error())
+			res.addErr("%s", err)
 			continue
 		}
 		res.Removed += removed
@@ -305,9 +339,15 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 // nombre del archivo para que igualmente entre en la biblioteca. La usa Scan
 // y el demonio para pistas agregadas por ruta que no están en la biblioteca.
 func ReadTags(path string) Track {
+	// Los tags son texto ajeno: un título con secuencias de escape secuestra
+	// el terminal de quien haga `maly search` o abra la TUI (ver safetext).
+	// Clean va ANTES de TrimSpace, porque descartar controles puede dejar
+	// espacios sueltos en los extremos. Path NO se sanea: tiene que seguir
+	// abriendo el archivo — se limpia solo al mostrarlo.
+	clean := func(s string) string { return strings.TrimSpace(safetext.Clean(s)) }
 	t := Track{
 		Path:  path,
-		Title: strings.TrimSuffix(filepath.Base(path), filepath.Ext(path)),
+		Title: clean(strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))),
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -318,13 +358,13 @@ func ReadTags(path string) Track {
 	if err != nil {
 		return t
 	}
-	if v := strings.TrimSpace(md.Title()); v != "" {
+	if v := clean(md.Title()); v != "" {
 		t.Title = v
 	}
-	t.Artist = strings.TrimSpace(md.Artist())
-	t.Album = strings.TrimSpace(md.Album())
-	t.AlbumArtist = strings.TrimSpace(md.AlbumArtist())
-	t.Genre = strings.TrimSpace(md.Genre())
+	t.Artist = clean(md.Artist())
+	t.Album = clean(md.Album())
+	t.AlbumArtist = clean(md.AlbumArtist())
+	t.Genre = clean(md.Genre())
 	t.TrackNo, _ = md.Track()
 	t.Year = md.Year()
 	return t
@@ -343,7 +383,21 @@ const trackCols = `id, path, title, artist, album, album_artist, genre, track_no
 func scanTrack(row interface{ Scan(...any) error }) (Track, error) {
 	var t Track
 	err := row.Scan(&t.ID, &t.Path, &t.Title, &t.Artist, &t.Album, &t.AlbumArtist, &t.Genre, &t.TrackNo, &t.Year, &t.Duration)
-	return t, err
+	if err != nil {
+		return t, err
+	}
+	// Punto ÚNICO por el que salen las pistas de la base: Search, All, Get,
+	// ByPath y PlaylistTracks pasan todas por aquí. Sanear en este sitio cubre
+	// las filas que indexaron versiones anteriores —ReadTags ya no las va a
+	// tocar, porque Scan salta los archivos cuyo mtime no cambió— y, de paso,
+	// a la CLI y la TUI, que leen la biblioteca directo de SQLite sin pasar
+	// por el demonio. Path NO se sanea: tiene que seguir abriendo el archivo.
+	t.Title = safetext.Clean(t.Title)
+	t.Artist = safetext.Clean(t.Artist)
+	t.Album = safetext.Clean(t.Album)
+	t.AlbumArtist = safetext.Clean(t.AlbumArtist)
+	t.Genre = safetext.Clean(t.Genre)
+	return t, nil
 }
 
 // SetDuration guarda la duración de una pista. Los tags no la traen

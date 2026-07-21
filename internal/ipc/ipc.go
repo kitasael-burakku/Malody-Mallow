@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"maly/internal/i18n"
+	"maly/internal/safetext"
 )
 
 // Request es una petición del cliente al demonio.
@@ -72,6 +73,20 @@ type Response struct {
 	Version string      `json:"version,omitempty"` // versión del demonio ("" = anterior a 0.5.0)
 }
 
+// cleanResp sanea el texto libre de una respuesta recién deserializada. Msg y
+// Error se imprimen tal cual (CLI) o se pintan en el pie y la consola (TUI), y
+// un demonio suplantado —socket precreado en el /tmp del fallback, cuando falta
+// XDG_RUNTIME_DIR— los controla por completo. Hacerlo aquí cubre a TODOS los
+// clientes de una vez, en vez de perseguir cada Println y cada setFlash.
+//
+// La cola NO se sanea a propósito: recorrerla costaría O(n) en cada push de
+// suscripción (uno cada 250 ms) y sus pistas ya salen limpias de
+// library.scanTrack, por donde pasa toda lectura de la base.
+func cleanResp(r *Response) {
+	r.Msg = safetext.Clean(r.Msg)
+	r.Error = safetext.Clean(r.Error)
+}
+
 // Client es una conexión al demonio.
 type Client struct {
 	conn net.Conn
@@ -131,6 +146,7 @@ func (c *Client) Do(req Request) (Response, error) {
 	if err := json.Unmarshal(line, &resp); err != nil {
 		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.invalid"), err)
 	}
+	cleanResp(&resp)
 	return resp, nil
 }
 
@@ -154,6 +170,7 @@ func (c *Client) Next() (Response, error) {
 	if err := json.Unmarshal(line, &resp); err != nil {
 		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.invalid"), err)
 	}
+	cleanResp(&resp)
 	return resp, nil
 }
 

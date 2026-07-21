@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"maly/internal/config"
@@ -40,6 +40,9 @@ type Daemon struct {
 	pl       *player.Player
 	q        *queue.Queue
 	ln       net.Listener
+	// lock es el flock que acredita a este proceso como EL demonio. Hay que
+	// retenerlo vivo: el lock pertenece al descriptor abierto (ver lock.go).
+	lock     *os.File
 	mpris    *mpris.Service // nil si no hay bus de sesión
 	scanning atomic.Bool    // guarda contra escaneos simultáneos (scan corre sin d.mu)
 	scanSeen atomic.Int64   // archivos vistos por el scan en vuelo (progreso en Status)
@@ -84,30 +87,58 @@ type subscriber struct {
 	dirty chan struct{}
 }
 
-// New prepara el demonio: reclama el socket, abre la biblioteca y lanza mpv.
+// New prepara el demonio: reclama la identidad y el socket, abre la biblioteca
+// y lanza mpv. El orden importa y es el que hace seguras las dos operaciones
+// destructivas del arranque (borrar el socket viejo y matar el mpv viejo):
+// hasta tener el lock no se toca nada de nadie.
 func New(cfg config.Config) (*Daemon, error) {
 	sock := config.SocketPath()
-	// EnsureRuntimeDir además valida dueño/permisos: los sockets (maly, mpv)
-	// y el caché de carátulas solo se crean dentro de un directorio de fiar.
+	// EnsureRuntimeDir además valida dueño/permisos: los sockets (maly, mpv),
+	// el lock y el caché de carátulas solo se crean dentro de un dir de fiar.
 	if _, err := config.EnsureRuntimeDir(); err != nil {
 		return nil, err
 	}
-	// Fallar rápido si ya hay demonio, ANTES de abrir DB y lanzar mpv. Solo
-	// sondea: el socket huérfano se limpia más abajo, tras el EADDRINUSE —
-	// borrarlo aquí podía desanclar el socket recién bindeado de otro demonio
-	// arrancando a la vez (TOCTOU entre el ping y el listen).
+	// Este sondeo queda SOLO por compatibilidad: un demonio anterior a esta
+	// versión no toma el lock, y sin preguntarle antes le robaríamos el socket
+	// al actualizar el binario sin reiniciar el servicio.
 	if ipc.Ping(sock) {
 		return nil, ErrAlreadyRunning
+	}
+	// A partir de aquí somos EL demonio, y lo dice el kernel en vez de una
+	// heurística: ya se puede borrar el socket que hubiera quedado, bindear el
+	// nuestro y reapear el mpv de una sesión anterior (ver player.Start).
+	lock, err := acquireLock()
+	if err != nil {
+		return nil, err
+	}
+	// Toda salida por error suelta el lock; el resto de recursos se cierran en
+	// orden inverso a como se abrieron.
+	failed := func(err error) (*Daemon, error) {
+		lock.Close()
+		return nil, err
+	}
+
+	os.Remove(sock)
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		return failed(fmt.Errorf("%s: %w", i18n.Tf("d.listen", sock), err))
+	}
+	closeLn := func() {
+		os.Remove(sock)
+		ln.Close()
 	}
 
 	lib, err := library.Open(config.DBPath())
 	if err != nil {
-		return nil, err
+		closeLn()
+		return failed(err)
 	}
 	d := &Daemon{
 		cfg:      cfg,
 		lib:      lib,
 		q:        queue.New(),
+		ln:       ln,
+		lock:     lock,
 		subs:     map[*subscriber]struct{}{},
 		sessStop: make(chan struct{}),
 	}
@@ -116,42 +147,18 @@ func New(cfg config.Config) (*Daemon, error) {
 	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.advance, d.notify)
 	if err != nil {
 		lib.Close()
-		return nil, err
+		closeLn()
+		return failed(err)
 	}
 	d.pl = pl
 
-	// Reponer la sesión anterior antes del listener y de MPRIS, para que el
-	// primer cliente (y playerctl) ya vean el estado restaurado; la ventana
-	// gapless se arma de una vez (sin d.mu: aún no hay concurrencia).
+	// Reponer la sesión anterior antes de MPRIS, para que el primer cliente (y
+	// playerctl) ya vean el estado restaurado; la ventana gapless se arma de
+	// una vez (sin d.mu: aún no hay concurrencia). El socket ya está bindeado,
+	// pero Run todavía no acepta: quien conecte espera en el backlog.
 	d.restoreSession()
 	d.syncWindowLocked()
 	go d.sessionSaver()
-
-	ln, err := net.Listen("unix", sock)
-	if errors.Is(err, syscall.EADDRINUSE) {
-		// El path está ocupado: o hay un demonio vivo (arranques simultáneos:
-		// mismo diagnóstico que el ping inicial) o quedó un socket huérfano de
-		// una sesión que murió sin limpiar. Solo tras confirmar que nadie
-		// contesta se borra y se reintenta una vez.
-		if ipc.Ping(sock) {
-			pl.Close()
-			lib.Close()
-			return nil, ErrAlreadyRunning
-		}
-		os.Remove(sock)
-		ln, err = net.Listen("unix", sock)
-		if errors.Is(err, syscall.EADDRINUSE) {
-			pl.Close()
-			lib.Close()
-			return nil, ErrAlreadyRunning
-		}
-	}
-	if err != nil {
-		pl.Close()
-		lib.Close()
-		return nil, fmt.Errorf("%s: %w", i18n.Tf("d.listen", sock), err)
-	}
-	d.ln = ln
 
 	// MPRIS es opcional: sin bus de sesión (p. ej. headless) el demonio
 	// funciona igual, solo sin integración playerctl/Waybar.
@@ -202,11 +209,22 @@ func (d *Daemon) doClose() {
 		s.conn.Close()
 	}
 	d.subMu.Unlock()
-	d.ln.Close()
+	// Borrar el socket ANTES de cerrar el listener: entre cerrarlo y borrarlo,
+	// otro demonio podría bindear la ruta y le estaríamos borrando el socket
+	// recién creado. Mientras no cerremos seguimos siendo los dueños.
 	os.Remove(config.SocketPath())
+	d.ln.Close()
 	d.pl.Close()
 	os.Remove(filepath.Join(config.RuntimeDir(), "mpv.sock"))
 	d.lib.Close()
+	// El lock, lo último: mientras lo tengamos, nadie puede arrancar y
+	// encontrarse el desmontaje a medias. Cerrar el archivo libera el flock; el
+	// archivo NO se borra, porque borrar un lockfile es una carrera clásica
+	// (otro proceso puede tenerlo ya abierto y acabaría bloqueando un inodo
+	// eliminado, creyéndose el demonio).
+	if d.lock != nil {
+		d.lock.Close()
+	}
 }
 
 func (d *Daemon) serve(conn net.Conn) {
@@ -950,13 +968,13 @@ func (d *Daemon) seek(lang, val string) error {
 	}
 	if strings.HasPrefix(val, "+") || strings.HasPrefix(val, "-") {
 		n, err := strconv.ParseFloat(val, 64)
-		if err != nil {
+		if err != nil || !finite(n) {
 			return errors.New(i18n.TLf(lang, "d.seek_offset", val))
 		}
 		return d.pl.SeekRel(n)
 	}
 	n, err := strconv.ParseFloat(val, 64)
-	if err != nil {
+	if err != nil || !finite(n) {
 		return errors.New(i18n.TLf(lang, "d.seek_abs", val))
 	}
 	return d.pl.SeekAbs(n)
@@ -1021,6 +1039,14 @@ func tracksFromDir(lang string, lib *library.Library, dir string) ([]library.Tra
 // usuario, por eso no llevan texto traducido.
 var errAdjust = errors.New("invalid adjust value")
 
+// finite descarta lo que ParseFloat acepta pero no es un número usable. Hace
+// falta porque "Inf" y "+Inf" parsean sin error, y sobre todo porque NaN
+// sobrevive a TODA comparación: `NaN < 0` y `NaN > 100` son ambos false, así
+// que se colaba por cualquier validación de rango y llegaba hasta mpv, donde
+// json.Marshal lo rechaza — y con aquel error ignorado el comando se perdía y
+// costaba 5 s de timeout con d.mu tomado.
+func finite(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
+
 func parseAdjust(val string, cur, min, max float64) (float64, error) {
 	val = strings.TrimSpace(val)
 	if val == "" {
@@ -1028,7 +1054,7 @@ func parseAdjust(val string, cur, min, max float64) (float64, error) {
 	}
 	if strings.HasPrefix(val, "+") || strings.HasPrefix(val, "-") {
 		n, err := strconv.ParseFloat(val, 64)
-		if err != nil {
+		if err != nil || !finite(n) {
 			return 0, errAdjust
 		}
 		val := cur + n
@@ -1041,7 +1067,7 @@ func parseAdjust(val string, cur, min, max float64) (float64, error) {
 		return val, nil
 	}
 	n, err := strconv.ParseFloat(val, 64)
-	if err != nil || n < min || n > max {
+	if err != nil || !finite(n) || n < min || n > max {
 		return 0, errAdjust
 	}
 	return n, nil

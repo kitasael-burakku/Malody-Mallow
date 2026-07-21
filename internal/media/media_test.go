@@ -91,6 +91,27 @@ func TestScaleBox(t *testing.T) {
 	}
 }
 
+// Las letras (sidecar .lrc o USLT embebido) se pintan en la capa ctrl+t: con
+// escapes dentro romperían el panel o secuestrarían el terminal. Sanear al leer
+// la línea cubre de una vez las que llevan marca de tiempo y las que no.
+func TestParseLRCSaneaControles(t *testing.T) {
+	got := ParseLRC(strings.NewReader("[00:01.00]hola\x1b[31mmundo\n[00:02.50]otra\x07linea\n"))
+	if len(got) != 2 {
+		t.Fatalf("líneas = %d, quería 2: %+v", len(got), got)
+	}
+	if got[0].Text != "hola[31mmundo" {
+		t.Errorf("línea 0 = %q", got[0].Text)
+	}
+	if got[1].Text != "otralinea" {
+		t.Errorf("línea 1 = %q", got[1].Text)
+	}
+
+	plana := ParseLRC(strings.NewReader("solo\x1b]0;HACK\x07texto\n"))
+	if len(plana) != 1 || plana[0].Text != "solo]0;HACKtexto" {
+		t.Errorf("letra plana = %+v", plana)
+	}
+}
+
 func TestLyricsFor(t *testing.T) {
 	dir := t.TempDir()
 	track := filepath.Join(dir, "cancion.mp3")

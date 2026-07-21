@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"maly/internal/i18n"
+	"maly/internal/safetext"
 )
 
 // ExportM3U escribe la playlist como M3U extendido (UTF-8, rutas absolutas)
@@ -60,7 +61,7 @@ func (l *Library) ImportM3U(path, name string) (added int, skipped []string, err
 			continue
 		}
 		if strings.Contains(line, "://") { // URL de streaming: no soportado
-			skipped = append(skipped, line)
+			skipped = append(skipped, safetext.Clean(line))
 			continue
 		}
 		p := line
@@ -69,7 +70,7 @@ func (l *Library) ImportM3U(path, name string) (added int, skipped []string, err
 		}
 		t, ok := l.ByPath(filepath.Clean(p))
 		if !ok {
-			skipped = append(skipped, line)
+			skipped = append(skipped, safetext.Clean(line))
 			continue
 		}
 		ids = append(ids, t.ID)

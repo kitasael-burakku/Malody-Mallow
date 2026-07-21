@@ -28,7 +28,10 @@ func runDaemon() error {
 		return err
 	}
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	// SIGHUP incluido: al cerrar la ventana del terminal que lanzó el demonio,
+	// su acción por defecto lo mataría sin ejecutar Close — mpv quedaría
+	// huérfano, el socket sin borrar y la sesión sin su guardado final.
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	go func() {
 		<-sig
 		d.Close()

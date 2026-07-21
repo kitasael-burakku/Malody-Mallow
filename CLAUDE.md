@@ -57,7 +57,23 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
 - `internal/ipc` — protocolo (Request/Response/Status/TrackInfo), cliente, y
   `display.go` con los helpers de presentación compartidos (`TrackInfo.String`,
   `FmtTime`, `OnOff`) — no re-armar "Artista — Título" a mano.
-- `internal/daemon` — `serve → handle → dispatch` (dispatch bajo `d.mu`; `handle`
+- `internal/daemon` — el ARRANQUE (`New`) va en un orden que no es negociable:
+  `EnsureRuntimeDir` → `ipc.Ping` (solo por compatibilidad con un demonio
+  anterior, que no toma el lock: sin esto le robaríamos el socket al actualizar
+  el binario sin reiniciar) → **`acquireLock`** (`lock.go`, flock no bloqueante
+  sobre `maly.lock`) → borrar socket + `Listen` → `library.Open` →
+  `player.Start` → sesión → MPRIS. La identidad se reclama con flock y no con
+  la heurística vieja ("si el socket no contesta, está huérfano"), que tenía dos
+  agujeros: dos demonios arrancando a la vez podían borrarse el socket el uno
+  al otro, y un demonio ocupado arrancando (esperando hasta 5 s a mpv) tampoco
+  contesta al ping aunque esté vivo. Solo CON el lock en la mano son seguras las
+  dos operaciones destructivas del arranque: borrar el socket viejo y reapear el
+  mpv viejo. El `*os.File` del lock se retiene en el struct (el lock pertenece
+  al descriptor abierto) y se cierra el ÚLTIMO en `doClose`; el archivo no se
+  borra nunca (borrar un lockfile es una carrera clásica). En `doClose`, el
+  socket se borra ANTES de cerrar el listener: al revés, otro demonio podría
+  bindear entre medias y le borraríamos el suyo.
+  `serve → handle → dispatch` (dispatch bajo `d.mu`; `handle`
   refleja mutadores a MPRIS/suscriptores y realinea la ventana gapless).
   play/add/playnow resuelven sus pistas (directorios, tags, rutas) ANTES de
   tomar `d.mu` — un `add <carpeta-grande>` bajo el lock congelaba
@@ -136,13 +152,32 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   despachan `ctrl.Do` en goroutine (en línea deadlockea vía SetMust).
   `metadataOf` es pura; el wrapper `Service.metadata` añade `artUrl` (carátula
   embebida → cache SHA-1 en runtime dir, `art.go`; la extracción vive en
-  `internal/media`).
+  `internal/media`). El cache está ACOTADO a `maxArtBytes` (32 MB) con evicción
+  FIFO: el runtime dir es tmpfs, o sea RAM compartida con todo el escritorio, y
+  antes solo se vaciaba en `close()`, que un SIGKILL o un SIGHUP nunca ejecutan.
+  Nunca se evicta la entrada más reciente (la de la pista que suena, cuya URL
+  los clientes acaban de recibir), al evictar hay que purgar también las
+  entradas del `memo` que apuntaban al archivo (es muchos-a-uno: las pistas de
+  un álbum comparten carátula), y `newArtCache` empieza vaciando el directorio
+  por si la sesión anterior murió sin limpiarlo.
 - `internal/media` — extracción compartida de lo embebido en las pistas:
   `ReadEmbedded` (carátula + letras USLT en una pasada de dhowden; OJO:
   ffmpeg escribe `-metadata lyrics=` como TXXX, no como USLT real — dhowden
   no lo ve), `DecodeImage`/`ScaleBox` (stdlib, box average) y `ParseLRC`/
   `LyricsFor` (sidecar `.lrc` con prioridad sobre las embebidas; `At < 0` =
   sin sincronía). Lo consumen mpris (artUrl) y la capa ctrl+t de la TUI.
+- `internal/safetext` — `Clean` descarta los caracteres de control (C0, DEL y
+  C1) del texto que maly NO controla. Paquete hoja propio y no una función de
+  library porque también lo usan media e ipc, y ninguno importa library
+  (arrastraría SQLite hasta mpris). Es un requisito de seguridad, no cosmética:
+  el recorte de la TUI (`reflow/truncate`) es ANSI-aware y por tanto CONSERVA
+  los escapes, así que un tag con `ESC ]0;…BEL` cambia el título de la ventana
+  y con OSC 52 escribe el portapapeles — basta con indexar un mp3 ajeno.
+  Filtra RUNAS, no bytes: quitar solo ESC dejaría pasar el CSI/OSC de 8 bits
+  (U+009B/U+009D). Descarta el carácter, no la secuencia entera (`ESC[31m` →
+  `[31m`): inelidible por construcción, y el intento queda visible. Se rechazó
+  `charmbracelet/x/ansi.Strip` para no delegar una propiedad de seguridad en
+  una librería externa.
 - `internal/tui` — Bubble Tea. Recibe estado por **suscripción push**
   (`subscribe`; fallback a polling de 500 ms con reintento). Paneles biblioteca/
   cola + consola ctrl+p (tabla propia de comandos en `console.go`, con paridad
@@ -204,6 +239,35 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   (`updAvail`, prioridad tras `verMismatch`).
 
 Decisiones transversales:
+- **El demonio y sus hijos mueren juntos.** SIGHUP se maneja explícitamente en
+  `runDaemon` y en `tui.Run` (donde llama a `p.Quit()` para que bubbletea
+  restaure el terminal): nadie lo hacía —bubbletea solo registra SIGINT y
+  SIGTERM—, así que cerrar la ventana del terminal mataba el proceso sin
+  ejecutar un solo defer, dejando mpv y pw-record huérfanos y la sesión sin su
+  guardado final. Para lo que ninguna señal puede cubrir (SIGKILL, OOM,
+  pánico), `player.Start` REAPEA por IPC al mpv que siguiera en el socket antes
+  de lanzar el suyo. NO se usa `Pdeathsig`: Go documenta que la señal se envía
+  al morir el HILO creador, no el proceso (go.dev/issue/27505), así que sin una
+  goroutine permanente con `LockOSThread` mataría mpv a mitad de canción.
+- **Ningún carácter de control llega nunca al terminal ni al bus D-Bus.** Se
+  sanea con `safetext.Clean` en DOS fronteras, y hacen falta las dos: en la
+  INGESTA (`library.ReadTags`, `media.ParseLRC` — Clean ANTES de TrimSpace, que
+  descartar controles deja espacios expuestos) y en la SALIDA de la biblioteca
+  (`library.scanTrack`, punto único por el que pasan Search/All/Get/ByPath/
+  PlaylistTracks). La de salida NO es redundante: `Scan` salta los archivos
+  cuyo mtime no cambió, así que ReadTags jamás vuelve a tocar una fila ya
+  indexada, y CLI y TUI leen la biblioteca directo de SQLite sin pasar por el
+  demonio. También se sanean `ScanResult.Errors` y los `skipped` de `ImportM3U`
+  (arrastran nombres de archivo, que son texto ajeno) y, en `ipc.Do`/`Next`,
+  `Response.Msg`/`Error`. `Track.Path` NO se sanea NUNCA: tiene que seguir
+  abriendo el archivo.
+- Ningún valor no finito llega a mpv: `NaN` sobrevive a TODA comparación
+  (`NaN < 0` y `NaN > 100` son ambos false), así que se colaba por las
+  validaciones de rango de `parseAdjust` y `d.seek` hasta `json.Marshal`, que
+  lo rechaza — y con aquel error descartado el comando se perdía y costaba 5 s
+  de timeout con `d.mu` tomado (un `maly vol NaN` congelaba el demonio entero).
+  Lo cortan `finite()` en daemon y, como última barrera, `player.command` y
+  `SetVolume`.
 - El demonio adjunta `Response.Version` en toda respuesta; CLI y TUI avisan si
   difiere del binario.
 - `config.Load()` mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del

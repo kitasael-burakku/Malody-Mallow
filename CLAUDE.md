@@ -490,3 +490,26 @@ La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del
 seek — el invariante está aplicado a medias. Sin planificar quedan los
 menores (#5 los clientes no validan el runtime dir, #8, #10-#13). El ratón
 en la TUI sigue descartado.
+
+**El aviso de `update` no aparece cuando debería** (anotado 2026-07-21 a
+raíz de la 1.6.0; el dueño lo arrastra desde hace tiempo). Al publicar el
+tag v1.6.0 no salió el aviso, pero ESE caso concreto era correcto: el
+binario ya estaba en 1.6.0 y `Newer` compara contra `version.Version`.
+Diagnóstico de esa sesión: el repo responde a `ls-remote` anónimo por
+HTTPS y el cache se refrescó bien. O sea que el problema no es la red.
+Los cuatro sospechosos reales, por orden:
+1. **El cache de 24 h se prefiere a la red** (`updateCheckCmd` en `tui.go`:
+   si `Cached()` dice fresco, ni se pregunta). Un tag publicado hace diez
+   minutos no se ve hasta 24 h después — que es EXACTAMENTE el momento en
+   que uno mira si salió el aviso.
+2. **Solo se chequea en `Init`**: una TUI abierta durante días no vuelve a
+   mirar nunca.
+3. **`verMismatch` tiene prioridad sobre `updAvail`** en el `switch` del
+   footer (`view.go`). Justo tras actualizar el binario sin reiniciar el
+   servicio —el escenario más común— el aviso de versión tapa el de
+   update: los dos colisionan precisamente cuando ambos son relevantes.
+   Y cualquier flash, `connErr` o el progreso de scan también lo pisan.
+4. **Los fallos son mudos a propósito** (sin git, sin red): "no salió el
+   aviso" y "el chequeo se rompió" son indistinguibles para el usuario.
+Impacto real bajo (el repo es de una sola persona), pero conviene decidir
+si el aviso merece su propia línea en vez de competir por el footer.

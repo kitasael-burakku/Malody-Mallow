@@ -160,8 +160,15 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   (op IPC `refresh`, best-effort: el demonio sube `libGen` y las DEMÁS
   TUIs recargan por el push; la CLI hace lo mismo tras sus 5 mutadores de
   playlist). La doble recarga de la TUI que mutó — local + push propio —
-  es redundancia aceptada. Un panel ctrl+l ya ABIERTO en otra TUI no se
-  refresca (se relee al abrirse, limitación menor). La capa "Ahora suena" (ctrl+t,
+  es redundancia aceptada. El `case libraryMsg` es el PUNTO ÚNICO de
+  refresco: reconstruye el árbol y realimenta los pickers abiertos (ctrl+l
+  con `plItems` sobre las listas que la propia recarga ya trajo — nada de
+  reconsultar la DB; ctrl+o con `songItems`). Como `buildTree` crea nodos
+  nuevos, el árbol se guarda y repone con `snapshot`/`restore` (expansión,
+  cursor por clave de nodo, filtro y scroll) o cada scan lo colapsaría y
+  saltaría al tope; y los pickers usan `setItemsKeeping`, que conserva la
+  selección POR VALOR — con el índice pelado, algo que desaparezca más
+  arriba corre la lista bajo los dedos y ctrl+x borra otra playlist. La capa "Ahora suena" (ctrl+t,
   `nowplaying.go`) es una vista fullscreen con carátula (interfaz
   `coverRenderer`, cada renderer escala a su densidad: half-blocks ANSI en
   `artrender.go`, y en kitty el protocolo gráfico vía **Unicode
@@ -361,6 +368,17 @@ comparar mensajes de error que salen de i18n y cambian con el idioma del
 proceso. `newTestDaemon` apaga `ScanDurations`: si no, en una máquina con
 ffprobe los tests que escanean miles de dummies lanzarían un proceso por
 archivo y el resultado dependería de tenerlo instalado.
+
+La **1.5.1** (2026-07-20) cerró la última limitación menor que quedaba
+anotada: el panel ctrl+l ya abierto no se enteraba de las mutaciones de
+playlists de otros clientes. El arreglo vive entero en el `case libraryMsg`
+de la TUI (detalles en su sección) y de paso quitó dos saltos visuales que
+nadie había anotado: el árbol de Biblioteca ya no se colapsa ni salta al
+tope en cada recarga, y la selección de los pickers no se corre cuando la
+lista cambia por arriba. El refresco es SILENCIOSO a propósito (decisión del
+dueño): el contenido correcto es el feedback, y los flashes se reservan para
+las acciones propias. `plActMsg` perdió su flag `reload`: con la recarga
+única ya no hacía falta.
 
 ### Post-1.0 (candidatos)
 

@@ -512,6 +512,13 @@ HEAD, tres de los cinco tests nuevos fallaban **solo por no compilar**
 prueba que el defecto estuviera. Para el pánico de #8 hubo que escribir un
 test desechable en la copia revertida que llamara al código viejo.
 
+La **1.6.2** (2026-07-22) cierra la mitad que quedaba del roce con el aviso
+de `update`: el chequeo ocurría SOLO en `Init`, así que una TUI abierta días
+no volvía a mirar nunca. `updTickCmd` lo repite cada hora y se re-arma,
+respetando `update_check`. Repetir sale barato gracias al arreglo de la
+1.6.1: cuando el cache ya anuncia algo más nuevo, `updateCheckCmd` resuelve
+sin tocar la red. Release de una sola pieza, toda dentro de `internal/tui`.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

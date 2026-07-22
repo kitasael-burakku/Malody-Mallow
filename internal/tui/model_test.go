@@ -2,6 +2,7 @@ package tui
 
 import (
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -9,6 +10,33 @@ import (
 	"maly/internal/ipc"
 	"maly/internal/library"
 )
+
+// El chequeo de update ocurría SOLO en Init: una TUI abierta días no volvía a
+// mirar nunca. Ahora un tick largo lo repite, y respeta la clave update_check.
+func TestRechequeoDeUpdate(t *testing.T) {
+	m := &Model{cfg: config.Config{UpdateCheck: true}}
+	if _, cmd := m.Update(updTickMsg(time.Now())); cmd == nil {
+		t.Error("con update_check activo el tick debe re-chequear y re-armarse")
+	}
+	m.cfg.UpdateCheck = false
+	if _, cmd := m.Update(updTickMsg(time.Now())); cmd != nil {
+		t.Error("con update_check apagado el tick no debe hacer nada")
+	}
+}
+
+// updMsg solo enciende el aviso si el release es realmente más nuevo: un
+// re-chequeo que devuelva la versión instalada no debe dejar el pie encendido.
+func TestUpdMsgSoloAvisaSiEsMasNuevo(t *testing.T) {
+	m := &Model{}
+	m.Update(updMsg{latest: "v0.0.1"})
+	if m.updAvail != "" {
+		t.Errorf("una versión vieja encendió el aviso: %q", m.updAvail)
+	}
+	m.Update(updMsg{latest: "v999.0.0"})
+	if m.updAvail != "v999.0.0" {
+		t.Errorf("una versión nueva no encendió el aviso: %q", m.updAvail)
+	}
+}
 
 // progressBar: la guarda que faltaba era la INFERIOR. Con una Duration diminuta
 // frente a Position el cociente desborda a +Inf, y int(+Inf) en amd64 da el

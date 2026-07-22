@@ -204,9 +204,21 @@ func (m *Model) Init() tea.Cmd {
 		cmds = append(cmds, vizTickCmd())
 	}
 	if m.cfg.UpdateCheck {
-		cmds = append(cmds, updateCheckCmd())
+		cmds = append(cmds, updateCheckCmd(), updTickCmd())
 	}
 	return tea.Batch(cmds...)
+}
+
+// updRecheckEvery es cada cuánto vuelve a mirar una TUI ya abierta. El chequeo
+// ocurría SOLO en Init, así que una sesión de días no se enteraba jamás de un
+// release nuevo. Una hora basta: el caso "acabo de publicar y miro enseguida"
+// ya lo cubre el arranque, que ignora el cache cuando dice que estás al día.
+const updRecheckEvery = time.Hour
+
+type updTickMsg time.Time
+
+func updTickCmd() tea.Cmd {
+	return tea.Tick(updRecheckEvery, func(t time.Time) tea.Msg { return updTickMsg(t) })
 }
 
 // updMsg trae el último release conocido ("" = no se pudo chequear).
@@ -487,6 +499,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
 		return m, m.conScan("")
+
+	case updTickMsg:
+		// Volver a mirar y re-armar el tick. Cuando el cache ya anuncia algo,
+		// updateCheckCmd resuelve sin tocar la red, así que repetir es barato.
+		if !m.cfg.UpdateCheck {
+			return m, nil
+		}
+		return m, tea.Batch(updateCheckCmd(), updTickCmd())
 
 	case updMsg:
 		if update.Newer(msg.latest, version.Version) {

@@ -586,7 +586,13 @@ no habría visto nada hasta que expirase el cache; con este, el aviso de
 `v1.6.1` salió al momento. No es la prueba de un sandbox: es el escenario
 exacto que motivó el arreglo, en la máquina del dueño.
 
-Sigue SIN tocarse, porque el dueño confirmó que no era la causa: `verMismatch`
-tiene prioridad sobre `updAvail` en el `switch` del footer (`view.go`), y
-cualquier flash, `connErr` o el progreso de scan también lo pisan. Y el
-chequeo sigue siendo solo en `Init`: una TUI abierta días no vuelve a mirar.
+La otra mitad, cerrada después: el chequeo ocurría **solo en `Init`**, así que
+una TUI abierta días no volvía a mirar nunca. Ahora `updTickCmd` lo repite
+cada `updRecheckEvery` (1 hora) y se re-arma, respetando la clave
+`update_check`. Repetir es barato: cuando el cache ya anuncia algo,
+`updateCheckCmd` resuelve sin tocar la red.
+
+Sigue SIN tocarse, porque el dueño confirmó que no era la causa de lo que le
+chirriaba: `verMismatch` tiene prioridad sobre `updAvail` en el `switch` del
+footer (`view.go`), y cualquier flash, `connErr` o el progreso de scan también
+lo pisan.

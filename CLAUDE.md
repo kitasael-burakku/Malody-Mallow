@@ -579,6 +579,13 @@ se publicó después de guardar el cache". Verificado con un A/B: con la misma
 instante. El coste es un `ls-remote` por arranque estando al día, en
 goroutine y mudo si falla.
 
+**Confirmado en producción** al publicar la 1.6.1 (2026-07-22): el dueño abrió
+la TUI antes de recompilar, con su cache real a 20,5 h de antigüedad —fresco
+bajo el TTL de 24 h— diciendo `v1.6.0`, o sea "al día". Con el código anterior
+no habría visto nada hasta que expirase el cache; con este, el aviso de
+`v1.6.1` salió al momento. No es la prueba de un sandbox: es el escenario
+exacto que motivó el arreglo, en la máquina del dueño.
+
 Sigue SIN tocarse, porque el dueño confirmó que no era la causa: `verMismatch`
 tiene prioridad sobre `updAvail` en el `switch` del footer (`view.go`), y
 cualquier flash, `connErr` o el progreso de scan también lo pisan. Y el

@@ -479,10 +479,10 @@ func (d *Daemon) notify() {
 // hace que solo se escriba una vez por pista.
 func (d *Daemon) learnDuration() {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	st := d.pl.State()
 	t, ok := d.q.Current()
 	if !ok || st.Idle || st.Duration <= 0 || abs(t.Duration-st.Duration) < 0.5 {
+		d.mu.Unlock()
 		return
 	}
 	for i := range d.q.Items {
@@ -490,8 +490,16 @@ func (d *Daemon) learnDuration() {
 			d.q.Items[i].Duration = st.Duration
 		}
 	}
-	// Fuera de la biblioteca (pista suelta por ruta) el UPDATE no toca filas.
-	d.lib.SetDuration(t.Path, st.Duration)
+	path, secs := t.Path, st.Duration
+	d.mu.Unlock()
+
+	// La escritura va FUERA de d.mu: era la única del demonio que corría con el
+	// mutex tomado, y encima se dispara en cada cambio de pista. Soltar antes no
+	// reabre nada: la guarda contra escrituras repetidas es la copia en memoria
+	// de la cola, que ya quedó actualizada arriba bajo el lock, y el UPDATE es
+	// por ruta, así que da igual qué esté sonando cuando llegue.
+	// Fuera de la biblioteca (pista suelta por ruta) no toca ninguna fila.
+	d.lib.SetDuration(path, secs)
 }
 
 func abs(v float64) float64 {

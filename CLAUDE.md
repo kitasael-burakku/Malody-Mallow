@@ -87,6 +87,9 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   `serve` intercepta `subscribe` y `shutdown` ANTES de `handle`: `shutdown`
   (op de `maly kill`) responde primero y luego llama `d.Close()` — dentro de
   `dispatch` deadlockearía con `d.mu`; `Close` es idempotente (`closeOnce`).
+  `learnDuration` aprende la duración desde mpv: muta la cola en memoria
+  bajo `d.mu` pero hace su `SetDuration` FUERA (era la única escritura a
+  SQLite bajo el mutex, y se dispara en cada cambio de pista).
   `advance(reason, chained)` es la política de avance y salto de pistas
   irreproducibles (guarda `errStreak`, silencio deliberado `stopped`).
   `scan` corre SIN `d.mu` (guarda `scanning` atómica) y sube `libGen` (la
@@ -484,12 +487,32 @@ verdad el invariante del lock.
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del
-2026-07-21. Pendiente el hallazgo **#4**: `search`, `playlist_play` y
-`learnDuration`→`SetDuration` siguen haciendo IO no acotado DENTRO de
-`d.mu`, justo lo que sacó de ahí a scan, a la resolución de pistas y a
-seek — el invariante está aplicado a medias. Sin planificar quedan los
-menores (#5 los clientes no validan el runtime dir, #8, #10-#13). El ratón
-en la TUI sigue descartado.
+2026-07-21.
+
+El hallazgo **#4** (IO no acotado dentro de `d.mu`) se **midió** antes de
+tocarlo, y la medición REFUTÓ la hipótesis del informe. Números con 40.000
+pistas: un `search` de la biblioteca entera retiene `d.mu` **96 ms** (lineal:
+5k→10 ms, 20k→48 ms) y bloquea otro tanto a un `status` concurrente. La
+hipótesis era que la contención por la ÚNICA conexión SQLite —`d.mu` →
+conexión, con el scan ocupándola— disparase eso a segundos: **con un scan
+reescribiendo las 40k filas a la vez, el peor `search` fue 112 ms**, o sea
++16 ms. Los lotes de 500 del scan hacen justo lo que promete su comentario.
+La severidad baja de Media a **Baja**, y se decidió NO sacar `search` ni
+`playlist_play` de `d.mu`: la consulta vacía (la única que recorre la
+biblioteca entera) no es alcanzable desde la UX —`maly search` y el `search`
+de la consola exigen argumentos—, `play`/`add` ya resuelven fuera del lock
+desde la 1.1.5, y `playlist_play` opera sobre listas curadas a mano.
+Reestructurar `dispatch` otra vez no compensa por ~100 ms en un caso que el
+programa no expone.
+
+Lo que sí se cerró es la única pieza que era una ESCRITURA y se disparaba
+sola: `learnDuration` hacía su `SetDuration` con `d.mu` tomado, en cada
+cambio de pista. Ahora captura ruta y duración, suelta el mutex y escribe
+fuera. La guarda contra escrituras repetidas sigue siendo la copia en
+memoria de la cola, que se actualiza bajo el lock.
+
+Sin planificar quedan los menores (#5 los clientes no validan el runtime
+dir, #8, #10-#13). El ratón en la TUI sigue descartado.
 
 **El aviso de `update` tarda demasiado en aparecer** (anotado 2026-07-21).
 OJO: **`maly update` funciona** — el aviso sale y el texto es correcto. Lo

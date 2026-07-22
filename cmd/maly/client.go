@@ -152,6 +152,7 @@ func printStatus(s *ipc.Status) {
 	}
 	if s.Track == nil {
 		fmt.Println(i18n.Tf("st.stopped", s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueLen))
+		printScanLine(s)
 		return
 	}
 	icon := "▶"
@@ -165,6 +166,26 @@ func printStatus(s *ipc.Status) {
 	fmt.Println(line)
 	fmt.Println(i18n.Tf("st.line2", ipc.FmtTime(s.Position), ipc.FmtTime(s.Duration), s.Volume,
 		ipc.OnOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen))
+	printScanLine(s)
+}
+
+// printScanLine añade una tercera línea SOLO mientras hay un escaneo en
+// vuelo, que es la única parte del estado que cambia sin que nadie toque la
+// reproducción: verla explica por qué la biblioteca todavía no muestra todo.
+// Sin scan, la salida de `maly status` queda exactamente como siempre.
+//
+// ScanTotal > 0 marca la segunda fase (duraciones con ffprobe) y entonces
+// ScanSeen significa "cuántas van del total" — mismas claves y misma lectura
+// que hace `maly scan` con los pushes del demonio.
+func printScanLine(s *ipc.Status) {
+	if !s.Scanning {
+		return
+	}
+	if s.ScanTotal > 0 {
+		fmt.Println(i18n.Tf("cli.scan_durations", s.ScanSeen, s.ScanTotal))
+		return
+	}
+	fmt.Println(i18n.Tf("cli.scan_progress", s.ScanSeen))
 }
 
 func printQueue(resp ipc.Response) {

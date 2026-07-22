@@ -311,6 +311,8 @@ maly playlist export <nombre> [archivo]   # escribe la playlist como M3U
 maly playlist import <archivo> [nombre]   # crea una playlist desde un M3U
 maly controls [default|vim]    # lista o cambia el preset de controles
 maly lang [en|es]              # cambia el idioma (sin arg abre el selector); alias -l
+maly info                      # rutas, versiones y tamaño de la biblioteca
+maly doctor                    # revisa que esté todo lo que maly necesita
 maly update                    # busca un release nuevo y corre el instalador
 maly completions <shell>       # script de autocompletado (bash | fish | zsh)
 maly version | -v              # también muestra la versión del servicio si corre
@@ -321,6 +323,13 @@ Los comandos de biblioteca (`scan`, `search`, `get` y todo `playlist` salvo
 reproducción sí lo piden: ábrelo con `maly` o `maly daemon`. Si el servicio
 está corriendo, `scan` (y el re-escaneo de `get`) pasa a través de él y toda
 TUI abierta recarga su biblioteca al instante, sin tocar nada.
+
+`maly info` y `maly doctor` también funcionan sin el servicio —que es justo
+cuando hacen falta— y sin tocar la red. `info` lista hechos: rutas, versiones,
+de dónde sale tu música y cuánta hay. `doctor` emite veredictos sobre mpv, el
+servicio, `music_dir`, la biblioteca y las herramientas opcionales (ffprobe,
+yt-dlp+ffmpeg, el visualizador, MPRIS), y sale con código 1 **solo** si algo
+impide reproducir — lo opcional que falte queda como `info`, no como error.
 
 `maly get` delega toda la interacción web en yt-dlp (como lazygit usa git):
 sin `://` busca la frase en YouTube y baja el primer resultado; con una URL

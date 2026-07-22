@@ -57,21 +57,38 @@ func New(gravity float64) *Viz {
 	return v
 }
 
+type candidate struct {
+	name string
+	args []string
+}
+
+// captureCandidates son los capturadores que se prueban, en orden. Viven fuera de
+// startCapture para que CaptureBackend pueda mirar la MISMA lista: si aquí se
+// agrega un backend, el diagnóstico se entera solo.
+var captureCandidates = []candidate{
+	// stream.capture.sink=true captura el monitor del sink por defecto.
+	{"pw-record", []string{"-P", "{ stream.capture.sink=true }",
+		"--format", "s16", "--rate", "44100", "--channels", "1", "-"}},
+	{"parec", []string{"--format=s16le", "--rate=44100", "--channels=1",
+		"-d", "@DEFAULT_MONITOR@"}},
+}
+
+// CaptureBackend devuelve el capturador que se usaría ("" = ninguno, el
+// visualizador caería en modo animación). Solo mira el PATH: no arranca nada,
+// que es lo que necesita `maly doctor`.
+func CaptureBackend() string {
+	for _, c := range captureCandidates {
+		if _, err := exec.LookPath(c.name); err == nil {
+			return c.name
+		}
+	}
+	return ""
+}
+
 // startCapture intenta pw-record y luego parec, leyendo s16le mono 44.1kHz.
 func (v *Viz) startCapture() error {
-	type candidate struct {
-		name string
-		args []string
-	}
-	candidates := []candidate{
-		// stream.capture.sink=true captura el monitor del sink por defecto.
-		{"pw-record", []string{"-P", "{ stream.capture.sink=true }",
-			"--format", "s16", "--rate", "44100", "--channels", "1", "-"}},
-		{"parec", []string{"--format=s16le", "--rate=44100", "--channels=1",
-			"-d", "@DEFAULT_MONITOR@"}},
-	}
 	var lastErr error
-	for _, c := range candidates {
+	for _, c := range captureCandidates {
 		bin, err := exec.LookPath(c.name)
 		if err != nil {
 			lastErr = err

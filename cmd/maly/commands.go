@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -65,6 +66,8 @@ var commands = []command{
 
 	{name: "controls", usage: "controls [<preset>]", descKey: "cli.controls", section: "other", run: runControls, complete: completeControls},
 	{name: "lang", aliases: []string{"-l", "--lang"}, usage: "lang [en|es], -l", descKey: "cli.lang_cmd", section: "other", run: runLang, complete: completeStatic("en", "es")},
+	{name: "info", usage: "info", descKey: "cli.info", section: "other", run: runInfo},
+	{name: "doctor", usage: "doctor", descKey: "cli.doctor", section: "other", run: runDoctor},
 	{name: "update", usage: "update", descKey: "cli.update", section: "other", run: runUpdate},
 	{name: "kill", usage: "kill", descKey: "cli.kill", section: "other", run: runKill},
 	{name: "completions", usage: "completions <shell>", descKey: "cli.completions", section: "other", run: runCompletions, complete: completeStatic(supportedShells...)},
@@ -110,22 +113,35 @@ func runHelp([]string) error {
 	return nil
 }
 
+// serviceVersion pregunta al demonio qué versión corre. ok en false significa
+// que nadie contesta en el socket, que NO es un error: version, info y doctor
+// lo reportan como un estado más. El timeout es corto a propósito, igual que
+// el de ipc.Ping: un demonio que acepta la conexión y no responde (arrancando,
+// esperando hasta 5 s a mpv) no puede colgar 30 s a quien solo pregunta.
+func serviceVersion() (ver string, ok bool) {
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		return "", false
+	}
+	defer c.Close()
+	c.Timeout = 2 * time.Second
+	resp, err := c.Do(ipc.Request{Cmd: "ping"})
+	if err != nil || !resp.OK {
+		return "", false
+	}
+	if resp.Version == "" {
+		return "< 0.5.0", true // demonios anteriores no reportan versión
+	}
+	return resp.Version, true
+}
+
 func runVersion([]string) error {
 	fmt.Println("Malody Mallow (maly) v" + version.Version)
 	// Si hay servicio corriendo, mostrar también su versión: tras actualizar
 	// el binario el demonio viejo sigue vivo y conviene enterarse.
-	c, err := ipc.Dial(config.SocketPath())
-	if err != nil {
+	svc, ok := serviceVersion()
+	if !ok {
 		return nil
-	}
-	defer c.Close()
-	resp, err := c.Do(ipc.Request{Cmd: "ping"})
-	if err != nil || !resp.OK {
-		return nil
-	}
-	svc := resp.Version
-	if svc == "" {
-		svc = "< 0.5.0" // demonios anteriores no reportan versión
 	}
 	if svc == version.Version {
 		fmt.Println(i18n.Tf("cli.version_svc", svc))

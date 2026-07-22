@@ -64,6 +64,19 @@ type Service struct {
 	last  snapshot
 }
 
+// BusAvailable dice si hay bus de sesión, o sea si MPRIS puede exportarse.
+// Existe para que `maly doctor` lo compruebe sin importar godbus ni levantar
+// un servicio: conecta y cierra, nada más. Que no lo haya NO es un error —
+// el demonio funciona igual, solo que sin playerctl ni teclas multimedia.
+func BusAvailable() bool {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
 // Start conecta al bus de sesión, exporta las interfaces MPRIS y reclama el
 // nombre. Si no hay bus (sesión headless) devuelve error y el demonio sigue
 // sin MPRIS. artDir es el directorio para el cache de carátulas embebidas

@@ -22,6 +22,11 @@ import (
 	"maly/internal/probe"
 )
 
+// errQuiet sale con código 1 sin imprimir nada. Lo devuelve `maly doctor`,
+// que ya imprimió su informe y su resumen: anteponerle otra vez "maly: N
+// errores" sería repetir lo que el usuario acaba de leer.
+var errQuiet = errors.New("")
+
 func main() {
 	// Fijar el idioma antes de imprimir nada: todo texto sale de i18n.
 	// Si el config no carga o no hay idioma elegido, queda inglés (default).
@@ -58,7 +63,9 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "maly: %v\n", err)
+		if !errors.Is(err, errQuiet) {
+			fmt.Fprintf(os.Stderr, "maly: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }

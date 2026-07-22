@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"maly/internal/i18n"
 	"maly/internal/safetext"
@@ -29,7 +30,23 @@ func (l *Library) ExportM3U(name, path string) (int, error) {
 		}
 		fmt.Fprintf(&b, "#EXTINF:%d,%s\n%s\n", secs, t.String(), t.Path)
 	}
-	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+	// O_NOFOLLOW y 0600: una playlist es del mismo tipo de dato que la sesión o
+	// la base —revela qué escuchas— y el destino suele ser el cwd, que puede
+	// ser un directorio compartido. Que la decisión de seguir o no un symlink
+	// la tome el kernel dentro del propio open cierra además el TOCTOU con el
+	// os.Stat de la CLI, que media una pregunta al usuario y dura segundos.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|syscall.O_NOFOLLOW, 0o600)
+	if err != nil {
+		return 0, err
+	}
+	// El modo solo se aplica al CREAR: si el archivo ya existía con permisos
+	// laxos, hay que apretarlo a mano.
+	f.Chmod(0o600)
+	if _, err := f.WriteString(b.String()); err != nil {
+		f.Close()
+		return 0, err
+	}
+	if err := f.Close(); err != nil {
 		return 0, err
 	}
 	return len(tracks), nil

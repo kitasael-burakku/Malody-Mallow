@@ -13,6 +13,10 @@ import (
 	"maly/internal/safetext"
 )
 
+// maxLyricsBytes acota lo que se lee de una letra. Un megabyte son decenas de
+// miles de líneas: cualquier canción real cabe de sobra.
+const maxLyricsBytes = 1 << 20
+
 // LyricLine es una línea de letra; At es el instante en segundos en que
 // empieza, o negativo si la línea no trae marca de tiempo (letra sin
 // sincronía).
@@ -42,7 +46,10 @@ func ParseLRC(r io.Reader) []LyricLine {
 		offsetMS int
 		timed    bool
 	)
-	sc := bufio.NewScanner(r)
+	// El LimitReader acota el TOTAL; el buffer de abajo solo acota cada línea,
+	// y sin tope de cuántas hay un .lrc corrupto de cientos de MB se
+	// materializaba entero como []LyricLine y congelaba la TUI al abrir ctrl+t.
+	sc := bufio.NewScanner(io.LimitReader(r, maxLyricsBytes))
 	// Más holgura que los 64 KB por defecto: una línea que se pase del
 	// buffer abortaría el Scan en silencio y truncaría las letras.
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)

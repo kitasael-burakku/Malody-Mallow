@@ -192,15 +192,7 @@ func (m *Model) npMeta(w int) []string {
 	}
 	lines = append(lines, m.st.playing.Render(icon)+" "+
 		m.st.text.Render(ipc.FmtTime(s.Position)+" / "+ipc.FmtTime(s.Duration)))
-	filled := 0
-	if s.Duration > 0 {
-		filled = int(s.Position / s.Duration * float64(w))
-		if filled > w {
-			filled = w
-		}
-	}
-	lines = append(lines,
-		m.st.accent.Render(strings.Repeat("━", filled))+m.st.dim.Render(strings.Repeat("─", w-filled)))
+	lines = append(lines, m.progressBar(s.Position, s.Duration, w))
 	return lines
 }
 

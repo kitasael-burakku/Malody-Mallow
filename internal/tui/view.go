@@ -348,16 +348,35 @@ func (m *Model) nowPanel(w, h int) string {
 		left := " " + m.st.playing.Render(icon) + " " + m.st.text.Bold(true).Render(clip(name, innerW-rightW-4))
 		line1 = padTo(left, innerW-rightW) + right
 
-		filled := 0
-		if s.Duration > 0 {
-			filled = int(s.Position / s.Duration * float64(innerW))
-			if filled > innerW {
-				filled = innerW
-			}
-		}
-		line2 = m.st.accent.Render(strings.Repeat("━", filled)) + m.st.dim.Render(strings.Repeat("─", innerW-filled))
+		line2 = m.progressBar(s.Position, s.Duration, innerW)
 	}
 	return m.st.panel(i18n.T("tui.now_title"), []string{line1, line2}, w, h, false)
+}
+
+// progressBar dibuja la barra de reproducción en w columnas. Fuente única: la
+// usan el panel "Ahora suena" del layout normal y la capa ctrl+t, que tenían el
+// cálculo duplicado letra por letra.
+//
+// El clamp INFERIOR no es decorativo. Si Duration es diminuta frente a Position
+// el cociente desborda a +Inf, y `int(+Inf)` en amd64 da el mínimo de int64: un
+// número negativo que no supera w y llegaba tal cual a strings.Repeat, que
+// entra en pánico con conteos negativos y se llevaba la TUI por delante.
+func (m *Model) progressBar(pos, dur float64, w int) string {
+	if w < 0 {
+		w = 0
+	}
+	filled := 0
+	if dur > 0 {
+		filled = int(pos / dur * float64(w))
+	}
+	if filled > w {
+		filled = w
+	}
+	if filled < 0 {
+		filled = 0
+	}
+	return m.st.accent.Render(strings.Repeat("━", filled)) +
+		m.st.dim.Render(strings.Repeat("─", w-filled))
 }
 
 func (m *Model) footer() string {

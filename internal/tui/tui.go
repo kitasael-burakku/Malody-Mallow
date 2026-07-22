@@ -217,7 +217,14 @@ type updMsg struct{ latest string }
 // sin git o sin red simplemente no hay aviso.
 func updateCheckCmd() tea.Cmd {
 	return func() tea.Msg {
-		if latest, fresh := update.Cached(); fresh {
+		// El cache solo vale cuando YA anuncia algo más nuevo. Si dice que
+		// estás al día puede ser simplemente que el tag se publicara después de
+		// guardarlo, y ese es justo el momento en que uno mira si salió el
+		// aviso: con un TTL de 24 h, esperar tanto desentona con el resto de la
+		// TUI, donde todo tiene feedback en vivo (push, libGen, progreso de
+		// scan). El coste es un ls-remote por arranque estando al día, en
+		// goroutine y mudo si falla.
+		if latest, fresh := update.Cached(); fresh && update.Newer(latest, version.Version) {
 			return updMsg{latest: latest}
 		}
 		latest, err := update.Latest()

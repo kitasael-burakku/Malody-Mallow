@@ -511,32 +511,47 @@ cambio de pista. Ahora captura ruta y duración, suelta el mutex y escribe
 fuera. La guarda contra escrituras repetidas sigue siendo la copia en
 memoria de la cola, que se actualiza bajo el lock.
 
-Sin planificar quedan los menores (#5 los clientes no validan el runtime
-dir, #8, #10-#13). El ratón en la TUI sigue descartado.
+Los menores se cerraron en una cuarta tanda: **#5** (`main` valida el runtime
+dir con `EnsureRuntimeDir` antes del dispatch — un solo punto cubre los
+catorce sitios que usan `SocketPath`, porque todos cuelgan de ahí), **#8**
+(la barra de progreso estaba duplicada en `nowPanel` y `npMeta` y le faltaba
+la guarda INFERIOR: con `Duration` diminuta el cociente desborda a `+Inf` y
+`int(+Inf)` da el mínimo de int64, que llegaba a `strings.Repeat` y lo hacía
+entrar en pánico; ahora es `Model.progressBar`, fuente única), **#10**
+(`ExportM3U` con `O_NOFOLLOW` y 0600), **#11** (`saveKey` por tmp+rename),
+**#12** (cota en `ParseLRC` y en `loadLogoArt`) y **#13** (`doClose` espera
+al scan en vuelo, acotado a 5 s).
 
-**El aviso de `update` tarda demasiado en aparecer** (anotado 2026-07-21).
-OJO: **`maly update` funciona** — el aviso sale y el texto es correcto. Lo
-que chirría es la LATENCIA, y es una expectativa rota, no un defecto:
-publicas un tag, miras a los 20 s o al minuto, y todavía no está.
+**Cerrado por documentación, sin código** —mismo criterio que con #4—: el
+tope de conexiones concurrentes y la cota de `req.Paths` (#12), y el rollback
+de las mutaciones de `dispatch` ante fallo del player (#13). El atacante de
+esos vectores es del mismo UID, o sea que ya tiene la cuenta, y el rollback
+exigiría tocar `dispatch` por tercera vez. Tampoco se toca el "lost update"
+de dos TUIs guardando config a la vez.
 
-Causa, confirmada leyendo el código: `updateCheckCmd` (`tui.go`) consulta
-`update.Cached()` PRIMERO y, si el cache sigue fresco, ni pregunta a la
-red — y el TTL es de 24 h. Encima solo se chequea en `Init`, así que una
-TUI ya abierta no vuelve a mirar nunca. En la sesión de la 1.6.0 se
-descartó todo lo demás: el repo responde a `ls-remote` anónimo por HTTPS y
-el cache se refrescó bien; la red no tiene nada que ver.
+Dos cambios de comportamiento que conviene recordar: con un runtime dir no
+fiable **fallan TODOS los comandos**, incluidos `help` y el `__complete` de
+cada TAB (es lo buscado: solo pasa si algo va mal de verdad); y `playlist
+export` ya **no escribe a través de un symlink** (solo afecta al componente
+final de la ruta; un directorio enlazado sigue valiendo).
 
-Lo que lo hace notar (palabras del dueño): **casi todo lo demás en la TUI
-tiene feedback real** —push de suscripción, `libGen`, progreso de scan—,
-así que un aviso que puede tardar 24 h rompe la expectativa que el propio
-programa ha creado. El cache existe por una razón buena (no ir a la red en
-cada arranque de la TUI); la pregunta al retomarlo es si 24 h es el número
-correcto, o si conviene ir a la red igualmente cuando el valor cacheado
-coincide con la versión instalada, que es justo el caso "acabo de publicar".
+El ratón en la TUI sigue descartado.
 
-Aparte, dos cosas que PODRÍAN tapar el aviso aunque llegue a tiempo (no son
-la causa de lo anterior, pero están en el mismo camino): `verMismatch`
-tiene prioridad sobre `updAvail` en el `switch` del footer (`view.go`) —
-colisionan justo tras actualizar el binario sin reiniciar el servicio—, y
-cualquier flash, `connErr` o el progreso de scan también lo pisan.
-Impacto real bajo: el repo es de una sola persona.
+**Latencia del aviso de `update`: ARREGLADO** (anotado y cerrado el
+2026-07-21). Nunca fue un fallo —`maly update` funcionaba y el aviso salía—,
+sino latencia: `updateCheckCmd` consultaba `update.Cached()` primero y, con
+el cache fresco, ni preguntaba a la red, con un TTL de 24 h. Publicabas un
+tag, mirabas al minuto y no estaba, mientras el resto de la TUI da feedback
+en vivo (push, `libGen`, progreso de scan).
+
+Ahora el cache se honra **solo cuando ya anuncia algo más nuevo**: si dice
+que estás al día se pregunta igualmente, porque ese es justo el caso "el tag
+se publicó después de guardar el cache". Verificado con un A/B: con la misma
+`update.json` fresca, el código viejo no mostraba nada y el nuevo anuncia al
+instante. El coste es un `ls-remote` por arranque estando al día, en
+goroutine y mudo si falla.
+
+Sigue SIN tocarse, porque el dueño confirmó que no era la causa: `verMismatch`
+tiene prioridad sobre `updAvail` en el `switch` del footer (`view.go`), y
+cualquier flash, `connErr` o el progreso de scan también lo pisan. Y el
+chequeo sigue siendo solo en `Init`: una TUI abierta días no vuelve a mirar.

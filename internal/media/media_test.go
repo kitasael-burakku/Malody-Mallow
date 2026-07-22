@@ -1,6 +1,7 @@
 package media
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -109,6 +110,25 @@ func TestParseLRCSaneaControles(t *testing.T) {
 	plana := ParseLRC(strings.NewReader("solo\x1b]0;HACK\x07texto\n"))
 	if len(plana) != 1 || plana[0].Text != "solo]0;HACKtexto" {
 		t.Errorf("letra plana = %+v", plana)
+	}
+}
+
+// Un .lrc corrupto de cientos de MB junto a una pista se materializaba entero
+// como []LyricLine y congelaba la TUI al abrir ctrl+t: el buffer del Scanner
+// acota la LÍNEA, no cuántas hay.
+func TestParseLRCAcotado(t *testing.T) {
+	var b strings.Builder
+	for i := 0; b.Len() < maxLyricsBytes*2; i++ {
+		fmt.Fprintf(&b, "[00:%02d.00]linea numero %d de relleno\n", i%60, i)
+	}
+	escritas := strings.Count(b.String(), "\n")
+
+	got := ParseLRC(strings.NewReader(b.String()))
+	if len(got) == 0 {
+		t.Fatal("no parseó nada")
+	}
+	if len(got) >= escritas {
+		t.Errorf("devolvió %d líneas de %d escritas: no se acotó", len(got), escritas)
 	}
 }
 

@@ -299,6 +299,33 @@ language = "no-soy-esa"
 }
 
 // TestValidHex: solo #rrggbb exacto pasa.
+// saveKey reescribía el config ENTERO con un WriteFile que trunca primero: un
+// corte a mitad se llevaba tema, keybindings y music_dir. Ahora va por
+// tmp+rename, así que no puede quedar un temporal suelto ni perderse el modo.
+func TestSaveKeyAtomico(t *testing.T) {
+	path := env(t)
+	if _, err := Load(); err != nil { // crea el config por defecto
+		t.Fatal(err)
+	}
+	if err := SaveLanguage("es"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path + ".tmp"); err == nil {
+		t.Error("saveKey dejó un .tmp detrás")
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Errorf("config tras saveKey: %o, quería 0600", fi.Mode().Perm())
+	}
+	cfg, err := Load()
+	if err != nil || cfg.Language != "es" {
+		t.Fatalf("la clave no sobrevivió: %q, %v", cfg.Language, err)
+	}
+}
+
 func TestValidHex(t *testing.T) {
 	for s, want := range map[string]bool{
 		"#7ab8b8": true, "#FFFFFF": true, "#000000": true,
@@ -467,6 +494,19 @@ func TestLoadLogoArt(t *testing.T) {
 	}
 	if len(cfg.Theme.LogoArt) != maxLogoArt {
 		t.Fatalf("arte desmedido debía recortarse a %d, hubo %d", maxLogoArt, len(cfg.Theme.LogoArt))
+	}
+
+	// Un logo.txt enorme ya no se carga entero en memoria para tirar casi todo:
+	// la lectura está acotada y el resultado sigue saliendo bien.
+	enorme := strings.Repeat("MALODY\n", maxLogoArtBytes/2)
+	if err := os.WriteFile(LogoArtPath(), []byte(enorme), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cfg, err = Load(); err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Theme.LogoArt) != maxLogoArt {
+		t.Fatalf("logo.txt enorme debía recortarse a %d, hubo %d", maxLogoArt, len(cfg.Theme.LogoArt))
 	}
 }
 

@@ -216,6 +216,15 @@ func (d *Daemon) doClose() {
 	d.ln.Close()
 	d.pl.Close()
 	os.Remove(filepath.Join(config.RuntimeDir(), "mpv.sock"))
+	// Esperar al scan en vuelo antes de cerrar la base: si no, sus últimas
+	// escrituras fallan con "database is closed" y el usuario ve errores
+	// espurios al apagar. La espera está acotada porque Scan no admite
+	// cancelación: uno largo la agotará y se cortará igual que antes, pero los
+	// cortos —que son casi todos— terminan limpios. A cambio, un `maly kill`
+	// lanzado en pleno escaneo puede tardar hasta estos 5 s.
+	for i := 0; i < 100 && d.scanning.Load(); i++ {
+		time.Sleep(50 * time.Millisecond)
+	}
 	d.lib.Close()
 	// El lock, lo último: mientras lo tengamos, nadie puede arrancar y
 	// encontrarse el desmontaje a medias. Cerrar el archivo libera el flock; el

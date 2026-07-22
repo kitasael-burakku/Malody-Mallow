@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -428,7 +429,7 @@ func Load() (cfg Config, retErr error) {
 		if mkErr := os.MkdirAll(ConfigDir(), 0o700); mkErr != nil {
 			return cfg, fmt.Errorf("%s: %w", i18n.Tf("lib.mkdir", ConfigDir()), mkErr)
 		}
-		if wErr := os.WriteFile(path, []byte(defaultConfigTOML()), 0o600); wErr != nil {
+		if wErr := writeAtomic(path, []byte(defaultConfigTOML())); wErr != nil {
 			return cfg, fmt.Errorf("%s: %w", i18n.T("cfg.write_default"), wErr)
 		}
 		return cfg, nil
@@ -456,11 +457,22 @@ func LogoArtPath() string { return filepath.Join(ConfigDir(), "logo.txt") }
 // coma el layout de la TUI.
 const maxLogoArt = 12
 
+// maxLogoArtBytes acota la LECTURA de logo.txt; maxLogoArt acota las líneas que
+// se conservan, pero antes se leía el archivo entero para luego tirar casi todo.
+const maxLogoArtBytes = 64 << 10
+
 // loadLogoArt lee logo.txt y devuelve sus líneas listas para el banner: sin
 // \r, sin líneas vacías al final y recortado a maxLogoArt. Cualquier problema
 // (no existe, ilegible, vacío) → nil = arte de fábrica, en silencio.
 func loadLogoArt() []string {
-	data, err := os.ReadFile(LogoArtPath())
+	f, err := os.Open(LogoArtPath())
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	// Acotado: el arte se recorta a maxLogoArt líneas de todas formas, así que
+	// no hay motivo para cargar en memoria un archivo de tamaño desconocido.
+	data, err := io.ReadAll(io.LimitReader(f, maxLogoArtBytes))
 	if err != nil {
 		return nil
 	}
@@ -602,5 +614,24 @@ func saveKey(section, key, rawValue string) error {
 	if err := os.MkdirAll(ConfigDir(), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600)
+	return writeAtomic(path, []byte(strings.Join(lines, "\n")))
+}
+
+// writeAtomic escribe vía tmp + rename para que un corte a mitad (disco lleno,
+// OOM, apagón) no deje el archivo truncado. saveKey reescribía el config ENTERO
+// con un WriteFile que trunca primero, así que un fallo ahí se llevaba tema,
+// keybindings y music_dir por delante. Mismo patrón que saveSession
+// (internal/daemon/session.go) y SaveCache (internal/update/update.go), que ya
+// lo hacían; se mantiene inline en cada paquete porque extraerlo pediría otro
+// paquete hoja para ocho líneas.
+func writeAtomic(path string, data []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
 }

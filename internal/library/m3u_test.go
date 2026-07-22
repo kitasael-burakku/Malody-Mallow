@@ -39,6 +39,62 @@ func plPaths(t *testing.T, lib *Library, name string) []string {
 	return paths
 }
 
+// La playlist exportada revela qué escuchas, igual que la sesión o la base:
+// 0600, no 0644. Y el destino suele ser el cwd, que puede ser un directorio
+// compartido, así que no se escribe a través de un symlink.
+func TestExportM3UPermisosYSymlink(t *testing.T) {
+	lib, tracks := m3uLib(t, 3)
+	if err := lib.CreatePlaylist("favs"); err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.AddToPlaylist("favs", []int64{tracks[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+
+	destino := filepath.Join(dir, "favs.m3u")
+	if _, err := lib.ExportM3U("favs", destino); err != nil {
+		t.Fatal(err)
+	}
+	fi, err := os.Stat(destino)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o600 {
+		t.Errorf("m3u exportado: %o, quería 0600", fi.Mode().Perm())
+	}
+
+	// Un archivo que ya existía con permisos laxos también se aprieta.
+	laxo := filepath.Join(dir, "laxo.m3u")
+	if err := os.WriteFile(laxo, []byte("viejo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.ExportM3U("favs", laxo); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(laxo); err != nil {
+		t.Fatal(err)
+	} else if fi.Mode().Perm() != 0o600 {
+		t.Errorf("m3u preexistente: %o, quería 0600", fi.Mode().Perm())
+	}
+
+	// Symlink: debe fallar sin tocar el destino apuntado.
+	victima := filepath.Join(dir, "victima.txt")
+	if err := os.WriteFile(victima, []byte("intacto"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	enlace := filepath.Join(dir, "trampa.m3u")
+	if err := os.Symlink(victima, enlace); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.ExportM3U("favs", enlace); err == nil {
+		t.Error("exportar sobre un symlink debía fallar")
+	}
+	if data, err := os.ReadFile(victima); err != nil || string(data) != "intacto" {
+		t.Errorf("se escribió a través del symlink: %q, %v", data, err)
+	}
+}
+
 func TestM3URoundTrip(t *testing.T) {
 	lib, tracks := m3uLib(t, 4)
 

@@ -29,6 +29,18 @@ func main() {
 		i18n.Set(cfg.Language)
 	}
 
+	// El runtime dir hospeda los sockets: validarlo ANTES de hablar con
+	// ninguno. Solo lo hacía el demonio, así que un cliente podía acabar
+	// conectado al socket que otro usuario hubiera precreado en el /tmp del
+	// fallback (sin XDG_RUNTIME_DIR la ruta es predecible y el directorio es de
+	// escritura global). Un único punto cubre los catorce sitios que usan
+	// SocketPath: todos cuelgan de este main. Crear el dir 0700 impide además
+	// la precreación hostil. daemon.New lo sigue llamando; es idempotente.
+	if _, err := config.EnsureRuntimeDir(); err != nil {
+		fmt.Fprintf(os.Stderr, "maly: %v\n", err)
+		os.Exit(1)
+	}
+
 	args := os.Args[1:]
 	cmd := ""
 	if len(args) > 0 {

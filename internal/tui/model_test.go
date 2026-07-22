@@ -3,9 +3,45 @@ package tui
 import (
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+
+	"maly/internal/config"
 	"maly/internal/ipc"
 	"maly/internal/library"
 )
+
+// progressBar: la guarda que faltaba era la INFERIOR. Con una Duration diminuta
+// frente a Position el cociente desborda a +Inf, y int(+Inf) en amd64 da el
+// mínimo de int64 — un negativo que no supera w y llegaba tal cual a
+// strings.Repeat, que entra en pánico con conteos negativos y se llevaba la TUI.
+func TestProgressBarValoresPatologicos(t *testing.T) {
+	m := &Model{st: newStyles(config.Theme{})}
+	const w = 40
+	casos := []struct {
+		nombre   string
+		pos, dur float64
+	}{
+		{"cociente desbordado a +Inf", 1e308, 1e-300},
+		{"posición mayor que la duración", 500, 10},
+		{"duración cero", 5, 0},
+		{"duración negativa", 5, -1},
+		{"posición negativa", -5, 10},
+		{"normal, a la mitad", 50, 100},
+		{"al principio", 0, 100},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			got := m.progressBar(c.pos, c.dur, w) // no debe entrar en pánico
+			if n := lipgloss.Width(got); n != w {
+				t.Errorf("ancho = %d, quería exactamente %d", n, w)
+			}
+		})
+	}
+	// Ancho degenerado: tampoco puede reventar.
+	if got := m.progressBar(5, 10, 0); lipgloss.Width(got) != 0 {
+		t.Errorf("con w=0 debía salir vacío, salió %q", got)
+	}
+}
 
 // TestVisibleQueue: el filtro de la cola devuelve índices reales (no
 // posiciones filtradas) y es fold-aware como todo lo demás.

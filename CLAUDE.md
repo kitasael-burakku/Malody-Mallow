@@ -484,6 +484,34 @@ pagó: dos de los tests de arranque pasaban también sin el arreglo, así que
 se añadió `TestNoRoboElSocketDeUnDemonioArrancando`, el único que encoda de
 verdad el invariante del lock.
 
+La **1.6.1** (2026-07-22) cierra la auditoría: deja sus trece hallazgos a
+cero, seis con código y el resto documentados con el motivo. Es un parche y
+no una tanda nueva, de ahí el número.
+
+Trae dos cosas. La primera, el **hallazgo #4 resuelto midiendo antes de
+tocar**, y la medición REFUTÓ la hipótesis del informe: con 40.000 pistas un
+`search` de la biblioteca entera retiene `d.mu` 96 ms, y con un scan
+reescribiendo esas mismas 40.000 filas a la vez el peor caso fue 112 ms — la
+contención por la única conexión SQLite añade 16 ms, no segundos. Los lotes
+de 500 del scan hacen lo que promete su comentario. Por eso `search` y
+`playlist_play` se quedaron DENTRO del mutex (detalles y números en la
+sección de candidatos) y solo se sacó `learnDuration`, que era la única
+escritura y la única que se dispara sola.
+
+La segunda, la **tanda 4 con los menores**: #5, #8, #10, #11, #12 y #13, más
+la latencia del aviso de `update`. El de más enjundia fue #8: la barra de
+progreso estaba duplicada letra por letra en `nowPanel` y `npMeta` y le
+faltaba la guarda inferior, así que una `Duration` diminuta desbordaba el
+cociente a `+Inf` y `strings.Repeat` entraba en pánico; se reprodujo el
+pánico contra el código viejo antes de arreglarlo. Quedó como
+`Model.progressBar`, fuente única.
+
+Lección de verificación que dejó esta release: al revertir producción desde
+HEAD, tres de los cinco tests nuevos fallaban **solo por no compilar**
+(funciones y constantes que no existen en HEAD). Eso es señal DÉBIL: no
+prueba que el defecto estuviera. Para el pánico de #8 hubo que escribir un
+test desechable en la copia revertida que llamara al código viejo.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

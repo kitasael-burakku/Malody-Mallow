@@ -54,6 +54,16 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   dhowden lee sus ID3 en el scan y la miniatura APIC es justo lo que
   `mpris:artUrl` extrae. Tests sin red con un yt-dlp falso en el PATH
   (`get_test.go`, mismo patrón que el mpv falso de `player_test.go`).
+  `info.go` y `doctor.go` son el diagnóstico, y la división entre ambos es el
+  contrato de salida: `info` lista HECHOS (rutas, versiones, música,
+  biblioteca, config) y sale siempre 0; `doctor` emite VEREDICTOS y sale 1
+  solo si algo impide reproducir. Ninguno necesita demonio ni red — es la
+  condición para que sirvan de algo — y ninguno duplica detección: reusan
+  `getter.Tools`, `probe.Available`, `viz.CaptureBackend`,
+  `mpris.BusAvailable`, `MusicDirOrigin` y `update.Cached`. `libraryStats`
+  (en `info.go`, compartido con doctor) abre por `openLibraryIfExists`
+  porque `library.Open` crearía la base. Ver el detalle y sus invariantes en
+  la 1.7.0 del roadmap.
 - `internal/ipc` — protocolo (Request/Response/Status/TrackInfo), cliente, y
   `display.go` con los helpers de presentación compartidos (`TrackInfo.String`,
   `FmtTime`, `OnOff`) — no re-armar "Artista — Título" a mano.
@@ -518,6 +528,63 @@ no volvía a mirar nunca. `updTickCmd` lo repite cada hora y se re-arma,
 respetando `update_check`. Repetir sale barato gracias al arreglo de la
 1.6.1: cuando el cache ya anuncia algo más nuevo, `updateCheckCmd` resuelve
 sin tocar la red. Release de una sola pieza, toda dentro de `internal/tui`.
+
+La **1.7.0** (2026-07-22) agrega los dos comandos de diagnóstico, `maly info`
+y `maly doctor`, más el avance del scan en `maly status`. Salió de una
+revisión de diseño sobre cuatro propuestas, de las que se rechazaron dos y
+conviene que quede escrito por qué: **`maly report`** era `info` + `doctor`
+con un marco para pegar, y la salida de `info` ya es pegable porque lipgloss
+se apaga fuera del tty (además, un comando cuyo propósito es producir un
+volcado público roza el motivo por el que config/sesión/DB son 0600: la
+biblioteca revela hábitos de escucha); y **`status --verbose`** chocaba con
+que `-v` YA es alias de `version`, y con que esos datos son estado de la
+instalación y no de la reproducción — la partición que mpc resolvió en su
+día con `status` y `stats` por separado.
+
+`info` lista hechos y `doctor` emite veredictos: son contratos de salida
+distintos y por eso son dos comandos (docker info / brew doctor), aunque
+compartan casi todos los datos. Los dos funcionan SIN demonio y sin red, que
+es cuando de verdad se consultan, y ninguno reimplementa nada: tiran de
+`getter.Tools`, `probe.Available`, `p.no_mpv`, `MusicDirOrigin` y
+`update.Cached`. Solo `mpv` ausente es `fail` y solo `fail` cambia el código
+de salida; lo que maly degrada en silencio queda en `info`, siguiendo la
+línea que ya fijó `internal/probe` ("la ausencia NO es un error"). El
+detector de capturador y el del bus de sesión se exportaron a sus paquetes
+(`viz.CaptureBackend`, `mpris.BusAvailable`, hermanas de `probe.Available`)
+para no repetir nombres de binarios ni importar godbus desde `cmd/maly`.
+
+Tres invariantes de esta tanda, cada uno por una razón que muerde:
+
+- **`doctor` NO toca el flock.** Un intento no bloqueante que TUVIERA éxito
+  lo retendría un instante, y un `maly daemon` arrancando en esa ventana
+  moriría con `ErrAlreadyRunning`. Se pregunta por el socket y punto; por eso
+  el texto dice "no responde" y no "no corre" (un demonio esperando hasta 5 s
+  a mpv tampoco contesta). Verificado con 40 `doctor` en paralelo contra un
+  demonio arrancando.
+- **`libraryStats` abre por `openLibraryIfExists`.** `library.Open` CREARÍA
+  la base: un diagnóstico que la fabrica vacía y luego reporta 0 pistas se
+  estaría diagnosticando a sí mismo. Mismo motivo que en las completions.
+- **`checkUpdate` lee solo el cache.** Nada de `update.Latest()`: un doctor
+  que se va diez segundos a `git ls-remote` deja de servir justo cuando algo
+  va mal.
+
+Detalles menores que costarían un rato redescubrir: las etiquetas de las
+columnas van SIN color porque `text/tabwriter` mide en runas y los escapes
+ANSI le falsean el ancho (la última celda sí puede llevarlo, que a esa no le
+añade relleno); `errQuiet` en `main.go` sale con código 1 sin imprimir nada,
+porque `doctor` ya escribió su informe y su resumen; y `serviceVersion` se
+extrajo de `runVersion` para que `version`, `info` y `doctor` compartan una
+sola copia, con timeout de 2 s como `ipc.Ping` (antes `maly version` podía
+colgarse 30 s contra un demonio que acepta y no contesta). La línea de scan
+en `status` se imprime SOLO con un scan en vuelo y reusa las claves de
+`maly scan`: sin scan, la salida queda exactamente como siempre, que era la
+condición para no romper a quien la parsea.
+
+No se hizo, y es deliberado: salida JSON (no hay parser de flags en la CLI
+—`-v`/`-l`/`-h` son COMANDOS— y el scripting de reproducción ya lo cubre
+MPRIS; el API de máquina de `doctor` es su código de salida) y paridad en la
+consola ctrl+p (que nunca fue espejo estricto: ya tiene `cls`, `viz`, `logo`
+y `quit`, y le faltan `select` y `completions`).
 
 ### Post-1.0 (candidatos)
 

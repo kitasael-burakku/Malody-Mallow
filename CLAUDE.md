@@ -586,6 +586,34 @@ MPRIS; el API de máquina de `doctor` es su código de salida) y paridad en la
 consola ctrl+p (que nunca fue espejo estricto: ya tiene `cls`, `viz`, `logo`
 y `quit`, y le faltan `select` y `completions`).
 
+Sobre 1.7.0, sin bump de versión (es un cambio solo del instalador, sin
+tocar el binario), `mallow-install.sh` pasó a compilar el **último tag
+estable por defecto** en vez de `main` — salió de una revisión de diseño con
+auditoría de seguridad completa del script. `--main` pide explícitamente la
+rama de desarrollo; `--ref=<x>` sigue con máxima prioridad e ignora ambos
+(así `maly update`, que siempre lo pasó explícito, no cambió). El tag se
+resuelve con una función `latest_tag()` nueva que filtra y compara
+`git ls-remote --tags --refs` vía `awk`, no en sh puro: ahí "0" es un valor
+legítimo de versión (`v1.0.0`) y el pelado de ceros líderes que ya usa
+`ytdlp_stale` para `$(( ))` se rompería con eso. Nueva pantalla de wizard
+"fuente" entre ámbito y dependencias, con el mismo patrón de `menu` que las
+demás. La auditoría no encontró nada crítico (el modelo de amenaza es
+ejecución local, mismo UID; la brecha real es que los tags no están
+firmados, y firmar el bootstrap `curl | sh` no cierra eso — la clave viajaría
+del mismo GitHub que ya se está confiando), así que se cerraron los dos
+hallazgos con sustancia: sin `sha256sum` NI `shasum -a 256` el tarball de Go
+ya no se extrae en silencio (confirma con terminal, aborta sin ella), y el
+tag resuelto se valida por patrón antes de llegar a `--branch`. Firma de
+releases (se estudió minisign vs GPG) queda fuera, deliberadamente: solo
+aportaría de verdad ya con el binario instalado verificando en `maly update`
+con una clave embebida en compilación, no en el propio arranque — eso exige
+un proceso de release nuevo y se deja como iniciativa aparte, no parte de
+este cambio. Efecto colateral encontrado en la prueba en vivo: clonar un tag
+anotado con `--depth=1` (antes un caso raro de `--ref`, ahora el camino por
+defecto de cualquier instalación) hace que git imprima un aviso inofensivo
+("… is not a commit!") que ensuciaba el spinner; el stderr del clonado ahora
+va a un archivo temporal y solo se muestra si el clonado FALLA de verdad.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

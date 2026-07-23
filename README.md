@@ -92,26 +92,32 @@ curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main
 
 El instalador es un wizard interactivo con el banner MALODY en degradado:
 eliges la acción (instalar, actualizar o desinstalar), el ámbito (usuario o
-sistema) y qué dependencias instalar en un checklist, navegando con
-`↑↓`/`jk` y marcando con espacio (si el terminal no da modo crudo, cae al
-modo numérico de siempre) — `mpv` y `git` vienen marcados; `yt-dlp`+`ffmpeg`
-(para `maly get`) y el visualizador son opcionales y arrancan desmarcados.
-Los pasos largos (clonar, compilar) laten con un spinner y el tiempo
-transcurrido.
+sistema), la fuente (último tag estable o `main`) y qué dependencias instalar
+en un checklist, navegando con `↑↓`/`jk` y marcando con espacio (si el
+terminal no da modo crudo, cae al modo numérico de siempre) — `mpv` y `git`
+vienen marcados; `yt-dlp`+`ffmpeg` (para `maly get`) y el visualizador son
+opcionales y arrancan desmarcados. Los pasos largos (clonar, compilar) laten
+con un spinner y el tiempo transcurrido.
 Detecta tu gestor de paquetes (pacman, apt, dnf, zypper, xbps); en
 Debian/Ubuntu `yt-dlp` se instala vía `pipx` porque el del repo es viejo y
 ya no descarga de YouTube. Si el Go de tu distro no llega al mínimo, ofrece
 bajar el toolchain oficial de go.dev (verificado con su SHA-256) a
-`~/.cache/mallow` — solo para compilar, sin tocar el sistema. Compila desde
-`main`, instala en `~/.local/bin` y deja las completions de tu shell. Nada
-se instala sin preguntar; sin terminal corre entero con los defaults.
+`~/.cache/mallow` — solo para compilar, sin tocar el sistema. Por defecto
+compila el **último tag estable**, instala en `~/.local/bin` y deja las
+completions de tu shell. Nada se instala sin preguntar; sin terminal corre
+entero con los defaults.
 
 - `--install` / `--update` / `--uninstall` saltan el menú de acción
   (`--update` muestra el salto de versión; `--uninstall` ofrece borrar
   también config y biblioteca — por defecto quedan).
 - `--system` instala en `/usr/local` para todos los usuarios (pide sudo).
-- Re-ejecutarlo actualiza a lo último de `main`.
-- Desde un checkout también funciona: `./mallow-install.sh`.
+- `--stable` (el default) compila el último tag; `--main` compila la rama de
+  desarrollo; `--ref=<tag>` compila esa ref exacta y tiene prioridad sobre
+  ambos (lo usa `maly update`). Los tres saltan la pantalla de fuente.
+- Re-ejecutarlo actualiza a lo último del tag estable (o de `main` con
+  `--main`).
+- Desde un checkout también funciona: `./mallow-install.sh` (compila lo que
+  hay ahí, ignorando `--ref`/`--main`/`--stable`).
 
 Con maly ya instalado, `maly update` hace todo esto solo: consulta los tags
 del repo con git, y si hay un release nuevo descarga el instalador y lo corre

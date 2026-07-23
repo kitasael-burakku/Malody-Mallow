@@ -7,14 +7,24 @@
 # Interactivo por pantallas cuando hay terminal: wizard con el banner MALODY
 # en degradado, menús y checklist navegables con ↑↓/jk + espacio (fallback
 # numérico si el tty no da modo crudo) y spinner en los pasos largos. Flujo:
-# acción (instalar/actualizar/desinstalar) → ámbito (usuario/sistema) →
-# dependencias (checklist con mpv y git marcados; yt-dlp+ffmpeg y el
-# visualizador son opcionales). Los flags pre-contestan su pantalla; sin
-# terminal corre entero con los defaults, sin dibujar nada.
-# Compila maly desde main e instala el binario y las completions. Multi-distro:
-# detecta el gestor de paquetes y, si el Go de la distro no alcanza el mínimo
-# de go.mod, baja el toolchain oficial de go.dev a ~/.cache/mallow — solo para
-# compilar, sin tocar el sistema. POSIX sh puro.
+# acción (instalar/actualizar/desinstalar) → ámbito (usuario/sistema) → fuente
+# (último tag estable / main) → dependencias (checklist con mpv y git
+# marcados; yt-dlp+ffmpeg y el visualizador son opcionales). Los flags
+# pre-contestan su pantalla; sin terminal corre entero con los defaults, sin
+# dibujar nada.
+# Por defecto compila el ÚLTIMO TAG ESTABLE (--main para la rama de
+# desarrollo; --ref=<x> para cualquier otra ref, con máxima prioridad —
+# ignora --main/--stable y salta la pantalla) e instala el binario y las
+# completions. Multi-distro: detecta el gestor de paquetes y, si el Go de la
+# distro no alcanza el mínimo de go.mod, baja el toolchain oficial de go.dev a
+# ~/.cache/mallow — solo para compilar, sin tocar el sistema. POSIX sh puro.
+#
+# Modelo de confianza: la raíz es TLS + la cuenta de GitHub del repo (tags sin
+# firmar, es el mismo modelo que "git clone https://…" de siempre). Encima de
+# eso, ya verificados: el tarball del toolchain de Go contra su SHA-256
+# publicado, y los módulos Go de maly contra go.sum + GOSUMDB
+# (sum.golang.org) — ambos activos por defecto en `go build`; este script no
+# los desactiva.
 set -eu
 
 REPO_URL="https://github.com/kitasael-burakku/Malody-Mallow.git"
@@ -364,26 +374,35 @@ cleanup() {
 trap 'st=$?; cleanup; exit $st' EXIT INT TERM
 
 usage() {
-	printf '%s\n' "$(tr2 'Mallow Install — instala Malody Mallow (maly) compilando desde main.
+	printf '%s\n' "$(tr2 'Mallow Install — instala Malody Mallow (maly), compilando el último tag
+estable por defecto.
 
 uso: mallow-install.sh [opciones]
   --install     instala (o reinstala) sin pasar por el menú
   --update      recompila y reinstala sobre una instalación existente
   --uninstall   quita binario y completions (pregunta por config/biblioteca)
   --system      instala en /usr/local para todos los usuarios (pide sudo)
-  --ref=<tag>   compila ese tag/rama en vez de main (lo usa maly update)
+  --stable      compila el último tag estable (el default; salta la pantalla)
+  --main        compila la rama de desarrollo main en vez del último tag
+  --ref=<tag>   compila esa ref exacta (tag o rama); máxima prioridad, ignora
+                --stable/--main y la pantalla de fuente (lo usa maly update)
   --help        esta ayuda
 
 Sin opciones abre el flujo interactivo (o instala con los defaults si no
 hay terminal). yt-dlp+ffmpeg (para `maly get`) y el visualizador son
-opcionales y se eligen en la pantalla de dependencias.' 'Mallow Install — installs Malody Mallow (maly) building from main.
+opcionales y se eligen en la pantalla de dependencias.' 'Mallow Install — installs Malody Mallow (maly), building the latest
+stable tag by default.
 
 usage: mallow-install.sh [options]
   --install     install (or reinstall) skipping the menu
   --update      rebuild and reinstall over an existing install
   --uninstall   remove binary and completions (asks about config/library)
   --system      install to /usr/local for all users (asks for sudo)
-  --ref=<tag>   build that tag/branch instead of main (used by maly update)
+  --stable      build the latest stable tag (the default; skips the screen)
+  --main        build the main development branch instead of the latest tag
+  --ref=<tag>   build that exact ref (tag or branch); highest priority,
+                ignores --stable/--main and the source screen (used by maly
+                update)
   --help        this help
 
 With no options it opens the interactive flow (or installs with the
@@ -394,9 +413,13 @@ the visualizer are optional and picked on the dependencies screen.')"
 # ---- argumentos ----
 # ACTION vacío = decidir en el menú (o el default sin terminal); un flag de
 # acción se salta esa pantalla. SYSTEM=-1 = preguntar el ámbito. REF vacío =
-# compilar main; `maly update` pasa --ref=<tag> para instalar exactamente el
-# release que anunció (main puede ir adelante del último tag).
-ACTION='' SYSTEM=-1 REF=''
+# resolver la fuente por SRCMODE (ver la pantalla "fuente" más abajo); `maly
+# update` pasa --ref=<tag> para instalar exactamente el release que anunció
+# (main puede ir adelante del último tag) — REF tiene siempre la última
+# palabra e ignora SRCMODE por completo. SRCMODE vacío = decidir en el menú de
+# fuente (o el default sin terminal: último tag estable); --stable/--main lo
+# fijan y saltan esa pantalla.
+ACTION='' SYSTEM=-1 REF='' SRCMODE=''
 for a in "$@"; do
 	case "$a" in
 	--install | --update | --uninstall)
@@ -405,6 +428,10 @@ for a in "$@"; do
 		ACTION=${a#--} ;;
 	--system) SYSTEM=1 ;;
 	--ref=*) REF=${a#--ref=} ;;
+	--main | --stable)
+		[ -z "$SRCMODE" ] || die 'elige una sola fuente (--main | --stable)' \
+			'pick a single source (--main | --stable)'
+		SRCMODE=${a#--} ;;
 	-h | --help) usage; exit 0 ;;
 	*) usage >&2; die "opción desconocida: $a" "unknown option: $a" ;;
 	esac
@@ -416,6 +443,16 @@ SYS_BIN=/usr/local/bin/maly
 USR_INST=0 SYS_INST=0
 [ -x "$USR_BIN" ] && USR_INST=1
 [ -x "$SYS_BIN" ] && SYS_INST=1
+
+# ---- fuente: el checkout donde corre el script, o un clon temporal ----
+# Se resuelve YA (y no más abajo, donde solía estar) porque la pantalla de
+# fuente necesita saber si hay checkout para omitirse: corriendo desde uno,
+# --ref/--main/--stable se ignoran igual (se compila lo que hay aquí).
+SRC=''
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || script_dir=''
+if [ -n "$script_dir" ] && [ -f "$script_dir/go.mod" ] && [ -d "$script_dir/cmd/maly" ]; then
+	SRC=$script_dir
+fi
 
 banner
 
@@ -467,6 +504,23 @@ if [ "$SYSTEM" -lt 0 ]; then
 		SYSTEM=$((s_def - 1))
 	fi
 fi
+
+# ---- pantalla 3: fuente (tag estable / main) ----
+# Se omite si ya hay --ref, si ya se eligió con --main/--stable, si se corre
+# desde un checkout local (SRC ya resuelto: ahí no hay nada que elegir, se
+# compila lo que está en disco) o sin terminal. El default es SIEMPRE el
+# último tag estable — main es la opción explícita.
+if [ -z "$REF" ] && [ -z "$SRCMODE" ] && [ -z "$SRC" ] && [ "$TTY" -eq 1 ]; then
+	scr 'fuente' 'source'
+	menu 1 2 \
+		'último tag estable (recomendado)' 'latest stable tag (recommended)' \
+		'main (rama de desarrollo, puede ser inestable)' 'main (development branch, may be unstable)'
+	case $REPLY in
+	1) SRCMODE=stable ;;
+	2) SRCMODE=main ;;
+	esac
+fi
+[ -n "$SRCMODE" ] || [ -n "$SRC" ] || SRCMODE=stable
 
 # ---- rutas de instalación ----
 if [ "$SYSTEM" -eq 1 ]; then
@@ -570,13 +624,6 @@ fetch_show() {
 	fi
 }
 
-# ---- fuente: el checkout donde corre el script, o un clon temporal ----
-SRC=''
-script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" 2>/dev/null && pwd) || script_dir=''
-if [ -n "$script_dir" ] && [ -f "$script_dir/go.mod" ] && [ -d "$script_dir/cmd/maly" ]; then
-	SRC=$script_dir
-fi
-
 # ---- gestor de paquetes ----
 INSTALL_CMD=''
 if command -v pacman >/dev/null 2>&1; then INSTALL_CMD='pacman -S --needed --noconfirm'
@@ -620,7 +667,7 @@ ytdlp_stale() {
 	[ "$YTDLP_AGE" -gt "$YTDLP_STALE_DAYS" ]
 }
 
-# ---- pantalla 3: dependencias ----
+# ---- pantalla 4: dependencias ----
 # Solo aparecen las que faltan; mpv y git van marcados (sin ellos maly no
 # suena / no hay qué compilar), yt-dlp+ffmpeg y el visualizador son
 # opcionales y arrancan desmarcados. `maly get` es un comando opcional: sus
@@ -813,6 +860,43 @@ if [ "$PIPX_YTDLP" -eq 1 ]; then
 		'yt-dlp lives in ~/.local/bin (pipx); `pipx upgrade yt-dlp` updates it'
 fi
 
+# latest_tag deja en $LATEST_TAG el mayor tag vX.Y.Z del repo remoto
+# (comparación numérica de 3 campos, el mismo criterio que
+# internal/update/update.go:latestTag/parse/Newer). Se apoya en awk — ya
+# dependencia de este script (GOMIN más abajo) — en vez de reimplementar en sh
+# el pelado de ceros líderes que ytdlp_stale necesita para $(( )): ahí "0" es
+# un valor legítimo de versión (v1.0.0) y no solo un artefacto de fecha.
+LATEST_TAG=''
+latest_tag() {
+	LATEST_TAG=$(git ls-remote --tags --refs "$REPO_URL" 2>/dev/null | awk '
+		{ ref = $0; sub(/.*refs\/tags\//, "", ref) }
+		ref !~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ { next }
+		{
+			split(ref, p, ".")
+			maj = substr(p[1], 2) + 0; min = p[2] + 0; pat = p[3] + 0
+			if (maj > bmaj || (maj == bmaj && min > bmin) ||
+				(maj == bmaj && min == bmin && pat > bpat)) {
+				bmaj = maj; bmin = min; bpat = pat; best = ref
+			}
+		}
+		END { if (best != "") print best }
+	')
+	[ -n "$LATEST_TAG" ]
+}
+
+# Resolver la fuente elegida en la pantalla 3 (o su default) a un REF
+# concreto. Se hace aquí, no antes: recién ahora git está garantizado
+# (instalado arriba si hacía falta). SRCMODE=main deja REF vacío a propósito
+# — clonar sin --branch ya trae la rama por defecto, como siempre.
+if [ -z "$SRC" ] && [ -z "$REF" ] && [ "$SRCMODE" = stable ]; then
+	if latest_tag; then
+		REF=$LATEST_TAG
+	else
+		warn 'no pude determinar el último tag estable (¿red, o el repo no tiene tags?); se compila main' \
+			'could not determine the latest stable tag (network, or the repo has no tags?); building main'
+	fi
+fi
+
 if [ -z "$SRC" ]; then
 	if [ -n "$REF" ]; then
 		hb_start "clonando Malody Mallow ($REF)…" "cloning Malody Mallow ($REF)…"
@@ -822,13 +906,27 @@ if [ -z "$SRC" ]; then
 	# ${REF:+…}: --branch acepta tags; sin --ref se compila main, como siempre.
 	# advice.detachedHead: clonar un tag deja checkout suelto y git imprime su
 	# consejo de "detached HEAD" AUNQUE lleve --quiet — puro susto en el wizard.
-	git -c advice.detachedHead=false clone --quiet --depth=1 ${REF:+--branch "$REF"} "$REPO_URL" "$TMP/src" ||
-		{ hb_stop; die 'falló el clonado' 'clone failed'; }
+	# stderr va a un archivo y no a la terminal: --depth=1 contra un tag
+	# anotado (el default desde este cambio, ya no un caso raro de --ref)
+	# imprime "… is not a commit!", una advertencia inofensiva de git que
+	# solo confundiría en medio del spinner. Si el clonado FALLA, sí se
+	# muestra: es la única pista real de qué pasó (red, host, permiso).
+	git -c advice.detachedHead=false clone --quiet --depth=1 ${REF:+--branch "$REF"} "$REPO_URL" "$TMP/src" \
+		2>"$TMP/clone.err" || {
+		hb_stop
+		[ ! -s "$TMP/clone.err" ] || cat "$TMP/clone.err" >&2
+		die 'falló el clonado' 'clone failed'
+	}
 	hb_done
 	SRC=$TMP/src
 else
-	[ -z "$REF" ] || warn "corriendo desde un checkout: --ref=$REF se ignora, se compila lo que hay aquí" \
-		"running from a checkout: --ref=$REF is ignored, building what is here"
+	if [ -n "$REF" ]; then
+		warn "corriendo desde un checkout: --ref=$REF se ignora, se compila lo que hay aquí" \
+			"running from a checkout: --ref=$REF is ignored, building what is here"
+	elif [ -n "$SRCMODE" ]; then
+		warn 'corriendo desde un checkout: --main/--stable se ignora, se compila lo que hay aquí' \
+			'running from a checkout: --main/--stable is ignored, building what is here'
+	fi
 	msg "compilando desde el checkout: $SRC" "building from the checkout: $SRC"
 fi
 
@@ -888,12 +986,19 @@ else
 		die 'falló la descarga de Go; revisa tu conexión y reintenta' \
 			'the Go download failed; check your connection and retry'
 	# Verificar el SHA-256 publicado junto al tarball: TLS ya protege el
-	# transporte, esto cubre un mirror/caché comprometido. Sin sha256sum en
-	# el sistema (rarísimo: coreutils/busybox lo traen) se avisa y sigue.
-	# Con heartbeat: hashear 80 MB en un disco lento son minutos — sin
-	# latido parece un cuelgue (visto en la VM de Mint; el ping salía limpio
-	# porque este tramo ni toca la red). die ya hace hb_stop.
-	if command -v sha256sum >/dev/null 2>&1; then
+	# transporte, esto cubre un mirror/caché comprometido. sha256sum falta
+	# rarísimo (coreutils/busybox lo traen); shasum -a 256 es el fallback de
+	# macOS/algunos BSD. Si NINGUNO está, ya no se sigue en silencio (el
+	# resto del script no instala/ejecuta nada sin preguntar, y esto no iba a
+	# ser la excepción): con terminal se confirma explícitamente, sin
+	# terminal se aborta. Con heartbeat: hashear 80 MB en un disco lento son
+	# minutos — sin latido parece un cuelgue (visto en la VM de Mint; el ping
+	# salía limpio porque este tramo ni toca la red). die ya hace hb_stop.
+	SHATOOL=''
+	if command -v sha256sum >/dev/null 2>&1; then SHATOOL='sha256sum'
+	elif command -v shasum >/dev/null 2>&1; then SHATOOL='shasum -a 256'
+	fi
+	if [ -n "$SHATOOL" ]; then
 		hb_start 'verificando la descarga…' 'verifying the download…'
 		# dl.google.com sirve el .sha256 plano; go.dev/dl devolvería HTML.
 		SUMURL="https://dl.google.com/go/$GOV.linux-$GOARCH.tar.gz.sha256"
@@ -908,15 +1013,22 @@ else
 		[ -n "$want" ] ||
 			die "el checksum descargado vino vacío o ilegible ($SUMURL)" \
 				"the downloaded checksum came back empty or unreadable ($SUMURL)"
-		got=$(sha256sum "$TMP/go.tgz")
+		# shellcheck disable=SC2086
+		got=$($SHATOOL "$TMP/go.tgz")
 		got=${got%% *}
 		[ "$got" = "$want" ] ||
 			die "el checksum del Go bajado no coincide: descarga corrupta (esperaba $want, obtuve $got)" \
 				"downloaded Go checksum mismatch: corrupt download (expected $want, got $got)"
 		hb_done
+	elif [ "$TTY" -eq 1 ]; then
+		confirm 'sin sha256sum ni shasum no puedo verificar la descarga de Go: ¿continuar de todos modos?' \
+			'without sha256sum or shasum the Go download cannot be verified: continue anyway?' ||
+			die 'instala coreutils (sha256sum) o Go a mano desde https://go.dev/dl/ y reintenta' \
+				'install coreutils (sha256sum) or Go by hand from https://go.dev/dl/ and retry'
+		warn 'continuando sin verificar la descarga de Go' 'continuing without verifying the Go download'
 	else
-		warn 'sin sha256sum no puedo verificar la descarga de Go' \
-			'without sha256sum the Go download cannot be verified'
+		die 'sin sha256sum ni shasum no puedo verificar la descarga de Go, y no hay terminal para confirmar; instala coreutils o Go a mano' \
+			'without sha256sum or shasum the Go download cannot be verified, and there is no terminal to confirm; install coreutils or Go by hand'
 	fi
 	# El heartbeat arranca ANTES del rm: borrar un Go previo (~12 mil
 	# archivos) en un disco lento es otro tramo mudo de minutos, y extraer

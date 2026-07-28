@@ -240,7 +240,16 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   letras SIEMPRE en goroutine (`loadNowMeta`, cache por pista `npTrack` +
   render invalidado en resize), y `applyStatus` relanza la carga al cambiar
   la pista. `playbackKey` centraliza las teclas de reproducción compartidas
-  entre la vista principal y la capa. El comando `logo` de la consola aplica
+  entre la vista principal y la capa. Los RELOJES de animación se
+  autocancelan para no gastar CPU en reposo (medido: 3,5 % → 0,7 % de un
+  núcleo): la onda del banner solo corre visible Y con música
+  (`armLogoTick`; congelada en pausa a propósito), el tick del viz muere
+  con el viz apagado (`armVizTick`) y con las barras decaídas respira a
+  500 ms en vez de 60 — NO se mata del todo: el ring del viz captura el
+  audio del sistema, no solo el de maly, y debe reaccionar si otra app
+  suena. Los rearmes viven en `applyStatus` (al instante) con red de
+  seguridad en el `case tickMsg`; ambos guardados por
+  `vizTicking`/`logoTicking` para no duplicar relojes. El comando `logo` de la consola aplica
   el gradiente del banner en vivo y lo persiste (`SaveThemeLogo` → `saveKey`,
   que edita claves dentro de secciones TOML sin tocar el resto). El **arte
   ASCII** del banner se reemplaza con `logo.txt` junto al config
@@ -640,6 +649,17 @@ consume ~1,9 % de un núcleo en reposo sin viz (3,5 % con viz; huele a un
 tick redibujando con nada sonando — mirar los `tea.Tick` si algún día
 molesta en portátil) y el `search` amplio vía demonio serializa MB de JSON
 (solo lo sufre la consola; la TUI lee SQLite directo).
+
+La **1.7.2** (2026-07-28) cierra el candidato del reposo de la TUI que la
+1.7.1 dejó anotado: los relojes de animación se autocancelan (detalles e
+invariantes en la sección de la TUI; el dueño eligió onda del banner
+congelada en reposo). Reposo con viz activo: 3,5 % → 0,7 % de un núcleo;
+en pausa con barras decaídas, 1,1 %; reproduciendo, sin cambios (7,1 %,
+las animaciones están haciendo su trabajo). Release de una sola pieza,
+toda dentro de `internal/tui`, como la 1.6.2. La verificación destapó de
+paso una trampa de arnés: `maly pause` es pausa IDEMPOTENTE y el toggle
+es `maly toggle` — un arnés que "reanuda" con pause verifica un congelado
+que es correcto y parece un bug.
 
 ### Post-1.0 (candidatos)
 

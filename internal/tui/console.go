@@ -140,7 +140,7 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		} else {
 			m.conPrint(m.st.dim.Render(i18n.T("con.viz_off")))
 		}
-		return m, nil
+		return m, m.armVizTick()
 	case "play":
 		return m, m.conReq(ipc.Request{Cmd: "play", Query: strings.Join(args, " ")})
 	case "pause", "toggle", "stop", "next", "prev", "clear":

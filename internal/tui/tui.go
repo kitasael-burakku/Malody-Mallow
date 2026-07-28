@@ -75,11 +75,12 @@ type Model struct {
 	flashErr   bool
 	flashUntil time.Time
 
-	vizOn     bool
-	viz       *viz.Viz
-	vizBars   []float64
-	vizWarned bool
-	vizStyles []lipgloss.Style
+	vizOn      bool
+	viz        *viz.Viz
+	vizBars    []float64
+	vizWarned  bool
+	vizStyles  []lipgloss.Style
+	vizTicking bool
 
 	logo        logoModel
 	logoTicking bool
@@ -200,13 +201,42 @@ func Run(cfg config.Config, embedded bool) error {
 
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{loadLibrary, m.fetch(), m.subscribeCmd(), tickCmd()}
-	if m.viz != nil {
-		cmds = append(cmds, vizTickCmd())
+	if c := m.armVizTick(); c != nil {
+		cmds = append(cmds, c)
 	}
 	if m.cfg.UpdateCheck {
 		cmds = append(cmds, updateCheckCmd(), updTickCmd())
 	}
 	return tea.Batch(cmds...)
+}
+
+// playingNow: hay pista cargada y no está en pausa. Es la condición que
+// mantiene vivas las animaciones (viz y onda del logo).
+func (m *Model) playingNow() bool {
+	return m.status != nil && m.status.Track != nil && !m.status.Paused
+}
+
+// armVizTick rearma el tick del viz si toca. El tick se autocancela con el
+// viz apagado (case vizTickMsg): un reloj de 60 ms que despierta la TUI ~17
+// veces por segundo para no pintar nada era CPU de reposo tirada. Se rearma
+// aquí, guardado por vizTicking para no duplicar relojes.
+func (m *Model) armVizTick() tea.Cmd {
+	if m.viz == nil || !m.vizOn || m.vizTicking {
+		return nil
+	}
+	m.vizTicking = true
+	return vizTickCmd()
+}
+
+// armLogoTick rearma la onda del banner: solo corre visible Y con música
+// sonando — en reposo la onda queda congelada a propósito (12,5 fps de
+// redibujo con nada que animar eran el resto de la CPU de reposo).
+func (m *Model) armLogoTick() tea.Cmd {
+	if !m.logoVisible() || !m.playingNow() || m.logoTicking {
+		return nil
+	}
+	m.logoTicking = true
+	return logoTickCmd()
 }
 
 // updRecheckEvery es cada cuánto vuelve a mirar una TUI ya abierta. El chequeo
@@ -401,6 +431,11 @@ func (m *Model) applyStatus(resp ipc.Response) tea.Cmd {
 			cmds = append(cmds, loadNowMeta(p))
 		}
 	}
+	// Si esta foto arrancó la reproducción, la onda del logo despierta ya
+	// (sin esperar al tick de 500 ms).
+	if c := m.armLogoTick(); c != nil {
+		cmds = append(cmds, c)
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -427,16 +462,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.subscribeCmd())
 			}
 		}
-		// Rearma la animación del logo si volvió a ser visible (su tick se
-		// autocancela al ocultarse para no consumir CPU).
-		if m.logoVisible() && !m.logoTicking {
-			m.logoTicking = true
-			cmds = append(cmds, logoTickCmd())
+		// Red de seguridad para las animaciones autocanceladas: las rearma
+		// applyStatus al instante, pero este tick cubre cualquier camino que
+		// se escape (p. ej. el logo que vuelve a ser visible al cerrar un
+		// modal sin foto de estado de por medio).
+		if c := m.armLogoTick(); c != nil {
+			cmds = append(cmds, c)
+		}
+		if c := m.armVizTick(); c != nil {
+			cmds = append(cmds, c)
 		}
 		return m, tea.Batch(cmds...)
 
 	case logoTickMsg:
-		if !m.logoVisible() {
+		// Oculto o en reposo, la onda muere (congelada a propósito sin
+		// música); tickMsg o applyStatus la rearman cuando vuelva a tocar.
+		if !m.logoVisible() || !m.playingNow() {
 			m.logoTicking = false
 			return m, nil
 		}
@@ -444,13 +485,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, logoTickCmd()
 
 	case vizTickMsg:
-		if m.viz != nil && m.vizOn {
-			playing := m.status != nil && m.status.Track != nil && !m.status.Paused
-			m.vizBars = m.viz.Bars(m.width-2, playing)
-			if m.viz.Fake() && !m.vizWarned {
-				m.vizWarned = true
-				m.setFlash(i18n.T("tui.viz_fake"), true)
+		// Con el viz apagado el reloj muere; armVizTick lo revive al
+		// encenderlo. Con viz activo sigue corriendo también en pausa: las
+		// barras tienen que decaer a cero, no congelarse a media altura.
+		if m.viz == nil || !m.vizOn {
+			m.vizTicking = false
+			return m, nil
+		}
+		m.vizBars = m.viz.Bars(m.width-2, m.playingNow())
+		if m.viz.Fake() && !m.vizWarned {
+			m.vizWarned = true
+			m.setFlash(i18n.T("tui.viz_fake"), true)
+		}
+		// Sin música y con las barras ya decaídas no hay nada que animar:
+		// el reloj respira a 500 ms en vez de 60 y se reacelera solo en
+		// cuanto asoma energía (el ring captura el audio del sistema, no
+		// solo el de maly — matarlo del todo congelaría esa reacción).
+		idle := !m.playingNow()
+		if idle {
+			for _, b := range m.vizBars {
+				if b > 0.01 {
+					idle = false
+					break
+				}
 			}
+		}
+		if idle {
+			return m, tea.Tick(500*time.Millisecond,
+				func(t time.Time) tea.Msg { return vizTickMsg(t) })
 		}
 		return m, vizTickCmd()
 
@@ -756,7 +818,7 @@ func (m *Model) playbackKey(msg tea.KeyMsg) (cmd tea.Cmd, ok bool) {
 		return m.req(ipc.Request{Cmd: "repeat"}), true
 	case m.is("toggle_viz", msg):
 		m.vizOn = !m.vizOn
-		return nil, true
+		return m.armVizTick(), true
 	}
 	return nil, false
 }

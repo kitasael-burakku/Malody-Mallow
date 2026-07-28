@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -233,8 +234,9 @@ func openScanned(t *testing.T, n int) (*Library, string) {
 // contra un total conocido y no vuelve a probar lo ya aprendido.
 func TestFillDurations(t *testing.T) {
 	lib, dir := openScanned(t, 5)
-	probes := 0
-	probe := func(string) (float64, error) { probes++; return 123.5, nil }
+	// Atómico: FillDurations sondea con varios workers a la vez.
+	var probes atomic.Int32
+	probe := func(string) (float64, error) { probes.Add(1); return 123.5, nil }
 
 	var lastDone, lastTotal int
 	learned, failed, err := lib.FillDurations(dir, probe, func(done, total int) {
@@ -253,10 +255,10 @@ func TestFillDurations(t *testing.T) {
 		t.Fatalf("la duración no quedó guardada: %v", got.Duration)
 	}
 	// Segunda pasada: ya no hay candidatos, el prober no se toca.
-	probes = 0
+	probes.Store(0)
 	learned, _, err = lib.FillDurations(dir, probe, nil)
-	if err != nil || learned != 0 || probes != 0 {
-		t.Fatalf("segunda pasada: learned=%d probes=%d err=%v, quería 0 0 nil", learned, probes, err)
+	if err != nil || learned != 0 || probes.Load() != 0 {
+		t.Fatalf("segunda pasada: learned=%d probes=%d err=%v, quería 0 0 nil", learned, probes.Load(), err)
 	}
 }
 
@@ -363,6 +365,32 @@ func TestFillDurationsConcurrentSearch(t *testing.T) {
 	close(release)
 	if err := <-done; err != nil {
 		t.Fatalf("FillDurations: %v", err)
+	}
+}
+
+// TestFillDurationsProbesInParallel encoda el pool de sondas: cada probe se
+// queda parado hasta que haya DOS en vuelo a la vez. Con el relleno
+// secuencial de antes la primera sonda esperaría sola los 5 s y el test
+// falla; con fillWorkers > 1 todas pasan.
+func TestFillDurationsProbesInParallel(t *testing.T) {
+	lib, dir := openScanned(t, 8)
+
+	dos := make(chan struct{}) // se cierra cuando hay dos sondas en vuelo
+	var enVuelo atomic.Int32
+	probe := func(string) (float64, error) {
+		if enVuelo.Add(1) == 2 {
+			close(dos)
+		}
+		select {
+		case <-dos:
+			return 30, nil
+		case <-time.After(5 * time.Second):
+			return 0, fmt.Errorf("nunca hubo dos sondas en vuelo: el relleno va en serie")
+		}
+	}
+	learned, failed, err := lib.FillDurations(dir, probe, nil)
+	if err != nil || learned != 8 || failed != 0 {
+		t.Fatalf("FillDurations = %d %d %v, quería 8 0 nil", learned, failed, err)
 	}
 }
 

@@ -148,10 +148,19 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   antes de probar ninguno: con `SetMaxOpenConns(1)`, llamar a ffprobe dentro
   del bucle de filas retendría la única conexión durante todo el relleno —
   peor que la transacción larga que los lotes evitan; lo cuida
-  `TestFillDurationsConcurrentSearch`. Escribe en lotes de `fillBatchSize`
-  (50, no 500: cada elemento cuesta un ffprobe) y lo que falla queda en 0
-  para que el próximo scan reintente (nada de centinelas: todos los
-  consumidores prueban `> 0`). `IsAudio` es el filtro único de extensiones.
+  `TestFillDurationsConcurrentSearch`. Las sondas van en PARALELO con un
+  pool acotado (`fillWorkers` = 4; en serie eran ~28 ms/archivo con el
+  resto de núcleos parados — medido 28,5 s → 7,7 s por 1.000 pistas. No se
+  escala a NumCPU: el relleno corre de fondo mientras suena música). Los
+  workers SOLO sondean; DB, lotes, contadores y progress quedan en la
+  goroutine de FillDurations, así que el paralelismo no toca la única
+  conexión SQLite, a cambio de que el prober debe tolerar llamadas
+  concurrentes (un exec por llamada, como `probe.Duration`, lo es). Lo
+  encoda `TestFillDurationsProbesInParallel`, verificado en ambas
+  direcciones (con `fillWorkers = 1` falla). Escribe en lotes de
+  `fillBatchSize` (50, no 500: cada elemento cuesta un ffprobe) y lo que
+  falla queda en 0 para que el próximo scan reintente (nada de centinelas:
+  todos los consumidores prueban `> 0`). `IsAudio` es el filtro único de extensiones.
 - `internal/probe` — ffprobe para las duraciones, en la línea de "coordinar
   herramientas" de `internal/getter`. A diferencia de `getter.Tools`, la
   ausencia NO es error: `Available()` falso = la fase se salta en silencio.

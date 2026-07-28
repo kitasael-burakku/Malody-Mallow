@@ -415,13 +415,23 @@ func (l *Library) SetDuration(path string, secs float64) error {
 // muchos segundos entre commits y un corte perdería todo ese trabajo.
 const fillBatchSize = 50
 
+// fillWorkers acota cuántas sondas van en paralelo. En serie, una biblioteca
+// grande tarda minutos (medido: ~28 ms por ffprobe → ~5 min por 10k pistas)
+// con el resto de núcleos parados; con 4 baja a la cuarta parte. No se escala
+// a NumCPU: el relleno corre de fondo mientras suena música y no debe
+// comerse la máquina por una fase que es silenciosa y optativa.
+const fillWorkers = 4
+
 // FillDurations rellena las duraciones que faltan (duration <= 0) de las
 // pistas bajo root, preguntándole a probe. probe se inyecta —library no
 // ejecuta procesos, igual que no imprime: quién sabe leer duraciones lo
 // decide el llamador (internal/probe usa ffprobe)—, lo que además permite
-// testear sin ffprobe ni audio real. progress (opcional, nil = mudo) recibe
-// cuántas van de cuántas; aquí el total SÍ se conoce por adelantado, a
-// diferencia de Scan. El throttling es del llamador.
+// testear sin ffprobe ni audio real. Las sondas corren en paralelo
+// (fillWorkers), así que probe tiene que tolerar llamadas concurrentes
+// (un exec por llamada, como probe.Duration, lo es de sobra). progress
+// (opcional, nil = mudo) recibe cuántas van de cuántas y se llama siempre
+// desde la goroutine de FillDurations; aquí el total SÍ se conoce por
+// adelantado, a diferencia de Scan. El throttling es del llamador.
 //
 // Las pistas cuya duración no se pudo leer quedan en 0 y cuentan en failed:
 // el próximo escaneo las reintenta (auto-curativo si el fallo era
@@ -498,18 +508,49 @@ func (l *Library) FillDurations(root string, probe func(path string) (float64, e
 		learned += done
 	}
 
-	for i, p := range cand {
-		secs, perr := probe(p)
-		if perr != nil || secs <= 0 {
+	// Los workers SOLO sondean: la DB, los lotes, los contadores y progress
+	// se quedan en esta goroutine, que consume los resultados según llegan.
+	// Con eso el paralelismo no toca la única conexión SQLite ni obliga a
+	// ningún lock aquí; el precio es que el orden de sondeo deja de ser el
+	// de los candidatos, cosa que nadie prometía.
+	jobs := make(chan string)
+	results := make(chan upd) // secs <= 0 = la sonda falló (misma semántica que la columna)
+	var wg sync.WaitGroup
+	for range fillWorkers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for p := range jobs {
+				secs, perr := probe(p)
+				if perr != nil {
+					secs = 0
+				}
+				results <- upd{p, secs}
+			}
+		}()
+	}
+	go func() {
+		for _, p := range cand {
+			jobs <- p
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+
+	probed := 0
+	for r := range results {
+		if r.secs <= 0 {
 			failed++
 		} else {
-			batch = append(batch, upd{p, secs})
+			batch = append(batch, r)
 			if len(batch) >= fillBatchSize {
 				flush()
 			}
 		}
+		probed++
 		if progress != nil {
-			progress(i+1, len(cand))
+			progress(probed, len(cand))
 		}
 	}
 	flush()

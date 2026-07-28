@@ -664,6 +664,45 @@ paso una trampa de arnés: `maly pause` es pausa IDEMPOTENTE y el toggle
 es `maly toggle` — un arnés que "reanuda" con pause verifica un congelado
 que es correcto y parece un bug.
 
+La **1.7.3** (2026-07-28) sale de un benchmark completo de la 1.7.2 (escaneo,
+IPC, CPU y RAM del demonio y de la TUI, arranque; escalas de 1k a 40k). El
+veredicto volvió a ser "no hay nada que optimizar" salvo UNA pieza, y esta
+vez no estaba en el demonio sino en el completado del shell: `maly play
+<TAB>` con palabra parcial vacía tardaba **92 ms y asignaba 39 MB** con
+40.000 pistas para imprimir treinta líneas. `completeTracks` llamaba a
+`Search("")` —que cae en `All()`— y recortaba EN GO, o sea que materializaba
+la biblioteca entera para tirar el 99,9 %.
+
+El arreglo es `library.SearchLimit(q, limit)`: `Search` pasa a ser
+`SearchLimit(q, 0)` y el tope, cuando lo hay, va en la sentencia. Con el
+`LIMIT` en SQL, SQLite resuelve el `ORDER BY` con un montículo acotado en vez
+de ordenar y devolver 40.000 filas. Medido: **92 ms → 14 ms y 36 MB → 16 MB**,
+con la lista de candidatos IDÉNTICA (comprobado con `diff` contra el binario
+anterior en cuatro consultas, incluida una que matchea las 40.000).
+
+Dos cosas que no son obvias y conviene no re-descubrir:
+
+- **El tope corta FILAS, no candidatos.** `completeTracks` deduplica por
+  título DESPUÉS, así que un tope pegado a `maxCandidates` dejaría el TAB
+  corto en cuanto hubiera títulos repetidos (un álbum reeditado, un disco
+  doble). Por eso pide 20× de margen (`completeFetch`), que sale casi gratis:
+  el costo de la consulta es recorrer la tabla, no las filas devueltas —con
+  40.000 pistas, 9,1 ms con `LIMIT 30` y 9,6 ms con `LIMIT 600`, frente a
+  77 ms materializándolas todas. Lo encoda `TestCompleteTracksDuplicados`,
+  verificado en ambas direcciones (con `completeFetch = maxCandidates` da 3
+  candidatos en vez de 30).
+- **`Search` y `All` siguen SIN tope**, que es justo la lección de la 1.1.5
+  (un `LIMIT 500` capaba `play`/`add`/`playlist add` en silencio). El tope es
+  opt-in y de un solo llamador; `TestSearchLimit` fija ambas mitades.
+
+Otras dos mediciones de ese benchmark, sin acción: la fase 2 del scan escala
+casi lineal con `fillWorkers` (1→28,4 s, 2→14,3 s, 4→7,7 s, 8→4,4 s,
+16→3,2 s por 1.000 pistas) y ffprobe cuesta 28,5 ms por archivo sea de 4 KB o
+de 4,2 MB —es spawn de proceso, no lectura—, así que el número extrapola
+directo; y con `fillWorkers = 4` el relleno tiene 4,2 núcleos ocupados, que
+en la máquina del dueño (16) es fondo cómodo pero en un portátil de 4 es la
+máquina entera. La constante no depende de `NumCPU` a propósito.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

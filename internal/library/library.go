@@ -599,29 +599,56 @@ func Fold(s string) string {
 // esto, buscar "100%" matchea cualquier cosa que empiece con "100".
 var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 
+// trackOrder es el orden en que sale la biblioteca a todos lados:
+// Artista > Álbum > pista. Compartido para que Search y All no puedan
+// divergir.
+const trackOrder = ` ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE`
+
 // Search busca cada palabra de q (normalizada) en título, artista o álbum.
 // Sin límite a propósito: play/add/playlist add operan sobre TODO lo que
 // matchea (un LIMIT los capaba en silencio), igual que la consulta vacía cae
-// en All. Quien necesite pocos resultados corta él mismo (completeTracks).
+// en All.
 func (l *Library) Search(q string) ([]Track, error) {
-	words := strings.Fields(Fold(q))
-	if len(words) == 0 {
-		return l.All()
-	}
-	var conds []string
+	return l.SearchLimit(q, 0)
+}
+
+// SearchLimit es Search con un tope de filas, aplicado por SQLite y no por el
+// llamador (limit <= 0 = sin tope, o sea Search). No es una optimización
+// prematura: el completado del shell pide con palabra parcial VACÍA, que cae
+// en la consulta que recorre la biblioteca entera —la única que hace eso, y
+// resulta que sí es alcanzable desde la UX, en cada TAB—, y luego se queda
+// con un puñado de candidatos. Materializar 40.000 pistas para tirar 39.970
+// costaba 92 ms y 36 MB por pulsación; con el tope en la sentencia, SQLite
+// resuelve el ORDER BY con un montículo acotado (~10 ms de consulta, 14 ms
+// de TAB entero) y el proceso no pasa de 16 MB.
+//
+// OJO: el tope corta FILAS, no resultados finales. Quien deduplique después
+// (completeTracks, por título) puede quedarse corto si el tramo pedido trae
+// muchas repetidas — por eso pide bastantes más de las que va a mostrar.
+// Nadie que necesite el conjunto completo debe usar esto: para eso está
+// Search, y esa es justo la lección del LIMIT que se quitó en la 1.1.5.
+func (l *Library) SearchLimit(q string, limit int) ([]Track, error) {
+	var where string
 	var args []any
-	for _, w := range words {
-		conds = append(conds, `search_text LIKE ? ESCAPE '\'`)
-		args = append(args, "%"+likeEscaper.Replace(w)+"%")
+	if words := strings.Fields(Fold(q)); len(words) > 0 {
+		conds := make([]string, 0, len(words))
+		for _, w := range words {
+			conds = append(conds, `search_text LIKE ? ESCAPE '\'`)
+			args = append(args, "%"+likeEscaper.Replace(w)+"%")
+		}
+		where = ` WHERE ` + strings.Join(conds, " AND ")
 	}
-	return l.collect(`SELECT `+trackCols+` FROM tracks WHERE `+strings.Join(conds, " AND ")+
-		` ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE`, args...)
+	query := `SELECT ` + trackCols + ` FROM tracks` + where + trackOrder
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	return l.collect(query, args...)
 }
 
 // All devuelve toda la biblioteca ordenada Artista > Álbum > pista.
 func (l *Library) All() ([]Track, error) {
-	return l.collect(`SELECT ` + trackCols + ` FROM tracks
-		ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, track_no, title COLLATE NOCASE`)
+	return l.collect(`SELECT ` + trackCols + ` FROM tracks` + trackOrder)
 }
 
 // Get devuelve una pista por id.

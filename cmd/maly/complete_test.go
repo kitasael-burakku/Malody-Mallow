@@ -102,6 +102,51 @@ func TestCompleteNoDB(t *testing.T) {
 	}
 }
 
+// TestCompleteTracksDuplicados: completeTracks pide filas de más
+// (completeFetch) justo para que el dedupe por título no deje el TAB corto.
+// Con 30 títulos repetidos 10 veces cada uno, un tope pegado a maxCandidates
+// devolvería 3 candidatos en vez de 30.
+func TestCompleteTracksDuplicados(t *testing.T) {
+	xdgSandbox(t)
+
+	music := t.TempDir()
+	const titulos, copias = maxCandidates, 10
+	for c := range copias {
+		dir := filepath.Join(music, fmt.Sprintf("album%02d", c))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for i := range titulos {
+			// mismo nombre de archivo en cada álbum = mismo título
+			name := filepath.Join(dir, fmt.Sprintf("cancion%02d.mp3", i))
+			if err := os.WriteFile(name, []byte("no es audio"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.Scan(music, nil); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	got := values(completeArgs([]string{"play", ""}))
+	if len(got) != maxCandidates {
+		t.Fatalf("con %d títulos × %d copias el TAB debe dar %d candidatos, dio %d: %v",
+			titulos, copias, maxCandidates, len(got), got)
+	}
+	seen := map[string]bool{}
+	for _, v := range got {
+		if seen[v] {
+			t.Fatalf("candidato repetido %q en %v", v, got)
+		}
+		seen[v] = true
+	}
+}
+
 func TestCompleteTracksAndPlaylists(t *testing.T) {
 	xdgSandbox(t)
 

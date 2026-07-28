@@ -646,6 +646,53 @@ func TestScanPurgeDotDotDir(t *testing.T) {
 	}
 }
 
+// TestSearchLimit: el tope lo aplica SQLite y respeta el orden de siempre,
+// mientras Search y All siguen SIN tope — que es lo que se rompió en la 1.1.5
+// cuando un LIMIT capaba play/add en silencio.
+func TestSearchLimit(t *testing.T) {
+	dir := fakeMusicDir(t, 50)
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	all, err := lib.Search("")
+	if err != nil || len(all) != 50 {
+		t.Fatalf("Search sin tope = %d pistas, %v (deben ser las 50)", len(all), err)
+	}
+
+	// El tope corta, y por el mismo extremo: las 10 primeras del mismo orden.
+	for _, q := range []string{"", "pista"} {
+		got, err := lib.SearchLimit(q, 10)
+		if err != nil || len(got) != 10 {
+			t.Fatalf("SearchLimit(%q, 10) = %d pistas, %v", q, len(got), err)
+		}
+		for i, tr := range got {
+			if tr.Path != all[i].Path {
+				t.Fatalf("SearchLimit(%q, 10)[%d] = %s, se esperaba %s (mismo orden que Search)",
+					q, i, tr.Path, all[i].Path)
+			}
+		}
+	}
+
+	// Tope mayor que la biblioteca, y tope no positivo = sin tope.
+	if got, err := lib.SearchLimit("", 500); err != nil || len(got) != 50 {
+		t.Fatalf("SearchLimit(\"\", 500) = %d pistas, %v", len(got), err)
+	}
+	if got, err := lib.SearchLimit("", 0); err != nil || len(got) != 50 {
+		t.Fatalf("SearchLimit(\"\", 0) debe ser sin tope, dio %d pistas, %v", len(got), err)
+	}
+
+	// El tope no se salta el WHERE: filtra primero, corta después.
+	if got, err := lib.SearchLimit("pista0001", 10); err != nil || len(got) != 1 {
+		t.Fatalf("SearchLimit con consulta selectiva = %d pistas, %v", len(got), err)
+	}
+}
+
 // TestSearchLikeEscape: % y _ del usuario son texto, no comodines de LIKE.
 func TestSearchLikeEscape(t *testing.T) {
 	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))

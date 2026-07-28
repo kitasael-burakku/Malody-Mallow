@@ -40,7 +40,10 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
 - `cmd/maly` — CLI. `commands.go` tiene la **tabla de comandos**: fuente única de
   verdad para dispatch, help y completions de shell (bash/fish/zsh vía
   `__complete` oculto). Al agregar un subcomando de playlist, actualizar la lista
-  fija de `TestCompletePlaylistSubs`. `get.go` es el wrapper de yt-dlp
+  fija de `TestCompletePlaylistSubs`. El completado de pistas pide con TOPE
+  (`library.SearchLimit`, `completeFetch` filas) y no con `Search`: la palabra
+  parcial vacía es la consulta que recorre la biblioteca entera, y un TAB no
+  puede materializarla para mostrar treinta líneas — ver la 1.7.3. `get.go` es el wrapper de yt-dlp
   (filosofía "como lazygit usa git": maly coordina herramientas externas, no
   las reimplementa): descarga MP3 con metadata/carátula embebidas a `music_dir`
   y re-escanea (vía IPC si el demonio responde, directo a la DB si no);
@@ -676,11 +679,16 @@ reescribiendo las 40k filas a la vez, el peor `search` fue 112 ms**, o sea
 +16 ms. Los lotes de 500 del scan hacen justo lo que promete su comentario.
 La severidad baja de Media a **Baja**, y se decidió NO sacar `search` ni
 `playlist_play` de `d.mu`: la consulta vacía (la única que recorre la
-biblioteca entera) no es alcanzable desde la UX —`maly search` y el `search`
-de la consola exigen argumentos—, `play`/`add` ya resuelven fuera del lock
-desde la 1.1.5, y `playlist_play` opera sobre listas curadas a mano.
+biblioteca entera) no es alcanzable POR EL DEMONIO —`maly search` y el
+`search` de la consola exigen argumentos—, `play`/`add` ya resuelven fuera
+del lock desde la 1.1.5, y `playlist_play` opera sobre listas curadas a mano.
 Reestructurar `dispatch` otra vez no compensa por ~100 ms en un caso que el
-programa no expone.
+protocolo no expone.
+
+Corrección de la 1.7.3: esa consulta vacía SÍ era alcanzable, por otro lado
+—el completado del shell, que no pasa por el demonio y por tanto nunca tocó
+`d.mu`—, y ahí se pagaba en cada TAB. Arreglado con `SearchLimit` (ver la
+1.7.3); el razonamiento de arriba sobre `d.mu` no cambia.
 
 Lo que sí se cerró es la única pieza que era una ESCRITURA y se disparaba
 sola: `learnDuration` hacía su `SetDuration` con `d.mu` tomado, en cada

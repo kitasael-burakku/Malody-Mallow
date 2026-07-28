@@ -19,6 +19,16 @@ import (
 // lugar para miles de líneas.
 const maxCandidates = 30
 
+// completeFetch es cuántas FILAS pide completeTracks a SQLite para sacar de
+// ahí sus maxCandidates títulos distintos. El margen (20×) es lo que separa
+// este tope del de un LIMIT pelado: solo se notaría en una biblioteca donde
+// 600 pistas seguidas —en orden Artista > Álbum > pista— compartan menos de
+// 30 títulos distintos, y aun entonces el daño es un TAB con menos opciones.
+// Pedir de más sale casi gratis: el costo de la consulta es el recorrido de
+// la tabla, no las filas devueltas (con 40.000 pistas, 9,1 ms con LIMIT 30 y
+// 9,6 ms con LIMIT 600 — frente a 77 ms materializándolas todas).
+const completeFetch = maxCandidates * 20
+
 var (
 	//go:embed completions/maly.bash
 	bashScript string
@@ -136,13 +146,15 @@ func completeControls(args []string, cur string) []string {
 // completeTracks completa títulos desde la biblioteca (SQLite directo, sin
 // demonio). La consulta son TODAS las palabras ya escritas más la parcial:
 // play/add las unen igual, y Search es fold-aware — "lu" encuentra "La Luna".
+// Pide con tope (SearchLimit) porque la parcial vacía haría traer la
+// biblioteca entera para mostrar treinta líneas.
 func completeTracks(args []string, cur string) []string {
 	lib, ok := openLibraryIfExists()
 	if !ok {
 		return nil
 	}
 	defer lib.Close()
-	tracks, err := lib.Search(strings.TrimSpace(strings.Join(args, " ") + " " + cur))
+	tracks, err := lib.SearchLimit(strings.TrimSpace(strings.Join(args, " ")+" "+cur), completeFetch)
 	if err != nil {
 		return nil
 	}

@@ -623,6 +623,24 @@ defecto de cualquier instalación) hace que git imprima un aviso inofensivo
 ("… is not a commit!") que ensuciaba el spinner; el stderr del clonado ahora
 va a un archivo temporal y solo se muestra si el clonado FALLA de verdad.
 
+La **1.7.1** (2026-07-28) salió de un **análisis de rendimiento completo**
+sobre la 1.7.0 (arranque, scan, búsqueda, demonio, TUI, memoria; escalas
+sintéticas de 1k a 40k pistas, macro sobre procesos reales y micro con
+benchmarks desechables + pprof, borrados tras medir). El veredicto general:
+nada que optimizar salvo una pieza. La línea base de la auditoría #4 se
+reprodujo exacta (search'' bajo `d.mu`: 96,5 ms vs los 96 documentados; con
+re-scan de 40k, 114 vs 112), el pprof del Search es 52 % VDBE de modernc +
+17 % syscalls (ningún código de maly en el camino caliente), `status` por
+IPC responde en <0,1 ms incluso durante un re-scan completo, y la cola es
+nanosegundos. La pieza: la fase 2 del scan sondeaba EN SERIE (~28 ms por
+ffprobe, núcleos parados), y es el único cambio de código del release —
+las sondas de `FillDurations` van ahora por un pool acotado (detalles e
+invariantes en la sección de library). Quedan anotados sin acción: la TUI
+consume ~1,9 % de un núcleo en reposo sin viz (3,5 % con viz; huele a un
+tick redibujando con nada sonando — mirar los `tea.Tick` si algún día
+molesta en portátil) y el `search` amplio vía demonio serializa MB de JSON
+(solo lo sufre la consola; la TUI lee SQLite directo).
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

@@ -78,8 +78,6 @@ CREATE TABLE IF NOT EXISTS tracks (
 	search_text  TEXT NOT NULL DEFAULT '',
 	duration     REAL NOT NULL DEFAULT 0
 );
-CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
-CREATE INDEX IF NOT EXISTS idx_tracks_album  ON tracks(album);
 CREATE TABLE IF NOT EXISTS playlists (
 	id   INTEGER PRIMARY KEY,
 	name TEXT UNIQUE NOT NULL
@@ -121,6 +119,14 @@ func Open(dbPath string) (*Library, error) {
 	// Migración para bases anteriores a 0.6.0 (CREATE IF NOT EXISTS no
 	// agrega columnas); si la columna ya existe el ALTER falla y se ignora.
 	db.Exec(`ALTER TABLE tracks ADD COLUMN duration REAL NOT NULL DEFAULT 0`)
+	// Migración: idx_tracks_artist/idx_tracks_album no los usaba ninguna
+	// consulta (Search es LIKE con comodín inicial, inutiliza cualquier
+	// B-tree; el ORDER BY usa COLLATE NOCASE y los índices se crearon con
+	// colación binaria) y costaban una escritura extra por pista en cada
+	// scan. DROP INDEX IF EXISTS es no-op en instalaciones nuevas, que
+	// nunca los crearon (ya no están en schema).
+	db.Exec(`DROP INDEX IF EXISTS idx_tracks_artist`)
+	db.Exec(`DROP INDEX IF EXISTS idx_tracks_album`)
 	// El schema ya creó el archivo: apretarlo ahora. SQLite crea el -wal y el
 	// -shm con el modo del principal, así que esto cubre también a los que
 	// nazcan después; los que ya estuvieran ahí se aprietan aquí mismo.

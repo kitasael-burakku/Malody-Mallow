@@ -333,8 +333,8 @@ func TestFillDurationsEmpty(t *testing.T) {
 func TestFillDurationsConcurrentSearch(t *testing.T) {
 	lib, dir := openScanned(t, 5)
 
-	probing := make(chan struct{})   // el relleno ya empezó a probar
-	release := make(chan struct{})   // el test deja continuar al prober
+	probing := make(chan struct{}) // el relleno ya empezó a probar
+	release := make(chan struct{}) // el test deja continuar al prober
 	var once sync.Once
 	done := make(chan error, 1)
 	go func() {
@@ -814,6 +814,82 @@ func TestOpenAprietaPermisosExistentes(t *testing.T) {
 		}
 		if fi.Mode().Perm() != 0o600 {
 			t.Errorf("%s: %o, quería 0600", filepath.Base(p), fi.Mode().Perm())
+		}
+	}
+}
+
+// hasIndex confirma si un índice existe en sqlite_master.
+func hasIndex(t *testing.T, dbPath, name string) bool {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='index' AND name=?`, name).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n > 0
+}
+
+// TestFreshDBHasNoDeadIndexes: idx_tracks_artist/idx_tracks_album ya no los
+// usa ninguna consulta (Search es LIKE con comodín inicial; el ORDER BY usa
+// COLLATE NOCASE y los índices se crearon con colación binaria) — una base
+// nueva no debe crearlos nunca.
+func TestFreshDBHasNoDeadIndexes(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "fresh.db")
+	lib, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	for _, name := range []string{"idx_tracks_artist", "idx_tracks_album"} {
+		if hasIndex(t, dbPath, name) {
+			t.Errorf("una base nueva no debía crear %s", name)
+		}
+	}
+}
+
+// TestOldDBDropsDeadIndexes: una base de una versión anterior (con los
+// índices ya creados) debe perderlos al abrirse, igual que el ALTER TABLE de
+// duration migra bases viejas — DROP INDEX IF EXISTS corriendo en cada Open.
+func TestOldDBDropsDeadIndexes(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "old.db")
+
+	// Arma una base "vieja" a mano, con los índices que el schema actual ya
+	// no crea.
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE TABLE tracks (id INTEGER PRIMARY KEY, artist TEXT, album TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_tracks_artist ON tracks(artist)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`CREATE INDEX idx_tracks_album ON tracks(album)`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+
+	for _, name := range []string{"idx_tracks_artist", "idx_tracks_album"} {
+		if !hasIndex(t, dbPath, name) {
+			t.Fatalf("precondición: %s debía existir antes de Open", name)
+		}
+	}
+
+	lib, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	for _, name := range []string{"idx_tracks_artist", "idx_tracks_album"} {
+		if hasIndex(t, dbPath, name) {
+			t.Errorf("Open() debía haber dropeado %s de una base vieja", name)
 		}
 	}
 }

@@ -563,6 +563,22 @@ if [ "$ACTION" = uninstall ]; then
 	done
 	[ "$found" -eq 1 ] || warn 'no encontré nada que quitar en esas rutas' 'nothing to remove at those paths'
 
+	# El servicio systemd --user (si se instaló) se para y se quita sin
+	# preguntar: es parte de la instalación, no dato del usuario — a
+	# diferencia de config/biblioteca, no hay nada que valga la pena
+	# conservar de un maly.service huérfano apuntando a un binario borrado.
+	if [ "$SYSTEM" -eq 0 ]; then
+		UNIT_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/maly.service
+		if [ -e "$UNIT_FILE" ]; then
+			if command -v systemctl >/dev/null 2>&1; then
+				systemctl --user disable --now maly.service >/dev/null 2>&1 || true
+				systemctl --user daemon-reload >/dev/null 2>&1 || true
+			fi
+			rm -f "$UNIT_FILE"
+			msg "servicio systemd quitado: $UNIT_FILE" "systemd service removed: $UNIT_FILE"
+		fi
+	fi
+
 	# Config y biblioteca son del usuario y por defecto se respetan; borrar
 	# es opción explícita (y sin terminal, jamás).
 	CFG_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/maly
@@ -1117,6 +1133,41 @@ if [ "$SYSTEM" -eq 0 ]; then
 				warn "agrega  $path_line  a $RC (una terminal nueva basta); sin eso, cada terminal nueva necesitará  source ~/.profile  o ese export a mano" \
 					"add  $path_line  to $RC (a new terminal is enough); without it, every new terminal will need  source ~/.profile  or that export by hand"
 			fi
+		fi
+	fi
+fi
+if [ "$SYSTEM" -eq 0 ] && command -v systemctl >/dev/null 2>&1; then
+	# %h en ExecStart es systemd expandiendo a $HOME: coincide con $BIN de
+	# modo usuario a propósito (esta oferta solo aparece en ese modo). No
+	# reofrecer si ya existe — evita repreguntar en cada --update.
+	UNIT_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
+	UNIT_FILE="$UNIT_DIR/maly.service"
+	if [ ! -e "$UNIT_FILE" ]; then
+		sep
+		if confirm "¿instalar un servicio systemd --user para maly? (autoinicio, se reinicia solo si falla)" \
+			"install a systemd --user service for maly? (autostart, restarts itself on failure)"; then
+			mkdir -p "$UNIT_DIR"
+			cat > "$UNIT_FILE" <<'EOF'
+[Unit]
+Description=Maly Music Daemon
+PartOf=graphical-session.target
+After=graphical-session.target
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/maly daemon
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+			systemctl --user daemon-reload
+			systemctl --user enable maly.service >/dev/null 2>&1
+			msg "servicio instalado: $UNIT_FILE — arrancará en tu próxima sesión, o iniciálo ahora con  systemctl --user start maly" \
+				"service installed: $UNIT_FILE — it will start on your next session, or start it now with  systemctl --user start maly"
 		fi
 	fi
 fi

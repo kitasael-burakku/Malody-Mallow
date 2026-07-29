@@ -215,6 +215,8 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		return m.conControls(args)
 	case "logo":
 		return m.conLogo(args)
+	case "theme":
+		return m.conTheme(args)
 	case "lang":
 		return m.conLang(args)
 	case "version":
@@ -253,6 +255,7 @@ func (m *Model) conHelp() {
 		{"playlist <sub> [args]", i18n.T("cli.playlist")},
 		{"controls [preset]", i18n.T("cli.controls")},
 		{"logo [hex… | default]", i18n.T("cli.logo")},
+		{"theme reload", i18n.T("cli.theme_reload")},
 		{"lang [en|es]", i18n.T("cli.lang_cmd")},
 		{"version", i18n.T("cli.version_cmd")},
 		{"update", i18n.T("cli.update")},
@@ -454,6 +457,28 @@ func (m *Model) conLogo(args []string) (tea.Model, tea.Cmd) {
 	m.cfg.Theme.Logo = stops
 	m.logo.ramp = logoRamp(stops)
 	m.conPrint(m.st.playing.Render(i18n.T("cli.logo_set")))
+	return m, nil
+}
+
+// conTheme complementa a `maly theme sync` (integración Matugen, cmd/maly):
+// ese escribe en config.toml desde afuera; esto solo relee lo que ya esté
+// ahí y lo aplica en vivo, sin reiniciar la TUI — mismo patrón que
+// conControls (recarga config.Load()), extendido a m.st (newStyles) y al
+// gradiente del banner, que hoy solo se recalculaban al arrancar.
+func (m *Model) conTheme(args []string) (tea.Model, tea.Cmd) {
+	if len(args) == 0 || args[0] != "reload" {
+		m.conErr(i18n.T("con.theme_usage"))
+		return m, nil
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		m.conErr(err.Error())
+		return m, nil
+	}
+	m.cfg = cfg
+	m.st = newStyles(cfg.Theme)
+	m.logo.ramp = logoRamp(cfg.Theme.Logo)
+	m.conPrint(m.st.playing.Render(i18n.T("con.theme_reloaded")))
 	return m, nil
 }
 

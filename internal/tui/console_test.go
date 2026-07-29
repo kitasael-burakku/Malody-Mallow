@@ -46,8 +46,8 @@ func TestConsoleUsageErrors(t *testing.T) {
 		"get",
 		"lang xx",
 		"controls bogus",
-		"logo zzz",         // una sola parada: pide 2-8
-		"logo #ff0000 zzz", // parada que no es hex
+		"logo zzz",                              // una sola parada: pide 2-8
+		"logo #ff0000 zzz",                      // parada que no es hex
 		"logo " + strings.Repeat("#123456 ", 9), // demasiadas paradas
 	}
 	for _, line := range lines {
@@ -120,6 +120,45 @@ func TestConsoleControlsList(t *testing.T) {
 		if !strings.Contains(joined, name) {
 			t.Errorf("falta el preset %q en la lista:\n%s", name, joined)
 		}
+	}
+}
+
+// TestConsoleThemeReload: complemento de `maly theme sync` (integración
+// Matugen) — relee config.toml y aplica el tema en vivo (m.st, m.logo.ramp)
+// sin reiniciar la TUI.
+func TestConsoleThemeReload(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	if err := os.MkdirAll(config.ConfigDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := "[theme]\naccent = \"#123456\"\nlogo = [\"#111111\", \"#222222\"]\n"
+	if err := os.WriteFile(config.ConfigPath(), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newConModel()
+
+	if _, cmd := m.execConsole("theme"); cmd != nil {
+		t.Fatal("theme sin subcomando no debe devolver tea.Cmd")
+	}
+	if len(m.conLines) == 0 || !strings.Contains(m.conLines[len(m.conLines)-1], i18n.T("con.theme_usage")) {
+		t.Errorf("theme sin subcomando debía avisar el uso, salida: %q", m.conLines)
+	}
+
+	if m.logo.ramp != nil {
+		t.Fatal("precondición: el modelo de prueba no debía traer un ramp calculado")
+	}
+	if _, cmd := m.execConsole("theme reload"); cmd != nil {
+		t.Fatal("theme reload no debe devolver tea.Cmd")
+	}
+	if m.cfg.Theme.Accent != "#123456" {
+		t.Fatalf("theme reload no releyó config.toml: accent = %q", m.cfg.Theme.Accent)
+	}
+	// logoRamp interpola en logoSteps pasos fijos (no en len(stops)): lo que
+	// prueba que se recalculó es que dejó de ser nil.
+	if len(m.logo.ramp) != logoSteps {
+		t.Fatalf("theme reload no recalculó el ramp del logo: %d entradas, quería %d", len(m.logo.ramp), logoSteps)
 	}
 }
 

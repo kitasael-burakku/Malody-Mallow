@@ -446,6 +446,36 @@ Los cambios de pista/estado se emiten como señales D-Bus
 polling. Si no hay bus de sesión (p. ej. headless), maly lo avisa una vez
 y sigue funcionando sin MPRIS.
 
+### Matugen
+
+`maly theme sync` aplica los colores que [Matugen](https://github.com/InioX/matugen)
+generó a partir de tu wallpaper: acento, gradiente del visualizador y del
+banner. maly no habla con Matugen ni depende de su formato interno —
+agregás UNA plantilla más a tu propio `~/.config/matugen/config.toml`, con
+la misma sintaxis que ya uses para kitty/waybar/etc.:
+
+```toml
+[templates.maly]
+input_path  = '~/.config/matugen/templates/maly-colors.toml'
+output_path = '~/.config/maly/matugen-colors.toml'
+post_hook   = 'maly theme sync'
+```
+
+Y la plantilla (`~/.config/matugen/templates/maly-colors.toml`):
+
+```toml
+accent = "{{colors.primary.default.hex}}"
+color_low = "{{colors.tertiary.default.hex}}"
+color_high = "{{colors.secondary.default.hex}}"
+logo = ["{{colors.primary.default.hex}}", "{{colors.tertiary.default.hex}}", "{{colors.secondary.default.hex}}"]
+```
+
+Con el `post_hook`, cada `matugen image ...` sincroniza maly solo; también
+podés correr `maly theme sync` a mano cuando quieras. Los cuatro campos son
+opcionales — lo que no venga en el archivo se deja como está en tu config.
+Con la TUI abierta, `ctrl+p` → `theme reload` aplica el tema recién
+sincronizado sin reiniciarla.
+
 ## Configuración
 
 `~/.config/maly/config.toml` (se genera con estos defaults):

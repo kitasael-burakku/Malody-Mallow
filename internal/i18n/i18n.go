@@ -309,6 +309,17 @@ var table = map[string][2]string{
 	"config.keys_note":      {"(defaults ← controls preset ← your [keys] overrides)", "(defaults ← preset de controls ← tus overrides en [keys])"},
 
 	// ---- maly theme sync (integración Matugen — ver theme.go) ----
+	"cli.theme":            {"apply colors rendered by Matugen (see README)", "aplica los colores que renderizó Matugen (ver README)"},
+	"theme.usage":          {"usage: theme sync", "uso: theme sync"},
+	"theme.no_source":      {"no colors from Matugen at %s — add a [templates.maly] entry to your matugen config first (see README)", "no hay colores de Matugen en %s — agrega antes una entrada [templates.maly] a tu config de matugen (ver README)"},
+	"theme.parse_err":      {"could not read the rendered colors: %v", "no se pudo leer los colores renderizados: %v"},
+	"theme.bad_hex":        {"%s is not a valid #rrggbb color: %q", "%s no es un color #rrggbb válido: %q"},
+	"theme.viz_incomplete": {"color_low and color_high must both be set to sync the visualizer gradient", "color_low y color_high deben venir los dos para sincronizar el gradiente del visualizador"},
+	"theme.empty_source":   {"the rendered file had no recognized colors (accent, color_low/color_high, logo)", "el archivo renderizado no traía ningún color reconocido (accent, color_low/color_high, logo)"},
+	"theme.synced":         {"theme synced from Matugen:", "tema sincronizado desde Matugen:"},
+	"cli.theme_reload":     {"reload the theme from config.toml, applied live", "recarga el tema desde config.toml, aplicado en vivo"},
+	"con.theme_usage":      {"usage: theme reload", "uso: theme reload"},
+	"con.theme_reloaded":   {"theme reloaded", "tema recargado"},
 
 	// ---- maly doctor (veredictos; solo "fail" cambia el código de salida) ----
 	"doc.summary":         {"%d warning(s), %d error(s)", "%d aviso(s), %d error(es)"},

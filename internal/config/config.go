@@ -563,6 +563,20 @@ func SaveThemeLogo(stops []string) error {
 	return saveKey("theme", "logo", "["+strings.Join(quoted, ", ")+"]")
 }
 
+// SaveThemeAccent persiste solo el acento en [theme]. Lo usa `maly theme
+// sync` (integración Matugen): el resto de la paleta de Matugen no tiene
+// dónde ir en el tema de 4 colores de maly, así que solo el acento y el
+// gradiente del visualizador se sincronizan de forma dedicada.
+func SaveThemeAccent(hex string) error { return saveKey("theme", "accent", fmt.Sprintf("%q", hex)) }
+
+// SaveVisualizerColors persiste color_low y color_high en [visualizer].
+func SaveVisualizerColors(low, high string) error {
+	if err := saveKey("visualizer", "color_low", fmt.Sprintf("%q", low)); err != nil {
+		return err
+	}
+	return saveKey("visualizer", "color_high", fmt.Sprintf("%q", high))
+}
+
 // saveKey edita (o inserta) una clave en la sección dada ("" = bloque
 // top-level) del TOML sin tocar el resto del archivo. rawValue va tal cual,
 // ya formateado como TOML.

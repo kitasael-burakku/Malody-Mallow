@@ -131,3 +131,48 @@ func TestBuildTreeWithPlaylists(t *testing.T) {
 		t.Errorf("collapse desde pista de álbum: cursor %d, quería 1", tr.cursor)
 	}
 }
+
+// TestFlattenCachesFoldedText: el plegado Unicode del filtro se cachea por
+// pista (mismo patrón que queueFolded en tui.go) — recorrer y replegar t.all
+// entero en cada tecla del filtro pesa con bibliotecas grandes. El cache debe
+// reusarse mientras t.all no cambie de tamaño, y repoblarse solo cuando sí
+// cambia (roadmap 1.8.0, auditoría 2026-07-29).
+func TestFlattenCachesFoldedText(t *testing.T) {
+	tracks := []library.Track{
+		{ID: 1, Artist: "Ana", Album: "Uno", Title: "Áurea", Path: "/m/a.mp3"},
+		{ID: 2, Artist: "Beto", Album: "Dos", Title: "Lunática", Path: "/m/b.mp3"},
+	}
+	tr := buildTree(tracks, nil)
+	tr.filter = "aurea" // sin tilde: Fold debe igualarlo con "Áurea"
+	tr.flatten()
+	if len(tr.rows) != 1 || tr.rows[0].track.Path != "/m/a.mp3" {
+		t.Fatalf("filtro fold-aware no matcheó: %d filas", len(tr.rows))
+	}
+	if len(tr.folded) != len(tracks) {
+		t.Fatalf("flatten no pobló el cache: %d entradas, quería %d", len(tr.folded), len(tracks))
+	}
+	cached := tr.folded[0]
+
+	// Con t.all sin cambiar, una segunda flatten debe REUSAR el cache, no
+	// recalcularlo: se corrompe a mano y se comprueba que el resultado sigue
+	// el valor corrompido (si se recalculara, volvería a matchear).
+	tr.folded[0] = "manipulado-a-mano"
+	tr.flatten()
+	if len(tr.rows) != 0 {
+		t.Fatalf("flatten recalculó el cache en vez de reusarlo: %d filas", len(tr.rows))
+	}
+	tr.folded[0] = cached // restaurar para el resto del test
+
+	// t.all cambia de tamaño (como tras un buildTree con menos pistas): el
+	// cache desalineado se repuebla solo y no sirve resultados de una pista
+	// que ya no está.
+	tr.all = tracks[:1]
+	tr.filter = "lunatica"
+	tr.flatten()
+	if len(tr.rows) != 0 {
+		t.Fatalf("el cache desalineado sirvió un resultado obsoleto: %d filas", len(tr.rows))
+	}
+	if len(tr.folded) != 1 {
+		t.Fatalf("el cache no se repobló al tamaño nuevo de all: %d entradas", len(tr.folded))
+	}
+}

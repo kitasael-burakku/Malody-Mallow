@@ -55,6 +55,7 @@ type libTree struct {
 	offset int
 	filter string // si no está vacío, rows es una lista plana de pistas
 	all    []library.Track
+	folded []string // texto normalizado por pista, perezoso (ver flatten)
 }
 
 func buildTree(tracks []library.Track, lists []plList) *libTree {
@@ -208,9 +209,19 @@ func (t *libTree) flatten() {
 	t.rows = t.rows[:0]
 	if t.filter != "" {
 		q := library.Fold(t.filter)
-		for _, tr := range t.all {
-			hay := library.Fold(tr.Title + " " + tr.Artist + " " + tr.Album)
-			if containsAll(hay, q) {
+		// El plegado Unicode por pista se cachea igual que queueFolded
+		// (tui.go): recorrer y replegar t.all entero en cada tecla del
+		// filtro pesa con bibliotecas grandes (40k pistas). La comprobación
+		// de longitud sirve a la vez de detección de cache sin poblar y de
+		// desincronización tras un buildTree nuevo.
+		if len(t.folded) != len(t.all) {
+			t.folded = make([]string, len(t.all))
+			for i, tr := range t.all {
+				t.folded[i] = library.Fold(tr.Title + " " + tr.Artist + " " + tr.Album)
+			}
+		}
+		for i, tr := range t.all {
+			if containsAll(t.folded[i], q) {
 				t.rows = append(t.rows, &node{kind: trackNode, label: tr.String(), track: tr})
 			}
 		}

@@ -241,3 +241,77 @@ func TestCommandTimeoutCleansPending(t *testing.T) {
 		t.Fatalf("pending quedó con %d entradas tras el timeout", n)
 	}
 }
+
+// TestSetNextAppendFailureClearsMirror: playlist-clear puede tener éxito y el
+// loadfile append posterior fallar (mpv inestable, IPC ocupado). mpv queda
+// SIN promesa en ese caso, y el espejo (nextPath/nextKnown) tiene que
+// reflejarlo — si conservara el valor anterior a la llamada fallida, el
+// guard de no-op de una llamada posterior con esa misma ruta cortaría sin
+// mandar ningún comando, aunque mpv no tenga nada anexado de verdad. Rompe
+// el gapless en silencio: al terminar la pista, mpv llega a idle sin nada
+// que encadenar (roadmap 1.8.0, auditoría 2026-07-29).
+func TestSetNextAppendFailureClearsMirror(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer srv.Close()
+
+	var total int    // toda petición válida que le llega a mpv
+	var failedC bool // el append de "C" falla solo la primera vez
+	go func() {
+		sc := bufio.NewScanner(srv)
+		for sc.Scan() {
+			var req struct {
+				Command   []any `json:"command"`
+				RequestID int64 `json:"request_id"`
+			}
+			if json.Unmarshal(sc.Bytes(), &req) != nil || len(req.Command) == 0 {
+				continue
+			}
+			total++
+			status := "success"
+			if req.Command[0] == "loadfile" {
+				if path, ok := req.Command[1].(string); ok && path == "C" && !failedC {
+					status = "fallo inyectado por el test"
+					failedC = true
+				}
+			}
+			fmt.Fprintf(srv, `{"error":"%s","request_id":%d}`+"\n", status, req.RequestID)
+		}
+	}()
+
+	p := &Player{conn: cli, pending: map[int64]chan mpvReply{}, done: make(chan struct{})}
+	go p.readLoop()
+
+	if err := p.SetNext("B"); err != nil {
+		t.Fatalf("SetNext(B) debía salir bien: %v", err)
+	}
+	p.mu.Lock()
+	known, path := p.nextKnown, p.nextPath
+	p.mu.Unlock()
+	if !known || path != "B" {
+		t.Fatalf("espejo tras SetNext(B): nextKnown=%v nextPath=%q", known, path)
+	}
+
+	if err := p.SetNext("C"); err == nil {
+		t.Fatal("SetNext(C) debía fallar: el append fue inyectado para fallar")
+	}
+	p.mu.Lock()
+	known, path = p.nextKnown, p.nextPath
+	p.mu.Unlock()
+	if !known || path != "" {
+		t.Fatalf("tras el fallo de append el espejo debe decir la verdad (sin promesa): nextKnown=%v nextPath=%q", known, path)
+	}
+
+	before := total
+	if err := p.SetNext("B"); err != nil {
+		t.Fatalf("SetNext(B) tras el fallo previo debía reintentar y salir bien: %v", err)
+	}
+	if total == before {
+		t.Fatal("el guard de no-op cortó sin mandar comandos: el espejo seguía envenenado con el valor previo a la llamada fallida")
+	}
+	p.mu.Lock()
+	known, path = p.nextKnown, p.nextPath
+	p.mu.Unlock()
+	if !known || path != "B" {
+		t.Fatalf("espejo final debía volver a B: nextKnown=%v nextPath=%q", known, path)
+	}
+}

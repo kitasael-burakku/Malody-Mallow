@@ -391,23 +391,32 @@ func (p *Player) SetNext(path string) error {
 	p.mu.Unlock()
 
 	if _, err := p.command("playlist-clear"); err != nil {
+		// mpv no cambió: el espejo sigue siendo válido, no tocarlo.
 		return err
 	}
 	appended := ""
+	var appendErr error
 	if path != "" {
 		// Con mpv idle esto deja una entrada huérfana que no suena sola
 		// (append no arranca reproducción) y que cualquier loadfile replace
 		// posterior se lleva; inofensiva.
 		if _, err := p.command("loadfile", path, "append"); err != nil {
-			return err
+			// playlist-clear ya tuvo éxito: mpv quedó SIN promesa aunque
+			// este append falle. El espejo tiene que reflejar eso (appended
+			// se queda en "") y no el valor previo a esta llamada — si no,
+			// el guard de no-op de arriba daría por anexada una ruta que
+			// mpv en realidad no tiene, y una llamada futura con esa misma
+			// ruta no reintentaría nada.
+			appendErr = err
+		} else {
+			appended = path
 		}
-		appended = path
 	}
 	p.mu.Lock()
 	p.nextPath = appended
 	p.nextKnown = true
 	p.mu.Unlock()
-	return nil
+	return appendErr
 }
 
 // CurrentPath consulta a mpv la ruta cargada en este instante ("" si está

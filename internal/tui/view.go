@@ -462,6 +462,15 @@ func (m *Model) helpView() string {
 			lines[i] = clip(l, w-2)
 		}
 	}
-	box := m.st.panel(i18n.T("tui.help_title"), lines, w, len(lines)+2, true)
+	// Alto a la medida del contenido, pero sin superar la terminal: panel()
+	// ya trunca en silencio las líneas que no entran en innerH (se queda con
+	// las primeras), así que topear h alcanza — sin esto, en el mínimo
+	// declarado de 12 filas (bien menos que las 23 que pide el contenido
+	// completo) la caja se desbordaba del contenedor sin que nada la cortara.
+	h := len(lines) + 2
+	if h > m.height {
+		h = m.height
+	}
+	box := m.st.panel(i18n.T("tui.help_title"), lines, w, h, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.10.0 — 2026-07-29
+
+Los siete ítems de prioridad baja de la auditoría: elimina dos índices
+SQLite sin ningún consumidor, Makefile mínimo, este CHANGELOG,
+`[visualizer] backend` forzable (`auto`/`pipewire`/`pulse`), el modal de
+ayuda de la TUI ya no se desborda en terminales chicas, `daemon.go`
+dividido en archivos por categoría, e interfaz `Controller` propia para
+MPRIS (ya no depende de `ipc.Request`/`Response`).
+
 ## v1.9.0 — 2026-07-29
 
 `maly config` (muestra la configuración efectiva: defaults ← preset ←

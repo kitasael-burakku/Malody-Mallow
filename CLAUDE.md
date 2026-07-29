@@ -809,6 +809,59 @@ patrón que `controls` ya usaba para el merge de teclas — antes solo el
 logo se recalculaba en caliente (`conLogo`), el resto del tema esperaba a
 reiniciar la TUI.
 
+La **1.10.0** (2026-07-29) cierra los siete ítems de prioridad BAJA de la
+misma auditoría, de más fácil a más difícil por decisión del dueño: tres
+triviales primero, luego tres de dificultad baja, y el más invasivo
+(interfaz de mpris) al final.
+
+**Índices SQLite muertos, eliminados.** `idx_tracks_artist`/
+`idx_tracks_album` (`internal/library/library.go`) no los usaba ninguna
+consulta (`Search` es LIKE con comodín inicial; el `ORDER BY` usa
+`COLLATE NOCASE` y los índices se crearon con colación binaria) y
+costaban una escritura extra por pista en cada scan. Sin sistema de
+migraciones en el proyecto, se siguió el precedente ya establecido por el
+`ALTER TABLE` de `duration`: `DROP INDEX IF EXISTS` sin condición en cada
+`Open()`, no-op en instalaciones nuevas.
+
+**Makefile y CHANGELOG.md**, ambos ausentes hasta ahora. El Makefile
+encapsula los comandos ya documentados (`build` con `-o maly` explícito,
+`vet`, `test`, `install` con el mismo `install -Dm755` que ya usa
+`mallow-install.sh`). El CHANGELOG condensa cada release en un párrafo,
+para quien solo quiere saber qué cambió sin leer el roadmap completo de
+este archivo.
+
+**`[visualizer] backend`** (`auto`/`pipewire`/`pulse`) fuerza `pw-record`
+o `parec` en sistemas con ambos instalados. `filterCandidates(pref)` es
+la función pura nueva que recorta `captureCandidates`; un valor no
+reconocido (incluido `"auto"`/vacío) se comporta como antes, mismo
+criterio de degradar en silencio que un preset de `controls` inválido.
+
+**El modal de ayuda (`?`) ya no se desborda en terminales chicas.**
+`helpView` pedía siempre `h = len(lines)+2` (23 en el peor caso) sin
+toparlo contra `m.height` — `panel()` ya truncaba en silencio el
+contenido que no entraba en `innerH`, pero sin el tope no servía de nada.
+Verificado en ambas direcciones: sin el fix, `helpView()` con
+`m.height=12` producía 24 líneas de verdad.
+
+**`daemon.go` dividido en archivos por categoría** — `daemon_scan.go`,
+`daemon_playback.go`, `daemon_resolve.go` — sin tocar `dispatch()` (sigue
+siendo un switch plano de ~20 comandos en `daemon.go`: dividirlo en una
+tabla de funciones complicaría las tres excepciones de "antes de `d.mu`"
+que hoy son ifs explícitos y auditables). Extraído con un script que
+particiona el archivo completo por límites de `func`/`type`/`var`/`const`
+de nivel superior, verificado que el conjunto de 32 firmas de función es
+idéntico antes y después.
+
+**Interfaz `Controller` propia para mpris, desacoplada de
+`ipc.Request`/`Response`.** Antes `Do(ipc.Request) ipc.Response` acoplaba
+mpris al vocabulario wire completo de IPC (~20 comandos) cuando solo usa
+9. La interfaz nueva es de dominio (`Next`, `SetVolume(int)`,
+`SeekRel(float64)`, etc.); la conversión al formato wire que `dispatch`
+ya entiende se movió al lado del demonio, que es quien lo conoce.
+`Daemon.Do` se dejó intacto a propósito: lo usan ~45 sitios de
+`daemon_test.go` como atajo directo a dispatch sin pasar por el socket,
+y no tiene nada que ver con mpris.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

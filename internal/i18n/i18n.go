@@ -306,6 +306,7 @@ var table = map[string][2]string{
 	"config.color_low":      {"color_low", "color_low"},
 	"config.color_high":     {"color_high", "color_high"},
 	"config.bars_gravity":   {"bars_gravity", "bars_gravity"},
+	"config.viz_backend":    {"backend", "backend"},
 	"config.keys_note":      {"(defaults ← controls preset ← your [keys] overrides)", "(defaults ← preset de controls ← tus overrides en [keys])"},
 
 	// ---- maly theme sync (integración Matugen — ver theme.go) ----

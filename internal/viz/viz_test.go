@@ -112,3 +112,33 @@ func TestReadLoopDegradesToFake(t *testing.T) {
 		t.Errorf("últimas muestras del ring: %v", got)
 	}
 }
+
+// TestFilterCandidates: "auto"/vacío/un valor no reconocido dejan la lista
+// completa (en el orden de siempre); "pipewire"/"pulse" acotan a un solo
+// candidato. Función pura, sin exec.LookPath ni procesos reales.
+func TestFilterCandidates(t *testing.T) {
+	full := filterCandidates("auto")
+	if len(full) != len(captureCandidates) {
+		t.Fatalf(`filterCandidates("auto") = %d candidatos, quería %d`, len(full), len(captureCandidates))
+	}
+
+	empty := filterCandidates("")
+	if len(empty) != len(captureCandidates) {
+		t.Fatalf(`filterCandidates("") = %d candidatos, quería la lista completa`, len(empty))
+	}
+
+	bogus := filterCandidates("bogus")
+	if len(bogus) != len(captureCandidates) {
+		t.Fatalf(`filterCandidates("bogus") = %d candidatos, un valor no reconocido debía comportarse como "auto"`, len(bogus))
+	}
+
+	pw := filterCandidates("pipewire")
+	if len(pw) != 1 || pw[0].name != "pw-record" {
+		t.Fatalf(`filterCandidates("pipewire") = %v, quería solo pw-record`, pw)
+	}
+
+	pulse := filterCandidates("pulse")
+	if len(pulse) != 1 || pulse[0].name != "parec" {
+		t.Fatalf(`filterCandidates("pulse") = %v, quería solo parec`, pulse)
+	}
+}

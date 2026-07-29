@@ -66,6 +66,7 @@ func runConfig([]string) error {
 	row("config.color_low", cfg.Visualizer.ColorLow)
 	row("config.color_high", cfg.Visualizer.ColorHigh)
 	row("config.bars_gravity", fmt.Sprintf("%g", cfg.Visualizer.BarsGravity))
+	row("config.viz_backend", cfg.Visualizer.Backend)
 
 	sec("config.sec_ytdlp")
 	row("info.ytdlp_cookies", orUnset(cfg.Ytdlp.CookiesFromBrowser, unset))

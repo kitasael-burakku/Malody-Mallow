@@ -172,7 +172,7 @@ func Run(cfg config.Config, embedded bool) error {
 	m.filterInput.TextStyle = m.st.text
 
 	if cfg.Visualizer.Enabled {
-		m.viz = viz.New(cfg.Visualizer.BarsGravity)
+		m.viz = viz.New(cfg.Visualizer.BarsGravity, cfg.Visualizer.Backend)
 		defer m.viz.Close()
 	}
 

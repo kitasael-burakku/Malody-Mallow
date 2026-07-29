@@ -184,7 +184,7 @@ func checkOptionalTools(cfg config.Config) []check {
 		out = append(out, check{lvlOK, "yt-dlp + ffmpeg", i18n.T("doc.get_ok"), nil})
 	}
 
-	if bin := viz.CaptureBackend(); bin != "" {
+	if bin := viz.CaptureBackend(cfg.Visualizer.Backend); bin != "" {
 		out = append(out, check{lvlOK, "visualizer", bin, nil})
 	} else {
 		out = append(out, check{lvlInfo, "visualizer", i18n.T("doc.viz_missing"), nil})

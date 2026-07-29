@@ -39,7 +39,9 @@ type Viz struct {
 
 // New arranca la captura del monitor de audio. Nunca falla: sin backend
 // disponible queda en modo fake (Fake() lo reporta para avisar en la UI).
-func New(gravity float64) *Viz {
+// pref es `[visualizer] backend` del config ("auto"/""/pipewire/pulse); un
+// valor no reconocido se comporta como "auto".
+func New(gravity float64, pref string) *Viz {
 	v := &Viz{
 		ring:    make([]float64, fftSize),
 		fft:     fourier.NewFFT(fftSize),
@@ -51,7 +53,7 @@ func New(gravity float64) *Viz {
 	for i := range v.window {
 		v.window[i] = 0.5 * (1 - math.Cos(2*math.Pi*float64(i)/float64(fftSize-1)))
 	}
-	if err := v.startCapture(); err != nil {
+	if err := v.startCapture(pref); err != nil {
 		v.fake = true
 	}
 	return v
@@ -73,11 +75,38 @@ var captureCandidates = []candidate{
 		"-d", "@DEFAULT_MONITOR@"}},
 }
 
-// CaptureBackend devuelve el capturador que se usaría ("" = ninguno, el
-// visualizador caería en modo animación). Solo mira el PATH: no arranca nada,
-// que es lo que necesita `maly doctor`.
-func CaptureBackend() string {
+// backendBin traduce el valor de `[visualizer] backend` del config al
+// nombre del binario candidato correspondiente.
+var backendBin = map[string]string{
+	"pipewire": "pw-record",
+	"parec":    "parec",
+	"pulse":    "parec",
+}
+
+// filterCandidates recorta captureCandidates según la preferencia del
+// usuario. "auto", vacío o un valor no reconocido devuelven la lista
+// completa en el orden de siempre — un valor inválido en el config no debe
+// romper el visualizador, se comporta como si no se hubiera pedido nada
+// (mismo criterio que un preset de controls inválido cae a "default").
+// Función pura a propósito: testeable sin exec.LookPath ni procesos reales.
+func filterCandidates(pref string) []candidate {
+	bin, ok := backendBin[pref]
+	if !ok {
+		return captureCandidates
+	}
 	for _, c := range captureCandidates {
+		if c.name == bin {
+			return []candidate{c}
+		}
+	}
+	return captureCandidates
+}
+
+// CaptureBackend devuelve el capturador que se usaría ("" = ninguno, el
+// visualizador caería en modo animación) respetando pref. Solo mira el
+// PATH: no arranca nada, que es lo que necesita `maly doctor`.
+func CaptureBackend(pref string) string {
+	for _, c := range filterCandidates(pref) {
 		if _, err := exec.LookPath(c.name); err == nil {
 			return c.name
 		}
@@ -85,10 +114,11 @@ func CaptureBackend() string {
 	return ""
 }
 
-// startCapture intenta pw-record y luego parec, leyendo s16le mono 44.1kHz.
-func (v *Viz) startCapture() error {
+// startCapture intenta los candidatos que deje pref, leyendo s16le mono
+// 44.1kHz.
+func (v *Viz) startCapture(pref string) error {
 	var lastErr error
-	for _, c := range captureCandidates {
+	for _, c := range filterCandidates(pref) {
 		bin, err := exec.LookPath(c.name)
 		if err != nil {
 			lastErr = err

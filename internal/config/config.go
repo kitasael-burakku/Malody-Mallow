@@ -36,6 +36,11 @@ type Visualizer struct {
 	ColorLow    string  `toml:"color_low"`
 	ColorHigh   string  `toml:"color_high"`
 	BarsGravity float64 `toml:"bars_gravity"`
+	// Backend fuerza el capturador de audio: "auto" (default, prueba
+	// pw-record y luego parec), "pipewire" o "pulse". Un sistema con ambos
+	// instalados no tiene forma de forzar uno si el automático elige peor.
+	// Un valor no reconocido se comporta como "auto" (viz.filterCandidates).
+	Backend string `toml:"backend"`
 }
 
 // Ytdlp configura el passthrough hacia yt-dlp de `maly get`. maly no valida
@@ -142,6 +147,7 @@ func Default() Config {
 			ColorLow:    "#89b4fa",
 			ColorHigh:   "#f38ba8",
 			BarsGravity: 0.92,
+			Backend:     "auto",
 		},
 		Keys: DefaultKeys(),
 	}
@@ -171,6 +177,9 @@ enabled = true
 color_low = "#89b4fa"
 color_high = "#f38ba8"
 bars_gravity = 0.92
+# capturador de audio: auto (default) | pipewire | pulse — forzar uno si
+# tenés ambos instalados y el automático (pw-record, luego parec) elige peor
+backend = "auto"
 
 [ytdlp]
 # Navegador del que leer cookies para descargas que requieren cuenta

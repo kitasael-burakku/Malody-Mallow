@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build -o maly ./cmd/maly
+      - run: go vet ./...
+      - run: go test ./...
+        env:
+          CGO_ENABLED: "0"
+
+  race:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Únicos dos paquetes con concurrencia real de goroutines que no
+      # dependen de binarios externos (mpv/ffprobe): TestScanConcurrentSearch/
+      # TestFillDurationsConcurrentSearch/TestFillDurationsProbesInParallel en
+      # library, y TestPropsConcurrent en mpris (el que habría cazado la
+      # race de godbus/prop). El resto de internal/daemon se auto-salta sin
+      # mpv y no tiene sentido correrlo bajo -race aquí.
+      - run: go test -race ./internal/library/ ./internal/mpris/

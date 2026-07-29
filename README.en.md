@@ -2,7 +2,7 @@
 
 ![version](https://img.shields.io/badge/version-1.8.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
-![license](https://img.shields.io/badge/license-MIT-green)
+![license](https://img.shields.io/badge/license-GPLv3-blue)
 
 🇪🇸 [Español](README.md) · 🇬🇧 [English](README.en.md)
 

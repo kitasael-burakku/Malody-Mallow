@@ -7,12 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"math"
 	"net"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,7 +23,6 @@ import (
 	"maly/internal/library"
 	"maly/internal/mpris"
 	"maly/internal/player"
-	"maly/internal/probe"
 	"maly/internal/queue"
 	"maly/internal/version"
 )
@@ -34,12 +31,12 @@ import (
 var ErrAlreadyRunning = errors.New("another maly daemon is already running")
 
 type Daemon struct {
-	mu       sync.Mutex
-	cfg      config.Config
-	lib      *library.Library
-	pl       *player.Player
-	q        *queue.Queue
-	ln       net.Listener
+	mu  sync.Mutex
+	cfg config.Config
+	lib *library.Library
+	pl  *player.Player
+	q   *queue.Queue
+	ln  net.Listener
 	// lock es el flock que acredita a este proceso como EL demonio. Hay que
 	// retenerlo vivo: el lock pertenece al descriptor abierto (ver lock.go).
 	lock     *os.File
@@ -270,91 +267,6 @@ func (d *Daemon) serve(conn net.Conn) {
 	}
 }
 
-// advance es la política de avance de la cola cuando una pista termina sin
-// intervención de un cliente: eof natural o fallo de reproducción (archivo
-// corrupto, borrado…). Con gapless, mpv normalmente ya encadenó solo a la
-// entrada anexada por syncWindowLocked; aquí se reconcilia la cola con lo
-// que mpv hizo, se repara a mano cuando no pudo encadenar, y se re-arma la
-// ventana con la promesa siguiente. chained es la entrada que el player
-// tenía anexada al terminar la pista ("" = ninguna): mpv encadena a ella.
-func (d *Daemon) advance(reason, chained string) {
-	d.mu.Lock()
-	if reason == "error" {
-		if d.stopped {
-			// Eco de una entrada que seguía en vuelo cuando paramos a
-			// propósito: ni cuenta para la racha ni rearranca nada.
-			d.mu.Unlock()
-			return
-		}
-		if t, ok := d.q.Current(); ok {
-			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.track_failed", t))
-		}
-		d.errStreak++
-		if d.errStreak >= d.q.Len() {
-			// Una pasada entera sin nada reproducible (o cola ya vacía):
-			// detenerse; seguir saltando ciclaría para siempre con repeat
-			// all. Stop además vacía la playlist de mpv, cortando una
-			// entrada anexada que estuviera por fallar igual.
-			d.errStreak = 0
-			d.stopped = true
-			d.pl.Stop()
-			d.mu.Unlock()
-			fmt.Fprintln(os.Stderr, "maly: "+i18n.T("d.queue_failed"))
-			d.notify()
-			return
-		}
-	} else {
-		d.errStreak = 0
-	}
-
-	if t, ok := d.q.PeekNext(); ok && chained == t.Path {
-		// mpv está encadenando a la promesa anexada (gapless): solo
-		// confirmar el avance en la cola, sin tocar la reproducción.
-		d.q.Next(true)
-	} else if chained == "" && !d.stopped {
-		// No había nada anexado (fin de cola, o el append falló): mpv quedó
-		// idle; cargar a mano, como antes de gapless. pl.Load directo y NO
-		// loadLocked: una carga de salto no abre pasada nueva o la racha se
-		// resetearía a cada intento y la guarda jamás cortaría el ciclo.
-		if t, ok := d.q.Next(true); ok {
-			if err := d.pl.Load(t.Path); err != nil {
-				// mpv no contestó (murió, socket roto): sin end-file que
-				// reintente, se deja constancia.
-				fmt.Fprintf(os.Stderr, "maly: %s: %v\n", i18n.Tf("d.track_failed", t), err)
-			}
-		}
-	}
-	// else: lo anexado ya no es la promesa — un comando mutó la cola (y
-	// cargó/realineó) entre el fin de pista y este punto; avanzar además
-	// saltearía una pista.
-	d.syncWindowLocked()
-	d.mu.Unlock()
-	d.notify()
-}
-
-// syncWindowLocked alinea la entrada anexada de mpv (la ventana gapless)
-// con la promesa vigente de la cola; requiere d.mu. Es best-effort: si el
-// append falla, el siguiente advance repara cargando a mano.
-func (d *Daemon) syncWindowLocked() {
-	next := ""
-	if t, ok := d.q.PeekNext(); ok {
-		next = t.Path
-	}
-	d.pl.SetNext(next)
-}
-
-// loadLocked carga t en el player (requiere d.mu). Una carga pedida por un
-// cliente que mpv acepta abre pasada nueva para la guarda de advance y
-// termina cualquier silencio deliberado.
-func (d *Daemon) loadLocked(t library.Track) error {
-	if err := d.pl.Load(t.Path); err != nil {
-		return err
-	}
-	d.errStreak = 0
-	d.stopped = false
-	return nil
-}
-
 // subscribe atiende una conexión en modo push desde la goroutine de serve:
 // estado inicial, y uno nuevo cada vez que notify marca dirty, con un mínimo
 // de 250 ms entre pushes (los ticks de time-pos de mpv llegan varios por
@@ -480,42 +392,6 @@ func (d *Daemon) notify() {
 	}
 	d.wakeSubs()
 	d.sessDirty.Store(true)
-}
-
-// learnDuration aprende perezosamente la duración de la pista actual cuando
-// mpv la reporta: los tags no la traen, así que la biblioteca la va
-// completando a medida que suena música. La copia en memoria de la cola
-// hace que solo se escriba una vez por pista.
-func (d *Daemon) learnDuration() {
-	d.mu.Lock()
-	st := d.pl.State()
-	t, ok := d.q.Current()
-	if !ok || st.Idle || st.Duration <= 0 || abs(t.Duration-st.Duration) < 0.5 {
-		d.mu.Unlock()
-		return
-	}
-	for i := range d.q.Items {
-		if d.q.Items[i].Path == t.Path {
-			d.q.Items[i].Duration = st.Duration
-		}
-	}
-	path, secs := t.Path, st.Duration
-	d.mu.Unlock()
-
-	// La escritura va FUERA de d.mu: era la única del demonio que corría con el
-	// mutex tomado, y encima se dispara en cada cambio de pista. Soltar antes no
-	// reabre nada: la guarda contra escrituras repetidas es la copia en memoria
-	// de la cola, que ya quedó actualizada arriba bajo el lock, y el UPDATE es
-	// por ruta, así que da igual qué esté sonando cuando llegue.
-	// Fuera de la biblioteca (pista suelta por ruta) no toca ninguna fila.
-	d.lib.SetDuration(path, secs)
-}
-
-func abs(v float64) float64 {
-	if v < 0 {
-		return -v
-	}
-	return v
 }
 
 // wakeSubs marca dirty a cada suscriptor; el envío no bloquea (cap 1: si ya
@@ -816,239 +692,6 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	default:
 		return fail(errors.New(i18n.TLf(lang, "d.unknown_cmd", req.Cmd)))
 	}
-}
-
-// scan (re)indexa dir sin tomar d.mu: library serializa sus sentencias en su
-// única conexión SQLite, y así play/status siguen respondiendo durante el
-// escaneo. Solo se permite un escaneo a la vez.
-func (d *Daemon) scan(lang, query string) ipc.Response {
-	if !d.scanning.CompareAndSwap(false, true) {
-		return ipc.Response{Error: i18n.TL(lang, "d.scan_busy")}
-	}
-	// Al terminar, despertar SIEMPRE a los suscriptores (aun sin cambios o
-	// con error) para que limpien el "escaneando…" de su Status — y hacerlo
-	// DESPUÉS de bajar scanning, o el push final aún lo reportaría en true.
-	defer func() {
-		d.scanning.Store(false)
-		d.wakeSubs()
-	}()
-
-	dir, origin, explicit := d.cfg.ScanTarget(query)
-	d.scanSeen.Store(0)
-	d.scanTotal.Store(0)
-	// Los suscriptores ven el avance en Status (Scanning/ScanSeen); el dirty
-	// con cap 1 y el mínimo de 250 ms entre pushes ya colapsan la avalancha.
-	res, err := d.lib.Scan(dir, func(seen int) {
-		d.scanSeen.Store(int64(seen))
-		d.wakeSubs()
-	})
-	if err != nil {
-		if !explicit && errors.Is(err, fs.ErrNotExist) {
-			return ipc.Response{Error: i18n.TLf(lang, "cli.scan_noexist", dir, i18n.TL(lang, origin))}
-		}
-		return ipc.Response{Error: err.Error()}
-	}
-	// Segunda fase: las duraciones que el indexado no puede saber (los tags
-	// no las traen). Sigue fuera de d.mu y con la misma atómica scanning,
-	// así que un scan concurrente sigue rebotando con d.scan_busy.
-	learned, dfailed := 0, 0
-	if d.cfg.ScanDurations && probe.Available() {
-		d.scanSeen.Store(0)
-		learned, dfailed, _ = d.lib.FillDurations(dir, probe.Duration, func(done, total int) {
-			d.scanSeen.Store(int64(done))
-			d.scanTotal.Store(int64(total))
-			d.wakeSubs()
-		})
-		d.refreshQueueDurations(learned)
-	}
-
-	total, _ := d.lib.Count()
-	if res.Added+res.Updated+res.Removed > 0 || learned > 0 {
-		// La biblioteca cambió de generación (handle trata scan como
-		// solo-lectura y no la subiría). Un scan sin cambios no recarga el
-		// árbol de nadie; el wakeSubs va en el defer de arriba.
-		d.libGen.Add(1)
-	}
-	msg := i18n.TLf(lang, "d.scan_done", res.Added, res.Updated, res.Removed, total)
-	if learned > 0 {
-		msg += i18n.TLf(lang, "d.dur_done", learned)
-	}
-	if dfailed > 0 {
-		// Un archivo con extensión de audio que ffprobe no sabe leer es un
-		// caso normal y ruidoso: solo el conteo, sin volcar rutas al stderr
-		// como hace el indexado.
-		msg += i18n.TLf(lang, "d.dur_errs", dfailed)
-	}
-	if len(res.Errors) > 0 {
-		// Vía IPC los errores por archivo no viajan (serían cientos de
-		// líneas): el detalle va al stderr del demonio (como los fallos de
-		// pista) y la respuesta al menos dice cuántos hubo.
-		for _, e := range res.Errors {
-			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("cli.scan_warn", e))
-		}
-		msg += i18n.TLf(lang, "d.scan_errs", len(res.Errors))
-	}
-	return ipc.Response{OK: true, Msg: msg}
-}
-
-// refreshQueueDurations trae a la cola en memoria las duraciones que el
-// relleno acaba de aprender. Hace falta porque learnDuration compara contra
-// la cola, no contra la base: sin esto los items ya cargados seguirían en 0
-// (y el panel de cola de la TUI sin duración) hasta que cada pista sonara.
-//
-// Las lecturas de la biblioteca van FUERA de d.mu, como la resolución de
-// pistas de play/add; el mutex solo se toma para mirar qué falta y para
-// aplicar. El emparejamiento es por ruta porque los índices pueden haber
-// cambiado mientras leíamos.
-func (d *Daemon) refreshQueueDurations(learned int) {
-	if learned == 0 {
-		return
-	}
-	d.mu.Lock()
-	var want []string
-	for _, t := range d.q.Items {
-		if t.Duration <= 0 {
-			want = append(want, t.Path)
-		}
-	}
-	d.mu.Unlock()
-	if len(want) == 0 {
-		return
-	}
-
-	found := make(map[string]float64, len(want))
-	for _, p := range want {
-		if t, ok := d.lib.ByPath(p); ok && t.Duration > 0 {
-			found[p] = t.Duration
-		}
-	}
-	if len(found) == 0 {
-		return
-	}
-
-	d.mu.Lock()
-	for i := range d.q.Items {
-		if secs, ok := found[d.q.Items[i].Path]; ok && d.q.Items[i].Duration <= 0 {
-			d.q.Items[i].Duration = secs
-		}
-	}
-	d.mu.Unlock()
-	d.wakeSubs()
-}
-
-// resumeLocked reanuda: quita pausa si hay pista, o arranca la cola si mpv
-// está idle.
-func (d *Daemon) resumeLocked(lang string, fail func(error) ipc.Response, okStatus func(string) ipc.Response) ipc.Response {
-	st := d.pl.State()
-	if !st.Idle {
-		if err := d.pl.SetPause(false); err != nil {
-			return fail(err)
-		}
-		return okStatus("")
-	}
-	t, ok := d.q.Current()
-	if !ok {
-		if t, ok = d.q.JumpTo(0); !ok {
-			return fail(errors.New(i18n.TL(lang, "d.queue_empty_hint")))
-		}
-	}
-	if err := d.loadLocked(t); err != nil {
-		return fail(err)
-	}
-	return okStatus(i18n.TLf(lang, "d.playing", t))
-}
-
-// seek parsea el valor y se lo pasa al player. Corre SIN d.mu (ver dispatch):
-// no toca la cola ni ningún otro estado del demonio.
-func (d *Daemon) seek(lang, val string) error {
-	val = strings.TrimSpace(val)
-	if val == "" {
-		return errors.New(i18n.TL(lang, "d.seek_usage"))
-	}
-	if strings.Contains(val, ":") {
-		// mm:ss o hh:mm:ss (mixes y podcasts pasan de la hora).
-		parts := strings.Split(val, ":")
-		if len(parts) > 3 {
-			return errors.New(i18n.TLf(lang, "d.seek_mmss", val))
-		}
-		secs := 0
-		for i, p := range parts {
-			n, err := strconv.Atoi(p)
-			// Solo el campo más significativo (horas, o minutos sin horas)
-			// puede pasar de 59.
-			if err != nil || n < 0 || (i > 0 && n > 59) {
-				return errors.New(i18n.TLf(lang, "d.seek_mmss", val))
-			}
-			secs = secs*60 + n
-		}
-		return d.pl.SeekAbs(float64(secs))
-	}
-	if strings.HasPrefix(val, "+") || strings.HasPrefix(val, "-") {
-		n, err := strconv.ParseFloat(val, 64)
-		if err != nil || !finite(n) {
-			return errors.New(i18n.TLf(lang, "d.seek_offset", val))
-		}
-		return d.pl.SeekRel(n)
-	}
-	n, err := strconv.ParseFloat(val, 64)
-	if err != nil || !finite(n) {
-		return errors.New(i18n.TLf(lang, "d.seek_abs", val))
-	}
-	return d.pl.SeekAbs(n)
-}
-
-// resolveTracks convierte una consulta o ruta en pistas: archivo suelto,
-// directorio (recursivo) o búsqueda en la biblioteca.
-func (d *Daemon) resolveTracks(lang, q string) ([]library.Track, error) {
-	q = strings.TrimSpace(q)
-	if q == "" {
-		return nil, errors.New(i18n.TL(lang, "d.missing_query"))
-	}
-	p := config.ExpandTilde(q)
-	if abs, err := filepath.Abs(p); err == nil {
-		if fi, err := os.Stat(abs); err == nil {
-			if fi.IsDir() {
-				return tracksFromDir(lang, d.lib, abs)
-			}
-			return []library.Track{trackFromFile(d.lib, abs)}, nil
-		}
-	}
-	tracks, err := d.lib.Search(q)
-	if err != nil {
-		return nil, err
-	}
-	if len(tracks) == 0 {
-		return nil, errors.New(i18n.TLf(lang, "d.no_results", q))
-	}
-	return tracks, nil
-}
-
-func trackFromFile(lib *library.Library, path string) library.Track {
-	if t, ok := lib.ByPath(path); ok {
-		return t
-	}
-	// fuera de la biblioteca: leer los tags al vuelo para no encolar la
-	// pista con el nombre de archivo como único dato
-	return library.ReadTags(path)
-}
-
-func tracksFromDir(lang string, lib *library.Library, dir string) ([]library.Track, error) {
-	var out []library.Track
-	err := filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
-		if err != nil || e.IsDir() || !library.IsAudio(path) {
-			return nil
-		}
-		out = append(out, trackFromFile(lib, path))
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if len(out) == 0 {
-		return nil, errors.New(i18n.TLf(lang, "d.no_audio", dir))
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
-	return out, nil
 }
 
 // errAdjust cubre todo valor inválido de parseAdjust. El caller arma el

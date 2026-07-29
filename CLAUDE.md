@@ -754,6 +754,61 @@ suite completa con un `PATH` realmente sin esos binarios, no solo confiando
 en que `t.Skip` los cubriera. Sin `-short`: ningún test del repo lo honra,
 sería un no-op.
 
+La **1.9.0** (2026-07-29) cierra los cinco ítems de prioridad MEDIA de la
+misma auditoría que dio la 1.8.0: tres de dificultad baja primero
+(`maly config`, el test de migración que le faltaba a `update_check`, y los
+tests de `doctor.go`/`info.go`), y los dos de dificultad media al final
+(systemd empaquetado y la integración con Matugen), en ese orden por
+decisión del dueño.
+
+**`maly config`** (`cmd/maly/config_cmd.go`) muestra la configuración
+EFECTIVA — defaults ← preset de controls ← `[keys]` del usuario, el merge
+que hoy solo vive dentro de `resolveKeys()` y era invisible sin leer el
+código. Clona el patrón de `info.go` (tabwriter, etiquetas sin color) y
+reusa `config.Load()` tal cual: sin lógica de resolución nueva, solo
+mostrarla. Complementa a `maly info` en vez de reemplazar su sección de
+config — `info` sigue con su subconjunto, `config` muestra todo (theme,
+visualizer, las ~23 teclas resueltas).
+
+**Tests de `doctor.go`/`info.go`**: dos invariantes que CLAUDE.md documentaba
+en prosa desde la 1.7.0 sin ningún test que los encodara — el patrón de
+riesgo que la 1.6.1 ya nombró ("no compilar no prueba que el defecto
+estuviera"). `TestCheckServiceNoDaemonNoLock` verifica que no queda ningún
+`maly.lock` en el runtime dir; `TestLibraryStatsNoDB`/
+`TestOpenLibraryIfExistsDoesNotCreate` que no se fabrica la base de datos.
+Ambos verificados en ambas direcciones simulando la regresión.
+
+**Unit de systemd empaquetada** (`mallow-install.sh`): vivía solo en el
+README, para copiar a mano, pese a que el propio README la recomienda como
+el camino preferido. Se ofrece en modo usuario si hay `systemctl`, solo
+`enable` (nunca `--now`, para no pisar algo que ya esté corriendo por
+`&`), y no se reofrece si ya existe. `--uninstall` la para/deshabilita/
+borra sin preguntar — a diferencia de config/biblioteca, es parte de la
+instalación, no dato del usuario. Verificado con `systemctl` stubeado: la
+unit generada es byte a byte idéntica a la del README.
+
+**Integración con Matugen — `maly theme sync`.** El diseño cambió a mejor
+tras leer la config real de Matugen del dueño (con permiso explícito):
+Matugen no escribe ningún JSON central por defecto — todo sale por
+`[templates.*]` con sintaxis Tera y `post_hook`, el mismo mecanismo que ya
+usa para kitty/waybar/hyprlock. `maly theme sync` no parsea el formato
+interno de Matugen (inestable entre versiones): lee un TOML chico en una
+ruta fija que el usuario genera agregando `[templates.maly]` a su propio
+config, con `post_hook = 'maly theme sync'`. Sin flag `--from`: la CLI de
+maly no tiene parser de flags a propósito. Los cuatro campos (accent,
+color_low, color_high, logo) son opcionales — parcial es válido, salvo
+`color_low`/`color_high` que van juntos (un gradiente a medias no tiene
+sentido). Persiste con `saveKey` vía dos wrappers nuevos
+(`SaveThemeAccent`, `SaveVisualizerColors`), mismo patrón que
+`SaveThemeLogo`. Verificado end-to-end con el binario real de Matugen
+(v4.1.0) sin tocar la config real del dueño (sandbox aislado).
+
+De paso, `theme reload` en la consola ctrl+p: relee `config.toml` y aplica
+el tema completo en vivo (`m.st = newStyles(...)` + `m.logo.ramp`), mismo
+patrón que `controls` ya usaba para el merge de teclas — antes solo el
+logo se recalculaba en caliente (`conLogo`), el resto del tema esperaba a
+reiniciar la TUI.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

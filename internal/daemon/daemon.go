@@ -359,8 +359,9 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 	return resp
 }
 
-// Do ejecuta una petición como si llegara por el socket; lo usa el servicio
-// MPRIS para no duplicar la lógica de comandos.
+// Do ejecuta una petición como si llegara por el socket. Los tests de este
+// paquete la usan mucho como atajo directo a dispatch sin pasar por el
+// socket; mpris usa la interfaz angosta de abajo, no esta.
 func (d *Daemon) Do(req ipc.Request) ipc.Response { return d.handle(req) }
 
 // Status devuelve una copia del estado actual (también para MPRIS).
@@ -368,6 +369,41 @@ func (d *Daemon) Status() *ipc.Status {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.statusLocked()
+}
+
+// Implementación de mpris.Controller: cada método reusa handle (el mismo
+// camino que los clientes IPC) para no duplicar lógica de dispatch, y
+// descarta la respuesta a propósito — la spec de MPRIS pide que estos
+// métodos sean no-op cuando la acción no aplica (p. ej. "next" sin
+// siguiente pista), así que no hay nada útil que reportarle al bus.
+func (d *Daemon) Next()      { d.handle(ipc.Request{Cmd: "next"}) }
+func (d *Daemon) Previous()  { d.handle(ipc.Request{Cmd: "prev"}) }
+func (d *Daemon) Pause()     { d.handle(ipc.Request{Cmd: "pause"}) }
+func (d *Daemon) PlayPause() { d.handle(ipc.Request{Cmd: "toggle"}) }
+func (d *Daemon) Stop()      { d.handle(ipc.Request{Cmd: "stop"}) }
+func (d *Daemon) Play()      { d.handle(ipc.Request{Cmd: "play"}) }
+
+func (d *Daemon) SetVolume(pct int) { d.handle(ipc.Request{Cmd: "vol", Value: strconv.Itoa(pct)}) }
+
+func (d *Daemon) SetShuffle(on bool) {
+	v := "off"
+	if on {
+		v = "on"
+	}
+	d.handle(ipc.Request{Cmd: "shuffle", Value: v})
+}
+
+func (d *Daemon) SetRepeat(mode string) { d.handle(ipc.Request{Cmd: "repeat", Value: mode}) }
+
+// SeekRel/SeekAbs traducen segundos (lo que pide mpris.Controller) al mismo
+// formato de Value que ya entiende el case "seek" de dispatch — la
+// conversión de la unidad wire vive acá, no en mpris.
+func (d *Daemon) SeekRel(secs float64) {
+	d.handle(ipc.Request{Cmd: "seek", Value: fmt.Sprintf("%+.3f", secs)})
+}
+
+func (d *Daemon) SeekAbs(secs float64) {
+	d.handle(ipc.Request{Cmd: "seek", Value: fmt.Sprintf("%.3f", secs)})
 }
 
 // mprisState toma el servicio y una copia coherente del estado, o nil si

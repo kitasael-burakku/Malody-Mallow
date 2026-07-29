@@ -1,6 +1,8 @@
 package mpris
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -9,30 +11,52 @@ import (
 	"maly/internal/ipc"
 )
 
-// fakeCtrl registra las peticiones que el servicio despacha al demonio.
-// Do llega desde goroutines (los callbacks de prop), así que va por canal.
+// fakeCtrl implementa Controller registrando cada llamada como {cmd, value}
+// — mismo par que el viejo ipc.Request{Cmd,Value} — para que want/wantNone y
+// todas las aserciones existentes no tengan que reescribirse: lo que cambió
+// es la interfaz que el servicio llama, no lo que hay que verificar. Los
+// métodos llegan desde goroutines (los callbacks de prop), así que van por
+// canal.
+type call struct{ cmd, value string }
+
 type fakeCtrl struct {
-	reqs chan ipc.Request
+	reqs chan call
 	st   *ipc.Status
 }
 
 func newFakeCtrl(st *ipc.Status) *fakeCtrl {
-	return &fakeCtrl{reqs: make(chan ipc.Request, 8), st: st}
+	return &fakeCtrl{reqs: make(chan call, 8), st: st}
 }
 
-func (f *fakeCtrl) Do(req ipc.Request) ipc.Response {
-	f.reqs <- req
-	return ipc.Response{OK: true}
+func (f *fakeCtrl) Next()      { f.reqs <- call{"next", ""} }
+func (f *fakeCtrl) Previous()  { f.reqs <- call{"prev", ""} }
+func (f *fakeCtrl) Pause()     { f.reqs <- call{"pause", ""} }
+func (f *fakeCtrl) PlayPause() { f.reqs <- call{"toggle", ""} }
+func (f *fakeCtrl) Stop()      { f.reqs <- call{"stop", ""} }
+func (f *fakeCtrl) Play()      { f.reqs <- call{"play", ""} }
+
+func (f *fakeCtrl) SetVolume(pct int) { f.reqs <- call{"vol", strconv.Itoa(pct)} }
+
+func (f *fakeCtrl) SetShuffle(on bool) {
+	v := "off"
+	if on {
+		v = "on"
+	}
+	f.reqs <- call{"shuffle", v}
 }
+
+func (f *fakeCtrl) SetRepeat(mode string) { f.reqs <- call{"repeat", mode} }
+func (f *fakeCtrl) SeekRel(secs float64)  { f.reqs <- call{"seek", fmt.Sprintf("%+.3f", secs)} }
+func (f *fakeCtrl) SeekAbs(secs float64)  { f.reqs <- call{"seek", fmt.Sprintf("%.3f", secs)} }
 
 func (f *fakeCtrl) Status() *ipc.Status { return f.st }
 
 func (f *fakeCtrl) want(t *testing.T, cmd, value string) {
 	t.Helper()
 	select {
-	case req := <-f.reqs:
-		if req.Cmd != cmd || req.Value != value {
-			t.Errorf("petición {%q %q}, quería {%q %q}", req.Cmd, req.Value, cmd, value)
+	case c := <-f.reqs:
+		if c.cmd != cmd || c.value != value {
+			t.Errorf("petición {%q %q}, quería {%q %q}", c.cmd, c.value, cmd, value)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatalf("el demonio nunca recibió %q", cmd)
@@ -42,8 +66,8 @@ func (f *fakeCtrl) want(t *testing.T, cmd, value string) {
 func (f *fakeCtrl) wantNone(t *testing.T) {
 	t.Helper()
 	select {
-	case req := <-f.reqs:
-		t.Errorf("petición inesperada {%q %q}", req.Cmd, req.Value)
+	case c := <-f.reqs:
+		t.Errorf("petición inesperada {%q %q}", c.cmd, c.value)
 	case <-time.After(50 * time.Millisecond):
 	}
 }

@@ -8,7 +8,6 @@ package mpris
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"sync"
 
 	"github.com/godbus/dbus/v5"
@@ -33,10 +32,26 @@ var mimeTypes = []string{
 	"audio/mpeg", "audio/flac", "audio/ogg", "audio/opus", "audio/mp4", "audio/wav",
 }
 
-// Controller es lo que el servicio necesita del demonio: ejecutar comandos
-// por la misma ruta que los clientes IPC y leer una copia del estado.
+// Controller es lo que el servicio necesita del demonio: los comandos de
+// reproducción que MPRIS puede disparar, y una copia del estado. Antes era
+// Do(ipc.Request)/Status(), que acoplaba mpris al vocabulario wire completo
+// de IPC (~20 comandos, pensados para el socket con clientes externos)
+// cuando mpris solo usa 9 — cualquier cambio al formato de Request/Response
+// se propagaba aquí aunque mpris no tenga clientes externos. Esta interfaz
+// angosta es la superficie de dominio real que mpris necesita; Status()
+// queda igual a propósito, es una foto de datos, no vocabulario de comandos.
 type Controller interface {
-	Do(req ipc.Request) ipc.Response
+	Next()
+	Previous()
+	Pause()
+	PlayPause()
+	Stop()
+	Play()
+	SetVolume(pct int)
+	SetShuffle(on bool)
+	SetRepeat(mode string) // "off" | "one" | "all"
+	SeekRel(secs float64)
+	SeekAbs(secs float64)
 	Status() *ipc.Status
 }
 
@@ -236,7 +251,7 @@ func (s *Service) setVolume(val any) *dbus.Error {
 	if v > 1 {
 		v = 1
 	}
-	go s.ctrl.Do(ipc.Request{Cmd: "vol", Value: strconv.Itoa(int(v*100 + 0.5))})
+	go s.ctrl.SetVolume(int(v*100 + 0.5))
 	return nil
 }
 
@@ -245,11 +260,7 @@ func (s *Service) setShuffle(val any) *dbus.Error {
 	if !ok {
 		return prop.ErrInvalidArg
 	}
-	v := "off"
-	if on {
-		v = "on"
-	}
-	go s.ctrl.Do(ipc.Request{Cmd: "shuffle", Value: v})
+	go s.ctrl.SetShuffle(on)
 	return nil
 }
 
@@ -265,7 +276,7 @@ func (s *Service) setLoop(val any) *dbus.Error {
 	default:
 		return prop.ErrInvalidArg
 	}
-	go s.ctrl.Do(ipc.Request{Cmd: "repeat", Value: v})
+	go s.ctrl.SetRepeat(v)
 	return nil
 }
 
@@ -289,18 +300,17 @@ func (root) Quit() *dbus.Error  { return nil }
 // los métodos sean no-op cuando la acción no aplica.
 type player struct{ s *Service }
 
-func (p player) next() *dbus.Error      { p.s.ctrl.Do(ipc.Request{Cmd: "next"}); return nil }
-func (p player) previous() *dbus.Error  { p.s.ctrl.Do(ipc.Request{Cmd: "prev"}); return nil }
-func (p player) pause() *dbus.Error     { p.s.ctrl.Do(ipc.Request{Cmd: "pause"}); return nil }
-func (p player) playPause() *dbus.Error { p.s.ctrl.Do(ipc.Request{Cmd: "toggle"}); return nil }
-func (p player) stop() *dbus.Error      { p.s.ctrl.Do(ipc.Request{Cmd: "stop"}); return nil }
-func (p player) play() *dbus.Error      { p.s.ctrl.Do(ipc.Request{Cmd: "play"}); return nil }
+func (p player) next() *dbus.Error      { p.s.ctrl.Next(); return nil }
+func (p player) previous() *dbus.Error  { p.s.ctrl.Previous(); return nil }
+func (p player) pause() *dbus.Error     { p.s.ctrl.Pause(); return nil }
+func (p player) playPause() *dbus.Error { p.s.ctrl.PlayPause(); return nil }
+func (p player) stop() *dbus.Error      { p.s.ctrl.Stop(); return nil }
+func (p player) play() *dbus.Error      { p.s.ctrl.Play(); return nil }
 
 // seek salta offset microsegundos desde la posición actual (negativo
-// retrocede). El formato %+.3f produce "+N.NNN"/"-N.NNN", que el demonio
-// interpreta como seek relativo.
+// retrocede); SeekRel recibe segundos, ya convertidos.
 func (p player) seek(offset int64) *dbus.Error {
-	p.s.ctrl.Do(ipc.Request{Cmd: "seek", Value: fmt.Sprintf("%+.3f", float64(offset)/1e6)})
+	p.s.ctrl.SeekRel(float64(offset) / 1e6)
 	return nil
 }
 
@@ -315,7 +325,7 @@ func (p player) setPosition(trackID dbus.ObjectPath, position int64) *dbus.Error
 		return nil
 	}
 	if sec := float64(position) / 1e6; sec >= 0 && (st.Duration == 0 || sec <= st.Duration) {
-		p.s.ctrl.Do(ipc.Request{Cmd: "seek", Value: fmt.Sprintf("%.3f", sec)})
+		p.s.ctrl.SeekAbs(sec)
 	}
 	return nil
 }

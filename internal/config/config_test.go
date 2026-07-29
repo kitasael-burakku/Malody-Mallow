@@ -125,6 +125,39 @@ func TestLoadScanDurations(t *testing.T) {
 	}
 }
 
+// TestLoadUpdateCheck: mismo precedente que TestLoadScanDurations, para la
+// otra clave que nace ACTIVA en Default() (update_check) — un config viejo
+// que no la trae debe conservar el true; no tenía test dedicado (auditoría
+// 2026-07-29, roadmap "test de migración de config").
+func TestLoadUpdateCheck(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("music_dir = \"~/Music\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.UpdateCheck {
+		t.Fatal("un config sin update_check debe quedar activado")
+	}
+
+	body := "music_dir = \"~/Music\"\nupdate_check = false\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UpdateCheck {
+		t.Fatal("update_check = false debe apagarlo")
+	}
+}
+
 // TestLoadYtdlpCookies: la clave llega al struct tal cual, y un config viejo
 // sin la sección [ytdlp] sigue cargando con el zero-value (desactivado).
 func TestLoadYtdlpCookies(t *testing.T) {

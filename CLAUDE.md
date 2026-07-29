@@ -703,6 +703,57 @@ directo; y con `fillWorkers = 4` el relleno tiene 4,2 núcleos ocupados, que
 en la máquina del dueño (16) es fondo cómodo pero en un portátil de 4 es la
 máquina entera. La constante no depende de `NumCPU` a propósito.
 
+La **1.8.0** (2026-07-29) sale de una auditoría técnica exhaustiva pedida por
+el dueño — la primera que cubre arquitectura, código, seguridad, rendimiento,
+UX, configuración, integración con Matugen, ecosistema Linux y calidad de
+proyecto a la vez, entregada como informe aparte. De los hallazgos, tres
+quedaron marcados prioridad alta y se atacan en esta release; el resto
+(systemd empaquetado en el instalador, `maly config`, integración Matugen,
+los índices SQLite muertos, cobertura de test en `doctor`/`info`, etc.) queda
+documentado en ese informe para tandas futuras.
+
+**El espejo del gapless podía mentir tras un fallo de red.** `SetNext`
+(`internal/player/player.go`) solo actualizaba `nextPath`/`nextKnown` en el
+camino de éxito: si `playlist-clear` tenía éxito pero el `loadfile ... append`
+posterior fallaba, mpv quedaba sin promesa mientras el espejo conservaba el
+valor anterior a la llamada. Se verificó el impacto real leyendo el código,
+no solo confiando en la auditoría: el `case "idle"` de `handleEvent` sí
+dispara la reparación de `advance` (se refuta que la reproducción quedara
+colgada), pero el gapless degrada a una carga manual audible, y además el
+guard de no-op de una llamada posterior con la MISMA ruta que falló corta sin
+mandar ningún comando — extiende la ventana del defecto hasta el siguiente
+cambio de promesa. Arreglado: el camino de error del append también
+actualiza el espejo (a `""`, reflejando la verdad); el `return err` de
+`playlist-clear` queda intacto a propósito, porque ahí mpv no cambió y el
+espejo seguía siendo válido. `TestSetNextAppendFailureClearsMirror` lo
+encoda, verificado en ambas direcciones.
+
+**El filtro de Biblioteca pagaba el mismo costo que la Cola ya había
+resuelto.** `flatten()` (`internal/tui/tree.go`) replegaba Unicode de
+`t.all` entero —tags + diacríticos vía `library.Fold`— en CADA tecla del
+filtro; con 40.000 pistas, cada pulsación recorría la biblioteca completa
+desde cero. La Cola ya tenía el arreglo (`queueFolded`, con el comentario
+"plegar Unicode por pista por frame pesaba con colas grandes"); a la
+Biblioteca, que es el caso que de verdad escala, le faltaba. Arreglado con
+el mismo patrón: `folded []string` en `libTree`, poblado PEREZOSAMENTE
+dentro de `flatten()` —nunca en `buildTree`, que correría en cada scan
+aunque nadie filtre— con la misma detección por longitud que usa
+`queueFolded` para saber si quedó desalineado. Sin invalidación explícita:
+`buildTree` siempre crea un `libTree` nuevo, el campo nace nil y el chequeo
+de longitud lo repuebla solo.
+
+**CI en GitHub Actions, el primero que tiene el proyecto.** Dos jobs en
+`.github/workflows/ci.yml`: `test` (build + vet + test) y `race` (`-race`
+solo sobre `internal/library` e `internal/mpris`, los dos paquetes con
+concurrencia real de goroutines que no dependen de mpv/ffprobe —
+`TestPropsConcurrent` de mpris es justo el que habría cazado la race de
+`godbus/prop` que motivó el reemplazo propio de `props.go`). Sin instalar
+mpv/ffprobe: 23 de los 24 tests de `internal/daemon` se auto-saltan por
+`exec.LookPath` y el paquete igual reporta `ok` — verificado corriendo la
+suite completa con un `PATH` realmente sin esos binarios, no solo confiando
+en que `t.Skip` los cubriera. Sin `-short`: ningún test del repo lo honra,
+sería un no-op.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

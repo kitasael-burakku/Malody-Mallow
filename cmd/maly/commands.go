@@ -68,6 +68,7 @@ var commands = []command{
 	{name: "lang", aliases: []string{"-l", "--lang"}, usage: "lang [en|es], -l", descKey: "cli.lang_cmd", section: "other", run: runLang, complete: completeStatic("en", "es")},
 	{name: "info", usage: "info", descKey: "cli.info", section: "other", run: runInfo},
 	{name: "doctor", usage: "doctor", descKey: "cli.doctor", section: "other", run: runDoctor},
+	{name: "config", usage: "config", descKey: "cli.config", section: "other", run: runConfig},
 	{name: "update", usage: "update", descKey: "cli.update", section: "other", run: runUpdate},
 	{name: "kill", usage: "kill", descKey: "cli.kill", section: "other", run: runKill},
 	{name: "completions", usage: "completions <shell>", descKey: "cli.completions", section: "other", run: runCompletions, complete: completeStatic(supportedShells...)},

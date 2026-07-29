@@ -286,6 +286,30 @@ var table = map[string][2]string{
 	"info.unset":          {"(unset)", "(sin definir)"},
 	"info.config_err":     {"the config could not be read in full: %v", "el config no se pudo leer del todo: %v"},
 
+	// ---- maly config (configuración EFECTIVA: defaults ← preset ← usuario) ----
+	"cli.config":            {"show the configuration currently in effect", "muestra la configuración que está en efecto ahora mismo"},
+	"config.sec_general":    {"GENERAL", "GENERAL"},
+	"config.sec_daemon":     {"DAEMON", "DEMONIO"},
+	"config.sec_theme":      {"THEME", "TEMA"},
+	"config.sec_visualizer": {"VISUALIZER", "VISUALIZADOR"},
+	"config.sec_ytdlp":      {"YTDLP", "YTDLP"},
+	"config.sec_keys":       {"KEYS", "TECLAS"},
+	"config.music_dir":      {"music_dir", "music_dir"},
+	"config.transparent":    {"transparent", "transparent"},
+	"config.accent":         {"accent", "accent"},
+	"config.border":         {"border", "border"},
+	"config.text":           {"text", "text"},
+	"config.theme_dim":      {"dim", "dim"},
+	"config.playing":        {"playing", "playing"},
+	"config.logo":           {"logo", "logo"},
+	"config.viz_enabled":    {"enabled", "enabled"},
+	"config.color_low":      {"color_low", "color_low"},
+	"config.color_high":     {"color_high", "color_high"},
+	"config.bars_gravity":   {"bars_gravity", "bars_gravity"},
+	"config.keys_note":      {"(defaults ← controls preset ← your [keys] overrides)", "(defaults ← preset de controls ← tus overrides en [keys])"},
+
+	// ---- maly theme sync (integración Matugen — ver theme.go) ----
+
 	// ---- maly doctor (veredictos; solo "fail" cambia el código de salida) ----
 	"doc.summary":         {"%d warning(s), %d error(s)", "%d aviso(s), %d error(es)"},
 	"doc.mpv_missing":     {"not in your PATH — maly cannot play anything", "no está en tu PATH — maly no puede reproducir nada"},

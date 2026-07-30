@@ -163,3 +163,50 @@ func TestLyricsFor(t *testing.T) {
 		t.Fatalf("sin letras: synced=%v lines=%+v", synced, lines)
 	}
 }
+
+// TestDimsOKBoundary cubre los casos límite de la guarda anti-bomba tal
+// cual, sin depender del ancho de `int` de la plataforma.
+func TestDimsOKBoundary(t *testing.T) {
+	cases := []struct {
+		w, h int
+		want bool
+	}{
+		{0, 100, false},
+		{100, 0, false},
+		{-1, 100, false},
+		{6000, 6000, true},      // 36 MP, bajo el tope de 40 MP
+		{7000, 7000, false},     // 49 MP, sobre el tope
+		{100000, 100000, false}, // 10^10 px: excede el tope; en int64 se calcula bien y se rechaza
+	}
+	for _, c := range cases {
+		if got := dimsOK(c.w, c.h); got != c.want {
+			t.Errorf("dimsOK(%d, %d) = %v, quería %v", c.w, c.h, got, c.want)
+		}
+	}
+}
+
+// TestDimsOKNoOverflow32Bit documenta el bug que dimsOK cierra: w y h son
+// `int`, que en 386/armv6l/armv7l (arquitecturas que el instalador soporta
+// explícitamente) son de 32 bits. Esta máquina de desarrollo es de 64 bits,
+// así que el desborde no se puede reproducir haciendo `w*h` con `int` real
+// aquí — se simula con int32 explícito para demostrarlo, y se confirma que
+// dimsOK (que multiplica en int64) no hereda la falla sea cual sea la
+// plataforma.
+func TestDimsOKNoOverflow32Bit(t *testing.T) {
+	// 65536×65536 = 2^32: el peor caso posible, porque desborda a
+	// EXACTAMENTE 0 en int32 (no solo "un valor chico"). Con `int` de 32
+	// bits (y sin el int64 explícito), `w*h > maxDecodePixels` daría
+	// `0 > maxDecodePixels` = false, y una imagen que declara más de 4.000
+	// millones de píxeles pasaría la guarda anti-bomba sin que nadie lo
+	// note. Variables, no const: con const el compilador plegaría la
+	// expresión y detectaría el desborde en compilación en vez de
+	// reproducirlo en runtime como haría un `int` real de 32 bits.
+	w, h := 65536, 65536
+	prod32 := int32(w) * int32(h)
+	if prod32 != 0 {
+		t.Fatalf("el caso de prueba no desborda a 0 en int32 (dio %d): ajustar w/h", prod32)
+	}
+	if dimsOK(w, h) {
+		t.Fatal("dimsOK acepta 65536×65536, que excede maxDecodePixels en cualquier plataforma")
+	}
+}

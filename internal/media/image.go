@@ -21,11 +21,20 @@ const maxDecodePixels = 40 << 20
 // cabecera, sin reservar la imagen.
 func DecodeImage(data []byte) (image.Image, error) {
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
-	if err == nil && (cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width*cfg.Height > maxDecodePixels) {
+	if err == nil && !dimsOK(cfg.Width, cfg.Height) {
 		return nil, fmt.Errorf("cover art dimensions out of bounds: %dx%d", cfg.Width, cfg.Height)
 	}
 	img, _, err := image.Decode(bytes.NewReader(data))
 	return img, err
+}
+
+// dimsOK dice si w×h caben bajo maxDecodePixels. La multiplicación va en
+// int64 a propósito: w y h son `int`, que en las plataformas de 32 bits que
+// el instalador soporta (386, armv6l/armv7l) son int32 — un PNG que declare
+// dimensiones lo bastante grandes desborda el producto a un valor pequeño o
+// negativo, y la guarda anti-bomba se cuela justo donde menos RAM hay.
+func dimsOK(w, h int) bool {
+	return w > 0 && h > 0 && int64(w)*int64(h) <= maxDecodePixels
 }
 
 // ScaleBox escala src a exactamente w×h px promediando la caja de píxeles de

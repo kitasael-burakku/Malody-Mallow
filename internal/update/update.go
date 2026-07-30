@@ -25,9 +25,24 @@ import (
 const (
 	// RepoURL es el repo público; sus tags anotados vX.Y.Z son los releases.
 	RepoURL = "https://github.com/kitasael-burakku/Malody-Mallow.git"
-	// InstallerURL es el mallow-install.sh de main (el one-liner del README).
-	InstallerURL = "https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh"
+	// installerRawBase es el prefijo raw.githubusercontent para un ref dado
+	// (tag o rama) del mallow-install.sh que vive en el repo.
+	installerRawBase = "https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/"
 )
+
+// installerURL arma la URL del instalador para ref (típicamente el tag que
+// anunció el chequeo). Antes de este cambio InstallerCmd bajaba siempre el
+// mallow-install.sh de main: el CÓDIGO quedaba pinneado al tag pero el
+// instalador que lo compila no, así que un release viejo podía terminar
+// ejecutando un script que cambió de forma después. ref == "" (el one-liner
+// del README, sin chequeo de por medio) cae en main, que es lo que siempre
+// hizo.
+func installerURL(ref string) string {
+	if ref == "" {
+		return installerRawBase + "main/mallow-install.sh"
+	}
+	return installerRawBase + ref + "/mallow-install.sh"
+}
 
 // cacheTTL es cuánto vale un chequeo antes de volver a preguntar a la red.
 const cacheTTL = 24 * time.Hour
@@ -114,10 +129,13 @@ func Newer(remote, local string) bool {
 // cleanup del temporal. Se baja a archivo a propósito: a diferencia del pipe
 // del README, una descarga cortada no ejecuta medio script. ref es el tag a
 // instalar (el que anunció el chequeo): sin él se compilaría el HEAD de
-// main, que puede ir adelante del release.
+// main, que puede ir adelante del release — y el INSTALADOR se baja del
+// MISMO ref, no de main: así una actualización a un tag corre siempre el
+// script que ese tag revisó, y no uno que haya cambiado de forma después.
 func InstallerCmd(ref string) (*exec.Cmd, func(), error) {
+	url := installerURL(ref)
 	if _, err := exec.LookPath("curl"); err != nil {
-		return nil, nil, fmt.Errorf("%s", i18n.Tf("up.no_curl", InstallerURL))
+		return nil, nil, fmt.Errorf("%s", i18n.Tf("up.no_curl", url))
 	}
 	f, err := os.CreateTemp("", "mallow-install-*.sh")
 	if err != nil {
@@ -125,7 +143,7 @@ func InstallerCmd(ref string) (*exec.Cmd, func(), error) {
 	}
 	f.Close()
 	cleanup := func() { os.Remove(f.Name()) }
-	dl := exec.Command("curl", "-fsSL", "-o", f.Name(), InstallerURL)
+	dl := exec.Command("curl", "-fsSL", "-o", f.Name(), url)
 	if out, err := dl.CombinedOutput(); err != nil {
 		cleanup()
 		return nil, nil, fmt.Errorf("curl: %v: %s", err, bytes.TrimSpace(out))

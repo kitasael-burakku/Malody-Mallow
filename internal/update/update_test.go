@@ -69,6 +69,21 @@ func TestLatestNoGit(t *testing.T) {
 	}
 }
 
+// TestInstallerURL fija el pin del instalador al ref anunciado: antes de
+// este cambio, InstallerCmd bajaba SIEMPRE el mallow-install.sh de main
+// aunque el código instalado fuera un tag viejo. Puro: no toca la red.
+func TestInstallerURL(t *testing.T) {
+	cases := []struct{ ref, want string }{
+		{"v1.2.3", "https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/v1.2.3/mallow-install.sh"},
+		{"", "https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh"},
+	}
+	for _, c := range cases {
+		if got := installerURL(c.ref); got != c.want {
+			t.Errorf("installerURL(%q) = %q, quería %q", c.ref, got, c.want)
+		}
+	}
+}
+
 func TestCache(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 

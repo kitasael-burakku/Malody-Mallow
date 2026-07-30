@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.10.0-blue)
+![version](https://img.shields.io/badge/version-1.10.1-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -458,7 +458,7 @@ la misma sintaxis que ya uses para kitty/waybar/etc.:
 [templates.maly]
 input_path  = '~/.config/matugen/templates/maly-colors.toml'
 output_path = '~/.config/maly/matugen-colors.toml'
-post_hook   = 'maly theme sync'
+post_hook   = 'maly theme sync && pkill -SIGUSR1 -x maly'
 ```
 
 Y la plantilla (`~/.config/matugen/templates/maly-colors.toml`):
@@ -473,8 +473,12 @@ logo = ["{{colors.primary.default.hex}}", "{{colors.tertiary.default.hex}}", "{{
 Con el `post_hook`, cada `matugen image ...` sincroniza maly solo; también
 podés correr `maly theme sync` a mano cuando quieras. Los cuatro campos son
 opcionales — lo que no venga en el archivo se deja como está en tu config.
-Con la TUI abierta, `ctrl+p` → `theme reload` aplica el tema recién
-sincronizado sin reiniciarla.
+El `pkill -SIGUSR1 -x maly` del `post_hook` es opcional pero recomendado:
+una TUI ya abierta recarga el tema sola (mismo patrón que kitty/waybar vía
+señales) en vez de esperar a `ctrl+p` → `theme reload` a mano o a
+reabrirla. Es seguro mandarlo aunque también tengas `maly daemon` corriendo
+por separado — el demonio la ignora a propósito (no tiene tema que
+recargar) en vez de terminar, que es la acción por defecto de esa señal.
 
 ## Configuración
 

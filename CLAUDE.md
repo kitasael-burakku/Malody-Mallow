@@ -862,6 +862,45 @@ ya entiende se movió al lado del demonio, que es quien lo conoce.
 `daemon_test.go` como atajo directo a dispatch sin pasar por el socket,
 y no tiene nada que ver con mpris.
 
+La **1.10.1** (2026-07-29) salió de dar de alta la integración con Matugen
+de verdad en la config real del dueño (fuera del repo, en su home) — al
+probarla con un wallpaper real, una TUI que ya estaba abierta no recogía
+el tema nuevo hasta reiniciarla. Esperable (documentado desde la 1.9.0:
+"no hay señal de reload en caliente hacia una TUI ya abierta"), pero el
+propio dueño señaló que kitty y waybar en su mismo `matugen/config.toml`
+sí se refrescan solos porque sus `post_hook` mandan una señal
+(`SIGUSR1`/`SIGUSR2`) — mismo mecanismo, aplicado a maly.
+
+La TUI ahora atiende `SIGUSR1` en `Run` (`internal/tui/tui.go`, junto al
+handler de `SIGHUP` que ya existía) y dispara `reloadTheme()` — la misma
+función que ya usaba `theme reload` en la consola, extraída de `conTheme`
+para que la señal y el comando compartan un solo camino. Como la señal
+puede llegar muchas veces en la vida de una TUI (un `SIGHUP` es una vez y
+se acabó; un cambio de wallpaper no), el goroutine que la atiende queda en
+loop en vez del `select` de una sola pasada que usa `SIGHUP`.
+
+**Trampa real, encontrada probando en vivo con `tmux` y la señal de
+verdad, no supuesta:** el demonio y la TUI comparten el mismo nombre de
+proceso (`maly`), así que `pkill -SIGUSR1 -x maly` —la forma obvia de
+mandarla desde el `post_hook`— alcanza a los dos. La acción por defecto de
+`SIGUSR1` es terminar el proceso, así que sin nada del lado del demonio
+esa señal mataría el servicio de reproducción real cada vez que cambia el
+wallpaper. `runDaemon` (`cmd/maly/client.go`) ahora también registra
+`SIGUSR1`, pero solo para drenarla y no hacer nada — nunca se suma al
+canal que dispara `d.Close()`. Verificado con un demonio y una TUI reales
+en sandbox: la señal cambia el acento de la TUI en vivo (confirmado
+grepeando el código ANSI truecolor renderizado antes/después en la salida
+de `tmux capture-pane`) y dejó al demonio con el mismo PID y estado tras
+recibirla.
+
+El `post_hook` recomendado queda
+`'maly theme sync && pkill -SIGUSR1 -x maly'` — documentado en el README
+de ambos idiomas, y ya dado de alta en la config real de Matugen del
+dueño junto con la plantilla y el archivo estático
+(`~/.config/maly/matugen-colors.static.toml`, con los mismos valores que
+`config.Default()` — la paleta "Kitasan Glass" del dueño y los defaults
+de maly resultaron ser literalmente los mismos colores).
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

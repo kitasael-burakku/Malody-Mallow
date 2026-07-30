@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.10.0-blue)
+![version](https://img.shields.io/badge/version-1.10.1-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -453,7 +453,7 @@ using the same syntax you already use for kitty/waybar/etc.:
 [templates.maly]
 input_path  = '~/.config/matugen/templates/maly-colors.toml'
 output_path = '~/.config/maly/matugen-colors.toml'
-post_hook   = 'maly theme sync'
+post_hook   = 'maly theme sync && pkill -SIGUSR1 -x maly'
 ```
 
 And the template (`~/.config/matugen/templates/maly-colors.toml`):
@@ -468,8 +468,13 @@ logo = ["{{colors.primary.default.hex}}", "{{colors.tertiary.default.hex}}", "{{
 With the `post_hook`, every `matugen image ...` run syncs maly on its own;
 you can also run `maly theme sync` by hand anytime. All four fields are
 optional — anything missing from the file is left as-is in your config.
-With the TUI open, `ctrl+p` → `theme reload` applies the freshly synced
-theme without restarting it.
+The `pkill -SIGUSR1 -x maly` in the `post_hook` is optional but
+recommended: an already-open TUI reloads its theme on its own (same
+signal-based pattern kitty/waybar already use) instead of waiting for
+`ctrl+p` → `theme reload` by hand or a restart. It's safe to send even if
+you also have `maly daemon` running separately — the daemon ignores it on
+purpose (it has no theme to reload) instead of terminating, which is that
+signal's default action.
 
 ## Configuration
 

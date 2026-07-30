@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.10.1 — 2026-07-29
+
+`maly theme sync` recarga en caliente por señal: la TUI atiende
+`SIGUSR1` y aplica el tema sin reiniciarse, mismo mecanismo que kitty y
+waybar. El `post_hook` recomendado pasa a ser
+`maly theme sync && pkill -SIGUSR1 -x maly` — seguro de mandar aunque
+también tengas `maly daemon` corriendo aparte, que ignora la señal a
+propósito en vez de terminar.
+
 ## v1.10.0 — 2026-07-29
 
 Los siete ítems de prioridad baja de la auditoría: elimina dos índices

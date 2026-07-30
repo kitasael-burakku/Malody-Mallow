@@ -352,7 +352,8 @@ los hallazgos menores diferidos: checksum SHA-256 del Go de go.dev (el
 config/sesión/DB, `p.pending` sin fugas en timeout, `playlist export` sin
 clobber (el tty se detecta con el ioctl real: /dev/null también es char
 device) y EADDRINUSE → ErrAlreadyRunning. La distribución es vía
-`mallow-install.sh` — el dueño descartó hacer PKGBUILD para AUR.
+`mallow-install.sh`. Un PKGBUILD para AUR se descartó en su momento;
+publicado el 2026-07-29 (paquete `maly`) — ver la entrada de la 1.10.2.
 
 La **1.1.0** (2026-07-17) trajo la capa **"Ahora suena"** (ctrl+t: carátula
 half-blocks + letras USLT/.lrc + viz, paquete `internal/media`),
@@ -877,6 +878,39 @@ agregadas a `apply-static-colors.sh`, y `accent`/`logo`/
 valores de `config.Default()` (Kitasan Glass) — las otras 9 apps del
 Matugen del dueño (kitty, waybar, rofi, wlogout, hyprlock, hypr_live,
 swaync, starship, fish) no se tocaron.
+
+Sobre 1.10.2, sin bump de versión (no toca el binario): **paquete
+`maly` publicado en el AUR** — `yay -S maly`/`paru -S maly` compila
+desde el tag estable más reciente, mismo criterio que el default de
+`mallow-install.sh`. El PKGBUILD vive en un repo aparte
+(`~/Projects/PKGBUILDS/maly`, clon de
+`ssh://aur@aur.archlinux.org/maly.git`), NO dentro de este repo: el AUR
+publica empujando a ese remote directo, y mezclar esa historia con la
+de maly exigiría un submódulo sin beneficio real. Sin CGo (coherente
+con `internal/library`, sqlite es modernc puro Go) — build limpio con
+`GOFLAGS="-buildmode=pie -trimpath -mod=readonly -modcacherw"` y
+`CGO_ENABLED=0`, sin la sección `CGO_CPPFLAGS/CFLAGS/LDFLAGS` que trae
+el ejemplo genérico de la ArchWiki (ahí sí hace falta, acá no hay nada
+que enlazar). `depends=(mpv)`; `yt-dlp`/`ffmpeg`/`pipewire`/`pulseaudio`
+como `optdepends`, igual que en el instalador. Empaqueta también una
+unit de systemd `--user` (`ExecStart=/usr/bin/maly daemon`, distinta de
+la que genera `mallow-install.sh` con `%h/.local/bin/maly` porque acá
+el binario va a `/usr/bin`) — instalada pero SIN `enable`, a propósito:
+un paquete no debe arrancar servicios solo, ese consentimiento es del
+usuario. `license=('GPL-3.0-only')`: el `LICENSE` es el texto de la
+GPLv3 sin ninguna cabecera de copyright del proyecto que declare "or
+later", así que se tomó literal. Verificado con un build real de
+`makepkg` de punta a punta contra la URL real de GitHub (checksums de
+`updpkgsums`, no inventados): `go vet` + la suite de tests completa
+(incluido `internal/daemon` con mpv real) pasan dentro del propio
+empaquetado, y el `.pkg.tar.zst` resultante trae el binario PIE,
+las tres completions con contenido real (generadas con el binario
+recién compilado, mismo patrón que `inst_comp` en
+`mallow-install.sh`) y la licencia. De paso se corrigió una
+inconsistencia real que no tenía que ver con el PKGBUILD pero salió al
+verificar el campo `license`: ambos README seguían diciendo "MIT" en
+el pie pese a que el badge y el `LICENSE` ya eran GPLv3 desde la
+relicenciación de la sesión anterior — corregido en los dos idiomas.
 
 ### Post-1.0 (candidatos)
 

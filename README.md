@@ -125,6 +125,19 @@ con `--update`. La TUI avisa en el pie cuando hay versión nueva (chequeo al
 abrir, uno por día como mucho; se apaga con `update_check = false` en el
 config).
 
+### Arch Linux (AUR)
+
+```sh
+yay -S maly   # o: paru -S maly
+```
+
+El paquete [`maly`](https://aur.archlinux.org/packages/maly) compila desde el
+último tag estable, instala las completions de bash/fish/zsh y una unit de
+systemd `--user` (`systemctl --user enable --now maly`) — no se activa sola,
+para no arrancar el demonio en una instalación que todavía no configuraste.
+`yt-dlp`, `ffmpeg` y PipeWire/PulseAudio quedan como `optdepends`, igual que
+en Mallow Install.
+
 ### A mano
 
 Dependencias de sistema: `mpv` (audio), Go ≥ 1.25 (para compilar) y, para
@@ -519,4 +532,4 @@ cookies_from_browser = ""
 
 ## Licencia
 
-[MIT](LICENSE).
+[GPLv3](LICENSE).

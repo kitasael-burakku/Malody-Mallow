@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.10.1-blue)
+![version](https://img.shields.io/badge/version-1.10.2-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -445,40 +445,6 @@ Los cambios de pista/estado se emiten como señales D-Bus
 (`PropertiesChanged`), así que los applets se actualizan al instante sin
 polling. Si no hay bus de sesión (p. ej. headless), maly lo avisa una vez
 y sigue funcionando sin MPRIS.
-
-### Matugen
-
-`maly theme sync` aplica los colores que [Matugen](https://github.com/InioX/matugen)
-generó a partir de tu wallpaper: acento, gradiente del visualizador y del
-banner. maly no habla con Matugen ni depende de su formato interno —
-agregás UNA plantilla más a tu propio `~/.config/matugen/config.toml`, con
-la misma sintaxis que ya uses para kitty/waybar/etc.:
-
-```toml
-[templates.maly]
-input_path  = '~/.config/matugen/templates/maly-colors.toml'
-output_path = '~/.config/maly/matugen-colors.toml'
-post_hook   = 'maly theme sync && pkill -SIGUSR1 -x maly'
-```
-
-Y la plantilla (`~/.config/matugen/templates/maly-colors.toml`):
-
-```toml
-accent = "{{colors.primary.default.hex}}"
-color_low = "{{colors.tertiary.default.hex}}"
-color_high = "{{colors.secondary.default.hex}}"
-logo = ["{{colors.primary.default.hex}}", "{{colors.tertiary.default.hex}}", "{{colors.secondary.default.hex}}"]
-```
-
-Con el `post_hook`, cada `matugen image ...` sincroniza maly solo; también
-podés correr `maly theme sync` a mano cuando quieras. Los cuatro campos son
-opcionales — lo que no venga en el archivo se deja como está en tu config.
-El `pkill -SIGUSR1 -x maly` del `post_hook` es opcional pero recomendado:
-una TUI ya abierta recarga el tema sola (mismo patrón que kitty/waybar vía
-señales) en vez de esperar a `ctrl+p` → `theme reload` a mano o a
-reabrirla. Es seguro mandarlo aunque también tengas `maly daemon` corriendo
-por separado — el demonio la ignora a propósito (no tiene tema que
-recargar) en vez de terminar, que es la acción por defecto de esa señal.
 
 ## Configuración
 

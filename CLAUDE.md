@@ -787,27 +787,9 @@ borra sin preguntar — a diferencia de config/biblioteca, es parte de la
 instalación, no dato del usuario. Verificado con `systemctl` stubeado: la
 unit generada es byte a byte idéntica a la del README.
 
-**Integración con Matugen — `maly theme sync`.** El diseño cambió a mejor
-tras leer la config real de Matugen del dueño (con permiso explícito):
-Matugen no escribe ningún JSON central por defecto — todo sale por
-`[templates.*]` con sintaxis Tera y `post_hook`, el mismo mecanismo que ya
-usa para kitty/waybar/hyprlock. `maly theme sync` no parsea el formato
-interno de Matugen (inestable entre versiones): lee un TOML chico en una
-ruta fija que el usuario genera agregando `[templates.maly]` a su propio
-config, con `post_hook = 'maly theme sync'`. Sin flag `--from`: la CLI de
-maly no tiene parser de flags a propósito. Los cuatro campos (accent,
-color_low, color_high, logo) son opcionales — parcial es válido, salvo
-`color_low`/`color_high` que van juntos (un gradiente a medias no tiene
-sentido). Persiste con `saveKey` vía dos wrappers nuevos
-(`SaveThemeAccent`, `SaveVisualizerColors`), mismo patrón que
-`SaveThemeLogo`. Verificado end-to-end con el binario real de Matugen
-(v4.1.0) sin tocar la config real del dueño (sandbox aislado).
-
-De paso, `theme reload` en la consola ctrl+p: relee `config.toml` y aplica
-el tema completo en vivo (`m.st = newStyles(...)` + `m.logo.ramp`), mismo
-patrón que `controls` ya usaba para el merge de teclas — antes solo el
-logo se recalculaba en caliente (`conLogo`), el resto del tema esperaba a
-reiniciar la TUI.
+**Integración con Matugen — `maly theme sync`.** Revertida entera en la
+1.10.2, código y sistema real, por decisión del dueño. Ver esa entrada
+para el motivo y el detalle de qué se sacó.
 
 La **1.10.0** (2026-07-29) cierra los siete ítems de prioridad BAJA de la
 misma auditoría, de más fácil a más difícil por decisión del dueño: tres
@@ -862,44 +844,39 @@ ya entiende se movió al lado del demonio, que es quien lo conoce.
 `daemon_test.go` como atajo directo a dispatch sin pasar por el socket,
 y no tiene nada que ver con mpris.
 
-La **1.10.1** (2026-07-29) salió de dar de alta la integración con Matugen
-de verdad en la config real del dueño (fuera del repo, en su home) — al
-probarla con un wallpaper real, una TUI que ya estaba abierta no recogía
-el tema nuevo hasta reiniciarla. Esperable (documentado desde la 1.9.0:
-"no hay señal de reload en caliente hacia una TUI ya abierta"), pero el
-propio dueño señaló que kitty y waybar en su mismo `matugen/config.toml`
-sí se refrescan solos porque sus `post_hook` mandan una señal
-(`SIGUSR1`/`SIGUSR2`) — mismo mecanismo, aplicado a maly.
+La **1.10.1** (2026-07-29) agregó recarga en caliente por `SIGUSR1` para
+la integración con Matugen de la 1.9.0. Revertida entera en la 1.10.2,
+código y sistema real — ver esa entrada.
 
-La TUI ahora atiende `SIGUSR1` en `Run` (`internal/tui/tui.go`, junto al
-handler de `SIGHUP` que ya existía) y dispara `reloadTheme()` — la misma
-función que ya usaba `theme reload` en la consola, extraída de `conTheme`
-para que la señal y el comando compartan un solo camino. Como la señal
-puede llegar muchas veces en la vida de una TUI (un `SIGHUP` es una vez y
-se acabó; un cambio de wallpaper no), el goroutine que la atiende queda en
-loop en vez del `select` de una sola pasada que usa `SIGHUP`.
+La **1.10.2** (2026-07-29) saca entera la integración con Matugen (`maly
+theme sync` de la 1.9.0 y la recarga por `SIGUSR1` de la 1.10.1), código y
+sistema real. El dueño la probó dada de alta de verdad y decidió no
+quedarse con ella: "es una mezcla de ambas, son demasiadas cosas
+orientadas a un desktop cuando maly debería sentirse global o para uno
+mismo, ya que corre localmente" — depender de la paleta del wallpaper del
+escritorio, con plantilla + `post_hook` + señal + archivo estático +
+script de restauración, terminó siendo una pieza de theming de escritorio
+viviendo dentro de un reproductor de música, no la coordinación puntual de
+herramientas (mpv, yt-dlp, ffprobe) que es la filosofía del proyecto.
 
-**Trampa real, encontrada probando en vivo con `tmux` y la señal de
-verdad, no supuesta:** el demonio y la TUI comparten el mismo nombre de
-proceso (`maly`), así que `pkill -SIGUSR1 -x maly` —la forma obvia de
-mandarla desde el `post_hook`— alcanza a los dos. La acción por defecto de
-`SIGUSR1` es terminar el proceso, así que sin nada del lado del demonio
-esa señal mataría el servicio de reproducción real cada vez que cambia el
-wallpaper. `runDaemon` (`cmd/maly/client.go`) ahora también registra
-`SIGUSR1`, pero solo para drenarla y no hacer nada — nunca se suma al
-canal que dispara `d.Close()`. Verificado con un demonio y una TUI reales
-en sandbox: la señal cambia el acento de la TUI en vivo (confirmado
-grepeando el código ANSI truecolor renderizado antes/después en la salida
-de `tmux capture-pane`) y dejó al demonio con el mismo PID y estado tras
-recibirla.
-
-El `post_hook` recomendado queda
-`'maly theme sync && pkill -SIGUSR1 -x maly'` — documentado en el README
-de ambos idiomas, y ya dado de alta en la config real de Matugen del
-dueño junto con la plantilla y el archivo estático
-(`~/.config/maly/matugen-colors.static.toml`, con los mismos valores que
-`config.Default()` — la paleta "Kitasan Glass" del dueño y los defaults
-de maly resultaron ser literalmente los mismos colores).
+Reversión hacia adelante, sin tocar los commits ni los tags ya pusheados
+de la 1.9.0/1.10.1 (son historial público en GitHub): se borró con
+commits nuevos, como cualquier revert real. Del lado del código,
+`cmd/maly/theme.go` (y su test) desaparecen enteros, junto con
+`SaveThemeAccent`/`SaveVisualizerColors` (`internal/config`), el bloque
+`theme.*` de i18n, `conTheme`/`reloadTheme`/el `case "theme"` de la
+consola, y en `internal/tui/tui.go` el tipo `themeReloadMsg` con el
+goroutine que escuchaba `SIGUSR1` en `Run`; el registro no-op de
+`SIGUSR1` en `runDaemon` (`cmd/maly/client.go`) también se quita — sin
+`theme sync`/recarga, ya no hace falta protegerse de que la señal matara
+el demonio. Del lado del sistema real (`~/.config`, fuera del repo, solo
+la parte de maly): la plantilla y el bloque `[templates.maly]` de
+Matugen, los dos TOML de colores en `~/.config/maly/`, las dos líneas
+agregadas a `apply-static-colors.sh`, y `accent`/`logo`/
+`visualizer.color_low`/`color_high` del `config.toml` real vueltos a los
+valores de `config.Default()` (Kitasan Glass) — las otras 9 apps del
+Matugen del dueño (kitty, waybar, rofi, wlogout, hyprlock, hypr_live,
+swaync, starship, fish) no se tocaron.
 
 ### Post-1.0 (candidatos)
 

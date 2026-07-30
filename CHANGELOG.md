@@ -7,6 +7,14 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.10.2 — 2026-07-29
+
+Saca entera la integración con Matugen (`maly theme sync` de la v1.9.0 y
+la recarga en caliente por `SIGUSR1` de la v1.10.1), código y sistema
+real. Decisión del dueño tras probarla: demasiada superficie orientada a
+un escritorio para lo que maly quiere ser, una herramienta local. Ver
+`CLAUDE.md` para el detalle.
+
 ## v1.10.1 — 2026-07-29
 
 `maly theme sync` recarga en caliente por señal: la TUI atiende
@@ -14,7 +22,7 @@ quien solo quiere saber qué cambió.
 waybar. El `post_hook` recomendado pasa a ser
 `maly theme sync && pkill -SIGUSR1 -x maly` — seguro de mandar aunque
 también tengas `maly daemon` corriendo aparte, que ignora la señal a
-propósito en vez de terminar.
+propósito en vez de terminar. **Revertido en la v1.10.2.**
 
 ## v1.10.0 — 2026-07-29
 
@@ -29,9 +37,8 @@ MPRIS (ya no depende de `ipc.Request`/`Response`).
 
 `maly config` (muestra la configuración efectiva: defaults ← preset ←
 overrides del usuario), tests para `doctor.go`/`info.go`, unit de systemd
-`--user` empaquetada en el instalador, e integración con
-[Matugen](https://github.com/InioX/matugen) vía `maly theme sync` (con
-`theme reload` en la consola `ctrl+p`).
+`--user` empaquetada en el instalador. También agregó integración con
+Matugen vía `maly theme sync`, **revertida en la v1.10.2**.
 
 ## v1.8.0 — 2026-07-29
 

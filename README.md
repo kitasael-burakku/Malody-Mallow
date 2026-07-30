@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.10.2-blue)
+![version](https://img.shields.io/badge/version-1.11.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -76,8 +76,11 @@ escritorio, vía MPRIS. Todo en un solo binario escrito en Go.
 - **Playlists** con export/import M3U, shuffle, repeat (off/all/one), cola en vivo.
 - **`maly get`**: descarga audio con yt-dlp directo a tu biblioteca
   (`maly get "artista canción"` o una URL) — con metadata y carátula
-  embebidas, y re-escaneo automático. yt-dlp y ffmpeg son opcionales:
-  solo este comando los usa.
+  embebidas, y re-escaneo automático. Una URL con `&list=` NUNCA baja la
+  playlist entera por accidente (`--no-playlist` siempre); para eso está
+  **`maly get playlist <url> [nombre]`**, que descarga la playlist completa
+  a un subdirectorio y crea una playlist de maly con esas pistas, en orden.
+  yt-dlp y ffmpeg son opcionales: solo `get` los usa.
 - **Tema y keybindings** configurables por TOML: fondo transparente (usa
   el color de tu terminal), colores del banner en vivo (comando `logo` de
   la paleta) y arte ASCII propio vía `logo.txt`.
@@ -319,6 +322,7 @@ maly repeat [off|all|one]
 maly search <consulta>         # busca en la biblioteca (funciona sin demonio)
 maly scan [ruta]               # (re)escanea (funciona sin demonio)
 maly get <url|búsqueda>        # descarga audio a la biblioteca (requiere yt-dlp y ffmpeg)
+maly get playlist <url> [nombre]          # descarga la playlist completa y crea una playlist de maly
 maly playlist list
 maly playlist show <nombre>               # lista las pistas con su posición
 maly playlist create <nombre>
@@ -352,9 +356,15 @@ impide reproducir — lo opcional que falte queda como `info`, no como error.
 
 `maly get` delega toda la interacción web en yt-dlp (como lazygit usa git):
 sin `://` busca la frase en YouTube y baja el primer resultado; con una URL
-la descarga tal cual. El audio queda como MP3 con metadata y carátula
+la descarga tal cual (siempre con `--no-playlist`, así que un enlace con
+`&list=` nunca baja de más). El audio queda como MP3 con metadata y carátula
 embebidas en `music_dir`, y la biblioteca se re-escanea sola (a través del
 servicio si está corriendo).
+
+`maly get playlist <url> [nombre]` es el camino deliberado para bajar una
+playlist entera: descarga a un subdirectorio de `music_dir` (con el nombre
+que le des, o el título real de la playlist si no le das ninguno) y crea una
+playlist de maly con esas pistas, en el mismo orden.
 
 Para videos que piden cuenta (restricción de edad, etc), configura
 `cookies_from_browser` en la sección `[ytdlp]` del config: el valor viaja

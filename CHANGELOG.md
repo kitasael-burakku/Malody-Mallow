@@ -7,6 +7,19 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.11.0 — 2026-07-30
+
+Auditoría de seguridad completa desde cero (sin críticos ni altos): el
+instalador de `maly update` pasa a bajarse del mismo tag que instala en vez
+de siempre `main`, `maly.sock` queda en 0600, `serve` gana deadlines de
+lectura/escritura (evita fugas de goroutine/fd con un cliente que se cuelga)
+y la guarda anti-bomba de carátulas ya no desborda en plataformas de 32
+bits. También cierra el hallazgo de más impacto en UX: `maly get` ahora
+siempre lleva `--no-playlist`, así que un enlace con `&list=` nunca baja de
+más — y para cuando SÍ se quiere la playlist completa, **`maly get playlist
+<url> [nombre]`** la descarga a un subdirectorio y crea una playlist de
+maly con esas pistas, en orden.
+
 ## v1.10.2 — 2026-07-29
 
 Saca entera la integración con Matugen (`maly theme sync` de la v1.9.0 y

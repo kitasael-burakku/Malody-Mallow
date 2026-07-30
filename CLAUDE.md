@@ -912,6 +912,137 @@ verificar el campo `license`: ambos README seguían diciendo "MIT" en
 el pie pese a que el badge y el `LICENSE` ya eran GPLv3 desde la
 relicenciación de la sesión anterior — corregido en los dos idiomas.
 
+La **1.11.0** (2026-07-30) sale de una **auditoría de seguridad, calidad y
+UX desde cero** pedida por el dueño explícitamente sin asumir que ninguna
+decisión anterior fuera correcta — cubrió ejecución de comandos externos,
+manejo de rutas y symlinks, el socket IPC del demonio, el instalador, el
+PKGBUILD, la cadena de supply-chain completa (repo → tag → PKGBUILD →
+compilación → instalador → binario) y dependencias. **Veredicto: ninguna
+vulnerabilidad real** — todo camino explotable exige el mismo UID, que ya
+tiene la cuenta, y por tanto no cruza ninguna frontera de confianza (SQL
+parametrizado en todos lados, `--` antes del spec de yt-dlp,
+`cookies_from_browser` viajando como argv separado, `ImportM3U` solo
+resolviendo rutas ya indexadas, `ExportM3U` con `O_NOFOLLOW`, el caché de
+carátulas acotado y purgado, `EnsureRuntimeDir` cubriendo el fallback
+predecible de `/tmp`). Se confirmaron correctas y sin tocar: no poner
+auth/`SO_PEERCRED` al socket (el dir 0700 + el chequeo de dueño ya es la
+frontera real; peer creds entre procesos del mismo UID serían teatro), no
+firmar tags/releases (la clave viajaría del mismo GitHub que ya se
+confía), y no sacar `search` de `d.mu` (la 1.6.1 ya lo midió y refutó la
+hipótesis).
+
+Lo que sí había eran seis endurecimientos concretos, ninguno crítico, de
+los que esta release cierra cuatro (los otros dos —canal de paquete vs
+`maly update`, arreglos menores del PKGBUILD— quedan documentados para un
+ciclo aparte, con el diseño ya decidido):
+
+- **`maly update` pinnea el instalador al tag.** `InstallerCmd` bajaba
+  SIEMPRE `mallow-install.sh` de `main`, aunque el binario que iba a
+  compilar fuera un tag viejo: el código quedaba pinneado pero el script
+  que lo instala no. `installerURL(ref)` (`internal/update/update.go`)
+  arma la URL sobre el mismo ref anunciado por el chequeo; `ref == ""`
+  (el one-liner del README) sigue cayendo en `main`, como siempre.
+- **`maly.sock` queda en 0600.** Verificado en vivo: `net.Listen` lo
+  creaba con el umask del proceso (`srwxr-xr-x` en la máquina del dueño),
+  a diferencia de `mpv.sock`, el lock y `art/`, todos 0600/0700 explícitos.
+  El dir 0700 de `EnsureRuntimeDir` sigue siendo la frontera real —esto es
+  defensa en profundidad, no el arreglo que cierra el vector— pero el
+  socket es control total del reproductor y alinearlo no cuesta nada.
+- **`serve` gana deadlines de lectura y escritura**
+  (`internal/daemon/daemon.go`). `subscriber.push` ya tenía
+  `SetWriteDeadline`, pero el bucle principal de `serve` no tenía ninguno:
+  un cliente que conecta y no manda nada (o deja de mandar) dejaba la
+  goroutine y el fd clavados para siempre, y N conexiones así agotan los
+  descriptores del demonio. `Daemon.idleTimeout` (`defaultIdleTimeout`, 5
+  min) es generoso a propósito —`Do` responde en milisegundos, y las
+  conexiones legítimamente largas son las de `subscribe`, que sale de este
+  bucle antes de volver a este punto— y se limpia (`SetReadDeadline` cero)
+  justo antes de entregar la conexión a `subscribe`, que sí necesita
+  bloquear minutos sin deadline. Es CAMPO DE INSTANCIA y no var de paquete
+  a propósito, y costó un `-race` real descubrirlo: con un var compartido,
+  el override de un test corría detrás de las goroutines de `serve()` de un
+  demonio de OTRO test cuyo `Run()` no había terminado de desmontarse
+  —`go test -race` lo cazó entre `TestSocketPermisos` y
+  `TestServeIdleTimeoutCierraConexion`, aunque cada test usa su propio
+  `Daemon`— y por eso no está en la lista de paquetes con `-race` de CI
+  (solo `library`/`mpris`); si algún día se agrega, esto ya no lo dispara.
+- **La guarda anti-bomba de carátulas no desborda en 32 bits**
+  (`internal/media/image.go`). `cfg.Width*cfg.Height > maxDecodePixels`
+  multiplicaba dos `int`, que en 386/armv6l/armv7l —arquitecturas que el
+  instalador soporta explícitamente— son de 32 bits: un PNG que declare
+  dimensiones lo bastante grandes desborda el producto (65536×65536 da
+  EXACTAMENTE 0 en `int32`) y la guarda se cuela justo en las plataformas
+  con menos RAM. `dimsOK` compara en `int64`. La verificación tuvo su
+  propia trampa: esta máquina de desarrollo es de 64 bits, así que
+  reproducir el desborde exige simular `int32` explícito DENTRO del test
+  (`TestDimsOKNoOverflow32Bit`), no confiar en que `int` real se desborde
+  aquí.
+
+La pieza más grande, **`maly get playlist <url> [nombre]`**, cierra además
+un hallazgo de impacto real en UX: `getter.Command` no pasaba
+`--no-playlist`, así que un URL con `&list=` —muy común al copiar y pegar
+de YouTube— bajaba la playlist ENTERA a `music_dir` sin que nadie lo
+pidiera. `getter.Opts` (antes tres posicionales) formaliza el contrato:
+sin `Playlist`, siempre `--no-playlist`; con ella, `--yes-playlist` +
+`%(playlist_index)02d` antepuesto al nombre de archivo, y con
+`PlaylistSubdir` además `%(playlist_title)s/` como componente de
+directorio, para que yt-dlp cree el subdirectorio él mismo cuando no hay
+nombre explícito.
+
+`cmd/maly/get.go` reimplementa la lógica de resolución en `runGetPlaylist`,
+y `internal/tui/console.go` la duplica en `conGetPlaylist` +
+`conGetPlaylistFinish` (internal/tui no puede importar `cmd/maly`, que es
+`package main`; el patrón ya existía entre `runGet`/`conGet`). Con nombre
+explícito, se valida como componente de ruta ANTES de tocar filesystem o
+red (`filepath.Base(name) != name`, ni `.` ni `..`) y las pistas caen
+directo en `music_dir/<nombre>`. Sin nombre, el título lo aporta yt-dlp
+creando su propio subdirectorio, y maly lo aprende **diffeando el listado
+de `music_dir` antes/después** de la descarga —una lectura de directorio,
+determinista, sin parsear nada de la salida de yt-dlp—; exactamente un
+directorio nuevo se acepta, cero o más de uno se rechazan como ambiguos
+(mejor pedir un nombre explícito que adivinar mal). El título de YouTube es
+el PRIMER camino donde un nombre de playlist es texto ajeno —los demás
+siempre vinieron del teclado del dueño, y por eso `Playlists()` nunca había
+necesitado sanear `name`— así que pasa por `safetext.Clean`, la misma
+frontera que `ReadTags`/`ParseLRC`.
+
+Verificado con el yt-dlp falso de siempre (`get_test.go`), extendido para
+"descargar" dos pistas a un subdirectorio: cubre nombre explícito, título
+auto-detectado, saneado del título con una inyección OSC real (mismo PoC
+que `safetext_test.go`), nombre inválido rechazado ANTES de invocar yt-dlp,
+y el caso ambiguo de `newDirEntry`. Dos trampas de shell que costarían un
+rato redescubrir: el PATH aislado de `getSandbox` no incluye `/usr/bin`,
+así que el yt-dlp falso no puede depender de `sed`/`mkdir` externos sin
+agregarlos de vuelta al PATH (detrás del bin falso, para no tapar los
+mocks); y sustituir el placeholder literal `%(playlist_title)s` con
+expansión de parámetros POSIX pura exige escapar el `%` a mano
+(`${dir%%\%(playlist_title)s*}`), porque sin escapar el operador `%%` se
+come el primer `%` del patrón junto con el operador.
+
+Todos los fixes de seguridad se verificaron en ambas direcciones —revertir
+el código de producción y confirmar que el test nuevo falla de verdad, no
+solo que no compila, la disciplina que la 1.6.1 dejó como lección—: el
+socket da 777 sin el `Chmod`, la conexión muda cuelga hasta el deadline del
+propio cliente sin el arreglo en `serve` (el test distingue EOF de un
+cierre real contra el timeout del cliente, o "pasaría" igual con el bug
+presente), y `dimsOK` acepta la bomba de 65536×65536 con aritmética `int32`
+simulada.
+
+Quedan documentados para un ciclo aparte, con el diseño ya decidido: el
+**canal de paquete** (`version.Channel` vía ldflags del PKGBUILD +
+fallback de que el binario resida bajo `/usr/` y no `/usr/local/`, para que
+`maly update` remita al gestor de paquetes en vez de instalar una segunda
+copia por detrás de pacman — hoy `mallow-install.sh` nunca pisa
+`/usr/bin/maly`, así que un sistema con el paquete de AUR Y el instalador
+corrido alguna vez termina con dos binarios, dos juegos de completions y
+potencialmente dos units de systemd, una de las cuales corre el binario
+que no está en el PATH); y dos arreglos menores del PKGBUILD
+(`install -Dm644 <(cmd)` no detecta un fallo del binario dentro de la
+sustitución de proceso, y `check()` no exporta `CGO_ENABLED=0` así que
+testea un build distinto del que empaqueta). Sin acción, por ser
+mejora de dependencias y no de seguridad: `gonum` (19 MB de módulo) para
+una sola FFT en `internal/viz`.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

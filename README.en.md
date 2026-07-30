@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.10.2-blue)
+![version](https://img.shields.io/badge/version-1.11.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -75,8 +75,11 @@ in a single binary written in Go.
 - **Playlists** with M3U export/import, shuffle, repeat (off/all/one), live queue.
 - **`maly get`**: downloads audio with yt-dlp directly into your library
   (`maly get "artist song"` or a URL) — with embedded metadata and cover
-  art, and automatic re-scan. yt-dlp and ffmpeg are optional: only this
-  command uses them.
+  art, and automatic re-scan. A URL with `&list=` NEVER downloads the whole
+  playlist by accident (`--no-playlist` always); for that there's
+  **`maly get playlist <url> [name]`**, which downloads the full playlist
+  into a subfolder and creates a maly playlist with those tracks, in order.
+  yt-dlp and ffmpeg are optional: only `get` uses them.
 - **Theme and keybindings** configurable via TOML: transparent background
   (uses your terminal's color), live banner colors (the palette's `logo`
   command), and your own ASCII art via `logo.txt`.
@@ -314,6 +317,7 @@ maly repeat [off|all|one]
 maly search <query>            # searches the library (works without the daemon)
 maly scan [path]               # (re)scans (works without the daemon)
 maly get <url|search>          # downloads audio into the library (requires yt-dlp and ffmpeg)
+maly get playlist <url> [name]            # downloads the full playlist and creates a maly playlist
 maly playlist list
 maly playlist show <name>                 # lists tracks with their position
 maly playlist create <name>
@@ -348,9 +352,16 @@ reported as `info`, not as errors.
 
 `maly get` delegates all web interaction to yt-dlp (like lazygit uses
 git): without `://` it searches the phrase on YouTube and downloads the
-first result; with a URL it downloads it as-is. The audio ends up as an
-MP3 with embedded metadata and cover art in `music_dir`, and the library
-re-scans itself (through the service, if it's running).
+first result; with a URL it downloads it as-is (always with
+`--no-playlist`, so a link with `&list=` never downloads more than you
+asked for). The audio ends up as an MP3 with embedded metadata and cover
+art in `music_dir`, and the library re-scans itself (through the service,
+if it's running).
+
+`maly get playlist <url> [name]` is the deliberate path for downloading a
+whole playlist: it downloads into a subfolder of `music_dir` (named
+whatever you give it, or the playlist's real title if you don't) and
+creates a maly playlist with those tracks, in the same order.
 
 For videos that require an account (age-restricted, etc), set
 `cookies_from_browser` in the config's `[ytdlp]` section: the value goes

@@ -4,4 +4,4 @@
 package version
 
 // Version es la versión del binario (sin la "v").
-const Version = "1.10.2"
+const Version = "1.11.0"

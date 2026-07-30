@@ -36,17 +36,6 @@ func runDaemon() error {
 		<-sig
 		d.Close()
 	}()
-	// SIGUSR1 no le sirve al demonio (recarga el tema de una TUI — ver
-	// internal/tui.Run) pero su acción por defecto es terminar el proceso;
-	// sin registrarla acá, un `pkill -SIGUSR1 -x maly` (el post_hook de
-	// Matugen) mataría también al demonio, porque comparte nombre de
-	// proceso con la TUI. Ignorada a propósito: se drena y no se hace nada.
-	ignoreUsr1 := make(chan os.Signal, 1)
-	signal.Notify(ignoreUsr1, syscall.SIGUSR1)
-	go func() {
-		for range ignoreUsr1 {
-		}
-	}()
 	fmt.Println(i18n.Tf("cli.daemon_listening", config.SocketPath()))
 	defer d.Close()
 	return d.Run()

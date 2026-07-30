@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -182,6 +183,67 @@ func TestReclamaSocketHuerfano(t *testing.T) {
 
 // Close suelta el lock: si no, el demonio siguiente rebotaría contra el
 // cadáver del anterior.
+// TestSocketPermisos verifica que maly.sock quede en 0600. net.Listen crea
+// el socket con el umask del proceso, no con un modo fijo: forzamos un
+// umask laxo para que, sin el Chmod explícito de New, el test detecte el
+// socket mundo-legible/escribible de verdad.
+func TestSocketPermisos(t *testing.T) {
+	testEnv(t)
+	old := syscall.Umask(0o000)
+	defer syscall.Umask(old)
+
+	cfg := config.Default()
+	cfg.ScanDurations = false
+	d, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	fi, err := os.Stat(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := fi.Mode().Perm(); perm != 0o600 {
+		t.Errorf("modo de %s = %o, quería 0600", config.SocketPath(), perm)
+	}
+}
+
+// TestServeIdleTimeoutCierraConexion: un cliente que conecta y no manda
+// nada no debe dejar la goroutine de serve (y su fd) clavada para siempre.
+func TestServeIdleTimeoutCierraConexion(t *testing.T) {
+	d := newTestDaemon(t)
+	// d.idleTimeout se toca ANTES de "go d.Run()" a propósito: ese "go" da
+	// el happens-before que necesita el race detector. Campo de instancia
+	// y no var de paquete: un var compartido correría detrás de las
+	// goroutines de serve() de OTRO demonio de OTRO test.
+	d.idleTimeout = 100 * time.Millisecond
+	go d.Run()
+
+	conn, err := net.Dial("unix", config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	// No mandamos nada: serve debe cerrar la conexión sola tras el
+	// deadline (100 ms). El deadline del propio cliente es MUCHO más
+	// generoso (3 s, 30×) a propósito: si el arreglo no funcionara, este
+	// Read colgaría hasta ESE deadline y volvería con un error de timeout,
+	// no con el EOF de un cierre real — hay que distinguir los dos, o el
+	// test "pasaría" igual sin el fix, solo que tarde.
+	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	buf := make([]byte, 1)
+	_, err = conn.Read(buf)
+	if err == nil {
+		t.Fatal("se esperaba que la conexión se cerrara sola tras el idle timeout")
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		t.Fatalf("la conexión no se cerró sola: el error es el timeout del propio cliente, no un cierre del servidor (%v)", err)
+	}
+}
+
 func TestCierraLiberaElLock(t *testing.T) {
 	testEnv(t)
 	d1, err := newRawDaemon(t)

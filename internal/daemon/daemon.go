@@ -75,6 +75,14 @@ type Daemon struct {
 	sessStop  chan struct{}
 
 	closeOnce sync.Once
+
+	// idleTimeout es el deadline de lectura por vuelta del bucle de serve
+	// (ver su comentario). Campo de instancia y no var de paquete: un var
+	// compartido lo escribiría un test mientras el serve() de OTRO demonio
+	// —de un test anterior cuya goroutine Run() no había terminado de
+	// desmontarse— seguía leyéndolo, y el race detector lo cazaba entre
+	// tests aunque cada uno usara su propio Daemon.
+	idleTimeout time.Duration
 }
 
 // subscriber es una conexión en modo push. dirty tiene capacidad 1: una
@@ -120,6 +128,12 @@ func New(cfg config.Config) (*Daemon, error) {
 	if err != nil {
 		return failed(fmt.Errorf("%s: %w", i18n.Tf("d.listen", sock), err))
 	}
+	// net.Listen crea el socket con el umask del proceso, no 0600 como el
+	// resto de lo que vive en el runtime dir (lock, mpv.sock, art/): un
+	// umask laxo del usuario lo dejaría 0777. El dir 0700 ya es la frontera
+	// real, pero el socket es control total del reproductor y no cuesta
+	// nada apretarlo también.
+	os.Chmod(sock, 0o600)
 	closeLn := func() {
 		os.Remove(sock)
 		ln.Close()
@@ -131,13 +145,14 @@ func New(cfg config.Config) (*Daemon, error) {
 		return failed(err)
 	}
 	d := &Daemon{
-		cfg:      cfg,
-		lib:      lib,
-		q:        queue.New(),
-		ln:       ln,
-		lock:     lock,
-		subs:     map[*subscriber]struct{}{},
-		sessStop: make(chan struct{}),
+		cfg:         cfg,
+		lib:         lib,
+		q:           queue.New(),
+		ln:          ln,
+		lock:        lock,
+		subs:        map[*subscriber]struct{}{},
+		sessStop:    make(chan struct{}),
+		idleTimeout: defaultIdleTimeout,
 	}
 	d.libGen.Store(1) // 0 queda reservado a demonios sin soporte (omitempty)
 
@@ -233,18 +248,41 @@ func (d *Daemon) doClose() {
 	}
 }
 
+// defaultIdleTimeout es el deadline de lectura por vuelta del bucle de
+// serve: un cliente que conecta y no manda nada (o deja de mandar) dejaría,
+// sin esto, la goroutine y el fd clavados para siempre — N conexiones así
+// agotan los descriptores del demonio. Generoso a propósito: Do responde en
+// milisegundos, y las conexiones legítimamente largas son las de subscribe,
+// que sale de este bucle antes de volver a este punto. Vive en
+// Daemon.idleTimeout —campo de instancia, no var de paquete— para que los
+// tests lo bajen en SU demonio sin correr detrás de las goroutines de
+// serve() de demonios de otros tests, que un var compartido sí alcanza.
+const defaultIdleTimeout = 5 * time.Minute
+
+// serveWriteTimeout espeja el de subscriber.push: un cliente colgado con el
+// buffer de recepción lleno no debe dejar la goroutine clavada en el Write.
+const serveWriteTimeout = 5 * time.Second
+
 func (d *Daemon) serve(conn net.Conn) {
 	defer conn.Close()
 	sc := bufio.NewScanner(conn)
 	sc.Buffer(make([]byte, 64*1024), 1024*1024)
-	for sc.Scan() {
+	for {
+		conn.SetReadDeadline(time.Now().Add(d.idleTimeout))
+		if !sc.Scan() {
+			return
+		}
 		var req ipc.Request
 		var resp ipc.Response
 		if err := json.Unmarshal(sc.Bytes(), &req); err != nil {
 			resp = ipc.Response{Error: i18n.Tf("d.invalid_req", err.Error())}
 		} else if req.Cmd == "subscribe" {
 			// La conexión pasa a modo push y no vuelve: subscribe escribe
-			// el estado inicial y luego un push por cada cambio.
+			// el estado inicial y luego un push por cada cambio. Limpiar el
+			// deadline de lectura antes de entregarla: subscribe bloquea a
+			// propósito minutos sin que el cliente mande nada, y el
+			// deadline puesto arriba para esta vuelta seguiría corriendo.
+			conn.SetReadDeadline(time.Time{})
 			d.subscribe(conn, sc)
 			return
 		} else if req.Cmd == "shutdown" {
@@ -253,6 +291,7 @@ func (d *Daemon) serve(conn net.Conn) {
 			// dentro de dispatch el Close deadlockearía con d.mu.
 			resp = ipc.Response{OK: true, Msg: i18n.TL(req.Lang, "d.bye"), Version: version.Version}
 			data, _ := json.Marshal(resp)
+			conn.SetWriteDeadline(time.Now().Add(serveWriteTimeout))
 			conn.Write(append(data, '\n'))
 			d.Close()
 			return
@@ -261,6 +300,7 @@ func (d *Daemon) serve(conn net.Conn) {
 		}
 		resp.Version = version.Version
 		data, _ := json.Marshal(resp)
+		conn.SetWriteDeadline(time.Now().Add(serveWriteTimeout))
 		if _, err := conn.Write(append(data, '\n')); err != nil {
 			return
 		}

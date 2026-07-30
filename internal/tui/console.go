@@ -1,10 +1,12 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +20,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/safetext"
 	"maly/internal/update"
 	"maly/internal/version"
 )
@@ -36,6 +39,19 @@ type conMsg struct {
 
 // getDoneMsg vuelve de yt-dlp (tea.ExecProcess); err nil = descarga ok.
 type getDoneMsg struct{ err error }
+
+// getPlaylistDoneMsg vuelve de yt-dlp para `get playlist` (tea.ExecProcess).
+// musicDir/name/dir/before llevan lo que conGetPlaylist ya decidió antes de
+// lanzar el proceso: ExecProcess solo puede devolver el error, así que el
+// resto del estado tiene que viajar en el mensaje. name == "" significa que
+// no había nombre explícito y dir/before son los datos para el diffing.
+type getPlaylistDoneMsg struct {
+	err      error
+	musicDir string
+	name     string
+	dir      string
+	before   map[string]bool
+}
 
 // updRunMsg trae el instalador listo para correr (hay release nuevo);
 // updDoneMsg vuelve cuando terminó.
@@ -368,6 +384,9 @@ func (m *Model) conGet(args []string) (tea.Model, tea.Cmd) {
 		m.conErr(i18n.T("cli.usage_get_cmd"))
 		return m, nil
 	}
+	if args[0] == "playlist" {
+		return m.conGetPlaylist(args[1:])
+	}
 	if err := getter.Tools(); err != nil {
 		m.conErr(err.Error())
 		return m, nil
@@ -379,8 +398,178 @@ func (m *Model) conGet(args []string) (tea.Model, tea.Cmd) {
 	}
 	spec := getter.Spec(strings.Join(args, " "))
 	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_start", spec, dir)))
-	cmd := getter.Command(dir, spec, m.cfg.Ytdlp.CookiesFromBrowser)
+	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec, Cookies: m.cfg.Ytdlp.CookiesFromBrowser})
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg { return getDoneMsg{err: err} })
+}
+
+// conGetPlaylist espeja `maly get playlist`: descarga una playlist completa
+// de yt-dlp a un subdirectorio de music_dir y crea una playlist de maly con
+// esas pistas, en orden. Misma lógica que runGetPlaylist (cmd/maly/get.go,
+// ver su comentario para el porqué completo) reimplementada aquí porque
+// internal/tui no puede importar cmd/maly (package main); la diferencia es
+// que el post-proceso (diffing, escaneo, armado de playlist) no puede
+// correr en línea tras cmd.Run() —ExecProcess solo devuelve el error— así
+// que viaja en getPlaylistDoneMsg y lo termina conGetPlaylistFinish.
+func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
+	if len(args) == 0 || !strings.Contains(args[0], "://") {
+		m.conErr(i18n.T("cli.usage_get_playlist"))
+		return m, nil
+	}
+	if err := getter.Tools(); err != nil {
+		m.conErr(err.Error())
+		return m, nil
+	}
+	url := args[0]
+	name := strings.TrimSpace(strings.Join(args[1:], " "))
+
+	musicDir := m.cfg.MusicPath()
+	if err := os.MkdirAll(musicDir, 0o755); err != nil {
+		m.conErr(err.Error())
+		return m, nil
+	}
+
+	opts := getter.Opts{Dir: musicDir, Spec: url, Cookies: m.cfg.Ytdlp.CookiesFromBrowser, Playlist: true}
+	var dir string
+	var before map[string]bool
+	if name != "" {
+		// Nombre explícito: validarlo como componente de ruta ANTES de
+		// tocar el filesystem o la red — es entrada del usuario
+		// volviéndose ruta.
+		if filepath.Base(name) != name || name == "." || name == ".." {
+			m.conErr(i18n.Tf("cli.get_pl_bad_name", name))
+			return m, nil
+		}
+		dir = filepath.Join(musicDir, name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			m.conErr(err.Error())
+			return m, nil
+		}
+		opts.Dir = dir
+	} else {
+		opts.PlaylistSubdir = true
+		var err error
+		before, err = dirEntries(musicDir)
+		if err != nil {
+			m.conErr(err.Error())
+			return m, nil
+		}
+	}
+
+	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_pl_start", url, musicDir)))
+	cmd := getter.Command(opts)
+	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return getPlaylistDoneMsg{err: err, musicDir: musicDir, name: name, dir: dir, before: before}
+	})
+}
+
+// conGetPlaylistFinish corre tras la descarga: re-escanea, resuelve el
+// nombre auto-detectado si hacía falta, arma la playlist de maly y avisa al
+// demonio. Todo en el mismo tea.Cmd —E/S bloqueante, como conLib/conScan—
+// porque son unos pocos pasos secuenciales sin nada que la UI necesite ver
+// a medias.
+func (m *Model) conGetPlaylistFinish(musicDir, name, dir string, before map[string]bool) tea.Cmd {
+	sock, st := m.sock, m.st
+	return func() tea.Msg {
+		errLine := func(err error) tea.Msg { return conMsg{lines: []string{st.errSt.Render(err.Error())}} }
+
+		c, err := ipc.Dial(sock)
+		if err != nil {
+			return errLine(err)
+		}
+		defer c.Close()
+		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
+		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: musicDir})
+		if err != nil {
+			return errLine(err)
+		}
+		if !resp.OK {
+			return conMsg{lines: []string{st.errSt.Render(resp.Error)}}
+		}
+
+		if name == "" {
+			found, err := newDirEntry(musicDir, before)
+			if err != nil {
+				return errLine(err)
+			}
+			// El título de YouTube es texto ajeno volviéndose nombre de
+			// playlist: la misma frontera de saneado que ReadTags/ParseLRC.
+			name = safetext.Clean(found)
+			if name == "" {
+				return errLine(errors.New(i18n.T("cli.get_pl_no_title")))
+			}
+			dir = filepath.Join(musicDir, found)
+		}
+
+		lib, err := library.Open(config.DBPath())
+		if err != nil {
+			return errLine(err)
+		}
+		defer lib.Close()
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return errLine(err)
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+		var ids []int64
+		for _, e := range entries {
+			if e.IsDir() || !library.IsAudio(e.Name()) {
+				continue
+			}
+			if t, ok := lib.ByPath(filepath.Join(dir, e.Name())); ok {
+				ids = append(ids, t.ID)
+			}
+		}
+		if len(ids) == 0 {
+			return errLine(errors.New(i18n.Tf("cli.get_pl_empty", dir)))
+		}
+		if err := lib.CreatePlaylist(name); err != nil {
+			return errLine(err)
+		}
+		if err := lib.AddToPlaylist(name, ids); err != nil {
+			return errLine(err)
+		}
+		notifyRefresh()
+		return conMsg{lines: []string{st.playing.Render(i18n.Tf("cli.get_pl_done", name, len(ids)))}, reload: true}
+	}
+}
+
+// dirEntries lista los nombres de entrada de dir (no recursivo). Duplica el
+// helper homónimo de cmd/maly/get.go: internal/tui no puede importar
+// package main.
+func dirEntries(dir string) (map[string]bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]bool, len(entries))
+	for _, e := range entries {
+		m[e.Name()] = true
+	}
+	return m, nil
+}
+
+// newDirEntry devuelve el único subdirectorio de parent que no estaba en
+// before: el que yt-dlp acaba de crear con el título de la playlist. Falla
+// si no hay exactamente uno nuevo — ambiguo, mejor pedir un nombre explícito
+// que adivinar mal. Duplica el helper homónimo de cmd/maly/get.go.
+func newDirEntry(parent string, before map[string]bool) (string, error) {
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return "", err
+	}
+	var found string
+	n := 0
+	for _, e := range entries {
+		if !e.IsDir() || before[e.Name()] {
+			continue
+		}
+		found = e.Name()
+		n++
+	}
+	if n != 1 {
+		return "", errors.New(i18n.T("cli.get_pl_ambiguous"))
+	}
+	return found, nil
 }
 
 // conControls espeja `maly controls`; al fijar un preset recarga el config ya

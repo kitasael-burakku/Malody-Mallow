@@ -246,12 +246,21 @@ var table = map[string][2]string{
 	"cli.scan_empty":        {"The library is empty. Is there music in %s? You can pass another path: maly scan <path>", "La biblioteca está vacía. ¿Hay música en %s? Puedes indicar otra ruta: maly scan <ruta>"},
 	"cli.scan_noexist":      {"%s does not exist (from %s). Point maly at your music with: maly scan <path>", "%s no existe (viene de %s). Indica dónde está tu música con: maly scan <ruta>"},
 	"cli.search_none":       {"No results. Did you scan the library? (maly scan)", "Sin resultados. ¿Ya escaneaste la biblioteca? (maly scan)"},
-	"cli.usage_get_cmd":     {"usage: maly get <url|search>", "uso: maly get <url|búsqueda>"},
+	"cli.usage_get_cmd":     {"usage: maly get <url|search> | maly get playlist <url> [name]", "uso: maly get <url|búsqueda> | maly get playlist <url> [nombre]"},
 	"cli.get_missing":       {"maly get needs %s, which is not in your PATH", "maly get necesita %s, que no está en tu PATH"},
 	"cli.get_install":       {"install it: sudo pacman -S %s · sudo apt install %s · sudo dnf install %s", "instálalo: sudo pacman -S %s · sudo apt install %s · sudo dnf install %s"},
 	"cli.get_start":         {"Downloading %s → %s", "Descargando %s → %s"},
 	"cli.get_err":           {"yt-dlp failed: %v (see its output above)", "yt-dlp falló: %v (revisa su salida arriba)"},
 	"cli.get_scan":          {"Download finished — updating the library ...", "Descarga lista — actualizando la biblioteca ..."},
+
+	// ---- maly get playlist ----
+	"cli.usage_get_playlist": {"usage: maly get playlist <url> [name]", "uso: maly get playlist <url> [nombre]"},
+	"cli.get_pl_bad_name":    {"%q cannot be a playlist name (it isn't a plain path component)", "%q no puede ser nombre de playlist (no es un componente de ruta simple)"},
+	"cli.get_pl_start":       {"Downloading playlist %s → %s", "Descargando playlist %s → %s"},
+	"cli.get_pl_ambiguous":   {"couldn't tell which new folder is the playlist's; pass a name: maly get playlist <url> <name>", "no pude distinguir cuál carpeta nueva es la de la playlist; indica un nombre: maly get playlist <url> <nombre>"},
+	"cli.get_pl_no_title":    {"yt-dlp didn't report a usable playlist title; pass a name: maly get playlist <url> <name>", "yt-dlp no reportó un título de playlist usable; indica un nombre: maly get playlist <url> <nombre>"},
+	"cli.get_pl_empty":       {"no tracks from %s ended up in the library", "ninguna pista de %s terminó en la biblioteca"},
+	"cli.get_pl_done":        {"playlist %q: %d tracks", "playlist %q: %d pistas"},
 
 	// ---- maly info (hechos de la instalación; no juzga nada) ----
 	"info.sec_versions": {"VERSIONS", "VERSIONES"},

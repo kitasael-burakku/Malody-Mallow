@@ -166,3 +166,212 @@ func TestGetMissingTool(t *testing.T) {
 		t.Error("sin argumentos debía fallar con el uso")
 	}
 }
+
+// getPlaylistSandbox es como getSandbox, pero el yt-dlp falso "descarga" DOS
+// pistas a un subdirectorio derivado de la plantilla -o: soporta tanto el
+// subdirectorio explícito (music_dir/<nombre>, ya existe cuando yt-dlp
+// corre) como el que yt-dlp crearía él mismo con %(playlist_title)s —el
+// falso sustituye ese placeholder LITERAL por $TITLE, para poder probar el
+// diffing de directorio sin depender de la sintaxis de template real de
+// yt-dlp. $TITLE viaja por variable de entorno para que los tests puedan
+// meter contenido malicioso (secuencias ANSI) y ejercitar el saneado.
+func getPlaylistSandbox(t *testing.T, title string) (musicDir, argsFile string) {
+	t.Helper()
+	xdgSandbox(t)
+	tmp := t.TempDir()
+
+	musicDir = filepath.Join(tmp, "musica")
+	cfgDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "maly")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.toml"),
+		[]byte(fmt.Sprintf("music_dir = %q\n", musicDir)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bin := filepath.Join(tmp, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	argsFile = filepath.Join(tmp, "args.txt")
+	// La sustitución del placeholder va con expansión de parámetros pura
+	// (sin sed): el % de "%(playlist_title)s" hay que escaparlo o el
+	// operador %% de bash/dash se lo come. mkdir sigue siendo externo (no
+	// hay builtin de shell para crear directorios), así que el PATH real
+	// queda DETRÁS del bin falso: yt-dlp/ffmpeg siguen resolviendo al
+	// falso, pero mkdir resuelve al de siempre.
+	ytdlp := fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
+out=""
+prev=""
+for a in "$@"; do
+	if [ "$prev" = "-o" ]; then out=$a; fi
+	prev=$a
+done
+dir=${out%%/*}
+case "$dir" in
+	*"%%(playlist_title)s"*)
+		prefix=${dir%%\%%(playlist_title)s*}
+		suffix=${dir#*%%(playlist_title)s}
+		dir="$prefix$TITLE$suffix"
+		;;
+esac
+mkdir -p "$dir"
+printf 'mp3 falso' > "$dir/01 - Fake Artist - Cancion Uno.mp3"
+printf 'mp3 falso' > "$dir/02 - Fake Artist - Cancion Dos.mp3"
+`, argsFile)
+	if err := os.WriteFile(filepath.Join(bin, "yt-dlp"), []byte(ytdlp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "ffmpeg"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+	t.Setenv("TITLE", title)
+	return musicDir, argsFile
+}
+
+// TestGetPlaylistNamed: con nombre explícito, las pistas caen directo en
+// music_dir/<nombre> (sin pasar por %(playlist_title)s) y la playlist de
+// maly queda con ese mismo nombre, en el orden de los archivos.
+func TestGetPlaylistNamed(t *testing.T) {
+	musicDir, _ := getPlaylistSandbox(t, "no se usa en este caso")
+
+	if err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc", "Mi", "Mix"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(musicDir, "Mi Mix")); err != nil {
+		t.Errorf("subdirectorio esperado en music_dir/Mi Mix: %v", err)
+	}
+
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	tracks, err := lib.PlaylistTracks("Mi Mix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 2 {
+		t.Fatalf("playlist debía tener 2 pistas, tiene %d: %+v", len(tracks), tracks)
+	}
+	if !strings.Contains(tracks[0].Title, "Uno") || !strings.Contains(tracks[1].Title, "Dos") {
+		t.Errorf("orden incorrecto (debía ser Uno, Dos): %+v", tracks)
+	}
+}
+
+// TestGetPlaylistAutoTitle: sin nombre, el título que yt-dlp reporta se
+// aprende diffeando music_dir y se usa como nombre de playlist.
+func TestGetPlaylistAutoTitle(t *testing.T) {
+	musicDir, _ := getPlaylistSandbox(t, "Mi Playlist De Prueba")
+
+	if err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(filepath.Join(musicDir, "Mi Playlist De Prueba")); err != nil {
+		t.Errorf("subdirectorio esperado: %v", err)
+	}
+
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	tracks, err := lib.PlaylistTracks("Mi Playlist De Prueba")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 2 {
+		t.Fatalf("playlist debía tener 2 pistas, tiene %d: %+v", len(tracks), tracks)
+	}
+}
+
+// TestGetPlaylistTitleSaneado: el título de YouTube es texto ajeno — el
+// primer camino donde un nombre de playlist no lo escribió el dueño — y
+// debe pasar por la misma frontera de saneado que ReadTags/ParseLRC antes
+// de convertirse en nombre de playlist.
+func TestGetPlaylistTitleSaneado(t *testing.T) {
+	// El título trae un OSC que cambiaría el título de la ventana o el
+	// portapapeles si llegara crudo a la terminal (mismo PoC que
+	// safetext_test.go). El shell no puede meter el ESC en $TITLE tal cual
+	// vía t.Setenv y sed sin escaparlo especial, así que se arma en Go.
+	dirty := "Playlist\x1b]0;HACK\x07Real"
+	getPlaylistSandbox(t, dirty)
+
+	if err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc"}); err != nil {
+		t.Fatal(err)
+	}
+
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	lists, err := lib.Playlists()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lists) != 1 {
+		t.Fatalf("se esperaba una sola playlist, hay %d: %+v", len(lists), lists)
+	}
+	if strings.Contains(lists[0].Name, "\x1b") {
+		t.Errorf("el nombre de playlist conserva el ESC sin sanear: %q", lists[0].Name)
+	}
+	if !strings.Contains(lists[0].Name, "Playlist") || !strings.Contains(lists[0].Name, "Real") {
+		t.Errorf("el saneado se comió más de lo debido: %q", lists[0].Name)
+	}
+}
+
+// TestGetPlaylistBadName: un nombre que se saldría de music_dir se rechaza
+// ANTES de tocar el filesystem o invocar yt-dlp.
+func TestGetPlaylistBadName(t *testing.T) {
+	_, argsFile := getPlaylistSandbox(t, "no se usa")
+	for _, bad := range []string{"..", ".", "a/b", "sub/dir"} {
+		if err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc", bad}); err == nil {
+			t.Errorf("nombre %q debía rechazarse", bad)
+		}
+	}
+	if _, err := os.Stat(argsFile); err == nil {
+		t.Error("no debía haberse invocado yt-dlp con un nombre inválido")
+	}
+}
+
+// TestGetPlaylistRequiresURL: una playlist necesita URL; una búsqueda no la
+// define, y sin argumentos debe fallar con el uso.
+func TestGetPlaylistRequiresURL(t *testing.T) {
+	xdgSandbox(t) // ni siquiera necesita yt-dlp en PATH: falla antes
+	if err := runGetPlaylist(nil); err == nil {
+		t.Error("sin argumentos debía fallar con el uso")
+	}
+	if err := runGetPlaylist([]string{"busqueda sin url"}); err == nil {
+		t.Error("sin :// debía rechazarse (una playlist necesita URL)")
+	}
+}
+
+// TestGetPlaylistAmbiguous: si el diffing de directorio no encuentra
+// exactamente un subdirectorio nuevo (aquí, ninguno: el yt-dlp falso no
+// llega a correr porque el PATH no lo tiene), el error debe ser claro y
+// pedir un nombre explícito en vez de fallar oscuro más adelante.
+func TestGetPlaylistAmbiguous(t *testing.T) {
+	musicDir, err := os.MkdirTemp("", "maly-ambiguo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(musicDir)
+	if got, err := newDirEntry(musicDir, map[string]bool{}); err == nil {
+		t.Errorf("sin subdirectorios nuevos debía fallar, dio %q", got)
+	}
+	if err := os.Mkdir(filepath.Join(musicDir, "a"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(musicDir, "b"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := newDirEntry(musicDir, map[string]bool{}); err == nil {
+		t.Errorf("con dos subdirectorios nuevos debía fallar, dio %q", got)
+	}
+}

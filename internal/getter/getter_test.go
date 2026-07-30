@@ -18,7 +18,7 @@ func TestSpec(t *testing.T) {
 }
 
 func TestCommand(t *testing.T) {
-	cmd := Command("/tmp/music", "ytsearch1:x", "")
+	cmd := Command(Opts{Dir: "/tmp/music", Spec: "ytsearch1:x"})
 	args := cmd.Args
 	// El spec va al final tras "--": nada que empiece con guion se interpreta
 	// como flag de yt-dlp.
@@ -36,12 +36,48 @@ func TestCommand(t *testing.T) {
 	if strings.Contains(joined, "--cookies-from-browser") {
 		t.Errorf("sin cookies configuradas no debe ir el flag: %v", args)
 	}
+	// Sin Playlist: --no-playlist, para que un URL con &list= (copiar y
+	// pegar habitual de YouTube) no baje la playlist entera sin avisar.
+	if !strings.Contains(joined, "--no-playlist") {
+		t.Errorf("falta --no-playlist en la descarga de una pista suelta: %v", args)
+	}
+	if strings.Contains(joined, "--yes-playlist") {
+		t.Errorf("no debe llevar --yes-playlist sin Opts.Playlist: %v", args)
+	}
+}
+
+// TestCommandPlaylist: con Playlist=true, --yes-playlist reemplaza a
+// --no-playlist y la plantilla antepone el índice, para que el orden de
+// archivos en disco refleje el orden de la playlist sin parsear la salida
+// de yt-dlp.
+func TestCommandPlaylist(t *testing.T) {
+	cmd := Command(Opts{Dir: "/tmp/mix", Spec: "https://x/playlist?list=abc", Playlist: true})
+	joined := strings.Join(cmd.Args, " ")
+	if !strings.Contains(joined, "--yes-playlist") {
+		t.Errorf("falta --yes-playlist con Opts.Playlist: %v", cmd.Args)
+	}
+	if strings.Contains(joined, "--no-playlist") {
+		t.Errorf("no debe llevar --no-playlist con Opts.Playlist: %v", cmd.Args)
+	}
+	if !strings.Contains(joined, "%(playlist_index)02d - %(artist,uploader)s - %(title)s.%(ext)s") {
+		t.Errorf("falta el índice antepuesto a la plantilla: %v", cmd.Args)
+	}
+}
+
+// TestCommandPlaylistSubdir: sin nombre explícito, %(playlist_title)s/ debe
+// ir ANTES del índice, para que yt-dlp cree el subdirectorio él mismo.
+func TestCommandPlaylistSubdir(t *testing.T) {
+	cmd := Command(Opts{Dir: "/tmp/music", Spec: "https://x/playlist?list=abc", Playlist: true, PlaylistSubdir: true})
+	joined := strings.Join(cmd.Args, " ")
+	if !strings.Contains(joined, "%(playlist_title)s/%(playlist_index)02d - %(artist,uploader)s - %(title)s.%(ext)s") {
+		t.Errorf("falta el subdirectorio por título antepuesto al índice: %v", cmd.Args)
+	}
 }
 
 // TestCommandCookies: el valor de cookies_from_browser viaja tal cual
 // (navegador:perfil incluido, sin validar) antes del "--" del spec.
 func TestCommandCookies(t *testing.T) {
-	cmd := Command("/tmp/music", "ytsearch1:x", "firefox:default-release")
+	cmd := Command(Opts{Dir: "/tmp/music", Spec: "ytsearch1:x", Cookies: "firefox:default-release"})
 	args := cmd.Args
 	idx := -1
 	for i, a := range args {

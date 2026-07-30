@@ -61,7 +61,7 @@ var commands = []command{
 
 	{name: "scan", usage: "scan [<path>]", descKey: "cli.scan", section: "library", run: runScan},
 	{name: "search", usage: "search <query>", descKey: "cli.search", section: "library", run: runSearch},
-	{name: "get", usage: "get <url|query>", descKey: "cli.get", section: "library", run: runGet},
+	{name: "get", usage: "get <url|query> | get playlist <url> [name]", descKey: "cli.get", section: "library", run: runGet, complete: completeGet},
 	{name: "playlist", usage: "playlist <sub> [args]", descKey: "cli.playlist", section: "library", run: runPlaylist, complete: completePlaylist},
 
 	{name: "controls", usage: "controls [<preset>]", descKey: "cli.controls", section: "other", run: runControls, complete: completeControls},

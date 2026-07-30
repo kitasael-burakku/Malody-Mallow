@@ -562,6 +562,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
 		return m, m.conScan("")
 
+	case getPlaylistDoneMsg:
+		if msg.err != nil {
+			m.conErr(i18n.Tf("cli.get_err", msg.err))
+			return m, nil
+		}
+		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
+		return m, m.conGetPlaylistFinish(msg.musicDir, msg.name, msg.dir, msg.before)
+
 	case updTickMsg:
 		// Volver a mirar y re-armar el tick. Cuando el cache ya anuncia algo,
 		// updateCheckCmd resuelve sin tocar la red, así que repetir es barato.

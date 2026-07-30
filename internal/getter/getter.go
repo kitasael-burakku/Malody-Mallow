@@ -39,21 +39,54 @@ func Spec(query string) string {
 	return "ytsearch1:" + query
 }
 
-// Command arma el yt-dlp que descarga spec a dir. mp3 a propósito: el scan
-// lee sus ID3 (dhowden) y la miniatura embebida como APIC es justo la
-// carátula que mpris:artUrl ya extrae. cookiesFromBrowser (config [ytdlp])
-// viaja tal cual a --cookies-from-browser cuando no está vacío, para videos
-// que piden cuenta (restricción de edad); maly no valida el valor: si está
-// mal, el error que sale al terminal es el de yt-dlp.
-func Command(dir, spec, cookiesFromBrowser string) *exec.Cmd {
+// Opts arma la invocación de yt-dlp que arma Command.
+type Opts struct {
+	Dir      string // destino: music_dir para una pista, el subdirectorio de la playlist
+	Spec     string // ver Spec()
+	Cookies  string // config [ytdlp] cookies_from_browser; "" = sin flag
+	Playlist bool   // true: --yes-playlist + índice en el nombre; false: --no-playlist
+	// PlaylistSubdir, solo junto a Playlist, antepone además
+	// %(playlist_title)s/ como componente de directorio: yt-dlp crea el
+	// subdirectorio él mismo con el título real de la playlist. Lo usa
+	// `maly get playlist <url>` sin nombre explícito, para no tener que
+	// adivinar el nombre antes de descargar.
+	PlaylistSubdir bool
+}
+
+// Command arma el yt-dlp que descarga o.Spec a o.Dir. mp3 a propósito: el
+// scan lee sus ID3 (dhowden) y la miniatura embebida como APIC es justo la
+// carátula que mpris:artUrl ya extrae. o.Cookies (config [ytdlp]) viaja tal
+// cual a --cookies-from-browser cuando no está vacío, para videos que piden
+// cuenta (restricción de edad); maly no valida el valor: si está mal, el
+// error que sale al terminal es el de yt-dlp.
+//
+// o.Playlist decide entre las dos formas de invocación: sin ella,
+// --no-playlist evita que un URL con &list= —muy común al copiar y pegar de
+// YouTube— baje la playlist entera a music_dir sin que nadie lo pidiera; con
+// ella, --yes-playlist y %(playlist_index)02d antepuesto al nombre de
+// archivo, para que el orden de la playlist salga del orden alfabético de
+// los archivos descargados sin tener que parsear nada de la salida de yt-dlp.
+func Command(o Opts) *exec.Cmd {
+	tmpl := "%(artist,uploader)s - %(title)s.%(ext)s"
+	if o.Playlist {
+		tmpl = "%(playlist_index)02d - " + tmpl
+		if o.PlaylistSubdir {
+			tmpl = "%(playlist_title)s/" + tmpl
+		}
+	}
 	args := []string{
 		"-x", "--audio-format", "mp3", "--audio-quality", "0",
 		"--embed-metadata", "--embed-thumbnail",
-		"-o", filepath.Join(dir, "%(artist,uploader)s - %(title)s.%(ext)s"),
+		"-o", filepath.Join(o.Dir, tmpl),
 	}
-	if cookiesFromBrowser != "" {
-		args = append(args, "--cookies-from-browser", cookiesFromBrowser)
+	if o.Playlist {
+		args = append(args, "--yes-playlist")
+	} else {
+		args = append(args, "--no-playlist")
 	}
-	args = append(args, "--", spec)
+	if o.Cookies != "" {
+		args = append(args, "--cookies-from-browser", o.Cookies)
+	}
+	args = append(args, "--", o.Spec)
 	return exec.Command("yt-dlp", args...)
 }

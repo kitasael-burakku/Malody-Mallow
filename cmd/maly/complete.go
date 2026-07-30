@@ -180,6 +180,19 @@ func completeTracks(args []string, cur string) []string {
 	return out
 }
 
+// completeGet ofrece "playlist" como único candidato del primer argumento:
+// el resto (URL, búsqueda, nombre de playlist) es texto libre sin fuente
+// sensata de completado.
+func completeGet(args []string, cur string) []string {
+	if len(args) > 0 {
+		return nil
+	}
+	if strings.HasPrefix("playlist", cur) {
+		return []string{"playlist"}
+	}
+	return nil
+}
+
 // completePlaylist anida: primero el subcomando, después nombres de playlist
 // donde aplica, y para `add <nombre> <query>` vuelve a completar pistas.
 func completePlaylist(args []string, cur string) []string {

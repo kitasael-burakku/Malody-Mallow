@@ -44,6 +44,10 @@ func TestConsoleUsageErrors(t *testing.T) {
 		"playlist bogus",
 		"search",
 		"get",
+		"get playlist",
+		"get playlist busqueda sin url",
+		"get playlist https://x ..", // nombre inválido: sin yt-dlp/ffmpeg falla antes por Tools(), con ellos por el nombre — ambos caminos dan (nil, error)
+		"get playlist https://x a/b",
 		"lang xx",
 		"controls bogus",
 		"logo zzz",                              // una sola parada: pide 2-8
@@ -120,6 +124,36 @@ func TestConsoleControlsList(t *testing.T) {
 		if !strings.Contains(joined, name) {
 			t.Errorf("falta el preset %q en la lista:\n%s", name, joined)
 		}
+	}
+}
+
+// TestNewDirEntry cubre el diffing que resuelve el subdirectorio que yt-dlp
+// crea con el título de la playlist (get playlist sin nombre explícito):
+// exactamente un directorio nuevo se acepta, cero o más de uno se rechazan
+// como ambiguos.
+func TestNewDirEntry(t *testing.T) {
+	dir := t.TempDir()
+	before, err := dirEntries(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Sin nada nuevo: ambiguo.
+	if got, err := newDirEntry(dir, before); err == nil {
+		t.Errorf("sin subdirectorios nuevos debía fallar, dio %q", got)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "Mi Playlist"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Exactamente uno nuevo: se identifica.
+	if got, err := newDirEntry(dir, before); err != nil || got != "Mi Playlist" {
+		t.Fatalf("newDirEntry = (%q, %v), quería (\"Mi Playlist\", nil)", got, err)
+	}
+	// Dos nuevos: vuelve a ser ambiguo.
+	if err := os.Mkdir(filepath.Join(dir, "Otra"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := newDirEntry(dir, before); err == nil {
+		t.Errorf("con dos subdirectorios nuevos debía fallar, dio %q", got)
 	}
 }
 

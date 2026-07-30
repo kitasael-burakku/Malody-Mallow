@@ -162,6 +162,38 @@ func TestConsoleThemeReload(t *testing.T) {
 	}
 }
 
+// TestThemeReloadMsg: el case de Update() que dispara la señal SIGUSR1 (ver
+// Run en tui.go) hace exactamente lo mismo que `theme reload` en la
+// consola, sin pasar por execConsole.
+func TestThemeReloadMsg(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	if err := os.MkdirAll(config.ConfigDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	body := "[theme]\naccent = \"#654321\"\nlogo = [\"#aaaaaa\", \"#bbbbbb\"]\n"
+	if err := os.WriteFile(config.ConfigPath(), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newConModel()
+	if m.logo.ramp != nil {
+		t.Fatal("precondición: el modelo de prueba no debía traer un ramp calculado")
+	}
+
+	newModel, cmd := m.Update(themeReloadMsg{})
+	if cmd != nil {
+		t.Fatal("themeReloadMsg no debe devolver tea.Cmd")
+	}
+	got := newModel.(*Model)
+	if got.cfg.Theme.Accent != "#654321" {
+		t.Fatalf("themeReloadMsg no releyó config.toml: accent = %q", got.cfg.Theme.Accent)
+	}
+	if len(got.logo.ramp) != logoSteps {
+		t.Fatalf("themeReloadMsg no recalculó el ramp del logo: %d entradas, quería %d", len(got.logo.ramp), logoSteps)
+	}
+}
+
 // TestConsoleSelect cierra la consola y abre el picker de canciones.
 func TestConsoleSelect(t *testing.T) {
 	m := newConModel()

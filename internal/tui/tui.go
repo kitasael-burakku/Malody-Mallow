@@ -147,6 +147,11 @@ type subOpenMsg struct {
 }
 type subDeadMsg struct{}
 
+// themeReloadMsg dispara reloadTheme (ver console.go) desde el goroutine que
+// escucha SIGUSR1 en Run — p.Send es la única forma segura de tocar el
+// Model desde fuera del loop de Update.
+type themeReloadMsg struct{}
+
 // Run abre la TUI. embedded indica que el demonio corre dentro del proceso.
 func Run(cfg config.Config, embedded bool) error {
 	ti := textinput.New()
@@ -192,6 +197,25 @@ func Run(cfg config.Config, embedded bool) error {
 		case <-hup:
 			p.Quit() // Run retorna, corren los defers y Close guarda la sesión
 		case <-done:
+		}
+	}()
+
+	// SIGUSR1: recarga el tema en caliente (reloadTheme, console.go) sin
+	// reiniciar la TUI — pensado para que un post_hook de Matugen la dispare
+	// tras `maly theme sync`, mismo patrón que kitty/waybar por señales. A
+	// diferencia de SIGHUP, en loop: puede llegar muchas veces en la vida de
+	// la TUI (un cambio de wallpaper por sesión, o más).
+	usr1 := make(chan os.Signal, 1)
+	signal.Notify(usr1, syscall.SIGUSR1)
+	defer signal.Stop(usr1)
+	go func() {
+		for {
+			select {
+			case <-usr1:
+				p.Send(themeReloadMsg{})
+			case <-done:
+				return
+			}
 		}
 	}()
 
@@ -569,6 +593,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, tea.Batch(updateCheckCmd(), updTickCmd())
+
+	case themeReloadMsg:
+		// Error silencioso a propósito: llega de una señal, sin ningún lugar
+		// donde mostrar un mensaje de error como haría `theme reload` en la
+		// consola (y un config.toml roto ya se avisa por otras vías al leerlo
+		// en el arranque siguiente).
+		m.reloadTheme()
+		return m, nil
 
 	case updMsg:
 		if update.Newer(msg.latest, version.Version) {

@@ -470,16 +470,28 @@ func (m *Model) conTheme(args []string) (tea.Model, tea.Cmd) {
 		m.conErr(i18n.T("con.theme_usage"))
 		return m, nil
 	}
-	cfg, err := config.Load()
-	if err != nil {
+	if err := m.reloadTheme(); err != nil {
 		m.conErr(err.Error())
 		return m, nil
+	}
+	m.conPrint(m.st.playing.Render(i18n.T("con.theme_reloaded")))
+	return m, nil
+}
+
+// reloadTheme relee config.toml y aplica el tema completo en vivo (estilos +
+// gradiente del banner). La comparte `theme reload` (consola) con la señal
+// SIGUSR1 (ver Run en tui.go): Matugen la manda tras `maly theme sync` para
+// que una TUI ya abierta recoja el tema nuevo sin reiniciarse, mismo patrón
+// que kitty/waybar vía señales.
+func (m *Model) reloadTheme() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
 	m.cfg = cfg
 	m.st = newStyles(cfg.Theme)
 	m.logo.ramp = logoRamp(cfg.Theme.Logo)
-	m.conPrint(m.st.playing.Render(i18n.T("con.theme_reloaded")))
-	return m, nil
+	return nil
 }
 
 // conLang espeja `maly lang`: sin argumento abre el selector de idioma; con

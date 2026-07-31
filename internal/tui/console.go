@@ -676,7 +676,9 @@ func (m *Model) conLang(args []string) (tea.Model, tea.Cmd) {
 // conUpdate espeja `maly update`: chequea el último release y, si hay uno
 // nuevo, entrega el instalador en un updRunMsg para correrlo con
 // tea.ExecProcess (como get: la TUI se suspende y el instalador interactivo
-// usa el terminal).
+// usa el terminal). Con un binario de un gestor de paquetes
+// (version.Packaged()) ni entrega el instalador: remite al gestor, mismo
+// gate que runUpdate en cmd/maly/update.go.
 func (m *Model) conUpdate() tea.Cmd {
 	st := m.st
 	return func() tea.Msg {
@@ -687,6 +689,9 @@ func (m *Model) conUpdate() tea.Cmd {
 		update.SaveCache(latest)
 		if !update.Newer(latest, version.Version) {
 			return conMsg{lines: []string{st.playing.Render(i18n.Tf("up.current", version.Version))}}
+		}
+		if version.Packaged() {
+			return conMsg{lines: []string{st.playing.Render(i18n.Tf("up.found_packaged", latest, version.Version))}}
 		}
 		cmd, cleanup, err := update.InstallerCmd(latest)
 		if err != nil {

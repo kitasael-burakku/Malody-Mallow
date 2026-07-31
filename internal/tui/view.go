@@ -8,6 +8,7 @@ import (
 
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/version"
 )
 
 const (
@@ -399,6 +400,10 @@ func (m *Model) footer() string {
 		line = m.st.accent.Render(" " + txt)
 	case m.verMismatch != "":
 		line = m.st.errSt.Render(" " + i18n.Tf("tui.svc_version", m.verMismatch))
+	case m.updAvail != "" && version.Packaged():
+		// Con un binario de un gestor de paquetes, "maly update" ya remite
+		// al gestor (ver conUpdate); el aviso del pie sigue el mismo texto.
+		line = m.st.accent.Render(" " + i18n.Tf("tui.update_avail_packaged", m.updAvail))
 	case m.updAvail != "":
 		line = m.st.accent.Render(" " + i18n.Tf("tui.update_avail", m.updAvail))
 	default:

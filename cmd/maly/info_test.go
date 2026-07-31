@@ -2,9 +2,11 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"maly/internal/config"
+	"maly/internal/version"
 )
 
 // TestLibraryStatsNoDB: sin base de datos, libraryStats debe reportar ok=false
@@ -56,4 +58,33 @@ func TestOpenLibraryIfExistsOpensReal(t *testing.T) {
 		t.Fatal("openLibraryIfExists() debía abrir la base ya existente")
 	}
 	lib.Close()
+}
+
+// TestRunInfoChannel: la fila de canal en `maly info` refleja
+// version.Packaged() — hecho de la instalación, no veredicto.
+func TestRunInfoChannel(t *testing.T) {
+	xdgSandbox(t)
+
+	old := version.Channel
+	defer func() { version.Channel = old }()
+
+	version.Channel = ""
+	out := captureStdout(t, func() {
+		if err := runInfo(nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(out, "manual") {
+		t.Errorf("canal manual: la salida de info no lo menciona:\n%s", out)
+	}
+
+	version.Channel = "pacman"
+	out = captureStdout(t, func() {
+		if err := runInfo(nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(out, "package manager") {
+		t.Errorf("canal empaquetado: la salida de info no lo menciona:\n%s", out)
+	}
 }

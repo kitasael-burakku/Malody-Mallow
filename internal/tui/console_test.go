@@ -8,6 +8,7 @@ import (
 
 	"maly/internal/config"
 	"maly/internal/i18n"
+	"maly/internal/version"
 )
 
 // newConModel arma el modelo mínimo que la consola necesita (estilos y
@@ -154,6 +155,34 @@ func TestNewDirEntry(t *testing.T) {
 	}
 	if got, err := newDirEntry(dir, before); err == nil {
 		t.Errorf("con dos subdirectorios nuevos debía fallar, dio %q", got)
+	}
+}
+
+// TestConUpdatePackaged: con version.Channel fijado, conUpdate no debe
+// entregar el instalador (updRunMsg) — debe resolver en un conMsg que
+// mencione el gestor de paquetes, mismo gate que runUpdate en cmd/maly.
+func TestConUpdatePackaged(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	bin := t.TempDir()
+	script := "#!/bin/sh\nprintf 'aaa\\trefs/tags/v9.9.9\\n'\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin) // sin curl: si igual llegara a InstallerCmd, fallaría mencionándolo
+
+	old := version.Channel
+	version.Channel = "pacman"
+	defer func() { version.Channel = old }()
+
+	m := newConModel()
+	msg := m.conUpdate()()
+	cm, ok := msg.(conMsg)
+	if !ok {
+		t.Fatalf("conUpdate con canal empaquetado debía dar conMsg, dio %T (%+v)", msg, msg)
+	}
+	joined := strings.Join(cm.lines, "\n")
+	if !strings.Contains(joined, "v9.9.9") || !strings.Contains(joined, "package manager") {
+		t.Errorf("líneas = %q, esperaba mencionar v9.9.9 y el gestor de paquetes", cm.lines)
 	}
 }
 

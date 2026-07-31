@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"maly/internal/config"
+	"maly/internal/version"
 )
 
 func newHelpTestModel(width, height int) *Model {
@@ -40,5 +41,35 @@ func TestHelpViewUncappedOnTallTerminal(t *testing.T) {
 	got := strings.Count(out, "\n") + 1
 	if got != 60 {
 		t.Fatalf("helpView() con m.height=60 (de sobra) dio %d líneas, quería 60 (lipgloss.Place rellena el lienzo)", got)
+	}
+}
+
+// TestFooterUpdateAvailChannel: el aviso de "hay versión nueva" del pie
+// cambia de texto según el canal — con version.Packaged() debe remitir al
+// gestor de paquetes en vez de sugerir `maly update` (que en ese canal ya
+// no instala nada, ver conUpdate/runUpdate).
+func TestFooterUpdateAvailChannel(t *testing.T) {
+	old := version.Channel
+	defer func() { version.Channel = old }()
+
+	m := newHelpTestModel(80, 24)
+	m.updAvail = "v9.9.9"
+
+	version.Channel = ""
+	out := m.footer()
+	if !strings.Contains(out, "maly update") {
+		t.Errorf("canal manual: footer() = %q, esperaba mencionar maly update", out)
+	}
+	if strings.Contains(out, "package manager") {
+		t.Errorf("canal manual: footer() = %q, no debía mencionar el gestor de paquetes", out)
+	}
+
+	version.Channel = "pacman"
+	out = m.footer()
+	if !strings.Contains(out, "package manager") {
+		t.Errorf("canal empaquetado: footer() = %q, esperaba mencionar el gestor de paquetes", out)
+	}
+	if strings.Contains(out, "maly update") {
+		t.Errorf("canal empaquetado: footer() = %q, no debía sugerir maly update", out)
 	}
 }

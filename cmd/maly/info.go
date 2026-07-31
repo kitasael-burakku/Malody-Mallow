@@ -70,6 +70,11 @@ func runInfo([]string) error {
 
 	sec("info.sec_versions")
 	row("info.binary", version.Version)
+	channel := i18n.T("info.channel_manual")
+	if version.Packaged() {
+		channel = i18n.T("info.channel_pkg")
+	}
+	row("info.channel", channel)
 	if svc, ok := serviceVersion(); ok {
 		line := svc
 		if svc != version.Version {

@@ -7,6 +7,16 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.11.1 — 2026-07-31
+
+Cierra el último ítem diferido de la auditoría de la 1.11.0: canal de
+paquete. `internal/version.Channel` (fijado por el PKGBUILD vía
+`-ldflags -X`, con un fallback de ruta bajo `/usr/` para packagers que se
+olviden del flag) hace que `maly update` deje de intentar instalar una
+segunda copia por detrás de pacman — en un binario empaquetado, remite al
+gestor en vez de bajar `mallow-install.sh`. El pie de la TUI y `maly info`
+reflejan el canal.
+
 ## v1.11.0 — 2026-07-30
 
 Auditoría de seguridad completa desde cero (sin críticos ni altos): el

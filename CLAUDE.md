@@ -1043,6 +1043,67 @@ testea un build distinto del que empaqueta). Sin acción, por ser
 mejora de dependencias y no de seguridad: `gonum` (19 MB de módulo) para
 una sola FFT en `internal/viz`.
 
+La **1.11.1** (2026-07-31) cierra el canal de paquete, el único de los tres
+ítems diferidos de la 1.11.0 con impacto real — el dueño lo vivió en carne
+propia esa misma sesión: con el paquete de AUR y el instalador manual
+conviviendo, terminó con dos binarios, dos units de systemd y tuvo que
+deshabilitar la del paquete a mano para que `~/.local/bin/maly` quedara
+como el único corriendo de verdad.
+
+**`version.Channel`** (`internal/version/version.go`) es una `var string`
+nueva, `""` por defecto — a propósito NO es la const `Version`, porque
+`-ldflags -X` solo puede asignar variables de paquete a nivel top-level,
+nunca constantes. El PKGBUILD la fija en `build()` con
+`-ldflags "-X maly/internal/version.Channel=pacman"`. **`Packaged() bool`**
+es lo que consultan los llamadores: `true` si `Channel != ""`, o si no, por
+un fallback de ruta (`isPackagedPath`, función pura y separada para poder
+testear con rutas fabricadas): el binario resuelto
+(`os.Executable()` + `filepath.EvalSymlinks`) cae bajo `/usr/` pero no
+`/usr/local/` — por FHS eso es territorio de un gestor de paquetes, y
+`mallow-install.sh` nunca instala ahí (confirmado leyendo su única
+invocación de `go build`, que solo lleva `-ldflags '-s -w'`, sin ningún
+`-X`). El fallback cubre a un packager futuro que se olvide del flag. Es
+una heurística de UX y no una frontera de seguridad, por eso `Packaged()`
+no memoiza el resultado: el costo real es un puñado de syscalls,
+irrelevante llamado una vez por render del footer, y sin memoización cada
+test controla `Channel` libremente sin pelearse con estado global.
+
+El gate va en tres puntos, todos DESPUÉS del chequeo de "ya estás al día"
+(ese mensaje sigue ganando primero, sin mencionar canal): `runUpdate`
+(`cmd/maly/update.go`) y `conUpdate` (`internal/tui/console.go`, mismo
+patrón de espejo que `runGet`/`conGet`) no tocan `InstallerCmd` con un
+binario empaquetado — imprimen `up.found_packaged` y listo, sin acercarse a
+curl ni al instalador. El pie de la TUI (`view.go`, caso `updAvail`) usa
+`tui.update_avail_packaged` en el mismo lugar de la cadena de prioridad. Y
+`maly info` suma una fila de canal junto a `info.binary`, siguiendo la
+filosofía "info lista hechos": el canal es un hecho de la instalación, no
+un veredicto de `doctor`. `internal/update/update.go` en sí NO se toca: el
+chequeo de red (`Latest`/`Cached`/`SaveCache`) sigue siendo agnóstico al
+canal, porque el aviso informativo vale igual aunque el binario sea del
+paquete. `doctor.go` tampoco: su mensaje "run: maly update" sigue siendo
+correcto tal cual (`maly update` ya redirige bien), solo un paso menos
+directo — no amerita el cambio.
+
+Verificado en ambas direcciones en cada punto con lógica nueva: sin el
+gate, `TestRunUpdatePackaged`/`TestConUpdatePackaged` intentan
+`InstallerCmd` de verdad y fallan mencionando curl (que a propósito no
+está en el PATH del test); sin la exclusión de `/usr/local/` en
+`isPackagedPath`, `TestIsPackagedPath` falla con `/usr/local/bin/maly`
+clasificado como empaquetado; sin el caso condicional del footer,
+`TestFooterUpdateAvailChannel` sigue mostrando "maly update" con el canal
+empaquetado.
+
+De los otros dos ítems diferidos de la 1.11.0, ninguno entró en esta
+release: los dos arreglos menores del PKGBUILD quedan para cuando el dueño
+confirme (son baratos y de bajo riesgo, pero no se tocan sin luz verde
+explícita), y `gonum` se investigó a fondo y se descartó sacarlo — medido
+en la sesión: el módulo pesa 19 MB en disco, pero el linker de Go solo mete
+~65 KB en el binario final, y el `go.sum` de maly no lleva ninguna de las
+dependencias pesadas que gonum declara en su propio `go.mod` (el *module
+graph pruning* de Go desde 1.17 las descarta sin tocarlas). La nota "19 MB"
+de la auditoría original medía el eje equivocado; reemplazar una FFT real
+auditada por una propia para ahorrar 65 KB es mal cambio.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

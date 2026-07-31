@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.11.0-blue)
+![version](https://img.shields.io/badge/version-1.11.1-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -127,6 +127,10 @@ del repo con git, y si hay un release nuevo descarga el instalador y lo corre
 con `--update`. La TUI avisa en el pie cuando hay versión nueva (chequeo al
 abrir, uno por día como mucho; se apaga con `update_check = false` en el
 config).
+
+Si instalaste maly con un paquete (p. ej. el del AUR), `maly update` no
+toca `mallow-install.sh`: remite a tu gestor de paquetes (`yay -Syu maly` o
+equivalente) en vez de instalar una segunda copia por detrás de pacman.
 
 ### Arch Linux (AUR)
 

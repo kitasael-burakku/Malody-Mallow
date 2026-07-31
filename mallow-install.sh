@@ -1150,8 +1150,6 @@ if [ "$SYSTEM" -eq 0 ] && command -v systemctl >/dev/null 2>&1; then
 			cat > "$UNIT_FILE" <<'EOF'
 [Unit]
 Description=Maly Music Daemon
-PartOf=graphical-session.target
-After=graphical-session.target
 StartLimitIntervalSec=30
 StartLimitBurst=3
 
@@ -1162,7 +1160,7 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
 EOF
 			systemctl --user daemon-reload
 			systemctl --user enable maly.service >/dev/null 2>&1

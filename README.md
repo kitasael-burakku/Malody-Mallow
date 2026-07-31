@@ -378,20 +378,18 @@ Zen: `firefox:/home/tu-usuario/.config/zen/<perfil>`. Ojo: con navegadores
 Chromium yt-dlp puede pedir desbloquear el keyring, y si la base de cookies
 está bloqueada, cierra el navegador e intenta de nuevo.
 
-### Hyprland
+### Servicio systemd --user
 
-Puedes agregar maly a tu configuración de Hyprland en Lua. Lo recomendable
-es dejar que `systemd --user` administre el demonio en vez de lanzarlo con
-`&` desde el autostart: obtienes reinicio automático si falla, logs
-centralizados y un apagado limpio del socket y del `mpv` hijo.
-
-Crea `~/.config/systemd/user/maly.service`:
+Lo recomendable es dejar que `systemd --user` administre el demonio en vez
+de lanzarlo con `&` desde el autostart de tu WM/DE: obtienes reinicio
+automático si falla, logs centralizados y un apagado limpio del socket y
+del `mpv` hijo. Lo instala `mallow-install.sh` si aceptas el ofrecimiento
+(y el paquete de AUR trae la unit ya lista); a mano, crea
+`~/.config/systemd/user/maly.service`:
 
 ```ini
 [Unit]
 Description=Maly Music Daemon
-PartOf=graphical-session.target
-After=graphical-session.target
 StartLimitIntervalSec=30
 StartLimitBurst=3
 
@@ -402,19 +400,22 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
 ```
 
 ```sh
 systemctl --user daemon-reload
-systemctl --user enable maly.service
+systemctl --user enable --now maly.service
 ```
 
-Y en el autostart de Hyprland:
-
-```lua
-hl.exec_cmd("systemctl --user start maly") -- se agrega al módulo de autostart
-```
+`WantedBy=default.target` a propósito y no `graphical-session.target`:
+este último solo lo activan solos GNOME, KDE y algunos otros DE —en
+Hyprland, sway y varios WMs minimalistas nadie lo dispara a menos que el
+propio usuario arme una unit puente para hacerlo. `default.target` lo
+alcanza cualquier sesión de `systemd --user` (gráfica, por SSH con
+`loginctl enable-linger`, lo que sea) sin depender de que tu compositor
+coopere, así que el servicio arranca solo con la sesión — nada que agregar
+al autostart de Hyprland ni de ningún otro WM.
 
 Con esto tienes `systemctl --user status maly` y `journalctl --user -u
 maly` para logs, más reinicio automático (`Restart=on-failure`) si el
@@ -422,7 +423,8 @@ demonio crashea. El `SIGTERM` que systemd manda al detener el servicio ya
 dispara un apagado limpio: cierra el socket, guarda la sesión y mata su
 `mpv` hijo.
 
-Si prefieres el modo simple sin systemd, sigue funcionando igual:
+Si prefieres el modo simple sin systemd, sigue funcionando igual — por
+ejemplo en Hyprland:
 
 ```lua
 hl.exec_cmd("maly daemon &") -- alternativa sin systemd, sin supervisión

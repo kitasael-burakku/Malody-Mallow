@@ -1104,6 +1104,33 @@ graph pruning* de Go desde 1.17 las descarta sin tocarlas). La nota "19 MB"
 de la auditoría original medía el eje equivocado; reemplazar una FFT real
 auditada por una propia para ahorrar 65 KB es mal cambio.
 
+El dueño confirmó los dos arreglos del PKGBUILD (detección de fallo en las
+completions, `CGO_ENABLED=0` en `check()`) en un ciclo aparte — quedaron
+enteros en el repo del PKGBUILD (`pkgrel` 1 → 2), sin tocar código de este
+repo.
+
+Sobre 1.11.1, sin bump de versión (no toca el binario ni ningún paquete
+Go): la unit de systemd `--user` pasa de `graphical-session.target` a
+`default.target`. Salió de una duda real del dueño sobre su propio setup:
+en Hyprland (y sway, y varios WMs minimalistas) nadie activa
+`graphical-session.target` solo —a diferencia de GNOME/KDE, que sí—, así
+que sin una unit puente hecha a mano (el dueño tenía la suya,
+`hyprland-session.service`, con `ExecStart=/usr/bin/true` y
+`BindsTo=graphical-session.target`) la unit de maly nunca arrancaba sola.
+`default.target` lo alcanza cualquier sesión de `systemd --user` sin
+necesitar que el compositor coopere, y maly no necesita nada
+*gráfico* en sí —mpv corre con `--no-video`, MPRIS es solo D-Bus, el
+visualizador capta audio, no pantalla— así que es el target correcto y no
+solo el más compatible. Se tocaron los CUATRO lugares donde vive la unit:
+`mallow-install.sh` (el generador), `maly.service` del PKGBUILD (con su
+propio `pkgrel` bump y `updpkgsums`, porque el archivo tiene su propio
+checksum en `source=()`), el ejemplo documentado de ambos README (que de
+paso se renombró de "Hyprland" a "Servicio systemd --user" y perdió el
+gancho manual de autostart —`hl.exec_cmd("systemctl --user start
+maly")`—, ya innecesario con `default.target`), y la unit local del propio
+dueño, reaplicada y verificada en vivo (`systemctl --user status maly`
+con el symlink ahora bajo `default.target.wants/`).
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

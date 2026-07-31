@@ -376,20 +376,18 @@ as-is to yt-dlp's `--cookies-from-browser` — `firefox`, `chrome`,
 browsers yt-dlp may ask to unlock the keyring, and if the cookie database
 is locked, close the browser and try again.
 
-### Hyprland
+### systemd --user service
 
-You can add maly to your Hyprland config in Lua. It's best to let
-`systemd --user` manage the daemon instead of launching it with `&` from
-autostart: you get automatic restart on failure, centralized logs, and a
-clean shutdown of the socket and its child `mpv`.
-
-Create `~/.config/systemd/user/maly.service`:
+It's best to let `systemd --user` manage the daemon instead of launching
+it with `&` from your WM/DE's autostart: you get automatic restart on
+failure, centralized logs, and a clean shutdown of the socket and its
+child `mpv`. `mallow-install.sh` installs it if you accept the offer (and
+the AUR package ships the unit already), or create
+`~/.config/systemd/user/maly.service` by hand:
 
 ```ini
 [Unit]
 Description=Maly Music Daemon
-PartOf=graphical-session.target
-After=graphical-session.target
 StartLimitIntervalSec=30
 StartLimitBurst=3
 
@@ -400,19 +398,22 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
 ```
 
 ```sh
 systemctl --user daemon-reload
-systemctl --user enable maly.service
+systemctl --user enable --now maly.service
 ```
 
-And in Hyprland's autostart:
-
-```lua
-hl.exec_cmd("systemctl --user start maly") -- add to the autostart module
-```
+`WantedBy=default.target` on purpose, not `graphical-session.target`: only
+GNOME, KDE and a few other DEs activate that one on their own — on
+Hyprland, sway, and plenty of minimal WMs nobody triggers it unless the
+user wires up a binder unit themselves. `default.target` is reached by any
+`systemd --user` session (graphical, over SSH with
+`loginctl enable-linger`, whatever) without needing your compositor to
+cooperate, so the service just starts with the session — nothing to add to
+Hyprland's (or any other WM's) autostart.
 
 This gives you `systemctl --user status maly` and `journalctl --user -u
 maly` for logs, plus automatic restart (`Restart=on-failure`) if the
@@ -420,7 +421,8 @@ daemon crashes. The `SIGTERM` systemd sends on stop already triggers a
 clean shutdown: it closes the socket, saves the session, and kills its
 child `mpv`.
 
-If you'd rather skip systemd, the plain mode still works:
+If you'd rather skip systemd, the plain mode still works — e.g. on
+Hyprland:
 
 ```lua
 hl.exec_cmd("maly daemon &") -- systemd-free alternative, no supervision

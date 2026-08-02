@@ -5,6 +5,7 @@ package ipc
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"time"
@@ -141,6 +142,17 @@ func (c *Client) Do(req Request) (Response, error) {
 	}
 	line, err := c.r.ReadBytes('\n')
 	if err != nil {
+		// cli.no_daemon (Dial fallido) ya cubre "el demonio no está"; esto
+		// cubre el otro estado, documentado en varios sitios del código
+		// (p. ej. Ping más arriba) pero sin frase propia hasta ahora: un
+		// demonio que ACEPTA la conexión y no contesta a tiempo (arrancando,
+		// esperando hasta 5 s a mpv). Sin distinguirlo, el usuario veía el
+		// error de red crudo ("read unix …: i/o timeout") en vez de un
+		// estado explicado (auditoría 2026-07-31, hallazgo D7.3).
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return resp, errors.New(i18n.T("ipc.timeout"))
+		}
 		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.read"), err)
 	}
 	if err := json.Unmarshal(line, &resp); err != nil {

@@ -28,10 +28,13 @@ import (
 var errQuiet = errors.New("")
 
 func main() {
-	// Fijar el idioma antes de imprimir nada: todo texto sale de i18n.
-	// Si el config no carga o no hay idioma elegido, queda inglés (default).
+	// Fijar el idioma antes de imprimir nada: todo texto sale de i18n. Si
+	// el config no carga o no hay idioma elegido, se prueba con el locale
+	// del sistema como hint; sin eso tampoco, queda inglés (default).
 	if cfg, err := config.Load(); err == nil && cfg.Language != "" {
 		i18n.Set(cfg.Language)
+	} else if lang := envLangHint(); lang != "" {
+		i18n.Set(lang)
 	}
 
 	// El runtime dir hospeda los sockets: validarlo ANTES de hablar con
@@ -60,7 +63,7 @@ func main() {
 		err = c.run(args)
 	} else {
 		fmt.Fprintf(os.Stderr, "%s\n%s\n", i18n.Tf("cli.unknown", cmd), i18n.T("cli.more"))
-		os.Exit(2)
+		os.Exit(1)
 	}
 	if err != nil {
 		if !errors.Is(err, errQuiet) {
@@ -121,6 +124,75 @@ func runControls(args []string) error {
 	}
 	fmt.Println(i18n.Tf("cli.controls_set", name))
 	return nil
+}
+
+// runLogo espeja conLogo (consola de la TUI): sin argumentos muestra los
+// stops actuales; "default" resetea a los del tema; si no, N colores hex
+// (2-8) fijan el degradado. A diferencia de la consola, acá no hay una TUI
+// viva que actualizar en caliente — solo persiste (auditoría 2026-07-31,
+// hallazgo C21: `logo` solo existía en la consola, no como comando CLI).
+func runLogo(args []string) error {
+	if len(args) == 0 {
+		cfg, err := config.Load()
+		if err != nil {
+			return err
+		}
+		accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
+		dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+		fmt.Println(accent.Render(i18n.T("cli.logo_current")) + " " + strings.Join(cfg.Theme.Logo, " "))
+		fmt.Println(dim.Render(i18n.T("cli.logo_usage")))
+		return nil
+	}
+	var stops []string
+	if len(args) == 1 && args[0] == "default" {
+		stops = config.Default().Theme.Logo
+	} else {
+		if len(args) < 2 || len(args) > 8 {
+			return errors.New(i18n.T("cli.logo_usage"))
+		}
+		stops = make([]string, len(args))
+		for i, a := range args {
+			s := strings.ToLower(a)
+			if !strings.HasPrefix(s, "#") {
+				s = "#" + s
+			}
+			if !config.ValidHex(s) {
+				return fmt.Errorf("%s", i18n.Tf("cli.logo_invalid", a))
+			}
+			stops[i] = s
+		}
+	}
+	if err := config.SaveThemeLogo(stops); err != nil {
+		return err
+	}
+	fmt.Println(i18n.T("cli.logo_set"))
+	return nil
+}
+
+// envLangHint mira el locale del entorno para un hint de idioma cuando el
+// config todavía no tiene uno elegido (cfg.Language == ""): sin esto, el
+// primer comando tras un instalador que SÍ detectó el sistema en español
+// (mallow-install.sh tiene su propia cascada, más larga: LC_ALL →
+// LC_MESSAGES → LANG → /etc/locale.conf → /etc/default/locale → localectl)
+// salía en inglés igual — "primer paso: maly scan" en español, seguido de
+// un maly scan en inglés (auditoría 2026-07-31, hallazgo D10.1). Cascada
+// mínima a propósito, solo el primer escalón del instalador, y sin
+// persistir nada: el selector de idioma de la TUI (cfg.Language == "")
+// sigue disparándose igual en su primer lanzamiento — esto solo mejora la
+// salida de comandos CLI sueltos mientras tanto.
+func envLangHint() string {
+	for _, v := range []string{os.Getenv("LC_ALL"), os.Getenv("LC_MESSAGES"), os.Getenv("LANG")} {
+		if v == "" {
+			continue
+		}
+		if strings.HasPrefix(v, "es") {
+			return "es"
+		}
+		// El primer locale no vacío no es español: no seguir mirando los
+		// siguientes (mismo criterio que sys_lang() del instalador).
+		return ""
+	}
+	return ""
 }
 
 func langName(code string) string {
@@ -224,10 +296,17 @@ func runScan(args []string) error {
 		fmt.Fprint(os.Stderr, "\r\033[K")
 	}
 	if err != nil {
-		// Ruta por defecto que no existe: decir de dónde salió y cómo apuntar
-		// a la música. Con ruta explícita el usuario ya sabe qué escribió.
-		if !explicit && errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("%s", i18n.Tf("cli.scan_noexist", dir, i18n.T(origin)))
+		if errors.Is(err, fs.ErrNotExist) {
+			// Ruta por defecto que no existe: decir de dónde salió y cómo
+			// apuntar a la música. Con ruta explícita el usuario ya sabe qué
+			// escribió — antes de aquí, ese caso caía en el error crudo de
+			// Go ("stat /ruta: no such file or directory"); ahora un
+			// mensaje limpio consistente con el resto de la CLI (auditoría
+			// 2026-07-31, hallazgo C20).
+			if !explicit {
+				return fmt.Errorf("%s", i18n.Tf("cli.scan_noexist", dir, i18n.T(origin)))
+			}
+			return fmt.Errorf("%s", i18n.Tf("cli.scan_noexist_arg", dir))
 		}
 		return err
 	}
@@ -284,7 +363,7 @@ func runSearch(args []string) error {
 		return err
 	}
 	if len(tracks) == 0 {
-		fmt.Println(i18n.T("cli.search_none"))
+		fmt.Fprintln(os.Stderr, i18n.T("cli.search_none"))
 		return nil
 	}
 	printTracks(tracks)

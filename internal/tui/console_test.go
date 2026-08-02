@@ -1,10 +1,13 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
 
 	"maly/internal/config"
 	"maly/internal/i18n"
@@ -15,6 +18,75 @@ import (
 // teclas); sin demonio: solo se ejercitan parsing y operaciones de DB.
 func newConModel() *Model {
 	return &Model{st: newStyles(config.Theme{}), keys: map[string]string{}}
+}
+
+// TestConsoleHistorial cubre el hallazgo T27 de la auditoría P2: la consola
+// no tenía historial de comandos, así que ↑/↓ no hacían nada.
+func TestConsoleHistorial(t *testing.T) {
+	m := newConModel()
+	m.openConsole()
+
+	m.conInput.SetValue("primero")
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	m.conInput.SetValue("segundo")
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyEnter})
+
+	m.conInput.SetValue("en progreso")
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyUp})
+	if got := m.conInput.Value(); got != "segundo" {
+		t.Fatalf("primer ↑ debía traer el último comando, dio %q", got)
+	}
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyUp})
+	if got := m.conInput.Value(); got != "primero" {
+		t.Fatalf("segundo ↑ debía traer el comando anterior, dio %q", got)
+	}
+	// Un tercer ↑ no debe ir más allá del primero.
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyUp})
+	if got := m.conInput.Value(); got != "primero" {
+		t.Fatalf("↑ en el tope del historial no debía cambiar, dio %q", got)
+	}
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyDown})
+	if got := m.conInput.Value(); got != "segundo" {
+		t.Fatalf("↓ debía volver a \"segundo\", dio %q", got)
+	}
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyDown})
+	if got := m.conInput.Value(); got != "en progreso" {
+		t.Fatalf("↓ al final debía restaurar lo que se estaba escribiendo, dio %q", got)
+	}
+}
+
+// TestConsoleScroll cubre el hallazgo T28 de la auditoría P2: la salida de
+// la consola siempre mostraba la cola de conLines, sin forma de volver a ver
+// las primeras líneas de un search/queue largo.
+func TestConsoleScroll(t *testing.T) {
+	m := newConModel()
+	m.openConsole()
+	m.width, m.height = 80, 24
+	for i := 0; i < 40; i++ {
+		m.conPrint(fmt.Sprintf("linea %d", i))
+	}
+
+	out := m.consoleView()
+	if !strings.Contains(out, "linea 39") {
+		t.Fatalf("sin scrollear debía verse la última línea: %q", out)
+	}
+	if strings.Contains(out, "linea 0 ") {
+		t.Fatalf("sin scrollear NO debía verse la primera línea: %q", out)
+	}
+
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyPgUp})
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyPgUp})
+	out = m.consoleView()
+	if strings.Contains(out, "linea 39") {
+		t.Fatalf("tras pgup debía dejar de verse la última línea: %q", out)
+	}
+
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyPgDown})
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyPgDown})
+	out = m.consoleView()
+	if !strings.Contains(out, "linea 39") {
+		t.Fatalf("pgdown de vuelta al fondo debía mostrar la última línea: %q", out)
+	}
 }
 
 func TestExecConsoleUnknown(t *testing.T) {

@@ -1131,6 +1131,118 @@ maly")`—, ya innecesario con `default.target`), y la unit local del propio
 dueño, reaplicada y verificada en vivo (`systemctl --user status maly`
 con el symlink ahora bajo `default.target.wants/`).
 
+La **1.12.0** (2026-08-01) cierra P0+P1+P2 de una **auditoría de UX
+completa y "desde cero"** (76 hallazgos), la primera del proyecto dedicada
+enteramente a experiencia de usuario y no a seguridad — mismo formato que
+las de 1.1.5/1.6.0/1.11.0: por tandas de prioridad, y dentro de cada
+tanda, de dificultad baja a media primero (instrucción explícita del
+dueño). Quedan 13 hallazgos P3 sin tocar; diez de ellos, elegidos por el
+dueño, se documentan más abajo en "Post-1.0 (candidatos)" para revisar en
+un ciclo aparte.
+
+**P0 — 7 hallazgos, los únicos con impacto en el camino feliz.** La ayuda
+(`?`) tapaba cualquier modal ya abierto (paleta/songs/playlists/ahora
+suena) y las teclas siguientes caían en el modal invisible de abajo (T1,
+`internal/tui/tui.go`: las cuatro teclas que abren un modal cierran la
+ayuda primero en vez de apilarse sobre ella). `ctrl+x` borraba una
+playlist completa de un solo toque sin deshacer posible (T26,
+`playlists.go`: la primera pulsación solo arma `m.plConfirm`, `y`/`enter`
+confirma). Rutas relativas fallaban en `add`/`play` porque el demonio
+resuelve con SU cwd, no el del cliente — y las tres completions de shell
+empujan activamente a esa forma (C9, `resolveQueryPath` en `client.go`,
+mismo patrón que ya usaba `runScan`). Un solo ítem privado/bloqueado en
+una playlist de YouTube tiraba toda la descarga a cero pistas, sin
+reintento posible (G1, `get.go`: el fallo de `cmd.Run()` en la rama de
+playlist pasa a ser aviso, no corte — se sigue con lo que sobrevivió).
+`maly update` sin red imprimía literalmente `exit status 128`: el
+`*exec.ExitError` de `.Output()` se propagaba crudo y el stderr real de
+git (la parte útil) se descartaba sin usar (D7.1, `internal/update`:
+`Latest()` ahora expone el stderr). Y el instalador era ciego a una
+instalación por gestor de paquetes —nunca sondeaba `/usr/bin/maly`, donde
+aterriza el paquete de AUR— y su consejo final de "reinicia con `maly
+kill`" no reiniciaba nada bajo una unit con `Restart=on-failure` (D14.1 y
+D14.2, `mallow-install.sh`: sondeo informativo de `/usr/bin` + el mismo
+mecanismo de canal de paquete que cerró la 1.11.1, y el hint de reinicio
+pasa a `systemctl --user restart maly` cuando la unit existe).
+
+**P1 — 20 hallazgos**, en 5 partes temáticas (bajas→medias dentro de cada
+una). TUI: la ayuda se truncaba sin indicador de scroll en terminales
+chicas y sin forma de llegar al final (T2); la capa "Ahora suena" mataba
+teclas en silencio con la ayuda abierta encima (T3); el remedio de
+"biblioteca vacía" mandaba a una terminal que podía no existir, en vez de
+decir `ctrl+p` → `scan` (T6, junto con T7: el estado ya no se marca error
+sino informativo); un scan lanzado desde la consola no reportaba avance
+—la consola tapa el pie, único lugar donde vivía la barra (T12)—; `tab`
+en el selector de canciones agregaba a la cola sin ninguna confirmación
+(T13); y la paleta `ctrl+p` no tenía `info`/`doctor`/`config` —los tres
+comandos que más hacen falta cuando la TUI misma está fallando (T16,
+`internal/tui/console_diag.go` nuevo: reimplementa el ensamblado porque
+`internal/tui` no puede importar `cmd/maly`). CLI: no existía `maly
+remove <pos>` pese a que la op IPC y la tecla de la TUI ya existían
+(C10); `shuffle` aceptaba basura y cambiaba el estado en silencio
+mientras `repeat`, con la misma forma, fallaba correctamente (C11,
+`daemon.go`); la ayuda integrada tenía una fila que rompía la columna
+fija y una nota que afirmaba que toda la sección de biblioteca funciona
+sin demonio, falso para `playlist play` (C12–13). `get playlist`: el
+choque de nombre de playlist se detectaba al FINAL, tras descargar todo
+(G2, ahora se consulta `lib.Playlists()` antes de tocar red); y con
+nombre explícito la playlist resultante incluía TODO el audio ya presente
+en el directorio destino, no solo lo recién bajado (G3, mismo mecanismo
+de diff de directorio que la rama sin nombre). Demonio/i18n: un mensaje
+excelente para "demonio ausente" y ninguno para "demonio ocupado" —un
+timeout de I/O crudo (D7.3, `internal/ipc`); `ErrAlreadyRunning`
+hardcodeado en inglés, traducido en un solo punto de tres (D7.2); el
+binario nunca leía el idioma del sistema, tirando a la basura la
+detección que ya hace el instalador (D10.1, `envLangHint` en `main.go`,
+cascada mínima LC_ALL→LC_MESSAGES→LANG, sin persistir nada); `doctor` sin
+traducir mientras `info` sí (D10.2); y el pie de la TUI perdía `? help` /
+`q quit` primero y antes en español, por ser sistemáticamente más largo
+(D10.3, la misma pieza que T23: la cadena se reordena para que ayuda y
+salir vayan primero). Documentación: `maly config` no aparecía en ningún
+README (D13.1), `maly move` faltaba entero del README en inglés (D13.2),
+y ambos README subestimaban ~24× la frecuencia real del chequeo de
+actualización (D13.3, ya `cada hora` desde la 1.6.2, no "una vez al día").
+
+**P2 — 36 hallazgos** (32 arreglados + 4 documentados sin tocar), en 5
+partes temáticas siguiendo el mismo patrón: paneles/estados de la TUI
+(T4, T5, T8+D7.5, T9, T10, T11, T14, T15, T24 — posición del cursor en
+biblioteca/cola, filtro con tecla de limpiar, error de carga persistente
+en vez de un flash de 4s, picker distingue biblioteca vacía de sin
+resultados, remedio real para "demonio no responde", carátula oculta por
+ancho distinguida de sin carátula, bandera de carga inicial, flash al
+alternar visualizador, terminal chica dice el mínimo real); ayuda y
+atajos (T18, T19, T20, T29, T31 — wording de `h`/`l`, fila de
+pgup/pgdown/home/end, plantilla de `[keys]` completa, cerrar la ayuda
+redespacha la tecla salvo `esc` —que sigue siendo neutra por T3—, ctrl+d/
+ctrl+u en el picker); consola (T17, T21, T27, T28, T30 — menciones de
+`get playlist`/`rescan`/`exit`, historial de comandos con ↑/↓, scroll de
+salida con pgup/pgdown); CLI (C15, C16, C17, C18, C19, C20, C21, C22 —
+confirmación en `playlist delete`, completions de posición para
+`playlist remove`, mensajes "amigables" a stderr, código de salida
+unificado a 1, `%t` en vez de on/off en `maly config`, error limpio para
+una ruta de scan explícita inexistente, `maly logo` como comando CLI
+nuevo, consola menciona `get playlist`); y `get`/demonio (G4, G5, G6,
+D7.4 — no filtrar `ytsearch1:` al mensaje, `maly get` reporta qué bajó
+vía el mismo diff de directorio que `get playlist`, cierre de `get
+playlist` con verbo y mayúscula, `embeddedStartErr` deja de prefijar
+errores que ya son frases completas). Las 4 no tocadas, documentadas con
+su razón en vez de diferidas por descuido: **T22** ("no responde" vs "no
+está corriendo" son estados genuinamente distintos, no la misma frase con
+otra ropa), **T25** (tres umbrales de altura de la TUI son presupuestos
+deliberados por feature, no un bug), **T32** (`tab` con tres significados
+está mitigado en la práctica — el modal que lo cambia tapa el pie donde
+se lee el hint viejo), **C14** (el parseo de nombre de playlist distinto
+por subcomando es inherente a su aridad; un mecanismo de comillas nuevo
+sería desproporcionado).
+
+Toda la tanda siguió la misma disciplina de verificación que las
+auditorías anteriores: cada fix con estado o lógica nueva lleva un test
+verificado en AMBAS direcciones (revertir el fix quirúrgicamente,
+confirmar que el test falla por la razón correcta —no por un error de
+compilación—, restaurar); los cambios de solo texto/i18n no llevan test
+dedicado. `go build`, `go vet` y la suite completa (`go test ./...`,
+incluido `internal/daemon` con mpv real) pasan en verde.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del
@@ -1220,3 +1332,44 @@ Sigue SIN tocarse, porque el dueño confirmó que no era la causa de lo que le
 chirriaba: `verMismatch` tiene prioridad sobre `updAvail` en el `switch` del
 footer (`view.go`), y cualquier flash, `connErr` o el progreso de scan también
 lo pisan.
+
+**P3 pendientes de la auditoría de UX de la 1.12.0**, elegidos por el dueño
+para revisar en un ciclo aparte (no implementados; el resto de los 13 P3
+originales quedan solo en el informe, sin marcar para revisión explícita).
+La auditoría original agrupó estos diez en una sola fila resumen ("ver
+secciones respectivas"), sin desarrollo individual — el detalle real vive
+repartido en las secciones 04/05/07/10/13 del informe
+(`~/Documents/maly-ux-audit.html`):
+
+- **C23** — `maly config` (desde la 1.9.0) no aparece en ningún README.
+- **C24** — `maly search` crea `library.db` vacía si no existía (usa
+  `openLibrary`, no `openLibraryIfExists`), rompiendo la regla que
+  `info`/`doctor`/las completions sí respetan.
+- **C25** — la cola tiene `move`, las playlists no. La auditoría lo marca
+  como asimetría consciente y **no recomienda cerrarlo** — revisar es
+  sobre todo confirmar que siga siendo la decisión correcta, no
+  implementar `playlist move`.
+- **C26** — `playlist add` a una playlist inexistente no menciona
+  `playlist create` en el mensaje de error.
+- **G7** — una descarga fallida con nombre explícito deja un directorio
+  vacío huérfano en `music_dir` (el `MkdirAll` corre antes de invocar
+  yt-dlp).
+- **G8** — `yt-dlp failed: exit status 1 (see its output above)` es
+  técnico pero el paréntesis mitiga. La auditoría ya dice **sin acción**
+  — candidato a cerrarse como "no cambiar" sin tocar código.
+- **D7.6** — `runDaemon` agrega `(socket: %s)` al error de "ya corriendo".
+  La auditoría lo marca **correcto y con alcance acotado** (único
+  contexto donde la ruta es accionable) — mismo caso que G8, probable "no
+  cambiar".
+- **D10.5** — las claves `cli.logo*` viven en el namespace `cli.` pero
+  solo las usa la paleta de la TUI (ver C21, ya cerrado en la 1.12.0 con
+  `maly logo` como comando CLI real — revisar si el hallazgo sigue
+  vigente tal cual o si `runLogo`/`conLogo` ya lo resolvieron de rebote).
+- **D13.5** — el README ordena "primero `maly scan`, luego `maly`", pero
+  eso garantiza que la primera salida visible de un usuario no-inglés sea
+  en inglés (relacionado con D10.1, ya cerrado en la 1.12.0 — revisar si
+  sigue aplicando).
+- **D14.4** — desinstalar hereda la ceguera de D14.1 (ya cerrado en la
+  1.12.0 para instalar/actualizar): en una máquina con el paquete de AUR,
+  `--uninstall` reporta "no encontré nada que quitar" en vez de señalar
+  la copia empaquetada.

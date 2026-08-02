@@ -7,6 +7,20 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.12.0 — 2026-08-01
+
+Cierra P0+P1+P2 (63 de 76 hallazgos) de la primera auditoría de UX completa
+del proyecto — hasta ahora todas habían sido de seguridad. Entre lo más
+visible: la ayuda (`?`) ya no tapa otros modales ni se traga la tecla que
+la cierra, `ctrl+x` pide confirmación antes de borrar una playlist, rutas
+relativas vuelven a funcionar en `add`/`play`, una descarga de playlist con
+un solo video caído ya no tira todo a cero pistas, `maly update` sin red
+deja de imprimir "exit status 128", el instalador reconoce una instalación
+por gestor de paquetes (AUR) y dos comandos nuevos: `maly remove <pos>` y
+`maly logo`. El detalle completo, por tandas y con las 4 decisiones de "no
+cambiar" documentadas, está en `CLAUDE.md`. Quedan 10 hallazgos P3 de baja
+prioridad marcados para revisar en un ciclo aparte.
+
 ## v1.11.1 — 2026-07-31
 
 Cierra el último ítem diferido de la auditoría de la 1.11.0: canal de

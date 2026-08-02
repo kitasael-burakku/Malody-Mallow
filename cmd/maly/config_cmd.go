@@ -11,7 +11,6 @@ import (
 
 	"maly/internal/config"
 	"maly/internal/i18n"
-	"maly/internal/ipc"
 )
 
 // runConfig imprime la configuración EFECTIVA: la que resulta de mezclar
@@ -49,11 +48,11 @@ func runConfig([]string) error {
 	row("info.controls", cfg.Controls)
 
 	sec("config.sec_daemon")
-	row("info.update_check", ipc.OnOff(cfg.UpdateCheck))
-	row("info.scan_durations", ipc.OnOff(cfg.ScanDurations))
+	row("info.update_check", fmt.Sprintf("%t", cfg.UpdateCheck))
+	row("info.scan_durations", fmt.Sprintf("%t", cfg.ScanDurations))
 
 	sec("config.sec_theme")
-	row("config.transparent", ipc.OnOff(cfg.Theme.Transparent))
+	row("config.transparent", fmt.Sprintf("%t", cfg.Theme.Transparent))
 	row("config.accent", cfg.Theme.Accent)
 	row("config.border", cfg.Theme.Border)
 	row("config.text", cfg.Theme.Text)
@@ -62,7 +61,7 @@ func runConfig([]string) error {
 	row("config.logo", strings.Join(cfg.Theme.Logo, ", "))
 
 	sec("config.sec_visualizer")
-	row("config.viz_enabled", ipc.OnOff(cfg.Visualizer.Enabled))
+	row("config.viz_enabled", fmt.Sprintf("%t", cfg.Visualizer.Enabled))
 	row("config.color_low", cfg.Visualizer.ColorLow)
 	row("config.color_high", cfg.Visualizer.ColorHigh)
 	row("config.bars_gravity", fmt.Sprintf("%g", cfg.Visualizer.BarsGravity))

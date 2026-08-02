@@ -66,7 +66,7 @@ func runDoctor([]string) error {
 	checks = append(checks, checkOptionalTools(cfg)...)
 	checks = append(checks, checkUpdate())
 	if cfgErr != nil {
-		checks = append(checks, check{lvlWarn, "config", i18n.Tf("info.config_err", cfgErr), nil})
+		checks = append(checks, check{lvlWarn, i18n.T("doc.lbl_config"), i18n.Tf("info.config_err", cfgErr), nil})
 	}
 
 	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
@@ -119,44 +119,47 @@ func checkMpv() check {
 // checkService pregunta por el socket. Que no haya demonio no es un problema:
 // los comandos de biblioteca funcionan sin él y la TUI lo embebe al abrirse.
 func checkService() check {
+	label := i18n.T("doc.lbl_service")
 	svc, ok := serviceVersion()
 	if !ok {
-		return check{lvlInfo, "service", i18n.T("doc.svc_none"), nil}
+		return check{lvlInfo, label, i18n.T("doc.svc_none"), nil}
 	}
 	if svc != version.Version {
-		return check{lvlWarn, "service", i18n.Tf("doc.svc_mismatch", svc, version.Version),
+		return check{lvlWarn, label, i18n.Tf("doc.svc_mismatch", svc, version.Version),
 			[]string{i18n.T("doc.svc_restart")}}
 	}
-	return check{lvlOK, "service", i18n.Tf("doc.svc_ok", svc), nil}
+	return check{lvlOK, label, i18n.Tf("doc.svc_ok", svc), nil}
 }
 
 // checkMusicDir avisa si la ruta de música no existe, diciendo de dónde salió
 // — sin el origen, un usuario que nunca tocó music_dir no sabe por qué maly
 // mira ahí (misma razón que el error de `maly scan`).
 func checkMusicDir(cfg config.Config) check {
+	label := i18n.T("doc.lbl_music_dir")
 	dir, originKey := cfg.MusicDirOrigin()
 	fi, err := os.Stat(dir)
 	if err != nil {
-		return check{lvlWarn, "music_dir", i18n.Tf("doc.music_missing", dir, i18n.T(originKey)), nil}
+		return check{lvlWarn, label, i18n.Tf("doc.music_missing", dir, i18n.T(originKey)), nil}
 	}
 	if !fi.IsDir() {
-		return check{lvlWarn, "music_dir", i18n.Tf("doc.music_notdir", dir), nil}
+		return check{lvlWarn, label, i18n.Tf("doc.music_notdir", dir), nil}
 	}
-	return check{lvlOK, "music_dir", dir, nil}
+	return check{lvlOK, label, dir, nil}
 }
 
 // checkLibrary mira la base SIN crearla (openLibraryIfExists): un diagnóstico
 // que fabrica la base vacía y luego reporta 0 pistas se estaría diagnosticando
 // a sí mismo.
 func checkLibrary() check {
+	label := i18n.T("doc.lbl_library")
 	tracks, playlists, ok := libraryStats()
 	if !ok {
-		return check{lvlWarn, "library", i18n.T("doc.lib_none"), nil}
+		return check{lvlWarn, label, i18n.T("doc.lib_none"), nil}
 	}
 	if tracks == 0 {
-		return check{lvlWarn, "library", i18n.T("doc.lib_empty"), nil}
+		return check{lvlWarn, label, i18n.T("doc.lib_empty"), nil}
 	}
-	return check{lvlOK, "library", i18n.Tf("doc.lib_ok", tracks, playlists), nil}
+	return check{lvlOK, label, i18n.Tf("doc.lib_ok", tracks, playlists), nil}
 }
 
 // checkOptionalTools cubre lo que maly degrada en silencio. Todo es lvlInfo a
@@ -185,9 +188,9 @@ func checkOptionalTools(cfg config.Config) []check {
 	}
 
 	if bin := viz.CaptureBackend(cfg.Visualizer.Backend); bin != "" {
-		out = append(out, check{lvlOK, "visualizer", bin, nil})
+		out = append(out, check{lvlOK, i18n.T("doc.lbl_visualizer"), bin, nil})
 	} else {
-		out = append(out, check{lvlInfo, "visualizer", i18n.T("doc.viz_missing"), nil})
+		out = append(out, check{lvlInfo, i18n.T("doc.lbl_visualizer"), i18n.T("doc.viz_missing"), nil})
 	}
 
 	if mpris.BusAvailable() {
@@ -202,9 +205,10 @@ func checkOptionalTools(cfg config.Config) []check {
 // doctor que se va diez segundos a git ls-remote deja de ser útil justo
 // cuando algo va mal (y `maly update` ya existe para preguntar de verdad).
 func checkUpdate() check {
+	label := i18n.T("doc.lbl_update")
 	latest, _ := update.Cached()
 	if latest != "" && update.Newer(latest, version.Version) {
-		return check{lvlInfo, "update", i18n.Tf("doc.upd_avail", latest, version.Version), nil}
+		return check{lvlInfo, label, i18n.Tf("doc.upd_avail", latest, version.Version), nil}
 	}
-	return check{lvlOK, "update", i18n.Tf("doc.upd_none", version.Version), nil}
+	return check{lvlOK, label, i18n.Tf("doc.upd_none", version.Version), nil}
 }

@@ -119,11 +119,11 @@ func (p *picker) handleKey(msg tea.KeyMsg) tea.Cmd {
 		p.cursor++
 		p.clamp()
 		return nil
-	case "pgup":
+	case "pgup", "ctrl+u":
 		p.cursor -= p.page
 		p.clamp()
 		return nil
-	case "pgdown":
+	case "pgdown", "ctrl+d":
 		p.cursor += p.page
 		p.clamp()
 		return nil
@@ -159,7 +159,16 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 
 	lines := []string{p.input.View(), p.st.dim.Render(strings.Repeat("─", innerW))}
 	if len(p.matches) == 0 {
-		lines = append(lines, p.st.dim.Render(i18n.T("sel.none")))
+		// Antes esto era siempre "no matches", aunque la causa real fuera
+		// que la biblioteca está vacía de entrada (no que la búsqueda no
+		// encontró nada) — el panel de biblioteca y la CLI (cli.search_none)
+		// ya distinguían los dos casos; el picker era el único que no
+		// (auditoría 2026-07-31, hallazgo T9).
+		empty := i18n.T("sel.none")
+		if len(p.items) == 0 {
+			empty = i18n.T("sel.none_empty")
+		}
+		lines = append(lines, p.st.dim.Render(empty))
 	}
 	start := 0
 	if p.cursor >= maxRows {

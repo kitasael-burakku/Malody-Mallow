@@ -74,7 +74,7 @@ func (m *Model) View() string {
 		return ""
 	}
 	if m.width < minWidth || m.height < minHeight {
-		return m.st.dim.Render(i18n.T("tui.too_small"))
+		return m.st.dim.Render(i18n.Tf("tui.too_small", minWidth, minHeight))
 	}
 	if m.langOpen {
 		return m.langView()
@@ -129,7 +129,12 @@ func (m *Model) libraryPanel(w, h int) string {
 	pageH := m.libPageH()
 	rows := m.tree.rows
 	if len(rows) == 0 {
-		lines = append(lines, m.st.dim.Render(i18n.T("tui.lib_empty")))
+		switch {
+		case m.libLoadErr != "":
+			lines = append(lines, m.st.errSt.Render(clip(i18n.Tf("tui.lib_err", m.libLoadErr), innerW)))
+		case m.libLoaded:
+			lines = append(lines, m.st.dim.Render(i18n.T("tui.lib_empty")))
+		}
 	}
 	end := m.tree.offset + pageH
 	if end > len(rows) {
@@ -169,7 +174,14 @@ func (m *Model) libraryPanel(w, h int) string {
 		}
 		lines = append(lines, line)
 	}
+	// Con el panel enfocado y algo que mostrar, el título suma la posición
+	// del cursor — antes solo se veía el total, sin forma de saber en qué
+	// fila estabas dentro de una lista larga (auditoría 2026-07-31,
+	// hallazgo T4). Sin foco, el total solo alcanza (es lo que ya había).
 	title := i18n.Tf("tui.lib_title", len(m.tree.all))
+	if focused && len(rows) > 0 {
+		title = i18n.Tf("tui.lib_title_pos", len(m.tree.all), m.tree.cursor+1, len(rows))
+	}
 	return m.st.panel(title, lines, w, h, focused)
 }
 
@@ -237,6 +249,9 @@ func (m *Model) queuePanel(w, h int) string {
 		lines = append(lines, line)
 	}
 	title := i18n.Tf("tui.queue_title", len(m.queue))
+	if focused && len(vis) > 0 {
+		title = i18n.Tf("tui.queue_title_pos", len(m.queue), m.queueCursor+1, len(vis))
+	}
 	return m.st.panel(title, lines, w, h, focused)
 }
 
@@ -380,15 +395,24 @@ func (m *Model) progressBar(pos, dur float64, w int) string {
 		m.st.dim.Render(strings.Repeat("─", w-filled))
 }
 
+// footer arma la línea de pie. Cada rama construye el texto PLANO primero y
+// recién lo estiliza después de clipearlo — igual que ya hacía la rama
+// default. Antes, solo esa rama pasaba por clip(): las otras seis ya
+// llegaban con los códigos ANSI del estilo puestos, y clip() no es
+// ANSI-aware (se usa siempre ANTES de estilizar, nunca después — recortar
+// texto ya coloreado arriesga cortar en medio de un escape). El resultado
+// era que un flash, un error de versión o el aviso de update podían
+// desbordar el ancho de la terminal sin que nada los recortara (auditoría
+// 2026-07-31, hallazgo T23/D10.3).
 func (m *Model) footer() string {
 	var line string
 	switch {
 	case m.connErr:
-		line = m.st.errSt.Render(i18n.T("tui.no_daemon"))
+		line = m.st.errSt.Render(clip(i18n.T("tui.no_daemon"), m.width))
 	case m.flash != "" && m.flashErr:
-		line = m.st.errSt.Render(" " + m.flash)
+		line = m.st.errSt.Render(clip(" "+m.flash, m.width))
 	case m.flash != "":
-		line = m.st.playing.Render(" " + m.flash)
+		line = m.st.playing.Render(clip(" "+m.flash, m.width))
 	case m.status != nil && m.status.Scanning:
 		// Progreso del scan en vuelo (propio o de otro cliente): llega por
 		// los pushes de suscripción en Status.Scanning/ScanSeen. Con
@@ -397,15 +421,15 @@ func (m *Model) footer() string {
 		if m.status.ScanTotal > 0 {
 			txt = i18n.Tf("cli.scan_durations", m.status.ScanSeen, m.status.ScanTotal)
 		}
-		line = m.st.accent.Render(" " + txt)
+		line = m.st.accent.Render(clip(" "+txt, m.width))
 	case m.verMismatch != "":
-		line = m.st.errSt.Render(" " + i18n.Tf("tui.svc_version", m.verMismatch))
+		line = m.st.errSt.Render(clip(" "+i18n.Tf("tui.svc_version", m.verMismatch), m.width))
 	case m.updAvail != "" && version.Packaged():
 		// Con un binario de un gestor de paquetes, "maly update" ya remite
 		// al gestor (ver conUpdate); el aviso del pie sigue el mismo texto.
-		line = m.st.accent.Render(" " + i18n.Tf("tui.update_avail_packaged", m.updAvail))
+		line = m.st.accent.Render(clip(" "+i18n.Tf("tui.update_avail_packaged", m.updAvail), m.width))
 	case m.updAvail != "":
-		line = m.st.accent.Render(" " + i18n.Tf("tui.update_avail", m.updAvail))
+		line = m.st.accent.Render(clip(" "+i18n.Tf("tui.update_avail", m.updAvail), m.width))
 	default:
 		hint := i18n.T("tui.footer")
 		if m.embedded {
@@ -431,6 +455,7 @@ func (m *Model) helpView() string {
 		{k["filter"], i18n.T("help.filter")},
 		{"h j k l", i18n.T("help.vim_nav")},
 		{"gg/G ctrl+d/u", i18n.T("help.jump_scroll")},
+		{"pgup/pgdn home/end", i18n.T("help.page_keys")},
 		{k["shuffle"] + " / " + k["repeat"], i18n.T("help.shuffle_repeat")},
 		{k["toggle_viz"], i18n.T("help.toggle_viz")},
 		{k["now_playing"], i18n.T("help.now_playing")},
@@ -440,7 +465,7 @@ func (m *Model) helpView() string {
 		{k["playlist_add"], i18n.T("help.playlist_add")},
 		{k["quit"], i18n.T("help.quit")},
 	}
-	var b strings.Builder
+	content := make([]string, 0, len(rows))
 	for _, r := range rows {
 		key := r[0]
 		if key == " " {
@@ -448,34 +473,72 @@ func (m *Model) helpView() string {
 		} else if strings.HasPrefix(key, " / ") {
 			key = i18n.T("help.space") + key[1:]
 		}
-		b.WriteString(fmt.Sprintf("  %s %s\n",
+		content = append(content, fmt.Sprintf("  %s %s",
 			m.st.accent.Render(padTo(key, 14)), m.st.text.Render(r[1])))
 	}
-	b.WriteString("\n" + m.st.dim.Render(i18n.T("help.close")))
-	lines := strings.Split(b.String(), "\n")
-	// Ancho a la medida de la fila más larga (los textos varían por idioma);
-	// panel rellena pero no recorta, y una fila larga rompería el borde.
+	closeHint, scrollHint := i18n.T("help.close"), i18n.T("help.scroll_hint")
+	// Ancho a la medida de la fila más larga (los textos varían por idioma;
+	// se miden ambos hints posibles, se use el que se use); panel rellena
+	// pero no recorta, y una fila larga rompería el borde.
 	w := 50
-	for _, l := range lines {
+	for _, l := range content {
 		if lw := lipgloss.Width(l) + 2; lw > w {
+			w = lw
+		}
+	}
+	for _, h := range []string{closeHint, scrollHint} {
+		if lw := lipgloss.Width(h) + 2; lw > w {
 			w = lw
 		}
 	}
 	if w > m.width {
 		w = m.width
-		for i, l := range lines {
-			lines[i] = clip(l, w-2)
+		for i, l := range content {
+			content[i] = clip(l, w-2)
 		}
+		closeHint, scrollHint = clip(closeHint, w-2), clip(scrollHint, w-2)
 	}
-	// Alto a la medida del contenido, pero sin superar la terminal: panel()
-	// ya trunca en silencio las líneas que no entran en innerH (se queda con
-	// las primeras), así que topear h alcanza — sin esto, en el mínimo
-	// declarado de 12 filas (bien menos que las 23 que pide el contenido
-	// completo) la caja se desbordaba del contenedor sin que nada la cortara.
-	h := len(lines) + 2
+	// Alto a la medida del contenido, pero sin superar la terminal.
+	// +4 = línea en blanco + hint (siempre pegados al fondo, como el pie de
+	// la app) + los dos bordes del panel.
+	h := len(content) + 4
 	if h > m.height {
 		h = m.height
 	}
+	innerH := h - 2
+	// Presupuesto de filas de atajos: innerH menos la blanco y el hint, que
+	// no se scrollean — siempre visibles, igual que un pie de página.
+	contentBudget := innerH - 2
+	if contentBudget < 1 {
+		contentBudget = 1
+	}
+	// Antes esto truncaba en silencio (panel() se queda con las primeras
+	// filas y descarta el resto sin avisar): en terminales chicas se perdían
+	// justo los atajos menos obvios (vim nav, paleta, ahora suena…) sin
+	// ningún indicador. Ahora scrollea con las mismas teclas que ya usa
+	// "Ahora suena" (arriba/abajo, pgup/pgdown), clampado igual que
+	// npScroll, y el hint del fondo avisa cuando hay más (auditoría
+	// 2026-07-31, hallazgo T2).
+	truncated := len(content) > contentBudget
+	if !truncated {
+		m.helpScroll = 0
+	} else {
+		if maxScroll := len(content) - contentBudget; m.helpScroll > maxScroll {
+			m.helpScroll = maxScroll
+		}
+		if m.helpScroll < 0 {
+			m.helpScroll = 0
+		}
+	}
+	visible := content
+	if truncated {
+		visible = content[m.helpScroll : m.helpScroll+contentBudget]
+	}
+	hint := closeHint
+	if truncated {
+		hint = scrollHint
+	}
+	lines := append(append([]string{}, visible...), "", m.st.dim.Render(hint))
 	box := m.st.panel(i18n.T("tui.help_title"), lines, w, h, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

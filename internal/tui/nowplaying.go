@@ -59,11 +59,24 @@ func (m *Model) openNowPlaying() tea.Cmd {
 }
 
 func (m *Model) handleNowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Ayuda abierta desde acá: mismo manejo compartido que el nivel superior
+	// (handleHelpKey — scrollea o cierra, ver T2) sin salir de la capa. Va
+	// primero para que esc cierre la ayuda y no la capa cuando ambas están
+	// abiertas (auditoría 2026-07-31, hallazgo T3: antes ? no hacía nada).
+	if m.showHelp {
+		if m.handleHelpKey(msg) {
+			return m, nil
+		}
+	}
 	if msg.String() == "esc" || m.is("now_playing", msg) || m.is("quit", msg) {
 		m.npOpen = false
 		return m, nil
 	}
-	// La paleta funciona también desde aquí (se dibuja encima; al cerrarla
+	if m.is("help", msg) {
+		m.showHelp = true
+		return m, nil
+	}
+	// La paleta funciona también desde acá (se dibuja encima; al cerrarla
 	// se vuelve a la capa).
 	if m.is("palette", msg) {
 		return m, m.openConsole()
@@ -111,6 +124,14 @@ func (m *Model) npView() string {
 	}
 	artW := artH * 2
 	img := m.npImg
+	// suppressedByWidth distingue "hay carátula real pero no entra" de
+	// "no hay carátula embebida": antes las cuatro causas (sin imagen,
+	// pista distinta a la cargada, panel muy bajo, terminal muy angosta)
+	// colapsaban en el mismo silencio y una carátula real quedaba
+	// indistinguible de una pista sin carátula (auditoría 2026-07-31,
+	// hallazgo T10).
+	suppressedByWidth := img != nil && m.npTrack == m.currentTrackPath() &&
+		artH >= 4 && innerW < artW+34
 	if img == nil || m.npTrack != m.currentTrackPath() || artH < 4 || innerW < artW+34 {
 		img, artW, artH = nil, 0, 0
 	}
@@ -140,6 +161,9 @@ func (m *Model) npView() string {
 	} else {
 		for _, l := range m.npMeta(innerW - 4) {
 			lines = append(lines, "  "+l)
+		}
+		if suppressedByWidth {
+			lines = append(lines, "  "+m.st.dim.Render(clip(i18n.T("np.art_hidden"), innerW-4)))
 		}
 	}
 	lines = append(lines, "")

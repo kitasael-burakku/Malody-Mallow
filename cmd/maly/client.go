@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -71,12 +72,12 @@ func runClient(cmd string, args []string) error {
 	req := ipc.Request{Cmd: cmd}
 	switch cmd {
 	case "play":
-		req.Query = strings.Join(args, " ")
+		req.Query = resolveQueryPath(strings.Join(args, " "))
 	case "add":
 		if len(args) == 0 {
 			return errors.New(i18n.T("cli.usage_add_cmd"))
 		}
-		req.Query = strings.Join(args, " ")
+		req.Query = resolveQueryPath(strings.Join(args, " "))
 	case "jump":
 		// El usuario indica la posición 1-based que muestra `maly queue`;
 		// el servicio usa índices 0-based y valida el rango.
@@ -86,6 +87,19 @@ func runClient(cmd string, args []string) error {
 		n, convErr := strconv.Atoi(args[0])
 		if convErr != nil || n < 1 {
 			return errors.New(i18n.T("cli.usage_jump_cmd"))
+		}
+		req.Index = n - 1
+	case "remove":
+		// Mismo parseo 1-based que jump — la op IPC ya existía (la TUI la
+		// usa con la tecla "d") pero le faltaba comando de CLI, el único
+		// hueco en la simetría add/jump/move/remove (auditoría 2026-07-31,
+		// hallazgo C10).
+		if len(args) != 1 {
+			return errors.New(i18n.T("cli.usage_remove_cmd"))
+		}
+		n, convErr := strconv.Atoi(args[0])
+		if convErr != nil || n < 1 {
+			return errors.New(i18n.T("cli.usage_remove_cmd"))
 		}
 		req.Index = n - 1
 	case "move":
@@ -146,6 +160,37 @@ func runClient(cmd string, args []string) error {
 	return nil
 }
 
+// resolveQueryPath absolutiza q si —y solo si— existe como ruta relativa al
+// cwd del CLIENTE: runScan ya hace esto para el escaneo (comentario allí:
+// "si atiende el demonio, su cwd es otro"), pero play/add nunca lo hicieron,
+// así que un `maly add ./album` fallaba con "sin resultados" en vez de
+// encolar — el demonio resuelve la ruta relativa a SU PROPIO cwd, no al de
+// quien tipeó el comando, y el TAB de las completions de shell empuja
+// justo a esa forma.
+//
+// A diferencia de runScan, acá NO se puede absolutizar sin condición:
+// play/add aceptan tanto rutas como búsquedas de texto (`maly play
+// beatles`), y el propio demonio decide cuál es con os.Stat sobre el string
+// tal cual llega (ver resolveTracks). Absolutizar a ciegas convertiría una
+// búsqueda legítima en una ruta absoluta que nunca existe, garantizando
+// "sin resultados" para cualquier búsqueda de una palabra que coincida por
+// casualidad con algo del cwd. Por eso el Stat se hace acá primero, y solo
+// se reescribe q cuando de verdad resuelve a un archivo o directorio.
+func resolveQueryPath(q string) string {
+	q = strings.TrimSpace(q)
+	if q == "" {
+		return q
+	}
+	abs, err := filepath.Abs(config.ExpandTilde(q))
+	if err != nil {
+		return q
+	}
+	if _, err := os.Stat(abs); err != nil {
+		return q
+	}
+	return abs
+}
+
 func printStatus(s *ipc.Status) {
 	if s == nil {
 		return
@@ -190,7 +235,7 @@ func printScanLine(s *ipc.Status) {
 
 func printQueue(resp ipc.Response) {
 	if len(resp.Queue) == 0 {
-		fmt.Println(i18n.T("cli.queue_empty"))
+		fmt.Fprintln(os.Stderr, i18n.T("cli.queue_empty"))
 		return
 	}
 	cur := -1

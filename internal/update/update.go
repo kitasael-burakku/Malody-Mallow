@@ -57,7 +57,20 @@ func Latest() (string, error) {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "git", "ls-remote", "--tags", "--refs", RepoURL).Output()
 	if err != nil {
-		return "", err
+		// .Output() ya captura el stderr real de git en ExitError.Stderr (p.
+		// ej. "fatal: unable to access ...: Could not resolve host") — antes
+		// se descartaba y el usuario veía el *exec.ExitError crudo ("exit
+		// status 128") en el caso más común de todos: sin red. El timeout se
+		// distingue aparte porque ahí el proceso muere por señal y Stderr
+		// suele venir vacío.
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", errors.New(i18n.T("up.git_timeout"))
+		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && len(bytes.TrimSpace(exitErr.Stderr)) > 0 {
+			return "", fmt.Errorf("%s", i18n.Tf("up.git_failed", bytes.TrimSpace(exitErr.Stderr)))
+		}
+		return "", fmt.Errorf("%s", i18n.Tf("up.git_failed", err))
 	}
 	latest := latestTag(string(out))
 	if latest == "" {

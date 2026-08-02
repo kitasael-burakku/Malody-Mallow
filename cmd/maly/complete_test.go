@@ -213,4 +213,28 @@ func TestCompleteTracksAndPlaylists(t *testing.T) {
 	if got := values(completeArgs([]string{"playlist", "add", "favoritas", "pista07"})); len(got) != 1 || got[0] != "pista07" {
 		t.Errorf("playlist add debe completar pistas: %v", got)
 	}
+
+	// playlist remove <nombre> <pos>: cubre el hallazgo C16 de la auditoría
+	// P2 — remove no ofrecía posiciones, a diferencia de jump/move con la
+	// cola. Meter tres pistas a "favoritas" para tener posiciones reales.
+	lib2, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := lib2.All()
+	if err != nil || len(all) < 3 {
+		t.Fatalf("All: %d pistas, %v", len(all), err)
+	}
+	ids := []int64{all[0].ID, all[1].ID, all[2].ID}
+	if err := lib2.AddToPlaylist("favoritas", ids); err != nil {
+		t.Fatal(err)
+	}
+	lib2.Close()
+
+	if got := completeArgs([]string{"playlist", "remove", "favoritas", ""}); len(got) != 3 {
+		t.Errorf("playlist remove debía ofrecer 3 posiciones, dio %d: %v", len(got), got)
+	}
+	if got := values(completeArgs([]string{"playlist", "remove", "favoritas", "2"})); len(got) != 1 || got[0] != "2" {
+		t.Errorf("playlist remove con prefijo \"2\" debía dar solo la posición 2: %v", got)
+	}
 }

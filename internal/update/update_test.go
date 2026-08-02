@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -59,6 +60,30 @@ func TestLatestFakeGit(t *testing.T) {
 	}
 	if got != "v9.9.9" {
 		t.Errorf("Latest = %q, quería v9.9.9", got)
+	}
+}
+
+// TestLatestGitFailedSurfacesStderr cubre el hallazgo D7.1 de la auditoría:
+// sin red, Latest() devolvía el *exec.ExitError crudo ("exit status 128") y
+// el stderr real de git —la parte útil— se descartaba. Con git falso
+// imitando el fallo típico de "no hay red", el error debe contener ese
+// texto y no la forma pelada "exit status N".
+func TestLatestGitFailedSurfacesStderr(t *testing.T) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\necho 'fatal: unable to access '\\''https://github.com/...'\\'': Could not resolve host: github.com' >&2\nexit 128\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	_, err := Latest()
+	if err == nil {
+		t.Fatal("git fallando debe propagar un error")
+	}
+	if strings.Contains(err.Error(), "exit status") {
+		t.Errorf("el error sigue siendo el *exec.ExitError crudo: %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "Could not resolve host") {
+		t.Errorf("el error no incluye el stderr real de git: %q", err.Error())
 	}
 }
 

@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.11.1-blue)
+![version](https://img.shields.io/badge/version-1.12.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -119,8 +119,11 @@ with the defaults.
 With maly already installed, `maly update` does all of this on its own: it
 checks the repo's tags via git, and if there's a new release it downloads
 the installer and runs it with `--update`. The TUI warns in the footer
-when a new version is available (checked on open, at most once a day;
-disabled with `update_check = false` in the config).
+when a new version is available (checked on open and hourly while the TUI
+stays open; the 24h cache is only reused once it already reports a newer
+version, so publishing a release shows up quickly even for a TUI that's
+been open for a while — disabled with `update_check = false` in the
+config).
 
 If you installed maly through a package (e.g. the AUR one), `maly update`
 won't touch `mallow-install.sh`: it points you to your package manager
@@ -283,6 +286,7 @@ defaults.
 | `enter` | play track / expand node |
 | `a` | add to queue (track, album, or artist) |
 | `d` | remove from queue |
+| `K` / `J` | move track up / down the queue |
 | `/` | filter the current panel |
 | `h j k l` | vim navigation (`h`/`l` collapse/expand in the library) |
 | `gg` / `G` | go to start / end of the list |
@@ -311,6 +315,8 @@ maly select                    # mini fuzzy selector: enter plays, tab adds
 maly pause | toggle | stop
 maly next | prev
 maly jump <pos>                # jumps to that queue position (see maly queue)
+maly move <from> <to>          # moves a queue track to another position
+maly remove <pos>              # removes a track from the queue
 maly add <query|path>          # adds to the queue (accepts files and folders)
 maly queue                     # shows the queue
 maly clear                     # empties the queue
@@ -336,6 +342,7 @@ maly controls [default|vim]    # lists or changes the controls preset
 maly lang [en|es]              # changes the language (no arg opens the selector); alias -l
 maly info                      # paths, versions and library size
 maly doctor                    # checks that everything maly needs is in place
+maly config                    # shows the configuration currently in effect
 maly update                    # checks for a new release and runs the installer
 maly completions <shell>       # completion script (bash | fish | zsh)
 maly version | -v              # also shows the running service's version, if any
@@ -347,13 +354,16 @@ commands do: open it with `maly` or `maly daemon`. If the service is
 running, `scan` (and `get`'s re-scan) goes through it, and any open TUI
 reloads its library instantly, with nothing to touch.
 
-`maly info` and `maly doctor` also work without the service — which is
-exactly when you need them — and without touching the network. `info` lists
-facts: paths, versions, where your music comes from and how much of it there
-is. `doctor` gives verdicts on mpv, the service, `music_dir`, the library and
-the optional tools (ffprobe, yt-dlp+ffmpeg, the visualizer, MPRIS), and exits
-1 **only** if something prevents playback — missing optional tools are
-reported as `info`, not as errors.
+`maly info`, `maly doctor` and `maly config` also work without the service
+— which is exactly when you need them — and without touching the network.
+`info` lists facts: paths, versions, where your music comes from and how
+much of it there is. `doctor` gives verdicts on mpv, the service,
+`music_dir`, the library and the optional tools (ffprobe, yt-dlp+ffmpeg,
+the visualizer, MPRIS), and exits 1 **only** if something prevents playback
+— missing optional tools are reported as `info`, not as errors. `config`
+shows the EFFECTIVE configuration (defaults ← controls preset ← the user's
+`[keys]`), the same merge that's resolved internally and that until now was
+only visible by reading the code or the commented-out TOML.
 
 `maly get` delegates all web interaction to yt-dlp (like lazygit uses
 git): without `://` it searches the phrase on YouTube and downloads the

@@ -259,6 +259,28 @@ func TestCierraLiberaElLock(t *testing.T) {
 	d2.Close()
 }
 
+// TestShuffleInvalidoFalla cubre el hallazgo C11 de la auditoría: antes,
+// "shuffle <basura>" caía en el mismo default que el toggle sin argumento y
+// cambiaba el estado en silencio — un typo en un script activaba shuffle en
+// vez de fallar. "repeat", con la misma forma de uso, ya distinguía "" de
+// cualquier otra cosa; ahora shuffle hace lo mismo.
+func TestShuffleInvalidoFalla(t *testing.T) {
+	d := newTestDaemon(t)
+
+	if resp := d.Do(ipc.Request{Cmd: "shuffle", Value: "maybe"}); resp.OK {
+		t.Fatalf("shuffle con valor inválido debía fallar, dio OK: %+v", resp)
+	}
+
+	// El toggle sin argumento (Value == "") sigue funcionando igual.
+	before := d.q.Shuffle
+	if resp := d.Do(ipc.Request{Cmd: "shuffle"}); !resp.OK {
+		t.Fatalf("shuffle sin argumento (toggle) debía funcionar: %s", resp.Error)
+	}
+	if d.q.Shuffle == before {
+		t.Error("shuffle sin argumento debía alternar el estado")
+	}
+}
+
 func newTestDaemon(t *testing.T) *Daemon {
 	t.Helper()
 	testEnv(t)

@@ -722,8 +722,15 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 			d.q.SetShuffle(true)
 		case "off":
 			d.q.SetShuffle(false)
-		default:
+		case "":
 			d.q.SetShuffle(!d.q.Shuffle)
+		default:
+			// Antes esto caía en el mismo default de arriba (toggle) para
+			// CUALQUIER basura: un typo en un script cambiaba el estado en
+			// vez de avisar. `repeat`, con la misma forma de uso, ya
+			// distinguía "" (toggle legítimo) de cualquier otra cosa
+			// (auditoría 2026-07-31, hallazgo C11).
+			return fail(errors.New(i18n.TLf(lang, "d.shuffle_invalid", req.Value)))
 		}
 		if d.q.Shuffle {
 			return okStatus(i18n.TL(lang, "d.shuffle_on"))

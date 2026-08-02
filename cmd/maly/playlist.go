@@ -94,7 +94,7 @@ func runPlaylist(args []string) error {
 			return err
 		}
 		if len(lists) == 0 {
-			fmt.Println(i18n.T("pl.none"))
+			fmt.Fprintln(os.Stderr, i18n.T("pl.none"))
 			return nil
 		}
 		w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
@@ -121,6 +121,20 @@ func runPlaylist(args []string) error {
 			return errors.New(i18n.T("pl.usage_delete"))
 		}
 		name := strings.Join(args, " ")
+		// Postura de riesgo antes invertida: se protegía un .m3u regenerable
+		// (confirmOverwrite) y no una playlist armada a mano, sin deshacer
+		// (auditoría 2026-07-31, hallazgo C15). Sin TTY (pipe/script) sigue
+		// sin preguntar — un script que llama esto lo hace a propósito,
+		// mismo criterio que export.
+		tty := isTTY(os.Stdin)
+		confirmed := true
+		if tty {
+			confirmed = confirmYesNo(i18n.Tf("pl.delete_confirm", name))
+		}
+		if !shouldDeletePlaylist(tty, confirmed) {
+			fmt.Println(i18n.Tf("pl.delete_kept", name))
+			return nil
+		}
 		if err := lib.DeletePlaylist(name); err != nil {
 			return err
 		}
@@ -217,6 +231,14 @@ func notifyRefresh() {
 	c.Do(ipc.Request{Cmd: "refresh"})
 }
 
+// shouldDeletePlaylist decide si proceder con el borrado: con terminal hace
+// falta confirmación explícita (una playlist armada a mano no tiene
+// deshacer, a diferencia de un .m3u regenerable); sin ella (pipe/script) el
+// pedido explícito ya es la confirmación, mismo criterio que export.
+func shouldDeletePlaylist(tty, confirmed bool) bool {
+	return !tty || confirmed
+}
+
 // isTTY dice si f es un terminal (se puede preguntar/pintar). Es el ioctl
 // de verdad: mirar ModeCharDevice no basta, /dev/null también lo es.
 func isTTY(f *os.File) bool {
@@ -226,7 +248,13 @@ func isTTY(f *os.File) bool {
 
 // confirmOverwrite pregunta sí/no por stdin; Enter o cualquier otra cosa es no.
 func confirmOverwrite(file string) bool {
-	fmt.Print(i18n.Tf("pl.export_overwrite", file))
+	return confirmYesNo(i18n.Tf("pl.export_overwrite", file))
+}
+
+// confirmYesNo imprime prompt y lee sí/no por stdin; Enter o cualquier otra
+// cosa es no.
+func confirmYesNo(prompt string) bool {
+	fmt.Print(prompt)
 	var ans string
 	if _, err := fmt.Scanln(&ans); err != nil {
 		return false

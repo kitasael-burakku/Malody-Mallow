@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,6 +96,23 @@ func TestGetSearchDownloadsAndScans(t *testing.T) {
 	tracks, err := lib.Search("fake song")
 	if err != nil || len(tracks) != 1 {
 		t.Fatalf("la descarga debía quedar en la biblioteca: %v, %v", tracks, err)
+	}
+}
+
+// TestGetReportsDownloadedTrack cubre el hallazgo G5 de la auditoría P2:
+// `maly get` nunca decía qué bajó — el cierre eran los totales de la
+// biblioteca completa, fácil de confundir con el resultado de la descarga.
+func TestGetReportsDownloadedTrack(t *testing.T) {
+	getSandbox(t)
+
+	var out string
+	out = captureStdout(t, func() {
+		if err := runGet([]string{"aurora", "runaway"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(out, "Downloaded: Fake Artist - Fake Song") {
+		t.Errorf("esperaba el cierre con la pista bajada, salió: %q", out)
 	}
 }
 
@@ -352,17 +370,89 @@ func TestGetPlaylistRequiresURL(t *testing.T) {
 	}
 }
 
+// TestGetPlaylistNameCollisionDetectedEarly cubre el hallazgo G2 de la
+// auditoría: antes, un nombre de playlist ya existente solo se detectaba al
+// FINAL (CreatePlaylist), tras la descarga completa y el scan — tiempo y
+// ancho de banda perdidos por algo que ya se sabía de entrada. Ahora se
+// detecta antes de invocar yt-dlp o tocar el filesystem del destino.
+func TestGetPlaylistNameCollisionDetectedEarly(t *testing.T) {
+	musicDir, argsFile := getPlaylistSandbox(t, "no se usa")
+
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.CreatePlaylist("Mi Mix"); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	err = runGetPlaylist([]string{"https://youtube.com/playlist?list=abc", "Mi", "Mix"})
+	if err == nil {
+		t.Fatal("un nombre de playlist ya existente debía fallar")
+	}
+	if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("el error debía mencionar que la playlist ya existe: %v", err)
+	}
+	if _, statErr := os.Stat(argsFile); statErr == nil {
+		t.Error("no debía haberse invocado yt-dlp con un nombre ya existente")
+	}
+	if _, statErr := os.Stat(filepath.Join(musicDir, "Mi Mix")); statErr == nil {
+		t.Error("no debía haberse creado el directorio de destino")
+	}
+}
+
+// TestGetPlaylistNamedDirNoScoopeaExistente cubre el hallazgo G3 de la
+// auditoría: con nombre explícito, la playlist se llevaba TODO el audio
+// que ya hubiera en el directorio destino (p. ej. music_dir/rock
+// preexistente con 200 canciones), no solo lo recién descargado.
+func TestGetPlaylistNamedDirNoScoopeaExistente(t *testing.T) {
+	musicDir, _ := getPlaylistSandbox(t, "no se usa")
+
+	dir := filepath.Join(musicDir, "Rock")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "old.mp3"), []byte("mp3 viejo"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc", "Rock"}); err != nil {
+		t.Fatal(err)
+	}
+
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	tracks, err := lib.PlaylistTracks("Rock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 2 {
+		t.Fatalf("la playlist debía tener solo las 2 pistas descargadas, tiene %d: %+v", len(tracks), tracks)
+	}
+	for _, tr := range tracks {
+		if strings.Contains(tr.Path, "old.mp3") {
+			t.Errorf("la playlist no debía incluir el archivo preexistente: %+v", tr)
+		}
+	}
+}
+
 // TestGetPlaylistAmbiguous: si el diffing de directorio no encuentra
 // exactamente un subdirectorio nuevo (aquí, ninguno: el yt-dlp falso no
 // llega a correr porque el PATH no lo tiene), el error debe ser claro y
-// pedir un nombre explícito en vez de fallar oscuro más adelante.
+// pedir un nombre explícito en vez de fallar oscuro más adelante. Con
+// partial=false (no hubo fallo de descarga reportado) el caso de cero
+// sigue siendo el mensaje genérico de "ambiguo", igual que el de dos.
 func TestGetPlaylistAmbiguous(t *testing.T) {
 	musicDir, err := os.MkdirTemp("", "maly-ambiguo")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(musicDir)
-	if got, err := newDirEntry(musicDir, map[string]bool{}); err == nil {
+	if got, err := newDirEntry(musicDir, map[string]bool{}, false); err == nil {
 		t.Errorf("sin subdirectorios nuevos debía fallar, dio %q", got)
 	}
 	if err := os.Mkdir(filepath.Join(musicDir, "a"), 0o755); err != nil {
@@ -371,7 +461,143 @@ func TestGetPlaylistAmbiguous(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(musicDir, "b"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := newDirEntry(musicDir, map[string]bool{}); err == nil {
+	if got, err := newDirEntry(musicDir, map[string]bool{}, false); err == nil {
 		t.Errorf("con dos subdirectorios nuevos debía fallar, dio %q", got)
+	}
+}
+
+// getPlaylistFailingSandbox es como getPlaylistSandbox, pero el yt-dlp falso
+// sale con código 1 tras "descargar" solo `survivors` de las 2 pistas
+// habituales — simula el caso real más común de una playlist de YouTube: un
+// ítem privado/borrado/bloqueado por región. survivors=0 simula que la
+// descarga falló ANTES de crear ningún directorio.
+func getPlaylistFailingSandbox(t *testing.T, title string, survivors int) (musicDir string) {
+	t.Helper()
+	xdgSandbox(t)
+	tmp := t.TempDir()
+
+	musicDir = filepath.Join(tmp, "musica")
+	cfgDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "maly")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.toml"),
+		[]byte(fmt.Sprintf("music_dir = %q\n", musicDir)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	bin := filepath.Join(tmp, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// No pasa por fmt.Sprintf (salvo el propio survivors), así que el % de
+	// %(playlist_title)s no necesita escaparse.
+	mkdirAndFiles := ""
+	if survivors > 0 {
+		mkdirAndFiles = `dir=${out%/*}
+case "$dir" in
+	*"%(playlist_title)s"*)
+		prefix=${dir%\%(playlist_title)s*}
+		suffix=${dir#*%(playlist_title)s}
+		dir="$prefix$TITLE$suffix"
+		;;
+esac
+mkdir -p "$dir"
+printf 'mp3 falso' > "$dir/01 - Fake Artist - Cancion Uno.mp3"
+`
+	}
+	ytdlp := fmt.Sprintf(`#!/bin/sh
+out=""
+prev=""
+for a in "$@"; do
+	if [ "$prev" = "-o" ]; then out=$a; fi
+	prev=$a
+done
+%s
+echo 'ERROR: [youtube] segundo: Video unavailable' >&2
+exit 1
+`, mkdirAndFiles)
+	if err := os.WriteFile(filepath.Join(bin, "yt-dlp"), []byte(ytdlp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "ffmpeg"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+	t.Setenv("TITLE", title)
+	return musicDir
+}
+
+// captureStderr redirige os.Stderr mientras corre fn y devuelve lo impreso
+// (mismo patrón que captureStdout de update_test.go, para el otro canal).
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	defer func() { os.Stderr = old }()
+
+	fn()
+
+	w.Close()
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
+}
+
+// TestGetPlaylistPartialFailureSurvives cubre el hallazgo G1 de la
+// auditoría: antes, un solo ítem caído de la playlist cortaba TODO —ni
+// runScan ni CreatePlaylist llegaban a correr— y los archivos que sí habían
+// bajado quedaban huérfanos, biblioteca vacía para siempre. Ahora debe
+// avisar y seguir con lo que sobrevivió.
+func TestGetPlaylistPartialFailureSurvives(t *testing.T) {
+	getPlaylistFailingSandbox(t, "Playlist Parcial", 1)
+
+	var runErr error
+	stderr := captureStderr(t, func() {
+		runErr = runGetPlaylist([]string{"https://youtube.com/playlist?list=abc"})
+	})
+	if runErr != nil {
+		t.Fatalf("un fallo parcial no debía abortar el comando: %v", runErr)
+	}
+	if !strings.Contains(stderr, "yt-dlp") {
+		t.Errorf("esperaba un aviso de fallo parcial en stderr, salió: %q", stderr)
+	}
+
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	tracks, err := lib.PlaylistTracks("Playlist Parcial")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 1 {
+		t.Fatalf("la playlist debía quedar con la pista que sí sobrevivió, tiene %d: %+v", len(tracks), tracks)
+	}
+}
+
+// TestGetPlaylistTotalFailureMentionsDownload: si yt-dlp falla ANTES de
+// crear ningún directorio (0 sobrevivientes), el error no debe reciclar el
+// mensaje genérico de "ambiguo" — la causa más probable es que la descarga
+// falló del todo, y el mensaje debe decirlo.
+func TestGetPlaylistTotalFailureMentionsDownload(t *testing.T) {
+	getPlaylistFailingSandbox(t, "no importa", 0)
+
+	err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc"})
+	if err == nil {
+		t.Fatal("una descarga totalmente fallida debía devolver error")
+	}
+	if strings.Contains(err.Error(), "ambigu") || strings.Contains(err.Error(), "ambiguous") {
+		t.Errorf("el error no debía reciclar el mensaje de ambigüedad: %v", err)
+	}
+	if !strings.Contains(err.Error(), "playlist folder") {
+		t.Errorf("el error debía mencionar que no se creó ninguna carpeta de playlist: %v", err)
 	}
 }

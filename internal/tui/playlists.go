@@ -92,6 +92,21 @@ func loadPlaylists() tea.Msg {
 }
 
 func (m *Model) handlePlaylistsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Borrado pendiente de confirmar: esta guarda va ANTES que cualquier otra
+	// rama (incluido el passthrough al textinput del picker al final de la
+	// función) — si no, la tecla de confirmación se la comería el filtro de
+	// texto en vez de resolver el borrado. Mismo wording default-no que
+	// confirmOverwrite de la CLI (cmd/maly/playlist.go): cualquier tecla que
+	// no sea sí/enter cancela.
+	if m.plConfirm != "" {
+		name := m.plConfirm
+		m.plConfirm = ""
+		switch msg.String() {
+		case "y", "s", "enter":
+			return m, plDeleteCmd(name)
+		}
+		return m, nil
+	}
 	switch msg.String() {
 	case "esc", m.keys["playlists"]:
 		m.plOpen = false
@@ -132,7 +147,10 @@ func (m *Model) handlePlaylistsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if it, ok := m.pl.current(); ok {
-			return m, plDeleteCmd(it.value)
+			// No hay deshacer para una playlist armada a mano: pedir
+			// confirmación antes de disparar el borrado (auditoría 2026-07-31,
+			// hallazgo T26).
+			m.plConfirm = it.value
 		}
 		return m, nil
 	}
@@ -251,6 +269,9 @@ func (m *Model) plView() string {
 	}
 	if len(m.pl.items) == 0 && m.pl.input.Value() == "" {
 		hint = i18n.T("plsel.empty")
+	}
+	if m.plConfirm != "" {
+		hint = i18n.Tf("plsel.confirm_delete", m.plConfirm)
 	}
 	box := m.pl.render(i18n.T("plsel.title"), hint, w, maxRows)
 	// A diferencia de los otros modales, aquí los flashes importan sin cerrar

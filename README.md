@@ -1,6 +1,6 @@
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.11.1-blue)
+![version](https://img.shields.io/badge/version-1.12.0-blue)
 ![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
 
@@ -125,8 +125,10 @@ entero con los defaults.
 Con maly ya instalado, `maly update` hace todo esto solo: consulta los tags
 del repo con git, y si hay un release nuevo descarga el instalador y lo corre
 con `--update`. La TUI avisa en el pie cuando hay versión nueva (chequeo al
-abrir, uno por día como mucho; se apaga con `update_check = false` en el
-config).
+abrir y cada hora mientras la TUI sigue abierta; el cache de 24h solo se
+reusa cuando ya avisa una versión más nueva, así que publicar un release se
+nota rápido incluso con una TUI que lleva rato abierta; se apaga con
+`update_check = false` en el config).
 
 Si instalaste maly con un paquete (p. ej. el del AUR), `maly update` no
 toca `mallow-install.sh`: remite a tu gestor de paquetes (`yay -Syu maly` o
@@ -315,6 +317,7 @@ maly pause | toggle | stop
 maly next | prev
 maly jump <pos>                # salta a esa posición de la cola (ver maly queue)
 maly move <de> <a>             # mueve una pista de la cola a otra posición
+maly remove <pos>              # quita una pista de la cola
 maly add <consulta|ruta>       # agrega a la cola (acepta archivos y carpetas)
 maly queue                     # muestra la cola
 maly clear                     # vacía la cola
@@ -340,6 +343,7 @@ maly controls [default|vim]    # lista o cambia el preset de controles
 maly lang [en|es]              # cambia el idioma (sin arg abre el selector); alias -l
 maly info                      # rutas, versiones y tamaño de la biblioteca
 maly doctor                    # revisa que esté todo lo que maly necesita
+maly config                    # muestra la configuración que está en efecto ahora mismo
 maly update                    # busca un release nuevo y corre el instalador
 maly completions <shell>       # script de autocompletado (bash | fish | zsh)
 maly version | -v              # también muestra la versión del servicio si corre
@@ -351,12 +355,16 @@ reproducción sí lo piden: ábrelo con `maly` o `maly daemon`. Si el servicio
 está corriendo, `scan` (y el re-escaneo de `get`) pasa a través de él y toda
 TUI abierta recarga su biblioteca al instante, sin tocar nada.
 
-`maly info` y `maly doctor` también funcionan sin el servicio —que es justo
-cuando hacen falta— y sin tocar la red. `info` lista hechos: rutas, versiones,
-de dónde sale tu música y cuánta hay. `doctor` emite veredictos sobre mpv, el
-servicio, `music_dir`, la biblioteca y las herramientas opcionales (ffprobe,
+`maly info`, `maly doctor` y `maly config` también funcionan sin el servicio
+—que es justo cuando hacen falta— y sin tocar la red. `info` lista hechos:
+rutas, versiones, de dónde sale tu música y cuánta hay. `doctor` emite
+veredictos sobre mpv, el servicio, `music_dir`, la biblioteca y las
+herramientas opcionales (ffprobe,
 yt-dlp+ffmpeg, el visualizador, MPRIS), y sale con código 1 **solo** si algo
 impide reproducir — lo opcional que falte queda como `info`, no como error.
+`config` muestra la configuración EFECTIVA (defaults ← preset de controles ←
+`[keys]` del usuario), la misma que se resuelve por dentro y que hasta ahora
+solo se veía leyendo el código o el TOML comentado.
 
 `maly get` delega toda la interacción web en yt-dlp (como lazygit usa git):
 sin `://` busca la frase en YouTube y baja el primer resultado; con una URL

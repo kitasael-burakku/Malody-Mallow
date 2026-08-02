@@ -65,6 +65,10 @@ type updDoneMsg struct{ err error }
 // conMaxLines limita el historial de salida de la consola.
 const conMaxLines = 200
 
+// conHistMax limita el historial de COMANDOS (↑/↓), mismo criterio que
+// conMaxLines para la salida.
+const conHistMax = 50
+
 func (m *Model) openConsole() tea.Cmd {
 	m.consoleOpen = true
 	m.conInput = textinput.New()
@@ -74,6 +78,7 @@ func (m *Model) openConsole() tea.Cmd {
 	m.conInput.Placeholder = i18n.T("con.ph")
 	m.conInput.CharLimit = 200
 	m.conInput.Focus()
+	m.conHistIdx = len(m.conHistory)
 	return textinput.Blink
 }
 
@@ -105,7 +110,46 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.conPrint(m.st.accent.Render("❯ ") + m.st.text.Render(line))
+		m.conHistory = append(m.conHistory, line)
+		if len(m.conHistory) > conHistMax {
+			m.conHistory = m.conHistory[len(m.conHistory)-conHistMax:]
+		}
+		m.conHistIdx = len(m.conHistory)
 		return m.execConsole(line)
+	case "up":
+		if len(m.conHistory) == 0 {
+			return m, nil
+		}
+		if m.conHistIdx == len(m.conHistory) {
+			m.conHistDraft = m.conInput.Value()
+		}
+		if m.conHistIdx > 0 {
+			m.conHistIdx--
+		}
+		m.conInput.SetValue(m.conHistory[m.conHistIdx])
+		m.conInput.CursorEnd()
+		return m, nil
+	case "down":
+		if len(m.conHistory) == 0 || m.conHistIdx >= len(m.conHistory) {
+			return m, nil
+		}
+		m.conHistIdx++
+		if m.conHistIdx == len(m.conHistory) {
+			m.conInput.SetValue(m.conHistDraft)
+		} else {
+			m.conInput.SetValue(m.conHistory[m.conHistIdx])
+		}
+		m.conInput.CursorEnd()
+		return m, nil
+	case "pgup":
+		m.conScroll += 5
+		return m, nil
+	case "pgdown":
+		m.conScroll -= 5
+		if m.conScroll < 0 {
+			m.conScroll = 0
+		}
+		return m, nil
 	}
 	var cmd tea.Cmd
 	m.conInput, cmd = m.conInput.Update(msg)
@@ -233,6 +277,12 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		return m.conLogo(args)
 	case "lang":
 		return m.conLang(args)
+	case "info":
+		return m, m.conInfo()
+	case "doctor":
+		return m, m.conDoctor()
+	case "config":
+		return m, m.conConfig()
 	case "version":
 		return m, m.conVersion()
 	case "update":
@@ -265,11 +315,14 @@ func (m *Model) conHelp() {
 		{"clear", i18n.T("cli.clear")},
 		{"scan [path]", i18n.T("cli.scan")},
 		{"search <q>", i18n.T("cli.search")},
-		{"get <url|q>", i18n.T("cli.get")},
+		{"get <url|q> · get playlist <url> [name]", i18n.T("cli.get")},
 		{"playlist <sub> [args]", i18n.T("cli.playlist")},
 		{"controls [preset]", i18n.T("cli.controls")},
 		{"logo [hex… | default]", i18n.T("cli.logo")},
 		{"lang [en|es]", i18n.T("cli.lang_cmd")},
+		{"info", i18n.T("cli.info")},
+		{"doctor", i18n.T("cli.doctor")},
+		{"config", i18n.T("cli.config")},
 		{"version", i18n.T("cli.version_cmd")},
 		{"update", i18n.T("cli.update")},
 		{"kill", i18n.T("cli.kill")},
@@ -800,11 +853,34 @@ func (m *Model) consoleView() string {
 
 	lines := []string{m.conInput.View(), m.st.dim.Render(strings.Repeat("─", innerW))}
 	out := m.conLines
-	if len(out) > maxRows {
-		out = out[len(out)-maxRows:]
+	maxScroll := len(out) - maxRows
+	if maxScroll < 0 {
+		maxScroll = 0
 	}
+	if m.conScroll > maxScroll {
+		m.conScroll = maxScroll
+	}
+	end := len(out) - m.conScroll
+	start := end - maxRows
+	if start < 0 {
+		start = 0
+	}
+	out = out[start:end]
 	for _, l := range out {
 		lines = append(lines, clip(l, innerW))
+	}
+	// La consola tapa el pie (footer()), que es el único lugar donde vivía
+	// el avance del scan — con la consola abierta un scan lanzado desde acá
+	// (o desde cualquier otro cliente) quedaba mudo por minutos en una
+	// biblioteca grande. Mismos datos que footer() (llegan por la
+	// suscripción, no hace falta estado nuevo), mismo formato (auditoría
+	// 2026-07-31, hallazgo T12).
+	if m.status != nil && m.status.Scanning {
+		txt := i18n.Tf("cli.scan_progress", m.status.ScanSeen)
+		if m.status.ScanTotal > 0 {
+			txt = i18n.Tf("cli.scan_durations", m.status.ScanSeen, m.status.ScanTotal)
+		}
+		lines = append(lines, m.st.accent.Render(clip(txt, innerW)))
 	}
 	lines = append(lines, m.st.dim.Render(clip("  "+i18n.T("con.hint"), innerW)))
 

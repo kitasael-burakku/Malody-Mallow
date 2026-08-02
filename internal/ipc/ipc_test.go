@@ -111,7 +111,11 @@ func TestPingHungDaemon(t *testing.T) {
 }
 
 // TestDoTimeout: con un demonio mudo, Do respeta c.Timeout en vez de colgarse
-// los 30 s del default.
+// los 30 s del default. El mensaje de error también debe distinguir este
+// caso ("demonio ocupado/arrancando, no contesta a tiempo") del de Dial
+// fallido ("demonio ausente") — antes se colaba el error de red crudo
+// ("read unix …: i/o timeout") en vez de una frase explicada (auditoría
+// 2026-07-31, hallazgo D7.3).
 func TestDoTimeout(t *testing.T) {
 	block := make(chan struct{})
 	defer close(block)
@@ -127,11 +131,18 @@ func TestDoTimeout(t *testing.T) {
 	c.Timeout = 100 * time.Millisecond
 
 	start := time.Now()
-	if _, err := c.Do(Request{Cmd: "status"}); err == nil {
+	_, err = c.Do(Request{Cmd: "status"})
+	if err == nil {
 		t.Fatal("Do debe fallar con demonio mudo")
 	}
 	if el := time.Since(start); el > 2*time.Second {
 		t.Fatalf("Do tardó %v, el Timeout de 100ms no se aplicó", el)
+	}
+	if strings.Contains(err.Error(), "i/o timeout") {
+		t.Errorf("el error de red crudo no debía colarse: %v", err)
+	}
+	if !strings.Contains(err.Error(), "isn't responding yet") {
+		t.Errorf("esperaba el mensaje de \"no responde todavía\", salió: %v", err)
 	}
 }
 

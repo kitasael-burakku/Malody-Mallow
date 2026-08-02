@@ -41,7 +41,19 @@ type Model struct {
 	width, height int
 	focus         panelID
 
-	tree        *libTree
+	tree *libTree
+	// libLoadErr guarda el último error de carga de biblioteca (permisos, DB
+	// corrupta…) hasta el próximo libraryMsg exitoso, que lo limpia. Antes
+	// solo se veía 4s como flash; pasado eso, el panel volvía a decir
+	// "biblioteca vacía — ejecuta maly scan", una mentira persistente sobre
+	// un fallo real (auditoría 2026-07-31, hallazgos T8+D7.5).
+	libLoadErr string
+	// libLoaded: false hasta el primer libraryMsg exitoso. m.tree arranca
+	// como buildTree(nil, nil) y la carga real es asíncrona (Init dispara
+	// loadLibrary); sin esta bandera, el panel aseguraba "biblioteca vacía"
+	// entre el primer View() y que llegara la respuesta, aunque hubiera
+	// 40.000 pistas (auditoría 2026-07-31, hallazgo T15).
+	libLoaded   bool
 	queue       []ipc.TrackInfo
 	queueFolded []string // texto normalizado por pista, perezoso (ver visibleQueue)
 	queueCursor int
@@ -71,6 +83,7 @@ type Model struct {
 	filterInput textinput.Model
 
 	showHelp   bool
+	helpScroll int // desplazamiento del contenido de la ayuda, clampado en helpView()
 	flash      string
 	flashErr   bool
 	flashUntil time.Time
@@ -93,6 +106,19 @@ type Model struct {
 	consoleOpen bool
 	conInput    textinput.Model
 	conLines    []string
+	// Historial de comandos (↑/↓, T27 de la auditoría 2026-07-31): conHistIdx
+	// == len(conHistory) significa "línea nueva, no navegando"; conHistDraft
+	// guarda lo que se estaba escribiendo antes de la primera flecha arriba,
+	// para poder volver a eso con flecha abajo hasta el final.
+	conHistory   []string
+	conHistIdx   int
+	conHistDraft string
+	// conScroll: líneas de salida scrolleadas hacia arriba desde el fondo
+	// (T28 de la auditoría 2026-07-31). 0 = mostrando lo último; sin esto un
+	// search/queue largo perdía las primeras líneas sin aviso ni forma de
+	// volver a verlas. El clamp de verdad vive en consoleView(), que conoce
+	// cuántas filas entran.
+	conScroll int
 
 	// Selector de canciones (ctrl+o): picker fuzzy genérico.
 	songsOpen bool
@@ -103,6 +129,12 @@ type Model struct {
 	pl        *picker
 	plMode    plMode
 	plPending []int64 // ids a agregar en modo destino
+	// plConfirm: "" = sin borrado pendiente; no vacío = nombre de la
+	// playlist que ctrl+x va a borrar en cuanto se confirme. Se guarda el
+	// NOMBRE y no el índice del cursor a propósito — mismo motivo que
+	// setItemsKeeping en picker.go: una recarga en vivo puede correr el
+	// cursor, y confirmar por índice borraría otra playlist.
+	plConfirm string
 
 	// Capa "Ahora suena" (ctrl+t): pantalla completa con carátula y letras.
 	npOpen         bool
@@ -518,9 +550,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case libraryMsg:
 		if msg.err != nil {
+			m.libLoadErr = msg.err.Error()
 			m.setFlash(i18n.Tf("tui.lib_err", msg.err.Error()), true)
 			return m, nil
 		}
+		m.libLoadErr = ""
+		m.libLoaded = true
 		// Punto único de refresco: aquí llegan tanto las recargas propias
 		// como las de otros clientes (LibGen cambió). El árbol se
 		// reconstruye desde cero, así que hay que devolverle al usuario lo
@@ -539,7 +574,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.pl.setItemsKeeping(plItems(msg.lists))
 		}
 		if len(msg.tracks) == 0 {
-			m.setFlash(i18n.T("tui.lib_empty_flash"), true)
+			// isErr=false a propósito: una biblioteca vacía es el estado más
+			// normal del mundo en un primer lanzamiento, no un error — el
+			// rojo de errSt confundía justo el momento en que más se
+			// necesita calma. El texto también pasa a mencionar el remedio
+			// DENTRO de la TUI (ctrl+p → scan) en vez de solo el de shell
+			// (auditoría 2026-07-31, hallazgos T6+T7).
+			m.setFlash(i18n.T("tui.lib_empty_flash_tui"), false)
 		}
 		return m, nil
 
@@ -695,6 +736,44 @@ func (m *Model) is(action string, msg tea.KeyMsg) bool {
 	return m.keys[action] == msg.String()
 }
 
+// handleHelpKey procesa una tecla con la ayuda abierta: las de scroll (mismo
+// juego que ya usa "Ahora suena" para letras sin sincronía) desplazan el
+// contenido sin cerrarla; cualquier otra tecla la cierra. Compartido entre
+// handleKey y handleNowKey para que scrollear la ayuda se comporte igual
+// desde cualquier pantalla (auditoría 2026-07-31, hallazgo T2). El clamp de
+// verdad vive en helpView(), que es quien conoce cuánto contenido entra.
+//
+// Devuelve true si la tecla se consumió scrolleando (el llamador debe parar
+// ahí); false si cerró la ayuda, en cuyo caso el llamador debe seguir
+// procesando el MISMO msg con el resto de su lógica — antes cualquier tecla
+// (p. ej. espacio) cerraba la ayuda y se perdía, exigiendo una segunda
+// pulsación para que además pausara/reprodujera (auditoría 2026-07-31,
+// hallazgo T29).
+func (m *Model) handleHelpKey(msg tea.KeyMsg) bool {
+	switch msg.String() {
+	case "up", "k":
+		m.helpScroll--
+	case "down", "j":
+		m.helpScroll++
+	case "pgup", "ctrl+u":
+		m.helpScroll -= 5
+	case "pgdown", "ctrl+d":
+		m.helpScroll += 5
+	case "esc":
+		// esc queda consumido, sin redespachar: es la tecla de cierre "neutra"
+		// (T3, auditoría 2026-07-31) y en handleNowKey además cierra la capa
+		// "Ahora suena" — redespacharla cerraría las dos capas de un solo
+		// golpe, un efecto que T3 evitó a propósito.
+		m.showHelp = false
+		m.helpScroll = 0
+	default:
+		m.showHelp = false
+		m.helpScroll = 0
+		return false
+	}
+	return true
+}
+
 // keyRepeats cuenta cuántas pulsaciones de key trae s (bubbletea fusiona
 // teclas rápidas en un solo KeyMsg, como las dos g de "gg"); 0 = otra tecla.
 func keyRepeats(key, s string) int {
@@ -728,16 +807,26 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.npOpen {
 		return m.handleNowKey(msg)
 	}
+	// La ayuda no es un modal más de la pila: View() la dibuja por encima de
+	// consola/songs/playlists/ahora-suena (ver el propio orden en view.go), así
+	// que abrir cualquiera de esos cuatro con la ayuda puesta la dejaría tapando
+	// la pantalla mientras las teclas siguientes caen en el modal invisible de
+	// abajo. Cerrarla aquí evita ese estado; showHelp también gatea el tick del
+	// logo (ver logo.go), así que limpiarlo — no dejarlo "stale" — importa.
 	if m.is("palette", msg) {
+		m.showHelp = false
 		return m, m.openConsole()
 	}
 	if m.is("songs", msg) {
+		m.showHelp = false
 		return m, m.openSongs()
 	}
 	if m.is("playlists", msg) {
+		m.showHelp = false
 		return m, m.openPlaylists(plBrowse, nil)
 	}
 	if m.is("now_playing", msg) {
+		m.showHelp = false
 		return m, m.openNowPlaying()
 	}
 
@@ -765,8 +854,28 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.showHelp {
-		m.showHelp = false
-		return m, nil
+		if m.handleHelpKey(msg) {
+			return m, nil
+		}
+	}
+
+	// Un filtro ya committeado (filterMode == false, pero el panel enfocado
+	// sigue filtrado) no tenía ninguna tecla dedicada para limpiarlo sin
+	// volver a entrar en modo filtro con "/" y salir con esc — dos pasos
+	// para lo que "esc" ya hace mientras se está escribiendo (auditoría
+	// 2026-07-31, hallazgo T5). Va antes de playbackKey para no competir con
+	// ninguna tecla de reproducción (esc no es una de ellas).
+	if msg.String() == "esc" {
+		if m.focus == panelLibrary && m.tree.filter != "" {
+			m.applyFilter("")
+			m.syncFilterInput()
+			return m, nil
+		}
+		if m.focus == panelQueue && m.queueFilter != "" {
+			m.applyFilter("")
+			m.syncFilterInput()
+			return m, nil
+		}
 	}
 
 	if cmd, ok := m.playbackKey(msg); ok {
@@ -826,6 +935,14 @@ func (m *Model) playbackKey(msg tea.KeyMsg) (cmd tea.Cmd, ok bool) {
 		return m.req(ipc.Request{Cmd: "repeat"}), true
 	case m.is("toggle_viz", msg):
 		m.vizOn = !m.vizOn
+		// Antes esto era mudo en la vista principal mientras la consola sí
+		// avisaba (con.viz_on/con.viz_off) — mismas claves acá, para no
+		// duplicar wording (auditoría 2026-07-31, hallazgo T14).
+		if m.vizOn {
+			m.setFlash(i18n.T("con.viz_on"), false)
+		} else {
+			m.setFlash(i18n.T("con.viz_off"), false)
+		}
 		return m.armVizTick(), true
 	}
 	return nil, false

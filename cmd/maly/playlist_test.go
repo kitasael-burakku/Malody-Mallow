@@ -10,6 +10,30 @@ import (
 	"maly/internal/library"
 )
 
+// TestShouldDeletePlaylist cubre el hallazgo C15 de la auditoría P2:
+// `playlist delete` borraba sin confirmar, postura de riesgo invertida
+// frente a `playlist export`, que sí confirma antes de pisar un .m3u
+// regenerable — una playlist armada a mano no tiene deshacer.
+func TestShouldDeletePlaylist(t *testing.T) {
+	cases := []struct {
+		nombre         string
+		tty, confirmed bool
+		want           bool
+	}{
+		{"sin tty procede aunque no haya confirmación", false, false, true},
+		{"sin tty procede si además confirmó", false, true, true},
+		{"con tty y confirmado procede", true, true, true},
+		{"con tty sin confirmar NO procede", true, false, false},
+	}
+	for _, c := range cases {
+		t.Run(c.nombre, func(t *testing.T) {
+			if got := shouldDeletePlaylist(c.tty, c.confirmed); got != c.want {
+				t.Errorf("shouldDeletePlaylist(%v, %v) = %v, quería %v", c.tty, c.confirmed, got, c.want)
+			}
+		})
+	}
+}
+
 // TestPlaylistExportNoClobber: exportar sobre un archivo existente sin
 // terminal (go test corre sin tty) debe fallar con aviso y dejar el archivo
 // intacto, nunca pisarlo en silencio.

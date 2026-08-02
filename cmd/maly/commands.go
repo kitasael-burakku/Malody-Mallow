@@ -50,6 +50,7 @@ var commands = []command{
 	{name: "prev", usage: "prev", descKey: "cli.prev", section: "playback", run: client("prev")},
 	{name: "jump", usage: "jump <pos>", descKey: "cli.jump", section: "playback", run: client("jump"), complete: completeJump},
 	{name: "move", usage: "move <from> <to>", descKey: "cli.move", section: "playback", run: client("move"), complete: completeMove},
+	{name: "remove", usage: "remove <pos>", descKey: "cli.remove", section: "playback", run: client("remove"), complete: completeJump},
 	{name: "add", usage: "add <query|path>", descKey: "cli.add", section: "playback", run: client("add"), complete: completeTracks},
 	{name: "queue", usage: "queue", descKey: "cli.queue", section: "playback", run: client("queue")},
 	{name: "clear", usage: "clear", descKey: "cli.clear", section: "playback", run: client("clear")},
@@ -61,10 +62,11 @@ var commands = []command{
 
 	{name: "scan", usage: "scan [<path>]", descKey: "cli.scan", section: "library", run: runScan},
 	{name: "search", usage: "search <query>", descKey: "cli.search", section: "library", run: runSearch},
-	{name: "get", usage: "get <url|query> | get playlist <url> [name]", descKey: "cli.get", section: "library", run: runGet, complete: completeGet},
+	{name: "get", usage: "get <url|query>", descKey: "cli.get", section: "library", run: runGet, complete: completeGet},
 	{name: "playlist", usage: "playlist <sub> [args]", descKey: "cli.playlist", section: "library", run: runPlaylist, complete: completePlaylist},
 
 	{name: "controls", usage: "controls [<preset>]", descKey: "cli.controls", section: "other", run: runControls, complete: completeControls},
+	{name: "logo", usage: "logo [hex… | default]", descKey: "cli.logo", section: "other", run: runLogo},
 	{name: "lang", aliases: []string{"-l", "--lang"}, usage: "lang [en|es], -l", descKey: "cli.lang_cmd", section: "other", run: runLang, complete: completeStatic("en", "es")},
 	{name: "info", usage: "info", descKey: "cli.info", section: "other", run: runInfo},
 	{name: "doctor", usage: "doctor", descKey: "cli.doctor", section: "other", run: runDoctor},
@@ -213,6 +215,7 @@ func helpText() string {
 	example("maly play luna")
 	example("maly jump 3")
 	example("maly move 3 1")
+	example("maly remove 2")
 	example("maly add ~/Music/album")
 	example("maly vol +10")
 	example("maly seek 1:23")
@@ -220,6 +223,7 @@ func helpText() string {
 	example("maly playlist add favs luna")
 	example("maly playlist export favs")
 	example("maly get \"aurora runaway\"")
+	example("maly get playlist https://youtube.com/playlist?list=... favs")
 
 	sec(i18n.T("cli.sec_keys"), i18n.T("cli.sec_keys_note"))
 	key(i18n.T("help.space"), "help.play_pause")

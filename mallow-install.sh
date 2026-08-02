@@ -444,6 +444,17 @@ USR_INST=0 SYS_INST=0
 [ -x "$USR_BIN" ] && USR_INST=1
 [ -x "$SYS_BIN" ] && SYS_INST=1
 
+# PKG_BIN es SOLO informativo (auditoría 2026-07-31, hallazgo D14.1): un
+# paquete de un gestor (AUR, etc.) deja el binario en /usr/bin, y sin este
+# sondeo el instalador nunca se enteraba — el mismo problema que la 1.11.1
+# ya resolvió del lado de `maly update` (version.Packaged()). A propósito
+# NO alimenta s_def (línea de abajo, ámbito) ni el bucle de --uninstall:
+# /usr/bin es territorio del gestor de paquetes, y este script nunca
+# instala ni desinstala ahí.
+PKG_BIN=/usr/bin/maly
+PKG_INST=0
+[ -x "$PKG_BIN" ] && PKG_INST=1
+
 # ---- fuente: el checkout donde corre el script, o un clon temporal ----
 # Se resuelve YA (y no más abajo, donde solía estar) porque la pantalla de
 # fuente necesita saber si hay checkout para omitirse: corriendo desde uno,
@@ -464,6 +475,10 @@ if [ -z "$ACTION" ]; then
 		scr 'acción' 'action'
 		if [ "$USR_INST" -eq 1 ]; then msg "detecté maly en $USR_BIN" "found maly at $USR_BIN"; fi
 		if [ "$SYS_INST" -eq 1 ]; then msg "detecté maly en $SYS_BIN" "found maly at $SYS_BIN"; fi
+		if [ "$PKG_INST" -eq 1 ]; then
+			warn "detecté maly en $PKG_BIN (paquete del sistema, p. ej. AUR) — este instalador nunca administra esa copia; instalar aquí deja una SEGUNDA copia con su propia unit de systemd" \
+				"found maly at $PKG_BIN (a system package, e.g. AUR) — this installer never manages that copy; installing here leaves a SECOND copy with its own systemd unit"
+		fi
 	fi
 	menu "$a_def" 4 \
 		'instalar' 'install' \
@@ -479,8 +494,19 @@ if [ -z "$ACTION" ]; then
 fi
 
 if [ "$ACTION" = update ] && [ "$USR_INST" -eq 0 ] && [ "$SYS_INST" -eq 0 ]; then
+	if [ "$PKG_INST" -eq 1 ]; then
+		# Distinto del caso de abajo: SÍ hay un maly instalado, solo que este
+		# script no lo administra (vive en /usr/bin, del gestor de paquetes).
+		# "no encuentro maly instalado" sería falso acá.
+		if confirm "maly está instalado como paquete del sistema en $PKG_BIN; este script no lo administra. ¿instalar una copia aparte de todos modos?" \
+			"maly is installed as a system package at $PKG_BIN; this script doesn't manage it. Install a separate copy anyway?"; then
+			ACTION=install
+		else
+			die "usa tu gestor de paquetes para actualizar $PKG_BIN" \
+				"use your package manager to update $PKG_BIN"
+		fi
 	# Nada que actualizar: interactivo se ofrece instalar; por flag se avisa.
-	if confirm 'no encuentro maly instalado; ¿instalar desde cero?' \
+	elif confirm 'no encuentro maly instalado; ¿instalar desde cero?' \
 		"couldn't find an installed maly; install from scratch?"; then
 		ACTION=install
 	else
@@ -1201,9 +1227,20 @@ if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
 else
 	MSOCK=${TMPDIR:-/tmp}/maly-$(id -u)/maly.sock
 fi
+# "maly kill" es un apagado limpio (exit 0): con la unit systemd --user
+# instalada, Restart=on-failure NO lo revive — el consejo de siempre dejaba
+# el demonio caído creyendo que se había reiniciado. Se recalcula la ruta en
+# vez de confiar en $UNIT_FILE: esa variable solo existe si ESTA corrida pasó
+# por el bloque de arriba (SYSTEM=0 y con systemctl presente), pero la unit
+# bien pudo escribirse en una corrida anterior de --update — lo que importa
+# es si existe AHORA, no quién la escribió.
+RESTART_HINT='maly kill'
+if [ -e "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/maly.service" ]; then
+	RESTART_HINT='systemctl --user restart maly'
+fi
 if [ -S "$MSOCK" ]; then
-	warn 'el servicio maly sigue corriendo el binario anterior: reinícialo con  maly kill  (la música se pausa; la sesión se conserva)' \
-		'the maly service is still running the previous binary: restart it with  maly kill  (playback pauses; the session is kept)'
+	warn "el servicio maly sigue corriendo el binario anterior: reinícialo con  $RESTART_HINT  (la música se pausa; la sesión se conserva)" \
+		"the maly service is still running the previous binary: restart it with  $RESTART_HINT  (playback pauses; the session is kept)"
 fi
 msg 'primer paso:  maly scan   (indexa ~/Music; acepta otra ruta) · luego:  maly' \
 	'first step:  maly scan   (indexes ~/Music; takes another path) · then:  maly'

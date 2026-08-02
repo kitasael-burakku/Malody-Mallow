@@ -206,7 +206,14 @@ func completePlaylist(args []string, cur string) []string {
 		return out
 	}
 	switch args[0] {
-	case "play", "delete", "export", "show", "remove":
+	case "remove":
+		if len(args) == 1 {
+			return completePlaylistNames(cur)
+		}
+		if len(args) == 2 {
+			return playlistPositions(args[1], cur)
+		}
+	case "play", "delete", "export", "show":
 		if len(args) == 1 {
 			return completePlaylistNames(cur)
 		}
@@ -236,6 +243,36 @@ func completePlaylistNames(cur string) []string {
 			continue
 		}
 		out = append(out, cand(p.Name, fmt.Sprintf("♪ %d", p.Tracks)))
+	}
+	return out
+}
+
+// playlistPositions lista las posiciones 1-based de una playlist con su
+// pista, mismo criterio que queuePositions pero sobre PlaylistTracks en vez
+// de la cola en memoria (auditoría 2026-07-31, hallazgo C16: `playlist
+// remove` no ofrecía posiciones, a diferencia de jump/move con la cola).
+// Sin demonio: abre la DB directo, como el resto de las completions de
+// playlist.
+func playlistPositions(name, cur string) []string {
+	lib, ok := openLibraryIfExists()
+	if !ok {
+		return nil
+	}
+	defer lib.Close()
+	tracks, err := lib.PlaylistTracks(name)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for i, t := range tracks {
+		pos := strconv.Itoa(i + 1)
+		if !strings.HasPrefix(pos, cur) {
+			continue
+		}
+		out = append(out, cand(pos, t.String()))
+		if len(out) == maxCandidates {
+			break
+		}
 	}
 	return out
 }

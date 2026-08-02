@@ -83,3 +83,29 @@ func TestNpLyricsClamp(t *testing.T) {
 		t.Errorf("sin letras debía centrar el aviso: %q", out)
 	}
 }
+
+// TestNpViewAvisaCaratulaOcultaPorAncho cubre el hallazgo T10 de la
+// auditoría P2: antes, una carátula real que no entraba por ancho quedaba
+// indistinguible de una pista sin carátula embebida — ningún mensaje
+// explicaba la diferencia.
+func TestNpViewAvisaCaratulaOcultaPorAncho(t *testing.T) {
+	m := &Model{
+		st:      newStyles(config.Theme{}),
+		width:   50,
+		height:  30,
+		status:  &ipc.Status{Track: &ipc.TrackInfo{Path: "/x.mp3", Title: "T"}},
+		npTrack: "/x.mp3",
+		npImg:   image.NewRGBA(image.Rect(0, 0, 4, 4)),
+	}
+	out := m.npView()
+	if !strings.Contains(out, "widen the terminal") {
+		t.Errorf("con carátula real oculta por ancho, npView debía avisarlo: %q", out)
+	}
+
+	// Sin carátula embebida (el caso normal), no hay aviso.
+	m.npImg = nil
+	out = m.npView()
+	if strings.Contains(out, "widen the terminal") {
+		t.Errorf("sin carátula embebida no debía avisar nada de ancho: %q", out)
+	}
+}

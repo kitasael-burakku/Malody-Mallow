@@ -138,7 +138,7 @@ var table = map[string][2]string{
 	"con.hint":        {"enter runs · esc closes · help lists commands", "enter ejecuta · esc cierra · help lista los comandos"},
 	"con.unknown":     {"unknown command %q — try help", "comando desconocido %q — prueba help"},
 	"con.help_head":   {"available commands:", "comandos disponibles:"},
-	"con.help_local":  {"also: viz (toggle visualizer) · cls (clear output) · quit/exit · rescan · get playlist <url> [name]", "también: viz (alternar visualizador) · cls (limpiar salida) · quit/exit · rescan · get playlist <url> [nombre]"},
+	"con.help_local":  {"also: viz · cls · quit/exit · rescan · get playlist", "también: viz · cls · quit/exit · rescan · get playlist"},
 	"con.usage_add":   {"usage: add <query|path>", "uso: add <consulta|ruta>"},
 	"con.usage_jump":  {"usage: jump <position> (positions: queue)", "uso: jump <posición> (posiciones: queue)"},
 	"con.usage_move":  {"usage: move <from> <to> (positions: queue)", "uso: move <de> <a> (posiciones: queue)"},

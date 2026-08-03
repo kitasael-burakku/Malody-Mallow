@@ -465,16 +465,31 @@ func (m *Model) helpView() string {
 		{k["playlist_add"], i18n.T("help.playlist_add")},
 		{k["quit"], i18n.T("help.quit")},
 	}
-	content := make([]string, 0, len(rows))
-	for _, r := range rows {
+	// Columna de teclas a la medida de la más ancha, en vez de un ancho fijo:
+	// las teclas son configurables ([keys] del usuario) y "pgup/pgdn
+	// home/end" (fila agregada después del 14 original) ya lo superaba —
+	// padTo no acorta, así que esa fila quedaba pegada a su descripción sin
+	// separación (auditoría de UX post-1.12.0). El modal ya agranda la caja
+	// al contenido (ver el cálculo de w más abajo), así que no hay tope que
+	// respetar acá.
+	keys := make([]string, len(rows))
+	labelW := 0
+	for i, r := range rows {
 		key := r[0]
 		if key == " " {
 			key = i18n.T("help.space")
 		} else if strings.HasPrefix(key, " / ") {
 			key = i18n.T("help.space") + key[1:]
 		}
+		keys[i] = key
+		if kw := lipgloss.Width(key); kw > labelW {
+			labelW = kw
+		}
+	}
+	content := make([]string, 0, len(rows))
+	for i, r := range rows {
 		content = append(content, fmt.Sprintf("  %s %s",
-			m.st.accent.Render(padTo(key, 14)), m.st.text.Render(r[1])))
+			m.st.accent.Render(padTo(keys[i], labelW)), m.st.text.Render(r[1])))
 	}
 	closeHint, scrollHint := i18n.T("help.close"), i18n.T("help.scroll_hint")
 	// Ancho a la medida de la fila más larga (los textos varían por idioma;

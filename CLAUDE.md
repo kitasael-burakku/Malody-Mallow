@@ -1243,6 +1243,75 @@ compilación—, restaurar); los cambios de solo texto/i18n no llevan test
 dedicado. `go build`, `go vet` y la suite completa (`go test ./...`,
 incluido `internal/daemon` con mpv real) pasan en verde.
 
+La **1.12.1** (2026-08-03) cierra un reporte del dueño sobre la 1.12.0
+recién instalada: la Command Palette (`ctrl+p`) rompía su borde derecho con
+contenido ancho, llegando a salirse de la pantalla. Investigación de solo
+lectura (2 agentes Explore en paralelo, más lectura directa de la fuente de
+`charmbracelet/bubbles@v1.0.0` y `muesli/reflow@v0.3.0`) encontró la causa
+raíz y, auditando los otros 4 modales de la TUI por el mismo patrón, tres
+agujeros más.
+
+**La causa raíz real**: `m.conInput`/`p.input` (bubbles `textinput`, usados
+por la consola y por el `picker` genérico de `ctrl+o`/`ctrl+l`) nunca
+recibían `.Width`. En bubbles v1.0.0, `handleOverflow()` desactiva el scroll
+horizontal por completo cuando `Width <= 0`, así que `View()` emitía el
+valor COMPLETO sin ventana — un comando largo (una URL de `get`, por
+ejemplo) rompía el borde en vivo, mientras se escribe, sin hacer falta ni
+tocar Enter. Arreglado fijando `Width` en cada render (mismo criterio que
+`p.page` en `picker.render()`: reasignar es barato) más un `clip()` de red
+de seguridad para el frame en que `Width` cambia y `handleOverflow` todavía
+no corrió de nuevo (un resize sin ninguna tecla de por medio).
+
+**El hallazgo base que explica por qué hacía falta auditar los demás
+modales**: `styles.panel()` nunca trunca por ancho — solo por alto y el
+título. Para el cuerpo hace `padTo(line, innerW)`, que es un no-op cuando la
+línea ya mide `>= innerW`: el contrato de `panel()` es que cada línea ya
+venga del ancho correcto, y la protección depende enteramente de cada
+llamador. Tres agujeros más del mismo patrón:
+
+- **`conHelp()`** (filas de ayuda de la consola): las filas de `get`/
+  `playlist` eran estructuralmente más anchas que la caja en cualquier
+  tamaño de terminal — el label de `get` (ensanchado en la 1.12.0, y
+  redundante con `con.help_local`) se revirtió a su forma corta, y se
+  extrajo `formatHelpRow()`, que clipea label y descripción por columna
+  independiente en vez de confiar en que nada exceda su presupuesto.
+- **`npMeta()`** ("Ahora suena"): la línea de ícono+tiempo era la única sin
+  `clip`, desbordaba con una duración larga en terminales angostas.
+- **`picker.render()`**: `sel.none_empty` (el aviso de biblioteca vacía) sin
+  `clip`, desbordaba en terminales angostas — afecta tanto al selector de
+  canciones como al panel de playlists, que comparten esta función.
+
+Sobre esa base, dos reportes de seguimiento del dueño, ya con el fix
+anterior probado en vivo:
+
+**El modal de Ayuda (`?`) se veía apretado.** La fila `pgup/pgdn home/end`
+(19 celdas) superaba la columna fija de 14 que usaban todas las teclas, y
+`padTo` no acorta — esa fila quedaba pegada a su descripción sin ningún
+espacio de separación, mientras el resto sí lo tenía. Como el modal YA
+agranda la caja al contenido (no trunca), el arreglo fue calcular el ancho
+de columna a partir de la fila más ancha real en cada render en vez de un
+14 fijo — corrige esta fila y cualquier tecla remapeada por el usuario que
+la exceda en el futuro.
+
+**La Command Palette seguía perdiendo texto** en la fila de `playlist`
+(descripción de 74 celdas, la lista completa de subcomandos) incluso con el
+borde ya protegido. `pickerWidth` subió su tope de 80 a 100 columnas
+(decisión del dueño, sopesada contra la alternativa de hacer crecer la caja
+al contenido como Ayuda — descartada porque la consola es un LOG que se va
+acumulando, no una lista fija recalculada cada vez: crecer para una línea
+vieja la dejaría ancha aunque esa línea ya hubiera scrolleado fuera de
+vista). Con el tope más alto, `con.help_local` —un hint que ya había crecido
+en la propia 1.12.0 hasta juntar viz/cls/quit/exit/rescan/get playlist en
+una sola línea— seguía sin entrar ni con el nuevo tope; se recortó a lo
+esencial sin perder qué alias documenta, que era el punto original de esa
+adición.
+
+Cada fix con estado o lógica nueva (Width del input, `formatHelpRow`, la
+columna dinámica de Ayuda, los tres `clip` agregados) lleva un test
+verificado en ambas direcciones, misma disciplina que la 1.12.0. Los
+cambios de solo texto (labels revertidos, `con.help_local` recortado, el
+tope de `pickerWidth`) no llevan test dedicado.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

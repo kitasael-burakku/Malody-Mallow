@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/config"
 	"maly/internal/i18n"
@@ -55,9 +56,102 @@ func TestConsoleHistorial(t *testing.T) {
 	}
 }
 
+// boxLinesFitWithin verifica el ancho real de la CAJA dentro de un render
+// que además pasó por lipgloss.Place (consoleView centra el panel en el
+// terminal completo, que siempre mide m.width — Place no trunca, así que
+// medir contra m.width solo detectaría un desborde que llega a romper la
+// terminal entera). El padding de Place son espacios sin estilo a los
+// lados, así que recortarlos con strings.TrimSpace recupera la fila real de
+// la caja (bordes incluidos) para medirla contra w.
+func boxLinesFitWithin(t *testing.T, out string, w int) {
+	t.Helper()
+	for i, l := range strings.Split(out, "\n") {
+		trimmed := strings.TrimSpace(l)
+		if trimmed == "" {
+			continue
+		}
+		if lw := lipgloss.Width(trimmed); lw > w {
+			t.Errorf("línea %d de la caja mide %d celdas, más que el ancho declarado (%d): %q", i, lw, w, trimmed)
+		}
+	}
+}
+
+// TestConsoleViewLongInputNoOverflow: el textinput de bubbles nunca recibía
+// Width, así que su scroll horizontal quedaba desactivado y View() emitía
+// el valor completo — escribir un comando largo (una URL de get, por
+// ejemplo) rompía el borde derecho de la Command Palette en vivo, mientras
+// se escribe (auditoría de UX post-1.12.0, reportado por el dueño).
+func TestConsoleViewLongInputNoOverflow(t *testing.T) {
+	m := newConModel()
+	m.openConsole()
+	m.width, m.height = 80, 24
+	m.conInput.SetValue("get " + strings.Repeat("x", 200))
+
+	out := m.consoleView()
+	boxLinesFitWithin(t, out, pickerWidth(m.width))
+}
+
+// TestConHelpNoOverflow cubre el bug reportado: `?`/`help` dentro de la
+// consola mostraba filas (get, playlist) más anchas que la caja, rompiendo
+// el borde derecho. El label de "get" vuelve a su forma corta (con.
+// help_local ya menciona la forma playlist aparte) y cada fila se clipea
+// por columna, así que ninguna — ni siquiera con una descripción tan larga
+// como la de playlist — puede desbordar (auditoría de UX post-1.12.0).
+func TestConHelpNoOverflow(t *testing.T) {
+	m := newConModel()
+	m.openConsole()
+	m.width, m.height = 80, 24
+
+	m.conHelp()
+	out := m.consoleView()
+	boxLinesFitWithin(t, out, pickerWidth(m.width))
+
+	var getRow string
+	for _, l := range m.conLines {
+		if strings.Contains(l, "get <url|q>") {
+			getRow = l
+			break
+		}
+	}
+	if getRow == "" {
+		t.Fatalf("no encontré la fila de get, salida: %q", m.conLines)
+	}
+	if strings.Contains(getRow, "playlist") {
+		t.Errorf("la forma playlist ya no debía estar en la fila de get (vive en con.help_local aparte): %q", getRow)
+	}
+}
+
 // TestConsoleScroll cubre el hallazgo T28 de la auditoría P2: la salida de
 // la consola siempre mostraba la cola de conLines, sin forma de volver a ver
 // las primeras líneas de un search/queue largo.
+// TestFormatHelpRowClipsPorColumna: con los datos reales de hoy (tras
+// revertir el label de get) ninguna fila de conHelp() dispara una
+// diferencia visible entre clipear por columna y clipear la fila entera ya
+// ensamblada — pero un label sintético más largo que su columna sí la
+// dispara: sin clip independiente, padTo no acorta (solo rellena), así que
+// la descripción se corre a una columna distinta de la de las demás filas.
+func TestFormatHelpRowClipsPorColumna(t *testing.T) {
+	st := styles{} // sin tema: Render() no agrega ANSI, así que los índices de byte coinciden con los de celda
+	const labelW, descW = 22, 30
+
+	row := formatHelpRow(st, strings.Repeat("x", 40), "descripcion", labelW, descW)
+	// El label clipeado a labelW dentro de la fila: sin eso, "descripcion"
+	// aparecería mucho más lejos de la columna 2+labelW que en cualquier
+	// otra fila (padTo no acorta, solo rellena). Se mide en celdas, no en
+	// bytes: el "…" del clip ocupa 1 celda pero 3 bytes en UTF-8.
+	idx := strings.Index(row, "descripcion")
+	if idx < 0 {
+		t.Fatalf("no encontré la descripción en la fila: %q", row)
+	}
+	if col := lipgloss.Width(row[:idx]); col != 2+labelW {
+		t.Errorf("la descripción debía empezar en la columna %d, apareció en %d: %q", 2+labelW, col, row)
+	}
+	if lipgloss.Width(row) > 2+labelW+descW {
+		t.Errorf("la fila mide %d celdas, más que el presupuesto total (%d): %q",
+			lipgloss.Width(row), 2+labelW+descW, row)
+	}
+}
+
 func TestConsoleScroll(t *testing.T) {
 	m := newConModel()
 	m.openConsole()

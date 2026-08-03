@@ -49,6 +49,39 @@ func TestHelpViewUncappedOnTallTerminal(t *testing.T) {
 	}
 }
 
+// TestHelpViewColumnaDinamica: la columna de teclas se calculaba con un
+// ancho fijo (14); "pgup/pgdn home/end" (19 celdas, agregada después) lo
+// superaba y padTo no acorta — esa fila quedaba pegada a su descripción sin
+// separación, mientras el resto sí tenía un hueco (auditoría de UX
+// post-1.12.0). Todas las filas deben alinear su descripción en la misma
+// columna, la del label más ancho.
+func TestHelpViewColumnaDinamica(t *testing.T) {
+	// Ancho de sobra a propósito: con un terminal más angosto, helpView ya
+	// clipea el contenido para no desbordar (rama "w > m.width"), y eso por
+	// sí solo puede recortar la descripción de cualquier fila — lo que este
+	// test quiere aislar es la alineación, no ese clip.
+	m := newHelpTestModel(200, 60)
+	out := m.helpView()
+
+	col := func(marker string) int {
+		t.Helper()
+		for _, l := range strings.Split(out, "\n") {
+			trimmed := strings.TrimSpace(l)
+			if idx := strings.Index(trimmed, marker); idx >= 0 {
+				return lipgloss.Width(trimmed[:idx])
+			}
+		}
+		t.Fatalf("no encontré %q en la salida", marker)
+		return -1
+	}
+
+	wide := col(i18n.T("help.page_keys")) // fila "pgup/pgdn home/end"
+	narrow := col(i18n.T("help.vim_nav")) // fila "h j k l"
+	if wide != narrow {
+		t.Errorf("las descripciones no alinean: columna %d (page_keys) vs %d (vim_nav)", wide, narrow)
+	}
+}
+
 // TestHelpViewScrollea cubre el hallazgo T2 de la auditoría: antes, en una
 // terminal chica, el contenido que no entraba se perdía en silencio (sin
 // scroll ni indicador). Ahora arriba/abajo desplaza el contenido — las

@@ -214,8 +214,13 @@ func (m *Model) npMeta(w int) []string {
 	if s.Paused {
 		icon = "⏸"
 	}
-	lines = append(lines, m.st.playing.Render(icon)+" "+
-		m.st.text.Render(ipc.FmtTime(s.Position)+" / "+ipc.FmtTime(s.Duration)))
+	// Única línea de npMeta sin clip: el resto (título, artista, álbum,
+	// detalle) sí lo tenía. Mide 13-19 celdas contra un w que el piso de
+	// arriba puede dejar en 8 — desbordaba en la rama sin carátula con
+	// terminales angostas (auditoría de UX post-1.12.0). Reserva 2 celdas
+	// para "icon + espacio".
+	times := clip(ipc.FmtTime(s.Position)+" / "+ipc.FmtTime(s.Duration), w-2)
+	lines = append(lines, m.st.playing.Render(icon)+" "+m.st.text.Render(times))
 	lines = append(lines, m.progressBar(s.Position, s.Duration, w))
 	return lines
 }

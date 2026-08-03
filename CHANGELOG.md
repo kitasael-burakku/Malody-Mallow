@@ -7,6 +7,19 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.12.1 — 2026-08-03
+
+Reportado por el dueño tras usar la 1.12.0: la Command Palette y otros
+modales de la TUI rompían el borde con contenido ancho — el textinput de
+bubbles nunca recibía `Width`, así que un comando largo (una URL de `get`,
+por ejemplo) desbordaba la caja en vivo mientras se escribía. Junto con eso,
+tres agujeros más del mismo patrón (una fila de ayuda de la consola, la
+línea de tiempo de "Ahora suena" y el aviso de biblioteca vacía del
+selector), la columna de teclas de la Ayuda (`?`) ahora se calcula al ancho
+real en vez de un valor fijo, el tope de ancho de la consola subió de 80 a
+100 columnas, y un hint de la consola que se había sobrecargado en la 1.12.0
+volvió a un tamaño razonable.
+
 ## v1.12.0 — 2026-08-01
 
 Cierra P0+P1+P2 (63 de 76 hallazgos) de la primera auditoría de UX completa

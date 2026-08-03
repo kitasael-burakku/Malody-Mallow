@@ -315,7 +315,7 @@ func (m *Model) conHelp() {
 		{"clear", i18n.T("cli.clear")},
 		{"scan [path]", i18n.T("cli.scan")},
 		{"search <q>", i18n.T("cli.search")},
-		{"get <url|q> · get playlist <url> [name]", i18n.T("cli.get")},
+		{"get <url|q>", i18n.T("cli.get")},
 		{"playlist <sub> [args]", i18n.T("cli.playlist")},
 		{"controls [preset]", i18n.T("cli.controls")},
 		{"logo [hex… | default]", i18n.T("cli.logo")},
@@ -327,10 +327,33 @@ func (m *Model) conHelp() {
 		{"update", i18n.T("cli.update")},
 		{"kill", i18n.T("cli.kill")},
 	}
+	// clip por columna en vez de confiar en que ningún label/descripción
+	// exceda su presupuesto: padTo no acorta, solo rellena, así que una fila
+	// más ancha que su columna corría la siguiente y rompía la alineación
+	// (con una descripción larga de verdad, como la de playlist, incluso
+	// desbordaba el borde de la caja — auditoría de UX post-1.12.0).
+	w := pickerWidth(m.width)
+	innerW := w - 2
+	const labelW = 22
+	descW := innerW - 2 - labelW // 2 = indentación "  "
+	if descW < 0 {
+		descW = 0
+	}
 	for _, r := range rows {
-		m.conPrint("  " + m.st.accent.Render(padTo(r[0], 22)) + m.st.text.Render(r[1]))
+		m.conPrint(formatHelpRow(m.st, r[0], r[1], labelW, descW))
 	}
 	m.conPrint(m.st.dim.Render(i18n.T("con.help_local")))
+}
+
+// formatHelpRow arma una fila de conHelp() con clip independiente por
+// columna: sin esto, un label o una descripción más ancha que su
+// presupuesto corría la columna siguiente (padTo no acorta, solo rellena) y
+// con una descripción larga de verdad podía desbordar el borde de la caja
+// (auditoría de UX post-1.12.0). labelW/descW ya vienen acotados a >= 0.
+func formatHelpRow(st styles, label, desc string, labelW, descW int) string {
+	label = clip(label, labelW)
+	desc = clip(desc, descW)
+	return "  " + st.accent.Render(padTo(label, labelW)) + st.text.Render(desc)
 }
 
 // conReq ejecuta una acción simple y devuelve su mensaje como salida.
@@ -851,7 +874,21 @@ func (m *Model) consoleView() string {
 		maxRows = 4
 	}
 
-	lines := []string{m.conInput.View(), m.st.dim.Render(strings.Repeat("─", innerW))}
+	// El textinput de bubbles nunca recibía Width, así que su propio scroll
+	// horizontal quedaba desactivado (handleOverflow: "Width <= 0" = sin
+	// ventana) y View() emitía el valor completo — un comando largo (una URL
+	// de get, por ejemplo) rompía el borde derecho en vivo, mientras se
+	// escribe. Se reasigna en cada render, mismo criterio que p.page en
+	// picker.render(): barato, y así el próximo Update() recalcula el
+	// scroll con el ancho real de la caja. clip() es la red de seguridad
+	// para el frame en que Width cambió pero handleOverflow todavía no
+	// corrió de nuevo (un resize sin ninguna tecla de por medio).
+	promptW := lipgloss.Width(m.conInput.Prompt)
+	m.conInput.Width = innerW - promptW
+	if m.conInput.Width < 0 {
+		m.conInput.Width = 0
+	}
+	lines := []string{clip(m.conInput.View(), innerW), m.st.dim.Render(strings.Repeat("─", innerW))}
 	out := m.conLines
 	maxScroll := len(out) - maxRows
 	if maxScroll < 0 {

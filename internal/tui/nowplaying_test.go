@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
+
 	"maly/internal/config"
 	"maly/internal/ipc"
 	"maly/internal/media"
@@ -81,6 +83,25 @@ func TestNpLyricsClamp(t *testing.T) {
 	out := m.npLyricsLines(20, 3)
 	if len(out) != 3 || out[1] == "" {
 		t.Errorf("sin letras debía centrar el aviso: %q", out)
+	}
+}
+
+// TestNpMetaTimeLineNoOverflow: la línea de ícono+tiempo era la única de
+// npMeta sin clip — con una duración larga (horas) y un w angosto (el piso
+// de la función, 8), desbordaba (auditoría de UX post-1.12.0).
+func TestNpMetaTimeLineNoOverflow(t *testing.T) {
+	m := &Model{
+		st: newStyles(config.Theme{}),
+		status: &ipc.Status{
+			Track:    &ipc.TrackInfo{Title: "T"},
+			Position: 3723, // 1:02:03
+			Duration: 7904, // 2:11:44
+		},
+	}
+	for _, l := range m.npMeta(8) {
+		if lw := lipgloss.Width(l); lw > 8 {
+			t.Errorf("línea de npMeta mide %d celdas, más que w (8): %q", lw, l)
+		}
 	}
 }
 

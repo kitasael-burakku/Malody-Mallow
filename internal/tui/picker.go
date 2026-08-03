@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 
 	"maly/internal/i18n"
@@ -141,8 +142,13 @@ func pickerWidth(termW int) int {
 	if w < 50 {
 		w = termW - 4
 	}
-	if w > 80 {
-		w = 80
+	// Tope subido de 80 a 100: en terminales anchas, descripciones largas
+	// de conHelp() (p. ej. la de playlist, que lista los ocho subcomandos)
+	// perdían más texto del necesario contra un tope conservador — 100 les
+	// da lugar de sobra sin volver la caja desproporcionada en terminales
+	// normales (decisión del dueño, auditoría de UX post-1.12.0).
+	if w > 100 {
+		w = 100
 	}
 	return w
 }
@@ -157,7 +163,17 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 	p.page = maxRows
 	innerW := w - 2
 
-	lines := []string{p.input.View(), p.st.dim.Render(strings.Repeat("─", innerW))}
+	// Mismo arreglo que consoleView(): sin Width, el textinput de bubbles
+	// desactiva su scroll horizontal y View() emite la consulta completa —
+	// una búsqueda larga rompía el borde derecho en vivo. clip() de red de
+	// seguridad para el frame en que Width cambió y handleOverflow todavía
+	// no corrió de nuevo.
+	promptW := lipgloss.Width(p.input.Prompt)
+	p.input.Width = innerW - promptW
+	if p.input.Width < 0 {
+		p.input.Width = 0
+	}
+	lines := []string{clip(p.input.View(), innerW), p.st.dim.Render(strings.Repeat("─", innerW))}
 	if len(p.matches) == 0 {
 		// Antes esto era siempre "no matches", aunque la causa real fuera
 		// que la biblioteca está vacía de entrada (no que la búsqueda no
@@ -168,7 +184,9 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 		if len(p.items) == 0 {
 			empty = i18n.T("sel.none_empty")
 		}
-		lines = append(lines, p.st.dim.Render(empty))
+		// sel.none_empty es un texto fijo largo (~68-74 celdas); sin clip
+		// rompía el borde en terminales angostas.
+		lines = append(lines, p.st.dim.Render(clip(empty, innerW)))
 	}
 	start := 0
 	if p.cursor >= maxRows {

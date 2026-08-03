@@ -1,8 +1,22 @@
 package tui
 
 import (
+	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
+
+// linesFitWithin falla si alguna línea de out (separadas por "\n") mide más
+// que w celdas — la garantía que panel() asume que el llamador ya cumplió.
+func linesFitWithin(t *testing.T, out string, w int) {
+	t.Helper()
+	for i, l := range strings.Split(out, "\n") {
+		if lw := lipgloss.Width(l); lw > w {
+			t.Errorf("línea %d mide %d celdas, más que el ancho de la caja (%d): %q", i, lw, w, l)
+		}
+	}
+}
 
 func pickerWith(labels ...string) *picker {
 	p := newPicker(styles{}, "buscar…")
@@ -100,12 +114,34 @@ func TestPickerSetItemsKeeping(t *testing.T) {
 	}
 }
 
+// TestPickerRenderLongQueryNoOverflow: escribir una consulta más larga que
+// la caja no debía romper el borde derecho — el textinput de bubbles nunca
+// recibía Width, así que su scroll horizontal quedaba desactivado y View()
+// emitía el valor completo (auditoría de UX post-1.12.0, reportado por el
+// dueño en la Command Palette).
+func TestPickerRenderLongQueryNoOverflow(t *testing.T) {
+	p := pickerWith("una pista")
+	p.input.SetValue(strings.Repeat("x", 200))
+	out := p.render("Songs", "hint", 60, 10)
+	linesFitWithin(t, out, 60)
+}
+
+// TestPickerRenderEmptyLibraryNoOverflow: sel.none_empty es un texto fijo
+// largo (~68-74 celdas); en una caja angosta (terminal chico) desbordaba el
+// borde porque era la única línea de render() sin clip (auditoría de UX
+// post-1.12.0).
+func TestPickerRenderEmptyLibraryNoOverflow(t *testing.T) {
+	p := pickerWith() // sin items: dispara sel.none_empty
+	out := p.render("Songs", "hint", 40, 10)
+	linesFitWithin(t, out, 40)
+}
+
 // TestPickerWidth cubre los tres tramos: proporcional, mínimo y tope.
 func TestPickerWidth(t *testing.T) {
 	cases := []struct{ term, want int }{
-		{150, 80}, // 2/3 = 100, tope 80
-		{90, 60},  // 2/3 justo
-		{60, 56},  // 2/3 = 40 < 50: term - 4
+		{200, 100}, // 2/3 = 133, tope 100
+		{90, 60},   // 2/3 justo
+		{60, 56},   // 2/3 = 40 < 50: term - 4
 	}
 	for _, c := range cases {
 		if got := pickerWidth(c.term); got != c.want {

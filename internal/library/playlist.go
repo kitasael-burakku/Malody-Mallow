@@ -105,26 +105,58 @@ func (l *Library) AddToPlaylist(name string, trackIDs []int64) error {
 // para el mensaje de confirmación. Las posiciones restantes no se renumeran:
 // pos solo ordena, y tanto esta función como los listados cuentan por orden,
 // no por el valor de la columna.
+//
+// Todo en una transacción, mismo patrón que AddToPlaylist: antes el conteo,
+// la selección de la fila y el DELETE eran tres roundtrips sueltos, y entre
+// el snapshot y el borrado otro proceso (CLI y demonio comparten la DB) podía
+// insertar o borrar en la misma playlist — el DELETE por OFFSET caía sobre
+// otra fila y el Track devuelto mentía sobre qué se había quitado.
 func (l *Library) RemoveFromPlaylist(name string, pos int) (Track, error) {
-	tracks, err := l.PlaylistTracks(name)
-	if err != nil {
-		return Track{}, err
-	}
-	if len(tracks) == 0 {
-		return Track{}, errors.New(i18n.Tf("d.pl_empty", name))
-	}
-	if pos < 1 || pos > len(tracks) {
-		return Track{}, errors.New(i18n.Tf("lib.pl_pos", pos, name, len(tracks)))
-	}
 	id, err := l.playlistID(name)
 	if err != nil {
 		return Track{}, err
 	}
-	// rowid con OFFSET: inmune a huecos de pos y a pistas repetidas.
-	_, err = l.db.Exec(`DELETE FROM playlist_tracks WHERE rowid = (
-		SELECT rowid FROM playlist_tracks WHERE playlist_id = ?
-		ORDER BY pos LIMIT 1 OFFSET ?)`, id, pos-1)
-	return tracks[pos-1], err
+	tx, err := l.db.Begin()
+	if err != nil {
+		return Track{}, err
+	}
+	var total int
+	if err := tx.QueryRow(
+		`SELECT COUNT(*) FROM playlist_tracks WHERE playlist_id = ?`, id).Scan(&total); err != nil {
+		tx.Rollback()
+		return Track{}, err
+	}
+	if total == 0 {
+		tx.Rollback()
+		return Track{}, errors.New(i18n.Tf("d.pl_empty", name))
+	}
+	if pos < 1 || pos > total {
+		tx.Rollback()
+		return Track{}, errors.New(i18n.Tf("lib.pl_pos", pos, name, total))
+	}
+	// rowid con OFFSET: inmune a huecos de pos y a pistas repetidas. Fijar el
+	// rowid ahora, dentro de la misma tx que el DELETE de abajo, es lo que
+	// cierra la ventana: nadie más puede tocar esta playlist hasta el commit.
+	var rowid int64
+	if err := tx.QueryRow(`SELECT rowid FROM playlist_tracks WHERE playlist_id = ?
+		ORDER BY pos LIMIT 1 OFFSET ?`, id, pos-1).Scan(&rowid); err != nil {
+		tx.Rollback()
+		return Track{}, err
+	}
+	track, err := scanTrack(tx.QueryRow(`SELECT `+qualCols("t")+` FROM playlist_tracks pt
+		JOIN tracks t ON t.id = pt.track_id WHERE pt.rowid = ?`, rowid))
+	if err != nil {
+		tx.Rollback()
+		return Track{}, err
+	}
+	if _, err := tx.Exec(`DELETE FROM playlist_tracks WHERE rowid = ?`, rowid); err != nil {
+		tx.Rollback()
+		return Track{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Track{}, err
+	}
+	return track, nil
 }
 
 // PlaylistTracks devuelve las pistas de una playlist en orden.

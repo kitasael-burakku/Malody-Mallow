@@ -469,6 +469,40 @@ func TestSubscribe(t *testing.T) {
 	}
 }
 
+// TestNotifySerializado: notify() (y el camino directo de seek en handle())
+// tienen que correr con notifyMu tomado durante todo el tramo
+// mprisState+Update — sin eso, dos notify() concurrentes (uno por cada
+// property-change de mpv, sin orden garantizado entre las goroutines de
+// player.onChange) podían empujar a MPRIS en un orden distinto al de los
+// eventos reales, dejando Position momentáneamente retrocedida (ver el
+// comentario de notifyMu en el struct Daemon). Sostener el mutex desde
+// afuera y confirmar que notify() bloquea mientras tanto prueba el
+// mecanismo sin necesitar MPRIS real ni bus de sesión: el lock envuelve
+// mprisState() pase lo que pase con d.mpris (nil en este test).
+func TestNotifySerializado(t *testing.T) {
+	d := newTestDaemon(t)
+
+	d.notifyMu.Lock()
+	done := make(chan struct{})
+	go func() {
+		d.notify()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		t.Fatal("notify() no debía completar mientras notifyMu seguía tomado desde afuera")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	d.notifyMu.Unlock()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("notify() no terminó tras liberar notifyMu")
+	}
+}
+
 // TestScanDoesNotBlockStatus reproduce el bug de 0.3.0: scan corría con d.mu
 // tomado y congelaba status (y con él la TUI, que lo pollea cada 500 ms)
 // durante todo el escaneo. Ahora status debe responder al instante mientras

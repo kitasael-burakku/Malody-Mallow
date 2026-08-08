@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,12 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/safetext"
 )
+
+// maxM3UBytes acota lo que ImportM3U lee de un archivo M3U — generoso para
+// cualquier playlist real (miles de líneas de sobra), pero corta antes de
+// que un M3U corrupto de cientos de MB llene `ids`/`skipped` sin límite en
+// memoria (mismo bug, mismo arreglo, que maxLyricsBytes en internal/media/lrc.go).
+const maxM3UBytes = 8 << 20
 
 // ExportM3U escribe la playlist como M3U extendido (UTF-8, rutas absolutas)
 // y devuelve cuántas pistas exportó. La duración sale de la biblioteca si
@@ -70,7 +77,11 @@ func (l *Library) ImportM3U(path, name string) (added int, skipped []string, err
 	}
 
 	var ids []int64
-	sc := bufio.NewScanner(f)
+	// io.LimitReader acota el TOTAL del archivo; el corte es por bytes, no por
+	// línea, así que el scanner simplemente deja de ver más allá de ese punto
+	// — corte suave, no error: las pistas ya resueltas antes del corte se
+	// conservan, igual que si el M3U terminara ahí de verdad.
+	sc := bufio.NewScanner(io.LimitReader(f, maxM3UBytes))
 	for sc.Scan() {
 		// Los M3U8 de otros reproductores suelen traer BOM en la primera línea.
 		line := strings.TrimSpace(strings.TrimPrefix(sc.Text(), "\ufeff"))

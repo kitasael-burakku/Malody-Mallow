@@ -179,6 +179,16 @@ const upsertTrack = `
 		track_no=excluded.track_no, year=excluded.year, mtime=excluded.mtime,
 		search_text=excluded.search_text`
 
+// pending es una pista leída del disco esperando su turno en un flushBatch;
+// vive a nivel de paquete (no exportado) porque tanto Scan como flushBatch
+// la necesitan.
+type pending struct {
+	t       Track
+	mtime   int64
+	fold    string
+	existed bool
+}
+
 // Scan recorre root, indexa audio nuevo o modificado y elimina de la base
 // las entradas cuyos archivos ya no existen. progress (opcional, nil = mudo)
 // recibe el acumulado de archivos de audio vistos — también los saltados por
@@ -195,80 +205,19 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 	}
 
 	// mtimes ya indexados, para saltar archivos sin cambios.
-	known := map[string]int64{}
-	rows, err := l.db.Query(`SELECT path, mtime FROM tracks`)
+	known, err := l.loadKnownMtimes()
 	if err != nil {
 		return res, err
 	}
-	for rows.Next() {
-		var p string
-		var m int64
-		if err := rows.Scan(&p, &m); err != nil {
-			rows.Close()
-			return res, err
-		}
-		known[p] = m
-	}
-	rows.Close()
 
-	// Las escrituras van en lotes dentro de transacciones cortas. NUNCA una
-	// transacción única para todo el escaneo: database/sql fija la conexión
-	// al Tx y, con la única conexión retenida de punta a punta, Search y
-	// ByPath quedarían bloqueados hasta el final (el mismo congelamiento que
-	// se arregló al sacar a scan de d.mu, a otro nivel). Leer tags —el costo
-	// dominante, IO de archivo— ocurre siempre fuera de toda transacción.
-	type pending struct {
-		t       Track
-		mtime   int64
-		fold    string
-		existed bool
-	}
+	// Las escrituras van en lotes dentro de transacciones cortas (flushBatch).
+	// NUNCA una transacción única para todo el escaneo: database/sql fija la
+	// conexión al Tx y, con la única conexión retenida de punta a punta,
+	// Search y ByPath quedarían bloqueados hasta el final (el mismo
+	// congelamiento que se arregló al sacar a scan de d.mu, a otro nivel).
+	// Leer tags —el costo dominante, IO de archivo— ocurre siempre fuera de
+	// toda transacción.
 	var batch []pending
-	flush := func() {
-		if len(batch) == 0 {
-			return
-		}
-		defer func() { batch = batch[:0] }()
-		fail := func(err error) {
-			for _, p := range batch {
-				res.addErr("%s: %v", p.t.Path, err)
-			}
-		}
-		tx, err := l.db.Begin()
-		if err != nil {
-			fail(err)
-			return
-		}
-		stmt, err := tx.Prepare(upsertTrack)
-		if err != nil {
-			tx.Rollback()
-			fail(err)
-			return
-		}
-		added, updated := 0, 0
-		for _, p := range batch {
-			t := p.t
-			if _, err := stmt.Exec(t.Path, t.Title, t.Artist, t.Album, t.AlbumArtist,
-				t.Genre, t.TrackNo, t.Year, p.mtime, p.fold); err != nil {
-				res.addErr("%s: %v", t.Path, err)
-				continue
-			}
-			if p.existed {
-				updated++
-			} else {
-				added++
-			}
-		}
-		stmt.Close()
-		// Los contadores se suman solo si el lote quedó aplicado de verdad.
-		if err := tx.Commit(); err != nil {
-			fail(err)
-			return
-		}
-		res.Added += added
-		res.Updated += updated
-	}
-
 	seen := map[string]bool{}
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -296,17 +245,94 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 		batch = append(batch, pending{t: t, mtime: mtime, existed: existed,
 			fold: Fold(t.Title + " " + t.Artist + " " + t.Album)})
 		if len(batch) >= scanBatchSize {
-			flush()
+			batch = l.flushBatch(batch, &res)
 		}
 		return nil
 	})
-	flush() // lo indexado hasta aquí se conserva aunque el walk haya fallado
+	batch = l.flushBatch(batch, &res) // lo indexado hasta aquí se conserva aunque el walk haya fallado
 	if walkErr != nil {
 		return res, walkErr
 	}
 
-	// Purgar archivos desaparecidos (solo los que estaban bajo root), también
-	// por lotes y contando solo lo confirmado.
+	l.purgeGone(root, known, seen, &res)
+	return res, nil
+}
+
+// loadKnownMtimes lee los mtimes ya indexados, para que Scan pueda saltar
+// los archivos sin cambios.
+func (l *Library) loadKnownMtimes() (map[string]int64, error) {
+	known := map[string]int64{}
+	rows, err := l.db.Query(`SELECT path, mtime FROM tracks`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var p string
+		var m int64
+		if err := rows.Scan(&p, &m); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		known[p] = m
+	}
+	rows.Close()
+	return known, nil
+}
+
+// flushBatch aplica un lote de pistas (Begin→Prepare→loop Exec→Commit) y
+// devuelve el lote vaciado, listo para que Scan lo siga llenando. Los
+// contadores de res solo suben si el lote quedó aplicado de verdad
+// (Commit sin error); un fallo de Begin/Prepare/Commit vuelca el lote
+// entero a res.Errors, y un fallo de un Exec individual solo se salta esa
+// pista sin abortar el resto del lote.
+func (l *Library) flushBatch(batch []pending, res *ScanResult) []pending {
+	if len(batch) == 0 {
+		return batch
+	}
+	fail := func(err error) {
+		for _, p := range batch {
+			res.addErr("%s: %v", p.t.Path, err)
+		}
+	}
+	tx, err := l.db.Begin()
+	if err != nil {
+		fail(err)
+		return batch[:0]
+	}
+	stmt, err := tx.Prepare(upsertTrack)
+	if err != nil {
+		tx.Rollback()
+		fail(err)
+		return batch[:0]
+	}
+	added, updated := 0, 0
+	for _, p := range batch {
+		t := p.t
+		if _, err := stmt.Exec(t.Path, t.Title, t.Artist, t.Album, t.AlbumArtist,
+			t.Genre, t.TrackNo, t.Year, p.mtime, p.fold); err != nil {
+			res.addErr("%s: %v", t.Path, err)
+			continue
+		}
+		if p.existed {
+			updated++
+		} else {
+			added++
+		}
+	}
+	stmt.Close()
+	if err := tx.Commit(); err != nil {
+		fail(err)
+		return batch[:0]
+	}
+	res.Added += added
+	res.Updated += updated
+	return batch[:0]
+}
+
+// purgeGone borra las entradas cuyo archivo ya no está bajo root (solo las
+// que estaban bajo root: una pista fuera del árbol escaneado no se toca),
+// también por lotes y contando solo lo confirmado.
+func (l *Library) purgeGone(root string, known map[string]int64, seen map[string]bool, res *ScanResult) {
 	var gone []string
 	for p := range known {
 		if seen[p] {
@@ -338,7 +364,6 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 		}
 		res.Removed += removed
 	}
-	return res, nil
 }
 
 // ReadTags lee los metadatos de un archivo; si falla, deriva el título del
@@ -403,7 +428,29 @@ func scanTrack(row interface{ Scan(...any) error }) (Track, error) {
 	t.Album = safetext.Clean(t.Album)
 	t.AlbumArtist = safetext.Clean(t.AlbumArtist)
 	t.Genre = safetext.Clean(t.Genre)
+	// TrackNo/Year llegan crudos de md.Track()/md.Year() en ReadTags, sin el
+	// safetext.Clean que sí pasan los campos de texto de arriba: un TRCK/TYER
+	// de ID3 corrupto o adversarial ("−5", un número absurdo) se guarda tal
+	// cual en el INTEGER de SQLite (sin CHECK) y de ahí puede romper cosas
+	// reales — ORDER BY track_no salta la pista al frente del álbum con un
+	// negativo, %02d en tree.go y el tabwriter de `maly playlist show`
+	// pierden la alineación, y dbus.MakeVariant(int32(t.TrackNo)) en mpris.go
+	// desborda sin aviso. Clampear acá, el mismo punto único de salida que ya
+	// sanea el texto, cubre además las filas indexadas por versiones
+	// anteriores (Scan no las vuelve a tocar por el guard de mtime).
+	t.TrackNo = clampInt(t.TrackNo, 0, 9999)
+	t.Year = clampInt(t.Year, 0, 9999)
 	return t, nil
+}
+
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // SetDuration guarda la duración de una pista. Los tags no la traen

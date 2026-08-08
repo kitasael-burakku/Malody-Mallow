@@ -88,7 +88,10 @@ func cleanResp(r *Response) {
 	r.Error = safetext.Clean(r.Error)
 }
 
-// Client es una conexión al demonio.
+// Client es una conexión al demonio. No es segura para uso concurrente: una
+// sola net.Conn + bufio.Reader sin mutex (y Timeout es un campo público
+// mutable sin protección) — el uso previsto es un comando por conexión; dos
+// goroutines sobre el mismo *Client se pisarían.
 type Client struct {
 	conn net.Conn
 	r    *bufio.Reader

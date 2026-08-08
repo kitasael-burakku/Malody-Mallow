@@ -220,8 +220,9 @@ func (t *libTree) flatten() {
 				t.folded[i] = library.Fold(tr.Title + " " + tr.Artist + " " + tr.Album)
 			}
 		}
+		words := strings.Fields(q)
 		for i, tr := range t.all {
-			if containsAll(t.folded[i], q) {
+			if containsAll(t.folded[i], words) {
 				t.rows = append(t.rows, &node{kind: trackNode, label: tr.String(), track: tr})
 			}
 		}
@@ -248,8 +249,13 @@ func (t *libTree) flatten() {
 	}
 }
 
-func containsAll(hay, q string) bool {
-	for _, w := range strings.Fields(q) {
+// containsAll reporta si hay contiene todas las palabras de words. words se
+// pasa ya partido (strings.Fields) porque el llamador lo invoca una vez por
+// fila con la misma query: partirla acá adentro repetiría la asignación del
+// slice en cada pista, y con el visualizador animando a ~16fps eso pesa de
+// verdad en colas/bibliotecas grandes con filtro activo.
+func containsAll(hay string, words []string) bool {
+	for _, w := range words {
 		if !strings.Contains(hay, w) {
 			return false
 		}

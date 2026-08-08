@@ -7,6 +7,7 @@ package mpris
 
 import (
 	"fmt"
+	"hash/fnv"
 	"net/url"
 	"sync"
 
@@ -404,12 +405,15 @@ func snapshotOf(st *ipc.Status) snapshot {
 
 // trackKeyOf identifica el contenido de Metadata. Incluye la duración porque
 // mpv la reporta un instante después de cargar la pista y hay que reemitir
-// Metadata cuando llega mpris:length.
+// Metadata cuando llega mpris:length. NO incluye QueueIndex a propósito:
+// metadataOf tampoco depende de él (ver pathTrackID), así que agregarlo
+// aquí solo dispararía reemisiones espurias de Metadata al reordenar la
+// cola sin cambiar qué archivo suena.
 func trackKeyOf(st *ipc.Status) string {
 	if st.Track == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s|%d|%d", st.Track.Path, st.QueueIndex, int64(st.Duration*1e6))
+	return fmt.Sprintf("%s|%d", st.Track.Path, int64(st.Duration*1e6))
 }
 
 // metadata arma el Metadata completo: el diccionario puro de metadataOf más
@@ -427,6 +431,15 @@ func (s *Service) metadata(st *ipc.Status) map[string]dbus.Variant {
 	return m
 }
 
+// pathTrackID deriva un segmento válido de dbus.ObjectPath ([A-Za-z0-9_]
+// únicamente) a partir de una ruta de archivo, para pistas sin ID de
+// biblioteca. hex ya cumple el charset sin necesidad de escapar nada.
+func pathTrackID(path string) string {
+	h := fnv.New64a()
+	h.Write([]byte(path))
+	return fmt.Sprintf("%x", h.Sum64())
+}
+
 // metadataOf arma el diccionario Metadata a partir del estado, sin IO.
 func metadataOf(st *ipc.Status) map[string]dbus.Variant {
 	t := st.Track
@@ -437,9 +450,16 @@ func metadataOf(st *ipc.Status) map[string]dbus.Variant {
 	if t.ID > 0 {
 		id = dbus.ObjectPath(fmt.Sprintf("%s/maly/track/%d", objPath, t.ID))
 	} else if st.QueueIndex >= 0 {
-		// Pista fuera de la biblioteca (reproducida por ruta): sin ID,
-		// se identifica por su posición en la cola.
-		id = dbus.ObjectPath(fmt.Sprintf("%s/maly/queue/%d", objPath, st.QueueIndex))
+		// Pista fuera de la biblioteca (reproducida por ruta): sin ID de
+		// biblioteca, se identifica por un hash de su propia ruta — no por
+		// QueueIndex, que cambiaba con cada reorden de la cola y disparaba
+		// un "cambio de pista" espurio en clientes MPRIS (playerctl/Waybar)
+		// aunque el archivo sonando fuera el mismo. El path ya es la única
+		// señal de identidad real acá (es lo mismo que xesam:url publica);
+		// hash/fnv alcanza porque esto es solo un identificador transitorio
+		// de un objeto D-Bus, no algo que necesite resistir colisiones
+		// adversarias como el cache de carátulas (que sí usa SHA-1).
+		id = dbus.ObjectPath(fmt.Sprintf("%s/maly/path/%s", objPath, pathTrackID(t.Path)))
 	}
 	m := map[string]dbus.Variant{
 		"mpris:trackid": dbus.MakeVariant(id),

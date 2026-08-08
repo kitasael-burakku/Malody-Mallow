@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,5 +75,26 @@ func TestCheckLibraryNoDB(t *testing.T) {
 	}
 	if _, err := os.Stat(config.DBPath()); err == nil {
 		t.Fatal("checkLibrary() creó la base de datos")
+	}
+}
+
+// TestCheckKeys: sin colisión (los defaults de fábrica) es lvlOK; con dos
+// acciones en la misma tecla es lvlWarn —nunca lvlFail, el config sigue
+// siendo válido— y NO cambia el código de salida de `maly doctor` (solo
+// fails lo hace, ver runDoctor). El detalle debe nombrar la tecla y las dos
+// acciones en conflicto, para que el aviso apunte a la causa.
+func TestCheckKeys(t *testing.T) {
+	cfg := config.Default()
+	if c := checkKeys(cfg); c.lvl != lvlOK {
+		t.Fatalf("defaults sin colisión: checkKeys() = %v, quería lvlOK: %s", c.lvl, c.detail)
+	}
+
+	cfg.Keys["prev"] = cfg.Keys["next"] // fuerza una colisión real
+	c := checkKeys(cfg)
+	if c.lvl != lvlWarn {
+		t.Fatalf("con colisión: checkKeys() = %v, quería lvlWarn", c.lvl)
+	}
+	if len(c.cont) != 1 || !strings.Contains(c.cont[0], "next") || !strings.Contains(c.cont[0], "prev") {
+		t.Fatalf("el detalle no nombra las acciones en conflicto: %+v", c.cont)
 	}
 }

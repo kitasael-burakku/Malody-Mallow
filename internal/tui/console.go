@@ -156,6 +156,26 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// ConsoleCommands son los nombres que execConsole acepta — mantener esta
+// lista al día con el switch de abajo (nombres primarios, sin alias como
+// "-h"). cmd/maly la usa para el test de paridad contra la tabla `commands`
+// de la CLI (ver commands_test.go: TestConsoleParityConCLI): sin esa red, el
+// switch podía derivar de la tabla real sin que ningún test lo notara — el
+// gap real que la destapó fue `remove`, que existía en la CLI y no acá hasta
+// que se cerró junto con este test. El propio paquete tui verifica además
+// que cada nombre de ESTA lista es aceptado de verdad por el switch
+// (TestConsoleCommandsSonReales en console_test.go): sin eso, la lista sería
+// una tercera copia a mano y el test de cmd/maly compararía copia contra
+// copia.
+var ConsoleCommands = []string{
+	"help", "quit", "exit", "kill", "cls", "viz",
+	"play", "pause", "toggle", "stop", "next", "prev", "clear",
+	"add", "jump", "move", "remove", "vol", "seek", "shuffle", "repeat",
+	"status", "queue", "search", "select", "playlist", "get",
+	"controls", "logo", "lang", "info", "doctor", "config", "version", "update",
+	"scan", "rescan",
+}
+
 // execConsole interpreta una línea como si fuera la CLI de maly. El prefijo
 // "maly" es opcional.
 func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
@@ -234,6 +254,17 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.conReq(ipc.Request{Cmd: "move", Index: from - 1, To: to - 1})
+	case "remove":
+		if len(args) != 1 {
+			m.conErr(i18n.T("con.usage_remove"))
+			return m, nil
+		}
+		n, err := strconv.Atoi(args[0])
+		if err != nil || n < 1 {
+			m.conErr(i18n.T("con.usage_remove"))
+			return m, nil
+		}
+		return m, m.conReq(ipc.Request{Cmd: "remove", Index: n - 1})
 	case "vol":
 		if len(args) != 1 {
 			m.conErr(i18n.T("con.usage_vol"))
@@ -306,6 +337,7 @@ func (m *Model) conHelp() {
 		{"next / prev", i18n.T("cli.next") + " · " + i18n.T("cli.prev")},
 		{"jump <pos>", i18n.T("cli.jump")},
 		{"move <from> <to>", i18n.T("cli.move")},
+		{"remove <pos>", i18n.T("cli.remove")},
 		{"add <q>", i18n.T("cli.add")},
 		{"queue / status", i18n.T("cli.queue") + " · " + i18n.T("cli.status")},
 		{"vol <0-100|+N|-N>", i18n.T("cli.vol")},

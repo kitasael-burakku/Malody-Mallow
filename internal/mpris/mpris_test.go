@@ -161,6 +161,15 @@ func TestTrackKeyOf(t *testing.T) {
 	if trackKeyOf(&st) == base {
 		t.Error("trackKey no cambió al llegar la duración")
 	}
+	// pero NO con QueueIndex: metadataOf ya no depende de la posición en la
+	// cola para pistas sin ID (ver pathTrackID), así que trackKey tampoco
+	// debe hacerlo — si no, reordenar la cola sin cambiar de pista dispararía
+	// una reemisión espuria de Metadata (playerctl/Waybar verían "cambió de
+	// canción").
+	st.QueueIndex = 7
+	if trackKeyOf(&st) != trackKeyOf(&ipc.Status{Track: st.Track, Duration: st.Duration, QueueIndex: 0}) {
+		t.Error("trackKey cambió con QueueIndex: debería ser estable frente a reordenar la cola")
+	}
 }
 
 func TestMetadataOfNoTrack(t *testing.T) {
@@ -213,15 +222,24 @@ func TestMetadataOfLibraryTrack(t *testing.T) {
 }
 
 func TestMetadataOfPathTrack(t *testing.T) {
-	// pista fuera de la biblioteca (ID 0): se identifica por posición en cola
-	// y los campos vacíos u opcionales no aparecen
+	// pista fuera de la biblioteca (ID 0): se identifica por un hash de su
+	// ruta, y los campos vacíos u opcionales no aparecen. QueueIndex ya NO
+	// determina el trackid (ver pathTrackID): reordenar la cola no debe
+	// cambiarlo mientras el archivo sonando sea el mismo.
+	path := "/tmp/x.mp3"
+	want := dbus.ObjectPath("/org/mpris/MediaPlayer2/maly/path/" + pathTrackID(path))
 	st := &ipc.Status{
-		Track:      &ipc.TrackInfo{Path: "/tmp/x.mp3", Title: "x"},
+		Track:      &ipc.TrackInfo{Path: path, Title: "x"},
 		QueueIndex: 2,
 	}
 	m := metadataOf(st)
-	if id := m["mpris:trackid"].Value(); id != dbus.ObjectPath("/org/mpris/MediaPlayer2/maly/queue/2") {
-		t.Errorf("trackid = %v", id)
+	if id := m["mpris:trackid"].Value(); id != want {
+		t.Errorf("trackid = %v, quería %v", id, want)
+	}
+	// Mismo path, otra posición de cola: mismo trackid.
+	st.QueueIndex = 9
+	if id := metadataOf(st)["mpris:trackid"].Value(); id != want {
+		t.Errorf("trackid cambió al mover la pista de posición en la cola: %v, quería %v", id, want)
 	}
 	for _, k := range []string{"xesam:artist", "xesam:album", "xesam:albumArtist", "xesam:genre", "xesam:trackNumber", "mpris:length"} {
 		if _, ok := m[k]; ok {

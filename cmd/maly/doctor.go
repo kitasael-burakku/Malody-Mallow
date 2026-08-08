@@ -62,6 +62,7 @@ func runDoctor([]string) error {
 		checkService(),
 		checkMusicDir(cfg),
 		checkLibrary(),
+		checkKeys(cfg),
 	}
 	checks = append(checks, checkOptionalTools(cfg)...)
 	checks = append(checks, checkUpdate())
@@ -160,6 +161,23 @@ func checkLibrary() check {
 		return check{lvlWarn, label, i18n.T("doc.lib_empty"), nil}
 	}
 	return check{lvlOK, label, i18n.Tf("doc.lib_ok", tracks, playlists), nil}
+}
+
+// checkKeys avisa si dos acciones de [keys] terminaron en la misma tecla:
+// is() en la TUI (internal/tui/tui.go) resuelve por igualdad de string, así
+// que la segunda acción queda inalcanzable sin ningún error de carga que lo
+// delate — warn, no fail: el config sigue siendo válido, solo confuso.
+func checkKeys(cfg config.Config) check {
+	label := i18n.T("doc.lbl_keys")
+	conflicts := config.KeyConflicts(cfg.Keys)
+	if len(conflicts) == 0 {
+		return check{lvlOK, label, i18n.T("doc.keys_ok"), nil}
+	}
+	cont := make([]string, len(conflicts))
+	for i, c := range conflicts {
+		cont[i] = i18n.Tf("doc.keys_conflict_line", c.Key, strings.Join(c.Actions, ", "))
+	}
+	return check{lvlWarn, label, i18n.Tf("doc.keys_conflict", len(conflicts)), cont}
 }
 
 // checkOptionalTools cubre lo que maly degrada en silencio. Todo es lvlInfo a

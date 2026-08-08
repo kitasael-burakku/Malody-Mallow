@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"os"
@@ -313,5 +314,79 @@ func TestSetNextAppendFailureClearsMirror(t *testing.T) {
 	p.mu.Unlock()
 	if !known || path != "B" {
 		t.Fatalf("espejo final debía volver a B: nextKnown=%v nextPath=%q", known, path)
+	}
+}
+
+// TestCloseWaitsForCallback: un callback onEnd/onChange en vuelo (goroutine
+// fire-and-forget, ver cbWG en player.go) tiene que terminar ANTES de que
+// Close() devuelva el control — si no, un demonio que cierra su biblioteca
+// justo después de Close() puede pisarle una escritura tardía (learnDuration
+// escribe fuera de d.mu a propósito). El callback además reentra al player
+// vía State() (toma p.mu), como haría un onEnd real que sigue reproduciendo:
+// si Close esperara con p.mu tomado, esto deadlockearía.
+func TestCloseWaitsForCallback(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer srv.Close()
+	// Drenar lo que Close() escriba (el "quit"): net.Pipe es síncrono, sin
+	// alguien leyendo del otro lado el Write de Close se colgaría.
+	go func() { _, _ = io.Copy(io.Discard, srv) }()
+
+	exited := make(chan struct{})
+	close(exited) // simula que mpv ya salió: Close no espera los 2s del kill
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+
+	p := &Player{
+		conn:    cli,
+		pending: map[int64]chan mpvReply{},
+		done:    make(chan struct{}),
+		exited:  exited,
+	}
+	p.onEnd = func(reason, next string) {
+		close(started)
+		<-release
+		p.State() // reentra al player: prueba que Close no espera con p.mu tomado
+		close(finished)
+	}
+
+	// Disparar el callback exactamente como handleEvent lo hace en
+	// start-file/idle.
+	p.pendingEnd = "eof"
+	p.pendingGen = p.loadGen
+	if reason, next, ok := p.resolveEnd(); ok {
+		p.cbWG.Add(1)
+		go func() {
+			defer p.cbWG.Done()
+			p.onEnd(reason, next)
+		}()
+	} else {
+		t.Fatal("resolveEnd no devolvió el end-file pendiente")
+	}
+	<-started // esperar a que el callback esté corriendo de verdad
+
+	closeDone := make(chan struct{})
+	go func() {
+		p.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case <-closeDone:
+		t.Fatal("Close() volvió antes de que el callback en vuelo terminara")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(release) // dejar terminar el callback
+	select {
+	case <-finished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el callback no llegó a terminar (¿deadlock con p.mu?)")
+	}
+	select {
+	case <-closeDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close() no volvió tras liberar el callback")
 	}
 }

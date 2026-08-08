@@ -69,6 +69,21 @@ type Daemon struct {
 	subMu sync.Mutex
 	subs  map[*subscriber]struct{}
 
+	// notifyMu serializa el empuje a MPRIS (mprisState + Update/Seeked).
+	// player.onChange dispara una goroutine por cada property-change de mpv
+	// (ver el comentario de cbWG en player.go), sin orden garantizado entre
+	// ellas; sin este mutex, dos notify() concurrentes podían leer sus
+	// snapshots en orden A→B pero empujarlos a mpris.Update en B→A, dejando
+	// Position momentáneamente retrocedida en un cliente MPRIS. No hace
+	// falta un número de secuencia: al serializar TODO el tramo
+	// lectura+empuje, cada llamada que gana el mutex lee el estado más
+	// fresco disponible en ese instante y lo aplica entero antes de que la
+	// siguiente lea nada, así que nunca se aplica algo más viejo después de
+	// algo más nuevo. Deliberadamente un mutex aparte de d.mu: notify() y el
+	// case "seek" de handle() nunca corren con d.mu tomado (ver sus
+	// comentarios), así que no hay riesgo de orden de adquisición cruzado.
+	notifyMu sync.Mutex
+
 	// Persistencia de sesión: notify marca dirty y sessionSaver guarda en
 	// caliente; Close cierra sessStop y hace el guardado final.
 	sessDirty atomic.Bool
@@ -379,12 +394,14 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 	case "ping", "status", "queue", "search", "scan":
 		// solo lectura: nada que reflejar
 	case "seek":
+		d.notifyMu.Lock()
 		if m, st := d.mprisState(); m != nil {
 			m.Update(st)
 			if resp.OK {
 				m.Seeked(int64(st.Position * 1e6))
 			}
 		}
+		d.notifyMu.Unlock()
 		d.wakeSubs()
 	default:
 		// Cualquier mutador puede haber cambiado la promesa de la cola (add
@@ -460,12 +477,15 @@ func (d *Daemon) mprisState() (*mpris.Service, *ipc.Status) {
 // notify refleja el estado actual en MPRIS, despierta a los suscriptores
 // IPC y marca la sesión para el guardado en caliente; los eventos de mpv que
 // no pasan por handle (pausa externa, fin de pista, ticks de posición)
-// llegan aquí vía el onChange del player.
+// llegan aquí vía el onChange del player. mprisState+Update van bajo
+// notifyMu: ver su comentario en el struct Daemon.
 func (d *Daemon) notify() {
 	d.learnDuration()
+	d.notifyMu.Lock()
 	if m, st := d.mprisState(); m != nil {
 		m.Update(st)
 	}
+	d.notifyMu.Unlock()
 	d.wakeSubs()
 	d.sessDirty.Store(true)
 }

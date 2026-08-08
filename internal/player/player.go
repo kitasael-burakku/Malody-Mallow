@@ -61,6 +61,14 @@ type Player struct {
 	loadGen    int64
 
 	loads int64 // loadfile replace emitidos; diagnóstico de gapless
+
+	// cbWG cuenta los callbacks onEnd/onChange en vuelo (van por `go`, fire-
+	// and-forget: en línea deadlockearían readLoop). Close los espera antes
+	// de devolver el control — sin esto, uno disparado justo antes del cierre
+	// podía seguir corriendo (y tocar la biblioteca del demonio vía
+	// learnDuration, que escribe fuera de d.mu a propósito) después de que el
+	// demonio ya hubiera cerrado la base.
+	cbWG sync.WaitGroup
 }
 
 type mpvReply struct {
@@ -248,9 +256,14 @@ func (p *Player) handleEvent(ev mpvEvent) {
 		}
 		p.mu.Unlock()
 		// Async como onEnd: en línea bloquearía readLoop, y con él las
-		// respuestas de mpv que el demonio pueda estar esperando.
+		// respuestas de mpv que el demonio pueda estar esperando. cbWG lo
+		// registra para que Close pueda esperarlo (ver el campo).
 		if changed && p.onChange != nil {
-			go p.onChange()
+			p.cbWG.Add(1)
+			go func() {
+				defer p.cbWG.Done()
+				p.onChange()
+			}()
 		}
 	case "end-file":
 		p.mu.Lock()
@@ -268,13 +281,21 @@ func (p *Player) handleEvent(ev mpvEvent) {
 		// su cuenta — la anexada por SetNext (nextPath sigue vigente: el
 		// espejo se invalida pero el valor no se pisa hasta otro SetNext).
 		if reason, next, ok := p.resolveEnd(); ok {
-			go p.onEnd(reason, next)
+			p.cbWG.Add(1)
+			go func() {
+				defer p.cbWG.Done()
+				p.onEnd(reason, next)
+			}()
 		}
 
 	case "idle":
 		// Desenlace contrario: no había nada que encadenar.
 		if reason, _, ok := p.resolveEnd(); ok {
-			go p.onEnd(reason, "")
+			p.cbWG.Add(1)
+			go func() {
+				defer p.cbWG.Done()
+				p.onEnd(reason, "")
+			}()
 		}
 	}
 }
@@ -579,6 +600,26 @@ func (p *Player) Close() {
 	case <-p.exited:
 	case <-time.After(2 * time.Second):
 		p.cmd.Process.Kill()
+	}
+
+	// Esperar los callbacks onEnd/onChange en vuelo (ver cbWG). p.mu ya está
+	// libre acá —se soltó arriba, antes del select— y tiene que seguir
+	// libre: el callback vuelve a entrar al player (SetVolume, etc.) y
+	// necesita el mismo mutex, así que esperar bajo p.mu deadlockearía.
+	// sync.WaitGroup no tiene espera con timeout propia, de ahí el select con
+	// un canal aparte: un callback colgado no debe convertir un `maly kill`
+	// en un cuelgue. Caso extremo aceptado: un Add() que arrancara ya
+	// empezada esta espera no quedaría cubierto — pero closed=true y
+	// conn.Close() ya cortaron readLoop antes de este punto, así que no hay
+	// más eventos generando callbacks nuevos.
+	waited := make(chan struct{})
+	go func() {
+		p.cbWG.Wait()
+		close(waited)
+	}()
+	select {
+	case <-waited:
+	case <-time.After(2 * time.Second):
 	}
 }
 

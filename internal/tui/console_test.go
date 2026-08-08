@@ -194,6 +194,28 @@ func TestExecConsoleUnknown(t *testing.T) {
 	}
 }
 
+// TestConsoleCommandsSonReales cierra el lazo de ConsoleCommands (ver su
+// comentario en console.go, y el test de paridad TestConsoleParityConCLI en
+// cmd/maly/commands_test.go): cada nombre de la lista tiene que ser
+// aceptado de verdad por el switch de execConsole, nunca caer en "comando
+// desconocido" — si no, la lista sería una tercera copia a mano sin ninguna
+// garantía real de que refleje el switch. Solo se llama a execConsole (sin
+// invocar el tea.Cmd que devuelva): ejecutarlo de verdad tocaría red o DB, y
+// lo único que hace falta comprobar es a qué case cayó el switch.
+func TestConsoleCommandsSonReales(t *testing.T) {
+	for _, name := range ConsoleCommands {
+		m := newConModel()
+		m.tree = buildTree(nil, nil) // "select" lo necesita (ver TestConsoleSelect)
+		wantUnknown := i18n.Tf("con.unknown", name)
+		m.execConsole(name)
+		for _, line := range m.conLines {
+			if strings.Contains(line, wantUnknown) {
+				t.Errorf("%q: ConsoleCommands lo lista, pero execConsole lo trata como comando desconocido", name)
+			}
+		}
+	}
+}
+
 // TestConsoleUsageErrors cubre las líneas que deben fallar en el parsing sin
 // llegar a tocar demonio ni DB (tea.Cmd nulo + mensaje en la consola).
 func TestConsoleUsageErrors(t *testing.T) {

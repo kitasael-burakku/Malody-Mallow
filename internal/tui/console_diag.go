@@ -219,6 +219,19 @@ func (m *Model) conDoctor() tea.Cmd {
 			checks = append(checks, diagCheck{diagOK, i18n.T("doc.lbl_library"), i18n.Tf("doc.lib_ok", tracks, playlists), nil})
 		}
 
+		// Espejo de checkKeys en cmd/maly/doctor.go: is() (tui.go) resuelve
+		// por igualdad de string, así que dos acciones en la misma tecla
+		// dejan una inalcanzable sin ningún error de carga que lo delate.
+		if conflicts := config.KeyConflicts(cfg.Keys); len(conflicts) == 0 {
+			checks = append(checks, diagCheck{diagOK, i18n.T("doc.lbl_keys"), i18n.T("doc.keys_ok"), nil})
+		} else {
+			cont := make([]string, len(conflicts))
+			for i, c := range conflicts {
+				cont[i] = i18n.Tf("doc.keys_conflict_line", c.Key, strings.Join(c.Actions, ", "))
+			}
+			checks = append(checks, diagCheck{diagWarn, i18n.T("doc.lbl_keys"), i18n.Tf("doc.keys_conflict", len(conflicts)), cont})
+		}
+
 		switch {
 		case !cfg.ScanDurations:
 			checks = append(checks, diagCheck{diagInfo, "ffprobe", i18n.T("doc.ffprobe_off"), nil})

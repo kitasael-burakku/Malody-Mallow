@@ -1064,8 +1064,9 @@ func (m *Model) visibleQueue() []int {
 			m.queueFolded[i] = library.Fold(t.Title + " " + t.Artist + " " + t.Album)
 		}
 	}
+	words := strings.Fields(q)
 	for i := range m.queue {
-		if containsAll(m.queueFolded[i], q) {
+		if containsAll(m.queueFolded[i], words) {
 			idx = append(idx, i)
 		}
 	}

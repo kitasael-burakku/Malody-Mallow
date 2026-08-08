@@ -413,6 +413,42 @@ func (c *Config) resolveKeys() {
 	c.Keys = keys
 }
 
+// KeyConflict es un grupo de acciones que terminaron mapeadas a la misma
+// tecla.
+type KeyConflict struct {
+	Key     string
+	Actions []string
+}
+
+// KeyConflicts agrupa las acciones que terminaron mapeadas a la misma tecla
+// tras el merge de resolveKeys. is() en la TUI (tui.go) hace
+// m.keys[action] == msg.String(): con dos acciones en la misma tecla, ambas
+// devuelven true y gana la que aparezca primero en el orden de los ifs — la
+// otra queda inalcanzable sin ningún error de carga ni aviso. Función pura
+// sobre el mapa ya resuelto (no cambia la firma de Load ni el criterio de
+// "degradar en silencio" del merge en sí): el llamador decide qué hacer con
+// el resultado (doctor lo reporta como warn).
+//
+// La salida va ordenada (por tecla, y las acciones dentro de cada grupo) —
+// la iteración de mapas en Go es aleatoria, y sin orden estable el mensaje
+// bailaría entre ejecuciones.
+func KeyConflicts(keys map[string]string) []KeyConflict {
+	byKey := map[string][]string{}
+	for action, k := range keys {
+		byKey[k] = append(byKey[k], action)
+	}
+	var out []KeyConflict
+	for k, actions := range byKey {
+		if len(actions) < 2 {
+			continue
+		}
+		sort.Strings(actions)
+		out = append(out, KeyConflict{Key: k, Actions: actions})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out
+}
+
 // Load lee el config; si no existe lo crea con los defaults.
 func Load() (cfg Config, retErr error) {
 	cfg = Default()

@@ -544,6 +544,44 @@ func TestReadTagsSaneaControles(t *testing.T) {
 	}
 }
 
+// TestScanTrackClampsTrackNoYear: track_no/year fuera de rango (negativo, o
+// por encima del techo de 4 dígitos) se guardan tal cual en el INTEGER de
+// SQLite —sin CHECK— y scanTrack es el punto único de salida que tiene que
+// clampearlos, igual que ya sanea el texto con safetext.Clean. Simula una
+// fila corrupta escribiendo directo por SQL (bypass de ReadTags): así se
+// cubre también el caso de una fila indexada por una versión anterior, que
+// Scan no vuelve a tocar por el guard de mtime.
+func TestScanTrackClampsTrackNoYear(t *testing.T) {
+	dir := fakeMusicDir(t, 1)
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	all, err := lib.All()
+	if err != nil || len(all) != 1 {
+		t.Fatalf("All: %d pistas, %v", len(all), err)
+	}
+
+	if _, err := lib.db.Exec(`UPDATE tracks SET track_no = -5, year = 99999 WHERE id = ?`, all[0].ID); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := lib.All()
+	if err != nil || len(got) != 1 {
+		t.Fatalf("All tras el UPDATE: %d pistas, %v", len(got), err)
+	}
+	if got[0].TrackNo != 0 {
+		t.Errorf("TrackNo negativo debía clampear a 0, salió %d", got[0].TrackNo)
+	}
+	if got[0].Year != 9999 {
+		t.Errorf("Year por encima del techo debía clampear a 9999, salió %d", got[0].Year)
+	}
+}
+
 // TestRemoveFromPlaylist: quitar por posición 1-based respeta el orden que
 // muestran show/export, valida el rango y funciona aunque queden huecos en
 // la columna pos tras borrados previos.
@@ -596,6 +634,81 @@ func TestRemoveFromPlaylist(t *testing.T) {
 	}
 	if _, err := lib.RemoveFromPlaylist("nada", 1); err == nil {
 		t.Fatal("playlist inexistente debe fallar")
+	}
+}
+
+// TestRemoveFromPlaylistConcurrent cierra la ventana TOCTOU: N goroutines
+// quitando la posición 1 a la vez de una playlist de N pistas únicas. Sin la
+// transacción (lectura del snapshot + DELETE por OFFSET como tres roundtrips
+// sueltos), CLI y demonio comparten la misma DB con SetMaxOpenConns(1), así
+// que entre el snapshot de una llamada y su DELETE otra puede colarse
+// completa: el rowid termina apuntando a una fila distinta de la que el
+// Track devuelto dice haber quitado, y el DELETE puede terminar siendo un
+// no-op sobre un rowid ya borrado. Con la transacción, cada llamada ve el
+// estado consistente que ella misma fijó y el resultado es N quitas
+// distintas, ninguna repetida, playlist vacía al final.
+func TestRemoveFromPlaylistConcurrent(t *testing.T) {
+	const n = 12
+	dir := fakeMusicDir(t, n)
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	all, err := lib.All()
+	if err != nil || len(all) != n {
+		t.Fatalf("All: %d pistas, %v", len(all), err)
+	}
+	if err := lib.CreatePlaylist("mix"); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]int64, n)
+	for i, tr := range all {
+		ids[i] = tr.ID
+	}
+	if err := lib.AddToPlaylist("mix", ids); err != nil {
+		t.Fatal(err)
+	}
+
+	var mu sync.Mutex
+	seen := map[int64]int{}
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start // arrancar todas lo más juntas posible
+			removed, err := lib.RemoveFromPlaylist("mix", 1)
+			if err != nil {
+				t.Errorf("remove concurrente: %v", err)
+				return
+			}
+			mu.Lock()
+			seen[removed.ID]++
+			mu.Unlock()
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if len(seen) != n {
+		t.Fatalf("se quitaron %d ids distintos, quería %d: %v", len(seen), n, seen)
+	}
+	for id, c := range seen {
+		if c != 1 {
+			t.Errorf("el id %d se reportó quitado %d veces, quería 1", id, c)
+		}
+	}
+	rest, err := lib.PlaylistTracks("mix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rest) != 0 {
+		t.Fatalf("quedaron %d pistas sin quitar tras %d remove concurrentes", len(rest), n)
 	}
 }
 

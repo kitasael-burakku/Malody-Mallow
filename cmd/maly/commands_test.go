@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"maly/internal/i18n"
+	"maly/internal/tui"
 )
 
 // TestUsageCabeEnColumna cubre el hallazgo C12 de la auditoría: la fila de
@@ -45,6 +46,38 @@ func TestHelpTextGetNoRompeAlineacion(t *testing.T) {
 	for _, line := range strings.Split(out, "\n") {
 		if strings.Contains(line, "get <url|query> | get playlist") {
 			t.Fatalf("la fila de get sigue documentando dos formas en una celda: %q", line)
+		}
+	}
+}
+
+// TestConsoleParityConCLI: cada comando real de la CLI (esta tabla, la
+// fuente única de verdad de cmd/maly) tiene que existir también en la
+// consola de la TUI (tui.ConsoleCommands, ver su comentario en
+// internal/tui/console.go) — salvo los tres que no tienen sentido dentro de
+// una paleta ya corriendo adentro de la propia TUI: "daemon" (levantar el
+// servicio desde dentro de sí misma), "completions" y "__complete" (soporte
+// de shell, no de la paleta). Sin esta red, un subcomando nuevo de la CLI
+// podía quedar cojo en la consola sin que nada lo note — el gap real que la
+// destapó fue "remove", cerrado junto con este test.
+//
+// La otra mitad de la red vive en internal/tui (TestConsoleCommandsSonReales):
+// verifica que cada nombre de ConsoleCommands es aceptado de verdad por el
+// switch de execConsole, para que esta lista no sea una tercera copia a mano
+// comparándose contra sí misma.
+func TestConsoleParityConCLI(t *testing.T) {
+	cliOnly := map[string]bool{"daemon": true, "completions": true, "__complete": true}
+
+	inConsole := map[string]bool{}
+	for _, name := range tui.ConsoleCommands {
+		inConsole[name] = true
+	}
+
+	for _, c := range commands {
+		if cliOnly[c.name] {
+			continue
+		}
+		if !inConsole[c.name] {
+			t.Errorf("%q existe en la CLI pero no en tui.ConsoleCommands — la consola de ctrl+p lo trataría como comando desconocido", c.name)
 		}
 	}
 }

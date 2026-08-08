@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -612,5 +613,35 @@ func TestConfigPrivate(t *testing.T) {
 	}
 	if di.Mode().Perm() != 0o700 {
 		t.Errorf("dir del config: %o, quería 0700", di.Mode().Perm())
+	}
+}
+
+// TestKeyConflictsSinColision: los defaults de fábrica (DefaultKeys) son
+// todos únicos, así que el estado limpio no debe reportar nada.
+func TestKeyConflictsSinColision(t *testing.T) {
+	if got := KeyConflicts(DefaultKeys()); len(got) != 0 {
+		t.Fatalf("defaults sin colisión reportaron: %+v", got)
+	}
+}
+
+// TestKeyConflictsAgrupaYOrdena: dos acciones en la misma tecla salen
+// agrupadas, con las acciones ordenadas dentro del grupo y los grupos
+// ordenados por tecla — la iteración de mapas en Go es aleatoria, así que sin
+// esto el test (y el mensaje real de doctor) bailarían entre corridas.
+func TestKeyConflictsAgrupaYOrdena(t *testing.T) {
+	keys := map[string]string{
+		"next":         "n",
+		"prev":         "n", // colisiona con next
+		"playlist_add": "a",
+		"add":          "a", // colisiona con playlist_add
+		"quit":         "q", // sin colisión
+	}
+	got := KeyConflicts(keys)
+	want := []KeyConflict{
+		{Key: "a", Actions: []string{"add", "playlist_add"}},
+		{Key: "n", Actions: []string{"next", "prev"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("KeyConflicts = %+v, quería %+v", got, want)
 	}
 }

@@ -176,3 +176,24 @@ func TestFlattenCachesFoldedText(t *testing.T) {
 		t.Fatalf("el cache no se repobló al tamaño nuevo de all: %d entradas", len(tr.folded))
 	}
 }
+
+// TestContainsAll cubre la firma con words ya partido (strings.Fields izado
+// por el llamador, ver el comentario de containsAll): multi-palabra, sin
+// match y query vacía (ningún Field, así que matchea cualquier hay).
+func TestContainsAll(t *testing.T) {
+	cases := []struct {
+		hay   string
+		words []string
+		want  bool
+	}{
+		{"ana beta uno", []string{"ana", "uno"}, true},
+		{"ana beta uno", []string{"ana", "gama"}, false},
+		{"ana beta uno", nil, true},
+		{"", []string{"ana"}, false},
+	}
+	for _, c := range cases {
+		if got := containsAll(c.hay, c.words); got != c.want {
+			t.Errorf("containsAll(%q, %v) = %v, quería %v", c.hay, c.words, got, c.want)
+		}
+	}
+}

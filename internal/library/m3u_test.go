@@ -223,3 +223,33 @@ func TestImportM3UErrors(t *testing.T) {
 		t.Error("importar un archivo inexistente debe fallar")
 	}
 }
+
+// TestImportM3UCotaTotal cierra el hueco de tamaño total: antes de este
+// arreglo, bufio.Scanner solo acotaba cada LÍNEA (64 KB por defecto), no el
+// archivo completo — un M3U corrupto de cientos de MB de líneas sin resolver
+// hacía crecer `ids`/`skipped` sin límite en memoria. Con el LimitReader, una
+// pista resoluble ANTES del corte de bytes se importa igual (corte suave, no
+// error), pero una pista resoluble DESPUÉS del corte no debe verse —eso es
+// lo que hace al test falsificable: sin el LimitReader ambas se resolverían.
+func TestImportM3UCotaTotal(t *testing.T) {
+	lib, tracks := m3uLib(t, 2)
+	dir := t.TempDir()
+
+	var b strings.Builder
+	b.WriteString("#EXTM3U\n")
+	b.WriteString(tracks[0].Path + "\n") // resoluble, ANTES del corte
+	line := "/no/existe/" + strings.Repeat("x", 200) + ".mp3\n"
+	for b.Len() < maxM3UBytes+len(line)*10 { // relleno que supera la cota con margen
+		b.WriteString(line)
+	}
+	b.WriteString(tracks[1].Path + "\n") // resoluble, DESPUÉS del corte: no debe verse
+	file := filepath.Join(dir, "grande.m3u")
+	if err := os.WriteFile(file, []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	added, _, err := lib.ImportM3U(file, "grande")
+	if err != nil || added != 1 {
+		t.Fatalf("ImportM3U con archivo grande = %d, %v; quería solo 1 pista (la de después del corte no debe verse)", added, err)
+	}
+}

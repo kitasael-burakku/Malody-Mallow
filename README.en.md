@@ -339,6 +339,7 @@ maly playlist delete <name>
 maly playlist export <name> [file]        # writes the playlist as M3U
 maly playlist import <file> [name]        # creates a playlist from an M3U
 maly controls [default|vim]    # lists or changes the controls preset
+maly logo [hex… | default]     # shows or sets the banner gradient colors
 maly lang [en|es]              # changes the language (no arg opens the selector); alias -l
 maly info                      # paths, versions and library size
 maly doctor                    # checks that everything maly needs is in place

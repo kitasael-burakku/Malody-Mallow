@@ -183,6 +183,57 @@ func TestConsoleScroll(t *testing.T) {
 	}
 }
 
+// TestConsoleScrollResetOnEnter cubre el hallazgo UX-N1 de la auditoría
+// técnica: si el usuario había hecho pgup para leer output viejo y luego
+// ejecutaba un comando nuevo, el resultado (y su eco) podían quedar fuera
+// de la vista sin ninguna señal de que el comando se ejecutó de verdad.
+func TestConsoleScrollResetOnEnter(t *testing.T) {
+	m := newConModel()
+	m.openConsole()
+	m.width, m.height = 80, 24
+	for i := 0; i < 40; i++ {
+		m.conPrint(fmt.Sprintf("linea %d", i))
+	}
+
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyPgUp})
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyPgUp})
+	if m.conScroll == 0 {
+		t.Fatal("setup: pgup debía mover el scroll")
+	}
+
+	m.conInput.SetValue("status")
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.conScroll != 0 {
+		t.Fatalf("conScroll = %d tras ejecutar un comando, quería 0 (vuelta al fondo)", m.conScroll)
+	}
+}
+
+// TestConsoleScrollHomeEnd cubre el hallazgo UX-N2: la consola solo tenía
+// pgup/pgdown (±5 líneas) para su scroll, sin atajo de salto al principio o
+// al final — a diferencia de la ayuda y las letras de "Ahora suena", que sí
+// lo tienen. ctrl+home/ctrl+end (no home/end sueltos: esos ya mueven el
+// cursor dentro del textinput activo de la consola).
+func TestConsoleScrollHomeEnd(t *testing.T) {
+	m := newConModel()
+	m.openConsole()
+	m.width, m.height = 80, 24
+	for i := 0; i < 40; i++ {
+		m.conPrint(fmt.Sprintf("linea %d", i))
+	}
+
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyCtrlHome})
+	out := m.consoleView()
+	if !strings.Contains(out, "linea 0 ") {
+		t.Fatalf("ctrl+home debía llevar al principio: %q", out)
+	}
+
+	m.handleConsoleKey(tea.KeyMsg{Type: tea.KeyCtrlEnd})
+	out = m.consoleView()
+	if !strings.Contains(out, "linea 39") {
+		t.Fatalf("ctrl+end debía volver al fondo: %q", out)
+	}
+}
+
 func TestExecConsoleUnknown(t *testing.T) {
 	m := newConModel()
 	_, cmd := m.execConsole("bogus")

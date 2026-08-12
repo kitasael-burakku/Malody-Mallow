@@ -226,6 +226,74 @@ func TestLoadGravityClamp(t *testing.T) {
 	}
 }
 
+// TestLoadInvalidColorsClamp cubre el hallazgo CFG-1 de la auditoría
+// técnica: Load() validaba BarsGravity y Theme.Logo tras el decode, pero no
+// los otros 8 campos de color (Theme.Accent/Border/Text/Dim/Playing/Error y
+// Visualizer.ColorLow/ColorHigh) — un config.toml con "accent = \"rojo\""
+// pasaba sin corrección mientras Logo sí se autocorregía. Theme.Error se
+// sumó después (UX-N3, color de error configurable) con la misma guarda.
+func TestLoadInvalidColorsClamp(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	toml := "[theme]\n" +
+		"accent = \"rojo\"\n" +
+		"border = \"no-hex\"\n" +
+		"text = \"\"\n" +
+		"dim = \"#zzzzzz\"\n" +
+		"playing = \"#12345\"\n" +
+		"error = \"morado\"\n" +
+		"[visualizer]\n" +
+		"color_low = \"azul\"\n" +
+		"color_high = \"#gggggg\"\n"
+	if err := os.WriteFile(path, []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	def := Default()
+	got := []struct {
+		name, val, want string
+	}{
+		{"Theme.Accent", cfg.Theme.Accent, def.Theme.Accent},
+		{"Theme.Border", cfg.Theme.Border, def.Theme.Border},
+		{"Theme.Text", cfg.Theme.Text, def.Theme.Text},
+		{"Theme.Dim", cfg.Theme.Dim, def.Theme.Dim},
+		{"Theme.Playing", cfg.Theme.Playing, def.Theme.Playing},
+		{"Theme.Error", cfg.Theme.Error, def.Theme.Error},
+		{"Visualizer.ColorLow", cfg.Visualizer.ColorLow, def.Visualizer.ColorLow},
+		{"Visualizer.ColorHigh", cfg.Visualizer.ColorHigh, def.Visualizer.ColorHigh},
+	}
+	for _, g := range got {
+		if g.val != g.want {
+			t.Errorf("%s = %q, quería el clamp al default %q", g.name, g.val, g.want)
+		}
+	}
+}
+
+// TestLoadValidColorsSurvive confirma que la guarda de CFG-1 no pisa un color
+// válido del usuario — solo debe corregir lo que de verdad esté mal formado.
+func TestLoadValidColorsSurvive(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	toml := "[theme]\naccent = \"#123456\"\n"
+	if err := os.WriteFile(path, []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme.Accent != "#123456" {
+		t.Fatalf("Theme.Accent = %q, se pisó un color válido", cfg.Theme.Accent)
+	}
+}
+
 // TestResolveMusicDirOrder: config → $XDG_MUSIC_DIR → user-dirs.dirs →
 // ~/Music, reportando el origen correcto en cada escalón.
 func TestResolveMusicDirOrder(t *testing.T) {

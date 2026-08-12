@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"net"
 	"path/filepath"
@@ -205,5 +206,109 @@ func TestDoInvalidResponse(t *testing.T) {
 	defer c.Close()
 	if _, err := c.Do(Request{Cmd: "status"}); err == nil {
 		t.Fatal("respuesta inválida debe reportar error")
+	}
+}
+
+// TestDoBoundedRead cubre el hallazgo SEC-01 de la auditoría técnica: antes,
+// c.r.ReadBytes('\n') era un bufio.Reader sin tope — un demonio (suplantado,
+// o con un bug futuro en su framing) que nunca manda un '\n' hacía crecer el
+// buffer del CLIENTE sin límite hasta agotar su memoria, que puede ser la
+// propia TUI en uso. El servidor real ya acota a 1 MiB (ver serve() en
+// internal/daemon); Do debe cortar con un error al toparse con lo mismo, en
+// vez de seguir leyendo indefinidamente.
+func TestDoBoundedRead(t *testing.T) {
+	sock := serve(t, func(conn net.Conn) {
+		defer conn.Close()
+		sc := bufio.NewScanner(conn)
+		sc.Buffer(make([]byte, 64*1024), 1024*1024)
+		if !sc.Scan() {
+			return
+		}
+		// Nunca se manda un '\n' y nunca se para de escribir: sin tope, esto
+		// crecería el lado del cliente sin límite hasta el Timeout de red (el
+		// caso que hay que distinguir de un corte rápido por tope superado).
+		// Termina solo cuando el cliente deja de leer y el Write falla.
+		chunk := bytes.Repeat([]byte("x"), 64*1024)
+		for {
+			if _, err := conn.Write(chunk); err != nil {
+				return
+			}
+		}
+	})
+	c, err := Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.Timeout = 5 * time.Second
+
+	start := time.Now()
+	if _, err := c.Do(Request{Cmd: "ping"}); err == nil {
+		t.Fatal("se esperaba un error: una respuesta sin '\\n' que supera el tope no debe leerse como válida")
+	}
+	if el := time.Since(start); el > 4*time.Second {
+		t.Fatalf("Do tardó %v: el tope debía cortar mucho antes del Timeout de red", el)
+	}
+}
+
+// TestDoRejectsTruncatedResponse cubre un hallazgo de la revisión posterior
+// a SEC-01: el bufio.ScanLines por defecto entrega el último fragmento sin
+// '\n' como token VÁLIDO al llegar a EOF — así que una respuesta JSON
+// completa pero cortada justo antes del delimitador (el demonio murió, o el
+// socket se cerró a mitad de un Write partido en dos syscalls) se leería
+// como una línea buena en vez de fallar. El bufio.Reader.ReadBytes('\n') de
+// antes SIEMPRE trataba esto como error; scanLinesStrict restaura ese
+// comportamiento.
+func TestDoRejectsTruncatedResponse(t *testing.T) {
+	sock := serve(t, func(conn net.Conn) {
+		defer conn.Close()
+		sc := bufio.NewScanner(conn)
+		if !sc.Scan() {
+			return
+		}
+		// JSON válido y completo, pero SIN el '\n' final.
+		conn.Write([]byte(`{"ok":true,"msg":"hola"}`))
+	})
+	c, err := Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if _, err := c.Do(Request{Cmd: "ping"}); err == nil {
+		t.Fatal("una respuesta sin '\\n' final no debe leerse como válida")
+	}
+}
+
+// TestDoAcceptsLargeLegitimateResponse cubre otro hallazgo de la misma
+// revisión: el cliente no puede capar las respuestas al mismo tope que el
+// servidor usa para las PETICIONES (1 MiB, tráfico bien distinto) —
+// "search"/"queue" mandan la biblioteca o cola COMPLETA sin tope propio a
+// propósito (ver CLAUDE.md, 1.1.5: capar esas dos rompía play/add en
+// silencio), y con una biblioteca grande esa respuesta ronda varios MB. 5
+// MiB está bien por encima del viejo tope (1 MiB) y bien por debajo del
+// actual (64 MiB).
+func TestDoAcceptsLargeLegitimateResponse(t *testing.T) {
+	bigMsg := strings.Repeat("x", 5<<20)
+	sock := serve(t, func(conn net.Conn) {
+		defer conn.Close()
+		sc := bufio.NewScanner(conn)
+		if !sc.Scan() {
+			return
+		}
+		data, _ := json.Marshal(Response{OK: true, Msg: bigMsg})
+		conn.Write(append(data, '\n'))
+	})
+	c, err := Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.Timeout = 5 * time.Second
+	resp, err := c.Do(Request{Cmd: "ping"})
+	if err != nil {
+		t.Fatalf("una respuesta legítima de 5 MiB no debe fallar: %v", err)
+	}
+	if len(resp.Msg) != len(bigMsg) {
+		t.Fatalf("Msg truncado: %d bytes, quería %d", len(resp.Msg), len(bigMsg))
 	}
 }

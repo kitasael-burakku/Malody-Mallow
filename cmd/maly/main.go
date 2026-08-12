@@ -317,6 +317,7 @@ func runScan(args []string) error {
 	// Segunda fase: las duraciones que los tags no traen. Opcional de
 	// verdad: sin ffprobe (o con la clave apagada) el escaneo termina aquí.
 	learned, dfailed := 0, 0
+	var dqerr error
 	if cfg.ScanDurations && probe.Available() {
 		var dprog func(int, int)
 		if isTTY(os.Stderr) {
@@ -329,7 +330,7 @@ func runScan(args []string) error {
 				fmt.Fprint(os.Stderr, "\r\033[K"+i18n.Tf("cli.scan_durations", done, total))
 			}
 		}
-		learned, dfailed, _ = lib.FillDurations(dir, probe.Duration, dprog)
+		learned, dfailed, dqerr = lib.FillDurations(dir, probe.Duration, dprog)
 		if dprog != nil {
 			fmt.Fprint(os.Stderr, "\r\033[K")
 		}
@@ -342,6 +343,13 @@ func runScan(args []string) error {
 	}
 	if dfailed > 0 {
 		fmt.Fprintln(os.Stderr, i18n.Tf("cli.dur_errs", dfailed))
+	}
+	if dqerr != nil {
+		// La consulta que arma los candidatos de FillDurations falló: antes
+		// se descartaba con `_ =` y la fase quedaba en "0 aprendidas, 0
+		// fallidas" sin ninguna pista de que ni siquiera pudo empezar
+		// (hallazgo PERF-01 de la auditoría técnica).
+		fmt.Fprintln(os.Stderr, i18n.Tf("cli.dur_query_failed", dqerr))
 	}
 	if total == 0 {
 		fmt.Println(i18n.Tf("cli.scan_empty", dir))

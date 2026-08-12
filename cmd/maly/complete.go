@@ -3,7 +3,6 @@ package main
 import (
 	_ "embed"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -323,12 +322,5 @@ func queuePositions(cur string) []string {
 // openLibraryIfExists abre la biblioteca solo si el archivo ya existe:
 // Open la crearía vacía, y un TAB no debe dejar residuos en $XDG_DATA_HOME.
 func openLibraryIfExists() (*library.Library, bool) {
-	if _, err := os.Stat(config.DBPath()); err != nil {
-		return nil, false
-	}
-	lib, err := openLibrary()
-	if err != nil {
-		return nil, false
-	}
-	return lib, true
+	return library.OpenIfExists(config.DBPath())
 }

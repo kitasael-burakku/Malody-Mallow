@@ -109,6 +109,11 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if line == "" {
 			return m, nil
 		}
+		// Volver siempre al fondo al ejecutar un comando nuevo: si el
+		// usuario había hecho pgup para leer output viejo, el resultado de
+		// ESTE comando (y su eco) podía quedar fuera de la vista sin
+		// ninguna señal de que se ejecutó (hallazgo UX-N1 de la auditoría).
+		m.conScroll = 0
 		m.conPrint(m.st.accent.Render("❯ ") + m.st.text.Render(line))
 		m.conHistory = append(m.conHistory, line)
 		if len(m.conHistory) > conHistMax {
@@ -149,6 +154,19 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.conScroll < 0 {
 			m.conScroll = 0
 		}
+		return m, nil
+	case "ctrl+home":
+		// "home"/"end" sueltos no sirven acá: la consola tiene un textinput
+		// activo (m.conInput) y esas teclas ya mueven el cursor dentro del
+		// comando que se está escribiendo — ctrl+home/ctrl+end, como sugiere
+		// la propia auditoría, no chocan con eso. Valor a propósito más
+		// grande que cualquier maxScroll real: el propio render() lo acota
+		// (ver su "if m.conScroll > maxScroll"), así que no hace falta
+		// duplicar acá el cálculo de maxRows/ancho.
+		m.conScroll = len(m.conLines)
+		return m, nil
+	case "ctrl+end":
+		m.conScroll = 0
 		return m, nil
 	}
 	var cmd tea.Cmd

@@ -37,19 +37,31 @@ func (m *Model) handleLangKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.langCursor++
 		}
 	case "enter":
-		code := langOptions[m.langCursor].code
-		i18n.Set(code)
-		m.cfg.Language = code
-		m.filterInput.Placeholder = i18n.T("tui.filter_ph")
-		m.langOpen = false
-		if err := config.SaveLanguage(code); err != nil {
-			m.setFlash(err.Error(), true)
-		}
-		// Recargar la biblioteca para que las etiquetas "(desconocido)" etc.
-		// se generen en el idioma elegido.
-		return m, loadLibrary
+		return m, m.chooseLang(langOptions[m.langCursor].code)
+	case "esc":
+		// Salir sin elegir no debe tragarse la tecla en silencio ni dejar
+		// Language en "" para siempre (reabriría este selector en cada
+		// arranque): se queda con el idioma YA activo —el que detectó
+		// envLangHint() en main.go antes de llegar acá, o el fallback si no
+		// detectó nada— igual que si se hubiera confirmado con enter
+		// (hallazgo UX-N6 de la auditoría técnica).
+		return m, m.chooseLang(i18n.Code())
 	}
 	return m, nil
+}
+
+// chooseLang fija y persiste el idioma elegido (por enter o por esc) y
+// recarga la biblioteca para que las etiquetas "(desconocido)" etc. se
+// generen en el idioma correcto.
+func (m *Model) chooseLang(code string) tea.Cmd {
+	i18n.Set(code)
+	m.cfg.Language = code
+	m.filterInput.Placeholder = i18n.T("tui.filter_ph")
+	m.langOpen = false
+	if err := config.SaveLanguage(code); err != nil {
+		m.setFlash(err.Error(), true)
+	}
+	return loadLibrary
 }
 
 func (m *Model) langView() string {

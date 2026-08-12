@@ -22,58 +22,69 @@ import (
 // ventana con la promesa siguiente. chained es la entrada que el player
 // tenía anexada al terminar la pista ("" = ninguna): mpv encadena a ella.
 func (d *Daemon) advance(reason, chained string) {
-	d.mu.Lock()
-	if reason == "error" {
-		if d.stopped {
-			// Eco de una entrada que seguía en vuelo cuando paramos a
-			// propósito: ni cuenta para la racha ni rearranca nada.
-			d.mu.Unlock()
-			return
-		}
-		if t, ok := d.q.Current(); ok {
-			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.track_failed", t))
-		}
-		d.errStreak++
-		if d.errStreak >= d.q.Len() {
-			// Una pasada entera sin nada reproducible (o cola ya vacía):
-			// detenerse; seguir saltando ciclaría para siempre con repeat
-			// all. Stop además vacía la playlist de mpv, cortando una
-			// entrada anexada que estuviera por fallar igual.
-			d.errStreak = 0
-			d.stopped = true
-			d.pl.Stop()
-			d.mu.Unlock()
-			fmt.Fprintln(os.Stderr, "maly: "+i18n.T("d.queue_failed"))
-			d.notify()
-			return
-		}
-	} else {
-		d.errStreak = 0
-	}
+	// El cuerpo bajo d.mu va en una función inmediata con defer (no
+	// Lock/Unlock a mano, que tenía tres salidas distintas): esto corre
+	// desde el callback onEnd/onChange del player, que ahora se protege con
+	// recover en player.go — pero recover solo evita que el proceso muera,
+	// no restaura un mutex que un panic a mitad de este cuerpo hubiera
+	// dejado tomado. skipNotify replica exactamente los tres desenlaces
+	// originales (eco tras stop = sin notify; racha agotada = notify sin
+	// syncWindowLocked; camino normal = ambos).
+	skipNotify := func() bool {
+		d.mu.Lock()
+		defer d.mu.Unlock()
 
-	if t, ok := d.q.PeekNext(); ok && chained == t.Path {
-		// mpv está encadenando a la promesa anexada (gapless): solo
-		// confirmar el avance en la cola, sin tocar la reproducción.
-		d.q.Next(true)
-	} else if chained == "" && !d.stopped {
-		// No había nada anexado (fin de cola, o el append falló): mpv quedó
-		// idle; cargar a mano, como antes de gapless. pl.Load directo y NO
-		// loadLocked: una carga de salto no abre pasada nueva o la racha se
-		// resetearía a cada intento y la guarda jamás cortaría el ciclo.
-		if t, ok := d.q.Next(true); ok {
-			if err := d.pl.Load(t.Path); err != nil {
-				// mpv no contestó (murió, socket roto): sin end-file que
-				// reintente, se deja constancia.
-				fmt.Fprintf(os.Stderr, "maly: %s: %v\n", i18n.Tf("d.track_failed", t), err)
+		if reason == "error" {
+			if d.stopped {
+				// Eco de una entrada que seguía en vuelo cuando paramos a
+				// propósito: ni cuenta para la racha ni rearranca nada.
+				return true
+			}
+			if t, ok := d.q.Current(); ok {
+				fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.track_failed", t))
+			}
+			d.errStreak++
+			if d.errStreak >= d.q.Len() {
+				// Una pasada entera sin nada reproducible (o cola ya vacía):
+				// detenerse; seguir saltando ciclaría para siempre con repeat
+				// all. Stop además vacía la playlist de mpv, cortando una
+				// entrada anexada que estuviera por fallar igual.
+				d.errStreak = 0
+				d.stopped = true
+				d.pl.Stop()
+				fmt.Fprintln(os.Stderr, "maly: "+i18n.T("d.queue_failed"))
+				return false
+			}
+		} else {
+			d.errStreak = 0
+		}
+
+		if t, ok := d.q.PeekNext(); ok && chained == t.Path {
+			// mpv está encadenando a la promesa anexada (gapless): solo
+			// confirmar el avance en la cola, sin tocar la reproducción.
+			d.q.Next(true)
+		} else if chained == "" && !d.stopped {
+			// No había nada anexado (fin de cola, o el append falló): mpv quedó
+			// idle; cargar a mano, como antes de gapless. pl.Load directo y NO
+			// loadLocked: una carga de salto no abre pasada nueva o la racha se
+			// resetearía a cada intento y la guarda jamás cortaría el ciclo.
+			if t, ok := d.q.Next(true); ok {
+				if err := d.pl.Load(t.Path); err != nil {
+					// mpv no contestó (murió, socket roto): sin end-file que
+					// reintente, se deja constancia.
+					fmt.Fprintf(os.Stderr, "maly: %s: %v\n", i18n.Tf("d.track_failed", t), err)
+				}
 			}
 		}
+		// else: lo anexado ya no es la promesa — un comando mutó la cola (y
+		// cargó/realineó) entre el fin de pista y este punto; avanzar además
+		// saltearía una pista.
+		d.syncWindowLocked()
+		return false
+	}()
+	if !skipNotify {
+		d.notify()
 	}
-	// else: lo anexado ya no es la promesa — un comando mutó la cola (y
-	// cargó/realineó) entre el fin de pista y este punto; avanzar además
-	// saltearía una pista.
-	d.syncWindowLocked()
-	d.mu.Unlock()
-	d.notify()
 }
 
 // syncWindowLocked alinea la entrada anexada de mpv (la ventana gapless)
@@ -165,20 +176,26 @@ func (d *Daemon) seek(lang, val string) error {
 // completando a medida que suena música. La copia en memoria de la cola
 // hace que solo se escriba una vez por pista.
 func (d *Daemon) learnDuration() {
-	d.mu.Lock()
-	st := d.pl.State()
-	t, ok := d.q.Current()
-	if !ok || st.Idle || st.Duration <= 0 || abs(t.Duration-st.Duration) < 0.5 {
-		d.mu.Unlock()
+	// Función inmediata con defer en vez de Lock/Unlock a mano (mismo motivo
+	// que advance(): esto corre desde el callback onChange del player).
+	path, secs, ok := func() (string, float64, bool) {
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		st := d.pl.State()
+		t, ok := d.q.Current()
+		if !ok || st.Idle || st.Duration <= 0 || abs(t.Duration-st.Duration) < 0.5 {
+			return "", 0, false
+		}
+		for i := range d.q.Items {
+			if d.q.Items[i].Path == t.Path {
+				d.q.Items[i].Duration = st.Duration
+			}
+		}
+		return t.Path, st.Duration, true
+	}()
+	if !ok {
 		return
 	}
-	for i := range d.q.Items {
-		if d.q.Items[i].Path == t.Path {
-			d.q.Items[i].Duration = st.Duration
-		}
-	}
-	path, secs := t.Path, st.Duration
-	d.mu.Unlock()
 
 	// La escritura va FUERA de d.mu: era la única del demonio que corría con el
 	// mutex tomado, y encima se dispara en cada cambio de pista. Soltar antes no

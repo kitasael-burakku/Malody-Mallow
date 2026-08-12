@@ -42,13 +42,32 @@ func newStyles(t config.Theme) styles {
 	s.dim = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Dim))
 	s.accent = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Accent))
 	s.playing = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Playing))
-	s.errSt = lipgloss.NewStyle().Foreground(lipgloss.Color("#f38ba8"))
+	s.errSt = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Error))
 	s.border = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Border))
 	s.borderFocus = s.accent
 	s.title = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Dim)).Bold(true)
 	s.titleFocus = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Accent)).Bold(true)
-	s.selected = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Accent)).Bold(true).Reverse(true)
+	// Fondo y texto EXPLÍCITOS en vez de Reverse(true): Reverse deja que el
+	// terminal decida qué queda de "fondo" (lo que sea que tuviera puesto
+	// como bg, casi siempre el suyo propio) — con un accent de luminancia
+	// media sobre un terminal de tema claro, el texto podía quedar casi
+	// ilegible (hallazgo UX-N3 de la auditoría). selectedFg calcula negro o
+	// blanco según el propio accent, así el contraste no depende del
+	// terminal del usuario.
+	s.selected = lipgloss.NewStyle().Foreground(selectedFg(t.Accent)).Background(lipgloss.Color(t.Accent)).Bold(true)
 	return s
+}
+
+// selectedFg elige negro o blanco como texto sobre bg (fórmula YIQ estándar
+// de contraste percibido), para que la fila seleccionada sea legible sea
+// cual sea el accent configurado.
+func selectedFg(bg string) lipgloss.Color {
+	c := parseHex(bg)
+	yiq := (c[0]*299 + c[1]*587 + c[2]*114) / 1000
+	if yiq >= 128 {
+		return lipgloss.Color("#1e1e2e")
+	}
+	return lipgloss.Color("#ffffff")
 }
 
 // clip corta una cadena SIN estilos a w celdas (respeta caracteres anchos).

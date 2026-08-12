@@ -211,6 +211,22 @@ func (p *Player) readLoop() {
 	close(p.done)
 }
 
+// safeCall ejecuta fn recuperando cualquier panic. onEnd/onChange (el
+// demonio: d.advance/d.notify) corren en su propia goroutine —ver el
+// comentario de cbWG— disparados por eventos reales de mpv (fin de pista,
+// cambio de estado) durante la reproducción normal, no solo bajo petición
+// explícita de un cliente; sin este recover, un panic ahí no lo cubre nada
+// más (el switch de dispatch() sí se protege en el demonio, pero este
+// camino no pasa por dispatch) y tumba el proceso ENTERO.
+func safeCall(fn func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("player.panic_recovered", r))
+		}
+	}()
+	fn()
+}
+
 func (p *Player) handleEvent(ev mpvEvent) {
 	switch ev.Event {
 	case "property-change":
@@ -262,7 +278,7 @@ func (p *Player) handleEvent(ev mpvEvent) {
 			p.cbWG.Add(1)
 			go func() {
 				defer p.cbWG.Done()
-				p.onChange()
+				safeCall(p.onChange)
 			}()
 		}
 	case "end-file":
@@ -284,7 +300,7 @@ func (p *Player) handleEvent(ev mpvEvent) {
 			p.cbWG.Add(1)
 			go func() {
 				defer p.cbWG.Done()
-				p.onEnd(reason, next)
+				safeCall(func() { p.onEnd(reason, next) })
 			}()
 		}
 
@@ -294,7 +310,7 @@ func (p *Player) handleEvent(ev mpvEvent) {
 			p.cbWG.Add(1)
 			go func() {
 				defer p.cbWG.Done()
-				p.onEnd(reason, "")
+				safeCall(func() { p.onEnd(reason, "") })
 			}()
 		}
 	}

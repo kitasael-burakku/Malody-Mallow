@@ -26,7 +26,7 @@ func TestFold(t *testing.T) {
 
 // fakeMusicDir crea n archivos .mp3 dummy repartidos en subcarpetas; los tags
 // no se pueden leer y el título sale del nombre, suficiente para indexar.
-func fakeMusicDir(t *testing.T, n int) string {
+func fakeMusicDir(t testing.TB, n int) string {
 	t.Helper()
 	dir := t.TempDir()
 	for i := 0; i < n; i++ {
@@ -873,6 +873,42 @@ func TestAddToPlaylistAtomic(t *testing.T) {
 
 // TestOpenDirPrivate: el directorio de la base nace 0700; el db/-wal/-shm
 // de dentro quedan cubiertos por él.
+// TestOpenIfExistsDoesNotCreate cubre el hallazgo UX-N5 de la auditoría
+// técnica: OpenIfExists se extrajo de cmd/maly (donde ya lo usaban info/
+// doctor/completions) a este paquete para que internal/tui/select.go
+// también pudiera usarlo — Open crearía la base vacía, y un comando de
+// solo lectura no debe fabricar el estado que está a punto de reportar
+// como "biblioteca vacía".
+func TestOpenIfExistsDoesNotCreate(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "data", "library.db")
+
+	lib, ok := OpenIfExists(dbPath)
+	if ok || lib != nil {
+		t.Fatalf("OpenIfExists() sin DB = ok=%v lib=%v, quería ok=false lib=nil", ok, lib)
+	}
+	if _, err := os.Stat(dbPath); err == nil {
+		t.Fatal("OpenIfExists() dejó creada la base de datos")
+	}
+}
+
+// TestOpenIfExistsOpensReal: con la base ya creada, OpenIfExists debe
+// abrirla sin problema (mismo par que TestOpenIfExistsDoesNotCreate).
+func TestOpenIfExistsOpensReal(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "data", "library.db")
+
+	created, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open() (setup): %v", err)
+	}
+	created.Close()
+
+	lib, ok := OpenIfExists(dbPath)
+	if !ok || lib == nil {
+		t.Fatalf("OpenIfExists() con DB existente = ok=%v lib=%v, quería ok=true", ok, lib)
+	}
+	lib.Close()
+}
+
 func TestOpenDirPrivate(t *testing.T) {
 	dbDir := filepath.Join(t.TempDir(), "data")
 	lib, err := Open(filepath.Join(dbDir, "library.db"))

@@ -113,6 +113,38 @@ func TestParseLRCSaneaControles(t *testing.T) {
 	}
 }
 
+// FuzzParseLRC cubre el hallazgo TEST-2 de la auditoría técnica: ParseLRC es
+// un parser hecho a mano sobre texto verdaderamente ajeno (sidecar .lrc
+// compartido, o USLT embebido en un mp3 de terceros), y es el candidato más
+// claro del repo para fuzzing — ya hay precedente de bugs de este tipo
+// encontrados solo con auditoría manual (el buffer de 1 MB de acá mismo, el
+// límite de 8 MB de ImportM3U). Semillas tomadas de los casos ya cubiertos
+// arriba: timed, plano, offset, metadata, BOM/CRLF, marcas de palabra,
+// control chars y el "acotado". El fuzzer no verifica un resultado
+// concreto, solo que ninguna entrada haga panicar al parser.
+func FuzzParseLRC(f *testing.F) {
+	seeds := []string{
+		"\uFEFF[ar:Alguien]\n[offset:+500]\r\n[00:12.00]Primera línea\n[00:20]Segunda <00:21.00>con <00:22.50>palabras\n[01:03.5][00:30:25]Coro repetido\n[00:45.123]\ncréditos sueltos sin marca\n",
+		"Letra sin marcas\n\nsegunda estrofa\n",
+		"[offset:2000]\n[00:01.00]casi al inicio\n",
+		"[00:01.00]hola\x1b[31mmundo\n[00:02.50]otra\x07linea\n",
+		"solo\x1b]0;HACK\x07texto\n",
+		"[0:0]sin fraccion\n",
+		"[999:59.999]\n",
+		"[ti:]\n[ar:]\n",
+		"",
+		"\x00\x01\x02",
+		"[00:01.00]",
+		"[00:01.00][00:02.00][00:03.00]misma línea, varias marcas\n",
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+	f.Fuzz(func(t *testing.T, s string) {
+		ParseLRC(strings.NewReader(s))
+	})
+}
+
 // Un .lrc corrupto de cientos de MB junto a una pista se materializaba entero
 // como []LyricLine y congelaba la TUI al abrir ctrl+t: el buffer del Scanner
 // acota la LÍNEA, no cuántas hay.

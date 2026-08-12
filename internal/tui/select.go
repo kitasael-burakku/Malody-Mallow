@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,6 +22,21 @@ func RunSelect(cfg config.Config) error {
 	sock := config.SocketPath()
 	if !ipc.Ping(sock) {
 		return errors.New(i18n.T("cli.no_daemon"))
+	}
+	// Se comprueba que el archivo exista ANTES de abrir: library.Open lo
+	// crearía vacío, y un comando de solo lectura no debe fabricar el
+	// estado que está a punto de reportar como "biblioteca vacía" (hallazgo
+	// UX-N5 de la auditoría técnica). A propósito NO se usa
+	// library.OpenIfExists acá: esa función (pensada para completions/
+	// diagnóstico, donde cualquier fallo se trata igual como "no hay nada
+	// que mostrar") conflaría "no existe" con "existe pero Open() falló"
+	// (DB corrupta, bloqueada, sin permisos) — y a un comando interactivo
+	// como este, decirle al usuario "biblioteca vacía, corré maly scan"
+	// cuando el problema real es otro sería un remedio equivocado. Acá SÍ
+	// interesa que un fallo real de Open() siga devolviendo su error tal
+	// cual, como ya hacía antes de este fix.
+	if _, err := os.Stat(config.DBPath()); err != nil {
+		return errors.New(i18n.T("tui.lib_empty_flash"))
 	}
 	lib, err := library.Open(config.DBPath())
 	if err != nil {

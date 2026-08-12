@@ -49,9 +49,10 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 	// no las traen). Sigue fuera de d.mu y con la misma atómica scanning,
 	// así que un scan concurrente sigue rebotando con d.scan_busy.
 	learned, dfailed := 0, 0
+	var dqerr error
 	if d.cfg.ScanDurations && probe.Available() {
 		d.scanSeen.Store(0)
-		learned, dfailed, _ = d.lib.FillDurations(dir, probe.Duration, func(done, total int) {
+		learned, dfailed, dqerr = d.lib.FillDurations(dir, probe.Duration, func(done, total int) {
 			d.scanSeen.Store(int64(done))
 			d.scanTotal.Store(int64(total))
 			d.wakeSubs()
@@ -75,6 +76,14 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 		// caso normal y ruidoso: solo el conteo, sin volcar rutas al stderr
 		// como hace el indexado.
 		msg += i18n.TLf(lang, "d.dur_errs", dfailed)
+	}
+	if dqerr != nil {
+		// La consulta que arma los candidatos de FillDurations falló (DB
+		// bloqueada, corrupta, I/O): antes esto se descartaba con `_ =` y la
+		// fase quedaba en "0 aprendidas, 0 fallidas" sin ninguna pista de
+		// que ni siquiera pudo empezar (hallazgo PERF-01 de la auditoría
+		// técnica).
+		msg += i18n.TLf(lang, "d.dur_query_failed", dqerr)
 	}
 	if len(res.Errors) > 0 {
 		// Vía IPC los errores por archivo no viajan (serían cientos de

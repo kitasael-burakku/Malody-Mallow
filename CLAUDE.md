@@ -1312,6 +1312,68 @@ verificado en ambas direcciones, misma disciplina que la 1.12.0. Los
 cambios de solo texto (labels revertidos, `con.help_local` recortado, el
 tope de `pickerWidth`) no llevan test dedicado.
 
+Sobre 1.12.1, sin bump de versión: la **auditoría técnica del 2026-08-08**
+(commit `5f10d3f`) cierra 23 hallazgos propios en dos tandas seguidas —la
+primera ataca los 2 importantes y 4 moderados, la segunda los 8 menores
+accionables; los 6 restantes (incluidos los 4 de oportunidad) se cierran
+solo con razonamiento, sin código, por ser abstracción especulativa o la
+regresión que la propia auditoría advierte evitar.
+
+**Tanda 1 — importantes y moderados.** `RemoveFromPlaylist` pasa a
+transaccional: cerraba una ventana TOCTOU real entre el snapshot de la
+playlist y el DELETE por offset. `Player.Close` espera los callbacks
+`onEnd`/`onChange` en vuelo (`cbWG`) antes de devolver el control, para que
+el demonio no cierre la biblioteca mientras uno sigue escribiendo
+(`learnDuration`). `containsAll` ya no reparte `strings.Fields` por fila en
+cada render/tecla de filtro. `config.KeyConflicts` detecta acciones de
+`[keys]` mapeadas a la misma tecla; se reporta como warn en `maly doctor` y
+su espejo de la TUI. `console_diag.go` (info/doctor/config de la paleta
+ctrl+p) tenía cero tests pese a ser la mayor pieza duplicada del proyecto.
+Una red de paridad consola↔CLI (`ConsoleCommands` + dos tests que se
+verifican entre sí) destapó un gap real: `remove <pos>` existía en la CLI y
+no en la consola.
+
+**Tanda 2 — menores.** `notifyMu` serializa `notify()` en el demonio: sin
+él, dos goroutines de `player.onChange` concurrentes podían empujar a MPRIS
+en un orden distinto al de los eventos reales (Position momentáneamente
+retrocedida). El `mpris:trackid` de pistas sin ID de biblioteca usa un hash
+fnv de la ruta en vez de `QueueIndex`: reordenar la cola ya no dispara un
+"cambio de canción" espurio en playerctl/Waybar. `ipc.Client` documenta que
+no es seguro para uso concurrente. Ambos README suman la fila de `maly
+logo`, ausente desde la 1.12.0. `ImportM3U` acota el archivo a 8 MB con
+`io.LimitReader`, mismo patrón que ya usa `internal/media/lrc.go` para el
+mismo bug. `TrackNo`/`Year` se clampean a `[0, 9999]` en `scanTrack`, el
+punto único de salida de la biblioteca (mismo criterio que ya aplica
+`safetext.Clean` a los campos de texto ahí mismo). `Library.Scan` se parte
+en `loadKnownMtimes`/`flushBatch`/`purgeGone` — extracción mecánica, sin
+cambio de firma pública ni de comportamiento (verificado: ningún símbolo
+nuevo es exportado).
+
+Cada arreglo con lógica o estado nuevo se verificó en ambas direcciones. `go
+build`, `go vet` y `go test ./...` limpios sin ningún SKIP; `go test -race`
+limpio en `daemon`/`mpris`/`library`/`player`.
+
+Sobre este mismo punto del repo, una **segunda auditoría técnica integral**
+(seguridad, arquitectura, concurrencia, rendimiento, TUI/UX, robustez,
+configuración, systemd, distribución, código Go, testing y documentación —
+informe aparte, `~/Audits/MalyAu/`) confirmó que ninguno de los 23
+hallazgos de arriba quedaba pendiente, y no encontró nada por encima de
+MEDIUM: el modelo de amenaza (mismo UID = mismo nivel de confianza) sigue
+siendo correcto, sin inyección de comandos, path traversal explotable ni
+SQL injection en ningún punto. El hallazgo de mayor prioridad práctica que
+dejó fue justamente que este roadmap no mencionaba el commit `5f10d3f` —el
+motivo del párrafo de arriba—, seguido de un puñado de MEDIUM concretos
+(recover() en el demonio, cota de lectura del cliente IPC, tope de
+suscriptores simultáneos) y una cola de LOW/INFO (validación de colores del
+tema, sincronía de README, fuzzing/benchmarks persistentes, hardening de
+systemd). A diferencia del párrafo de arriba, estos SÍ tocan código
+compilado (`daemon.go`, `ipc.go`, `config.go`, `player.go` entre otros) en
+cuanto se implementan — no son "sin bump de versión" como la mera
+documentación del `5f10d3f`. La entrada de roadmap correspondiente, con su
+propio bump de versión siguiendo la convención de todo el resto de este
+archivo, se agrega cuando esa tanda quede cerrada y lista para publicarse,
+no en este párrafo intermedio.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

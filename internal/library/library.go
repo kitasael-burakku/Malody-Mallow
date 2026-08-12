@@ -90,6 +90,24 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 CREATE INDEX IF NOT EXISTS idx_pl_tracks ON playlist_tracks(playlist_id, pos);
 `
 
+// OpenIfExists abre la biblioteca solo si el archivo ya existe: Open la
+// crearía vacía, y un comando de solo lectura (completions, "info"/
+// "doctor", "select") no debe dejar residuos en $XDG_DATA_HOME ni
+// diagnosticarse a sí mismo reportando una biblioteca vacía que él mismo
+// fabricó. Vive acá (no en cmd/maly, donde nació) porque internal/tui
+// también lo necesita (RunSelect, hallazgo UX-N5 de la auditoría) y no
+// puede importar cmd/maly (package main).
+func OpenIfExists(dbPath string) (*Library, bool) {
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil, false
+	}
+	lib, err := Open(dbPath)
+	if err != nil {
+		return nil, false
+	}
+	return lib, true
+}
+
 // Open abre (o crea) la base de datos en dbPath.
 func Open(dbPath string) (*Library, error) {
 	// 0700: la biblioteca revela hábitos de escucha.

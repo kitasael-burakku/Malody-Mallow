@@ -98,6 +98,11 @@ type Daemon struct {
 	// desmontarse— seguía leyéndolo, y el race detector lo cazaba entre
 	// tests aunque cada uno usara su propio Daemon.
 	idleTimeout time.Duration
+
+	// maxSubscribers acota las conexiones simultáneas en modo push (ver
+	// subscribe). Campo de instancia por el mismo motivo que idleTimeout: un
+	// test lo baja para no tener que abrir decenas de conexiones reales.
+	maxSubscribers int
 }
 
 // subscriber es una conexión en modo push. dirty tiene capacidad 1: una
@@ -147,8 +152,12 @@ func New(cfg config.Config) (*Daemon, error) {
 	// resto de lo que vive en el runtime dir (lock, mpv.sock, art/): un
 	// umask laxo del usuario lo dejaría 0777. El dir 0700 ya es la frontera
 	// real, pero el socket es control total del reproductor y no cuesta
-	// nada apretarlo también.
-	os.Chmod(sock, 0o600)
+	// nada apretarlo también. Si falla, es defensa en profundidad que se
+	// pierde en silencio — no fatal (el dir 0700 sigue siendo la frontera
+	// real), pero se avisa para que no pase inadvertido.
+	if err := os.Chmod(sock, 0o600); err != nil {
+		fmt.Fprintf(os.Stderr, "maly: %v\n", err)
+	}
 	closeLn := func() {
 		os.Remove(sock)
 		ln.Close()
@@ -160,14 +169,15 @@ func New(cfg config.Config) (*Daemon, error) {
 		return failed(err)
 	}
 	d := &Daemon{
-		cfg:         cfg,
-		lib:         lib,
-		q:           queue.New(),
-		ln:          ln,
-		lock:        lock,
-		subs:        map[*subscriber]struct{}{},
-		sessStop:    make(chan struct{}),
-		idleTimeout: defaultIdleTimeout,
+		cfg:            cfg,
+		lib:            lib,
+		q:              queue.New(),
+		ln:             ln,
+		lock:           lock,
+		subs:           map[*subscriber]struct{}{},
+		sessStop:       make(chan struct{}),
+		idleTimeout:    defaultIdleTimeout,
+		maxSubscribers: defaultMaxSubscribers,
 	}
 	d.libGen.Store(1) // 0 queda reservado a demonios sin soporte (omitempty)
 
@@ -304,23 +314,57 @@ func (d *Daemon) serve(conn net.Conn) {
 			// Como subscribe, se intercepta antes de handle: la respuesta
 			// debe salir antes de que Close tumbe listener y conexiones, y
 			// dentro de dispatch el Close deadlockearía con d.mu.
-			resp = ipc.Response{OK: true, Msg: i18n.TL(req.Lang, "d.bye"), Version: version.Version}
-			data, _ := json.Marshal(resp)
-			conn.SetWriteDeadline(time.Now().Add(serveWriteTimeout))
-			conn.Write(append(data, '\n'))
+			writeResponse(conn, ipc.Response{OK: true, Msg: i18n.TL(req.Lang, "d.bye")})
 			d.Close()
 			return
 		} else {
+			// handle() ya se protege a sí mismo con recover (ver su
+			// comentario): cubre este camino y también a Do()/MPRIS.
 			resp = d.handle(req)
 		}
-		resp.Version = version.Version
-		data, _ := json.Marshal(resp)
-		conn.SetWriteDeadline(time.Now().Add(serveWriteTimeout))
-		if _, err := conn.Write(append(data, '\n')); err != nil {
+		if err := writeResponse(conn, resp); err != nil {
 			return
 		}
 	}
 }
+
+// writeResponse sella Version y escribe resp con el mismo deadline en todos
+// los call sites de serve()/subscribe(). Factorizado para que ningún sitio
+// nuevo pueda repetir el hallazgo que motivó esto: el rechazo por tope de
+// suscriptores se armaba a mano y se olvidaba de poner Version, rompiendo el
+// invariante "el demonio adjunta Response.Version en toda respuesta".
+func writeResponse(conn net.Conn, resp ipc.Response) error {
+	resp.Version = version.Version
+	data, _ := json.Marshal(resp)
+	conn.SetWriteDeadline(time.Now().Add(serveWriteTimeout))
+	_, err := conn.Write(append(data, '\n'))
+	return err
+}
+
+// recoverResponse ejecuta fn y convierte un panic en una respuesta de error
+// en vez de dejarlo propagarse: un bug de programación en dispatch (el
+// switch de ~20 comandos) o en el post-procesado de handle() no debe tumbar
+// el proceso del demonio entero para TODOS los clientes (TUI, CLI, MPRIS) —
+// quien la llama vuelve normal tras esta función, sin más efecto que la
+// respuesta de error. No cambia el comportamiento ante SIGKILL/OOM, que ya
+// cubre el sistema operativo.
+func recoverResponse(cmd string, fn func() ipc.Response) (resp ipc.Response) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.panic_recovered", cmd, r))
+			resp = ipc.Response{Error: i18n.T("d.internal_error")}
+		}
+	}()
+	return fn()
+}
+
+// defaultMaxSubscribers acota las conexiones simultáneas en modo push: sin
+// tope, un proceso del mismo UID abriendo miles de "subscribe" sin cerrarlas
+// agota fds/goroutines del ÚNICO demonio que sirve a TODOS los clientes
+// legítimos (TUI, CLI, MPRIS) — cada suscripción son 2 goroutines vivas
+// indefinidamente. Generoso a propósito: cada TUI/CLI suscrita suma como
+// mucho una.
+const defaultMaxSubscribers = 64
 
 // subscribe atiende una conexión en modo push desde la goroutine de serve:
 // estado inicial, y uno nuevo cada vez que notify marca dirty, con un mínimo
@@ -330,7 +374,14 @@ func (d *Daemon) subscribe(conn net.Conn, sc *bufio.Scanner) {
 	s := &subscriber{conn: conn, dirty: make(chan struct{}, 1)}
 	// Registrar antes del primer push: un cambio entre la foto inicial y el
 	// registro se perdería; así a lo sumo genera un push extra inmediato.
+	// El chequeo del tope va bajo el mismo lock que el registro para que no
+	// sea un TOCTOU entre contar y agregar.
 	d.subMu.Lock()
+	if len(d.subs) >= d.maxSubscribers {
+		d.subMu.Unlock()
+		writeResponse(conn, ipc.Response{Error: i18n.T("d.too_many_subs")})
+		return
+	}
 	d.subs[s] = struct{}{}
 	d.subMu.Unlock()
 	defer func() {
@@ -388,32 +439,49 @@ func (d *Daemon) state() ipc.Response {
 }
 
 // handle ejecuta la petición y refleja los cambios en MPRIS y suscriptores.
+// Envuelto en recoverResponse (un bug de programación en dispatch, o en este
+// mismo post-procesado, no debe tumbar el proceso del demonio entero para
+// TODOS los clientes) — y como TODOS los caminos de entrada pasan por acá
+// (serve() vía el socket, Do() de los tests, y los métodos de
+// mpris.Controller más abajo, que llaman a handle() directo sin pasar por
+// el socket), envolver aquí en vez de solo en serve() cubre a MPRIS también.
+// Los dos bloqueos del switch usan una función inmediata con defer (no
+// Lock/Unlock a mano) para que, si algo dentro panicara, recoverResponse
+// pueda capturarlo SIN dejar d.mu/d.notifyMu tomado para siempre: un
+// demonio que sobrevive un panic pero queda con un mutex fantasma está peor
+// que uno que se cae y un supervisor reinicia.
 func (d *Daemon) handle(req ipc.Request) ipc.Response {
-	resp := d.dispatch(req)
-	switch req.Cmd {
-	case "ping", "status", "queue", "search", "scan":
-		// solo lectura: nada que reflejar
-	case "seek":
-		d.notifyMu.Lock()
-		if m, st := d.mprisState(); m != nil {
-			m.Update(st)
-			if resp.OK {
-				m.Seeked(int64(st.Position * 1e6))
-			}
+	return recoverResponse(req.Cmd, func() ipc.Response {
+		resp := d.dispatch(req)
+		switch req.Cmd {
+		case "ping", "status", "queue", "search", "scan":
+			// solo lectura: nada que reflejar
+		case "seek":
+			func() {
+				d.notifyMu.Lock()
+				defer d.notifyMu.Unlock()
+				if m, st := d.mprisState(); m != nil {
+					m.Update(st)
+					if resp.OK {
+						m.Seeked(int64(st.Position * 1e6))
+					}
+				}
+			}()
+			d.wakeSubs()
+		default:
+			// Cualquier mutador puede haber cambiado la promesa de la cola (add
+			// al final, remove de la prometida, shuffle…): realinear la ventana
+			// gapless de mpv antes de notificar. Con la promesa sin cambios es
+			// gratis (SetNext corta por su espejo).
+			func() {
+				d.mu.Lock()
+				defer d.mu.Unlock()
+				d.syncWindowLocked()
+			}()
+			d.notify()
 		}
-		d.notifyMu.Unlock()
-		d.wakeSubs()
-	default:
-		// Cualquier mutador puede haber cambiado la promesa de la cola (add
-		// al final, remove de la prometida, shuffle…): realinear la ventana
-		// gapless de mpv antes de notificar. Con la promesa sin cambios es
-		// gratis (SetNext corta por su espejo).
-		d.mu.Lock()
-		d.syncWindowLocked()
-		d.mu.Unlock()
-		d.notify()
-	}
-	return resp
+		return resp
+	})
 }
 
 // Do ejecuta una petición como si llegara por el socket. Los tests de este
@@ -481,11 +549,17 @@ func (d *Daemon) mprisState() (*mpris.Service, *ipc.Status) {
 // notifyMu: ver su comentario en el struct Daemon.
 func (d *Daemon) notify() {
 	d.learnDuration()
-	d.notifyMu.Lock()
-	if m, st := d.mprisState(); m != nil {
-		m.Update(st)
-	}
-	d.notifyMu.Unlock()
+	// Función inmediata con defer en vez de Lock/Unlock a mano (mismo motivo
+	// que advance()/learnDuration(): notify() también corre desde el
+	// callback onChange del player, sin nada río arriba que recupere un
+	// panic aquí más que el propio player.go).
+	func() {
+		d.notifyMu.Lock()
+		defer d.notifyMu.Unlock()
+		if m, st := d.mprisState(); m != nil {
+			m.Update(st)
+		}
+	}()
 	d.wakeSubs()
 	d.sessDirty.Store(true)
 }

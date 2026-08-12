@@ -501,6 +501,7 @@ border = "#45475a"
 text = "#cdd6f4"
 dim = "#6c7086"
 playing = "#a6e3a1"
+error = "#f38ba8"         # error text (console, flashes)
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # banner gradient stops (2 or more)
 # banner art: create logo.txt next to this file with your own ASCII
 
@@ -509,6 +510,7 @@ enabled = true
 color_low = "#89b4fa"     # color at the base of the bars
 color_high = "#f38ba8"    # color at the tips
 bars_gravity = 0.92       # 0-1: how long bars take to fall
+backend = "auto"          # audio capture backend: auto | pipewire | pulse
 
 [ytdlp]
 # browser to read cookies from for downloads that require an account
@@ -528,6 +530,8 @@ cookies_from_browser = ""
 # filter = "/"
 # add = "a"
 # remove = "d"
+# move_up = "K"
+# move_down = "J"
 # shuffle = "s"
 # repeat = "r"
 # quit = "q"

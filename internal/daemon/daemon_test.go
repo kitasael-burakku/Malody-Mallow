@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -278,6 +279,229 @@ func TestShuffleInvalidoFalla(t *testing.T) {
 	}
 	if d.q.Shuffle == before {
 		t.Error("shuffle sin argumento debía alternar el estado")
+	}
+}
+
+// TestRecoverResponseCatchesPanic cubre el hallazgo ERR-1 de la auditoría
+// técnica: no había ningún recover() en todo el repositorio, así que un
+// panic de programación futuro en dispatch() (el switch de ~20 comandos)
+// tumbaría el proceso del demonio ENTERO para todos los clientes (TUI, CLI,
+// MPRIS), en vez de quedar acotado a la conexión que lo disparó. Sin
+// recoverResponse, este panic escaparía del todo: el binario de test
+// completo moriría con un stack trace en vez de que este test fallara
+// limpio, que es justamente la prueba de que hacía falta.
+func TestRecoverResponseCatchesPanic(t *testing.T) {
+	resp := recoverResponse("boom", func() ipc.Response {
+		panic("kaboom")
+	})
+	if resp.Error == "" {
+		t.Fatal("se esperaba un Error en la respuesta tras el panic, no una respuesta vacía")
+	}
+}
+
+// TestRecoverResponsePassesThrough confirma que la protección no altera una
+// respuesta normal del camino feliz (sin panic).
+func TestRecoverResponsePassesThrough(t *testing.T) {
+	want := ipc.Response{OK: true, Msg: "ok"}
+	got := recoverResponse("ping", func() ipc.Response { return want })
+	if got.OK != want.OK || got.Msg != want.Msg {
+		t.Fatalf("recoverResponse alteró la respuesta: got %+v, want %+v", got, want)
+	}
+}
+
+// TestPanicWithDeferredUnlockDoesNotLeakMutex cubre la extensión del
+// hallazgo ERR-1 que salió de la revisión del propio fix: no basta con
+// recuperar el panic (recoverResponse) si el código que lo lanzó tenía un
+// mutex tomado con Lock/Unlock a mano en vez de defer — el demonio
+// sobreviviría el panic pero quedaría con ese mutex tomado PARA SIEMPRE,
+// colgando cualquier comando futuro de cualquier cliente (peor que el
+// crash que recoverResponse evita). handle()/advance()/notify()/
+// learnDuration() pasaron todos de Lock/Unlock a mano a una función
+// inmediata con defer por esto mismo. Este test aísla el patrón exacto sin
+// necesitar un demonio real.
+func TestPanicWithDeferredUnlockDoesNotLeakMutex(t *testing.T) {
+	var mu sync.Mutex
+	func() {
+		defer func() { recover() }()
+		func() {
+			mu.Lock()
+			defer mu.Unlock()
+			panic("boom")
+		}()
+	}()
+
+	locked := make(chan struct{})
+	go func() {
+		mu.Lock()
+		mu.Unlock()
+		close(locked)
+	}()
+	select {
+	case <-locked:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el mutex quedó tomado tras el panic: el patrón defer no protegió el Unlock")
+	}
+}
+
+// TestSubscriberCap cubre el hallazgo SEC-02 de la auditoría técnica: sin
+// tope, un proceso del mismo UID abriendo muchas conexiones "subscribe" sin
+// cerrarlas agota fds/goroutines del ÚNICO demonio que sirve a TODOS los
+// clientes legítimos. d.maxSubscribers se baja a 2 (en vez del default 64)
+// para que el test sea rápido y no dependa del valor real.
+func TestSubscriberCap(t *testing.T) {
+	d := newTestDaemon(t)
+	// Igual que d.idleTimeout en TestServeIdleTimeoutCierraConexion: se toca
+	// ANTES de "go d.Run()" para el happens-before que pide el race detector.
+	d.maxSubscribers = 2
+	go d.Run()
+
+	var subs []*ipc.Client
+	defer func() {
+		for _, s := range subs {
+			s.Close()
+		}
+	}()
+	for i := 0; i < 2; i++ {
+		c, err := ipc.Dial(config.SocketPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		subs = append(subs, c)
+		if resp, err := c.Subscribe(); err != nil || !resp.OK {
+			t.Fatalf("subscribe %d: %v / %+v", i, err, resp)
+		}
+	}
+
+	// El tope ya está lleno: la tercera debe fallar con un Error explícito,
+	// no bloquearse ni tumbar el demonio.
+	extra, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer extra.Close()
+	resp, err := extra.Subscribe()
+	if err != nil {
+		t.Fatalf("subscribe por encima del tope: error de red inesperado: %v", err)
+	}
+	if resp.OK || resp.Error == "" {
+		t.Fatalf("subscribe por encima del tope debía fallar con un Error, dio: %+v", resp)
+	}
+
+	// El demonio sigue sirviendo con normalidad a otro cliente.
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if pr, err := c.Do(ipc.Request{Cmd: "ping"}); err != nil || !pr.OK {
+		t.Fatalf("ping tras tope de suscriptores: %v / %+v", err, pr)
+	}
+}
+
+// TestConcurrentClientsStress cubre el hallazgo TEST-1 de la auditoría
+// técnica: 44 de los tests de este paquete usan el atajo d.Do (bypass
+// directo a dispatch, sin pasar por el socket), contra solo 8 que dialean de
+// verdad — el camino real de producción (serve(), el bufio.Scanner con su
+// tope de 1 MB, los deadlines de lectura/escritura, subMu) es justo la
+// superficie más reforzada por auditorías pasadas y la que menos cobertura
+// de concurrencia real tenía. Abre decenas de conexiones simultáneas —unas
+// con Do repetido (algunas mutadoras, para generar pushes de verdad), otras
+// suscritas— cerrando y reabriendo durante un par de segundos, pensado para
+// correr bajo -race.
+func TestConcurrentClientsStress(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	const (
+		doers = 20
+		subs  = 20
+		dur   = 1500 * time.Millisecond
+	)
+	deadline := time.Now().Add(dur)
+	var wg sync.WaitGroup
+
+	wg.Add(doers)
+	for i := 0; i < doers; i++ {
+		go func(i int) {
+			defer wg.Done()
+			for time.Now().Before(deadline) {
+				c, err := ipc.Dial(config.SocketPath())
+				if err != nil {
+					continue // el demonio puede estar entre Accept()s
+				}
+				c.Timeout = 2 * time.Second
+				c.Do(ipc.Request{Cmd: "ping"})
+				c.Do(ipc.Request{Cmd: "status"})
+				c.Do(ipc.Request{Cmd: "queue"})
+				if i%5 == 0 {
+					// Mutador ocasional: genera pushes de verdad para los
+					// suscriptores de abajo, no solo conexiones ociosas.
+					c.Do(ipc.Request{Cmd: "vol", Value: "50"})
+				}
+				c.Close()
+			}
+		}(i)
+	}
+
+	wg.Add(subs)
+	for i := 0; i < subs; i++ {
+		go func() {
+			defer wg.Done()
+			for time.Now().Before(deadline) {
+				c, err := ipc.Dial(config.SocketPath())
+				if err != nil {
+					continue
+				}
+				if _, err := c.Subscribe(); err != nil {
+					c.Close()
+					continue
+				}
+				// Next() bloquea sin límite a propósito (ver su comentario):
+				// el corte real es cerrar la conexión desde afuera, y este
+				// goroutine espera a que esa lectura vea el cierre antes de
+				// que el de arriba reabra, para no dejar nada colgado.
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					for {
+						if _, err := c.Next(); err != nil {
+							return
+						}
+					}
+				}()
+				time.Sleep(30 * time.Millisecond)
+				c.Close()
+				<-done
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// El demonio sigue sirviendo con normalidad tras la ráfaga.
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if resp, err := c.Do(ipc.Request{Cmd: "ping"}); err != nil || !resp.OK {
+		t.Fatalf("ping tras la ráfaga concurrente: %v / %+v", err, resp)
+	}
+
+	// Todos los suscriptores de arriba cerraron su conexión: el mapa de
+	// suscriptores no debe quedar con entradas fantasma.
+	deadlineCheck := time.Now().Add(2 * time.Second)
+	for {
+		d.subMu.Lock()
+		n := len(d.subs)
+		d.subMu.Unlock()
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadlineCheck) {
+			t.Fatalf("quedaron %d suscriptores registrados tras cerrar todas las conexiones", n)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 

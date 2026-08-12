@@ -502,6 +502,7 @@ border = "#45475a"
 text = "#cdd6f4"
 dim = "#6c7086"
 playing = "#a6e3a1"
+error = "#f38ba8"         # texto de error (consola, flashes)
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 o más)
 # arte del banner: crea logo.txt junto a este archivo con tu propio ASCII
 
@@ -510,6 +511,7 @@ enabled = true
 color_low = "#89b4fa"     # color de la base de las barras
 color_high = "#f38ba8"    # color de las puntas
 bars_gravity = 0.92       # 0-1: cuánto tardan en caer las barras
+backend = "auto"          # capturador de audio: auto | pipewire | pulse
 
 [ytdlp]
 # navegador del que leer cookies para descargas que piden cuenta
@@ -529,6 +531,8 @@ cookies_from_browser = ""
 # filter = "/"
 # add = "a"
 # remove = "d"
+# move_up = "K"
+# move_down = "J"
 # shuffle = "s"
 # repeat = "r"
 # quit = "q"

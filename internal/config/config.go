@@ -18,6 +18,11 @@ import (
 	"maly/internal/i18n"
 )
 
+// Theme: si agregás un campo de color nuevo (string, formato #rrggbb), sumá
+// también su clampHex(...) en Load() — CFG-1 (auditoría técnica) fue
+// exactamente esto: Logo se validaba y los otros 5 colores de entonces no,
+// por la misma razón por la que Error (el más nuevo) casi se queda afuera
+// al agregarlo.
 type Theme struct {
 	Transparent bool     `toml:"transparent"`
 	Accent      string   `toml:"accent"`
@@ -25,12 +30,15 @@ type Theme struct {
 	Text        string   `toml:"text"`
 	Dim         string   `toml:"dim"`
 	Playing     string   `toml:"playing"`
-	Logo        []string `toml:"logo"` // paradas hex del gradiente del banner (≥2)
+	Error       string   `toml:"error"` // texto de error (consola, flashes)
+	Logo        []string `toml:"logo"`  // paradas hex del gradiente del banner (≥2)
 	// LogoArt no vive en el TOML: viene del logo.txt opcional junto al
 	// config (Load lo lee); nil = arte de fábrica.
 	LogoArt []string `toml:"-"`
 }
 
+// ColorLow/ColorHigh: mismo aviso que en Theme — un color nuevo acá necesita
+// su clampHex(...) en Load().
 type Visualizer struct {
 	Enabled     bool    `toml:"enabled"`
 	ColorLow    string  `toml:"color_low"`
@@ -138,6 +146,7 @@ func Default() Config {
 			Text:        "#cdd6f4",
 			Dim:         "#6c7086",
 			Playing:     "#a6e3a1",
+			Error:       "#f38ba8",
 			// La paleta "Kitasan Glass" del banner (ver internal/tui/styles.go);
 			// config no puede importar tui, así que los literales viven aquí.
 			Logo: []string{"#7ab8b8", "#8098a8", "#b85c50"},
@@ -169,6 +178,7 @@ border = "#45475a"
 text = "#cdd6f4"
 dim = "#6c7086"
 playing = "#a6e3a1"
+error = "#f38ba8"         # texto de error (consola, flashes)
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 o más)
 # arte del banner: crea logo.txt junto a este archivo con tu propio ASCII
 
@@ -493,7 +503,32 @@ func Load() (cfg Config, retErr error) {
 	if !validLogo(cfg.Theme.Logo) {
 		cfg.Theme.Logo = Default().Theme.Logo
 	}
+	// El resto de los colores del tema no llevaban esta guarda: un
+	// config.toml con "accent = \"rojo\"" pasaba sin corrección mientras
+	// Logo sí se validaba, inconsistencia real dentro del mismo struct
+	// (hallazgo CFG-1 de la auditoría técnica). lipgloss/termenv no
+	// crashean con un color inválido, así que esto es cosmético, no una
+	// guarda de seguridad — pero el usuario no podía predecir qué claves se
+	// autocorregían y cuáles no. UN CAMPO DE COLOR NUEVO EN Theme O
+	// Visualizer NECESITA SU PROPIO clampHex ACÁ (ver el comentario de
+	// ambos structs): no hay ningún mecanismo que lo aplique solo.
+	def := Default()
+	clampHex(&cfg.Theme.Accent, def.Theme.Accent)
+	clampHex(&cfg.Theme.Border, def.Theme.Border)
+	clampHex(&cfg.Theme.Text, def.Theme.Text)
+	clampHex(&cfg.Theme.Dim, def.Theme.Dim)
+	clampHex(&cfg.Theme.Playing, def.Theme.Playing)
+	clampHex(&cfg.Theme.Error, def.Theme.Error)
+	clampHex(&cfg.Visualizer.ColorLow, def.Visualizer.ColorLow)
+	clampHex(&cfg.Visualizer.ColorHigh, def.Visualizer.ColorHigh)
 	return cfg, nil
+}
+
+// clampHex reemplaza *field por def si no es un color #rrggbb válido.
+func clampHex(field *string, def string) {
+	if !ValidHex(*field) {
+		*field = def
+	}
 }
 
 // LogoArtPath es el logo.txt opcional junto al config: si existe, sus líneas

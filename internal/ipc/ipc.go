@@ -4,9 +4,11 @@ package ipc
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -89,17 +91,29 @@ func cleanResp(r *Response) {
 }
 
 // Client es una conexión al demonio. No es segura para uso concurrente: una
-// sola net.Conn + bufio.Reader sin mutex (y Timeout es un campo público
+// sola net.Conn + bufio.Scanner sin mutex (y Timeout es un campo público
 // mutable sin protección) — el uso previsto es un comando por conexión; dos
 // goroutines sobre el mismo *Client se pisarían.
 type Client struct {
 	conn net.Conn
-	r    *bufio.Reader
+	sc   *bufio.Scanner
 
 	// Timeout por petición de Do; 0 usa el default (30 s). El completado de
 	// shell lo baja: un TAB no puede quedarse esperando a un demonio colgado.
 	Timeout time.Duration
 }
+
+// maxRespLine acota las RESPUESTAS que lee el cliente — no confundir con el
+// tope de 1 MiB que el servidor aplica a las PETICIONES que recibe (mismo
+// framing, tráfico muy distinto): "search"/"queue" mandan la biblioteca o
+// cola COMPLETA sin tope propio (a propósito, ver CLAUDE.md — capar esas dos
+// en 1.1.5 rompió play/add en silencio), y el push de cada "subscribe" manda
+// la cola entera en cada cambio. Con bibliotecas de la escala que este
+// proyecto ya benchmarkeó (documentado hasta 40.000 pistas, ~250 B de JSON
+// cada una), esas respuestas rondan varios MB — 1 MiB las habría cortado.
+// 64 MiB da margen generoso (~250k pistas) y sigue acotado ante el caso real
+// que motivó el tope: una conexión que nunca manda '\n' y nunca para.
+const maxRespLine = 64 << 20
 
 // Dial conecta con el socket del demonio.
 func Dial(socket string) (*Client, error) {
@@ -107,7 +121,55 @@ func Dial(socket string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{conn: conn, r: bufio.NewReader(conn)}, nil
+	sc := bufio.NewScanner(conn)
+	// El buffer INICIAL se queda chico (4 KiB, como el bufio.Reader de
+	// antes): la mayoría de las respuestas son cortas y no hace falta pagar
+	// por adelantado el máximo en cada Dial (cada invocación de la CLI o
+	// cada TAB de completado abre una conexión nueva). El Scanner lo crece
+	// solo, duplicando, hasta maxRespLine si hace falta.
+	sc.Buffer(make([]byte, 4096), maxRespLine)
+	// scanLinesStrict en vez del ScanLines por defecto: un split ordinario
+	// entrega el último fragmento sin '\n' como token VÁLIDO al llegar a
+	// EOF, así que una respuesta cortada a mitad —el demonio murió o el
+	// socket se cerró mientras escribía— se leería como si fuera una línea
+	// completa en vez de fallar, justo lo que el bufio.Reader.ReadBytes('\n')
+	// de antes SIEMPRE trataba como error.
+	sc.Split(scanLinesStrict)
+	return &Client{conn: conn, sc: sc}, nil
+}
+
+// scanLinesStrict es bufio.ScanLines, salvo que un EOF con datos pendientes
+// sin '\n' es io.ErrUnexpectedEOF, no un token final válido (ver Dial).
+func scanLinesStrict(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if i := bytes.IndexByte(data, '\n'); i >= 0 {
+		line := data[:i]
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		return i + 1, line, nil
+	}
+	if atEOF {
+		if len(data) > 0 {
+			return 0, nil, io.ErrUnexpectedEOF
+		}
+		return 0, nil, nil
+	}
+	return 0, nil, nil
+}
+
+// readLine lee la siguiente línea de la conexión, distinguiendo un timeout
+// de red del resto de errores (incluido el corte por exceder el tope del
+// Scanner, y el corte por respuesta truncada de scanLinesStrict). Compartido
+// por Do y Next para no duplicar esa distinción.
+func (c *Client) readLine() ([]byte, error) {
+	if !c.sc.Scan() {
+		err := c.sc.Err()
+		if err == nil {
+			err = io.EOF
+		}
+		return nil, err
+	}
+	return c.sc.Bytes(), nil
 }
 
 // Ping devuelve true si hay un demonio respondiendo en socket. Timeout
@@ -143,7 +205,7 @@ func (c *Client) Do(req Request) (Response, error) {
 	if _, err := c.conn.Write(append(data, '\n')); err != nil {
 		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.send"), err)
 	}
-	line, err := c.r.ReadBytes('\n')
+	line, err := c.readLine()
 	if err != nil {
 		// cli.no_daemon (Dial fallido) ya cubre "el demonio no está"; esto
 		// cubre el otro estado, documentado en varios sitios del código
@@ -178,7 +240,7 @@ func (c *Client) Subscribe() (Response, error) {
 func (c *Client) Next() (Response, error) {
 	var resp Response
 	c.conn.SetDeadline(time.Time{})
-	line, err := c.r.ReadBytes('\n')
+	line, err := c.readLine()
 	if err != nil {
 		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.read"), err)
 	}

@@ -183,4 +183,13 @@ func TestConConfig(t *testing.T) {
 	if !strings.Contains(joined, "next") {
 		t.Errorf("conConfig() no listó las teclas resueltas (esperaba \"next\" de DefaultKeys): %q", joined)
 	}
+	// Theme.Error (UX-N3) se agregó a cmd/maly/config_cmd.go pero no acá al
+	// mismo tiempo — gap de paridad consola↔CLI descubierto en la revisión
+	// posterior, misma clase que ya mordió al proyecto con `remove <pos>`.
+	// La sola presencia del valor no basta: Visualizer.ColorHigh comparte
+	// el mismo hex por defecto (#f38ba8) — hace falta la fila con SU label.
+	wantRow := "error: " + config.Default().Theme.Error
+	if !strings.Contains(joined, wantRow) {
+		t.Errorf("conConfig() no listó la fila de Theme.Error (%q): %q", wantRow, joined)
+	}
 }

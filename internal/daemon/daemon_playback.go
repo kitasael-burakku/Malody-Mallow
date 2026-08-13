@@ -29,8 +29,13 @@ func (d *Daemon) advance(reason, chained string) {
 	// no restaura un mutex que un panic a mitad de este cuerpo hubiera
 	// dejado tomado. skipNotify replica exactamente los tres desenlaces
 	// originales (eco tras stop = sin notify; racha agotada = notify sin
-	// syncWindowLocked; camino normal = ambos).
-	skipNotify := func() bool {
+	// syncWindowLocked; camino normal = ambos). queueFailed viaja aparte
+	// para que su Fprintln corra DESPUÉS de soltar d.mu, como en el código
+	// original — moverlo adentro (como quedó en una primera versión de este
+	// refactor) dejaba un stderr bloqueado (pipe lleno, journald bajo
+	// presión) congelando el demonio ENTERO mientras dura el Write, en vez
+	// de solo demorar una línea de log (hallazgo de la revisión posterior).
+	skipNotify, queueFailed := func() (bool, bool) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 
@@ -38,7 +43,7 @@ func (d *Daemon) advance(reason, chained string) {
 			if d.stopped {
 				// Eco de una entrada que seguía en vuelo cuando paramos a
 				// propósito: ni cuenta para la racha ni rearranca nada.
-				return true
+				return true, false
 			}
 			if t, ok := d.q.Current(); ok {
 				fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.track_failed", t))
@@ -52,8 +57,7 @@ func (d *Daemon) advance(reason, chained string) {
 				d.errStreak = 0
 				d.stopped = true
 				d.pl.Stop()
-				fmt.Fprintln(os.Stderr, "maly: "+i18n.T("d.queue_failed"))
-				return false
+				return false, true
 			}
 		} else {
 			d.errStreak = 0
@@ -80,8 +84,11 @@ func (d *Daemon) advance(reason, chained string) {
 		// cargó/realineó) entre el fin de pista y este punto; avanzar además
 		// saltearía una pista.
 		d.syncWindowLocked()
-		return false
+		return false, false
 	}()
+	if queueFailed {
+		fmt.Fprintln(os.Stderr, "maly: "+i18n.T("d.queue_failed"))
+	}
 	if !skipNotify {
 		d.notify()
 	}

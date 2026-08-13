@@ -525,9 +525,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.vizBars = m.viz.Bars(m.width-2, m.playingNow())
-		if m.viz.Fake() && !m.vizWarned {
-			m.vizWarned = true
-			m.setFlash(i18n.T("tui.viz_fake"), true)
+		// vizWarned se resetea cuando el viz deja de estar en fake: desde
+		// que internal/viz reintenta solo tras perder el backend (UX-N4),
+		// un aviso de una vez ya no alcanza — sin el reset, una SEGUNDA
+		// pérdida más tarde en la sesión (PipeWire se cae de nuevo) queda
+		// completamente muda (hallazgo de la revisión posterior).
+		if m.viz.Fake() {
+			if !m.vizWarned {
+				m.vizWarned = true
+				m.setFlash(i18n.T("tui.viz_fake"), true)
+			}
+		} else {
+			m.vizWarned = false
 		}
 		// Sin música y con las barras ya decaídas no hay nada que animar:
 		// el reloj respira a 500 ms en vez de 60 y se reacelera solo en

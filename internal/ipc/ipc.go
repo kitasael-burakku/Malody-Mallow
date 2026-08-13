@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"time"
 
@@ -91,12 +90,12 @@ func cleanResp(r *Response) {
 }
 
 // Client es una conexión al demonio. No es segura para uso concurrente: una
-// sola net.Conn + bufio.Scanner sin mutex (y Timeout es un campo público
+// sola net.Conn + bufio.Reader sin mutex (y Timeout es un campo público
 // mutable sin protección) — el uso previsto es un comando por conexión; dos
 // goroutines sobre el mismo *Client se pisarían.
 type Client struct {
 	conn net.Conn
-	sc   *bufio.Scanner
+	r    *bufio.Reader
 
 	// Timeout por petición de Do; 0 usa el default (30 s). El completado de
 	// shell lo baja: un TAB no puede quedarse esperando a un demonio colgado.
@@ -121,55 +120,46 @@ func Dial(socket string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	sc := bufio.NewScanner(conn)
-	// El buffer INICIAL se queda chico (4 KiB, como el bufio.Reader de
-	// antes): la mayoría de las respuestas son cortas y no hace falta pagar
-	// por adelantado el máximo en cada Dial (cada invocación de la CLI o
-	// cada TAB de completado abre una conexión nueva). El Scanner lo crece
-	// solo, duplicando, hasta maxRespLine si hace falta.
-	sc.Buffer(make([]byte, 4096), maxRespLine)
-	// scanLinesStrict en vez del ScanLines por defecto: un split ordinario
-	// entrega el último fragmento sin '\n' como token VÁLIDO al llegar a
-	// EOF, así que una respuesta cortada a mitad —el demonio murió o el
-	// socket se cerró mientras escribía— se leería como si fuera una línea
-	// completa en vez de fallar, justo lo que el bufio.Reader.ReadBytes('\n')
-	// de antes SIEMPRE trataba como error.
-	sc.Split(scanLinesStrict)
-	return &Client{conn: conn, sc: sc}, nil
+	// bufio.Reader, NO bufio.Scanner: el error de Scanner queda "pegajoso"
+	// (una vez que Scan() falla, TODAS las llamadas siguientes fallan
+	// también con el MISMO error, sin volver a intentar I/O — verificado a
+	// mano con un timeout real: un segundo Scan() con un deadline nuevo
+	// seguía devolviendo el error del primero, incluso con datos ya
+	// disponibles). Un timeout transitorio en una petición dejaba el
+	// *Client entero inservible para las peticiones siguientes sobre la
+	// misma conexión, algo que el bufio.Reader de antes de SEC-01 nunca
+	// tuvo (su error se limpia solo en cada llamada — confirmado igual a
+	// mano). El tope de tamaño se reimplementa entonces sobre readLine, en
+	// vez de sc.Buffer(...).
+	return &Client{conn: conn, r: bufio.NewReaderSize(conn, 4096)}, nil
 }
 
-// scanLinesStrict es bufio.ScanLines, salvo que un EOF con datos pendientes
-// sin '\n' es io.ErrUnexpectedEOF, no un token final válido (ver Dial).
-func scanLinesStrict(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	if i := bytes.IndexByte(data, '\n'); i >= 0 {
-		line := data[:i]
-		if len(line) > 0 && line[len(line)-1] == '\r' {
-			line = line[:len(line)-1]
-		}
-		return i + 1, line, nil
-	}
-	if atEOF {
-		if len(data) > 0 {
-			return 0, nil, io.ErrUnexpectedEOF
-		}
-		return 0, nil, nil
-	}
-	return 0, nil, nil
-}
-
-// readLine lee la siguiente línea de la conexión, distinguiendo un timeout
-// de red del resto de errores (incluido el corte por exceder el tope del
-// Scanner, y el corte por respuesta truncada de scanLinesStrict). Compartido
-// por Do y Next para no duplicar esa distinción.
+// readLine lee la siguiente línea de la conexión (sin el '\n' final),
+// acotada a maxRespLine. Un EOF con datos pendientes sin '\n' —el demonio
+// murió o el socket se cerró a mitad de un Write— es un error, no una línea
+// válida: mismo criterio que el bufio.Reader.ReadBytes('\n') de antes de
+// SEC-01 (a diferencia de un bufio.Scanner con el split por defecto, que
+// entrega ese resto como token bueno al llegar a EOF). Compartida por Do y
+// Next para no duplicar ninguna de las dos distinciones.
 func (c *Client) readLine() ([]byte, error) {
-	if !c.sc.Scan() {
-		err := c.sc.Err()
-		if err == nil {
-			err = io.EOF
+	var line []byte
+	for {
+		chunk, err := c.r.ReadSlice('\n')
+		line = append(line, chunk...)
+		if len(line) > maxRespLine {
+			return nil, fmt.Errorf("ipc: response line exceeds %d bytes", maxRespLine)
 		}
-		return nil, err
+		if err == nil {
+			break
+		}
+		if err == bufio.ErrBufferFull {
+			continue // sigue sin encontrar '\n': seguir acumulando
+		}
+		return nil, err // EOF (con o sin datos pendientes) u otro error real
 	}
-	return c.sc.Bytes(), nil
+	line = bytes.TrimSuffix(line, []byte("\n"))
+	line = bytes.TrimSuffix(line, []byte("\r"))
+	return line, nil
 }
 
 // Ping devuelve true si hay un demonio respondiendo en socket. Timeout

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"maly/internal/config"
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/version"
 )
@@ -291,7 +292,7 @@ func TestShuffleInvalidoFalla(t *testing.T) {
 // completo moriría con un stack trace en vez de que este test fallara
 // limpio, que es justamente la prueba de que hacía falta.
 func TestRecoverResponseCatchesPanic(t *testing.T) {
-	resp := recoverResponse("boom", func() ipc.Response {
+	resp := recoverResponse("boom", "", func() ipc.Response {
 		panic("kaboom")
 	})
 	if resp.Error == "" {
@@ -303,9 +304,22 @@ func TestRecoverResponseCatchesPanic(t *testing.T) {
 // respuesta normal del camino feliz (sin panic).
 func TestRecoverResponsePassesThrough(t *testing.T) {
 	want := ipc.Response{OK: true, Msg: "ok"}
-	got := recoverResponse("ping", func() ipc.Response { return want })
+	got := recoverResponse("ping", "", func() ipc.Response { return want })
 	if got.OK != want.OK || got.Msg != want.Msg {
 		t.Fatalf("recoverResponse alteró la respuesta: got %+v, want %+v", got, want)
+	}
+}
+
+// TestRecoverResponseHonorsLang cubre un hallazgo de la revisión posterior
+// a ERR-1: la respuesta de error tras un panic recuperado usaba el idioma
+// GLOBAL del proceso (i18n.T) en vez del idioma del cliente que disparó el
+// panic (i18n.TL(lang, ...)) — el resto de dispatch() sí lo honra.
+func TestRecoverResponseHonorsLang(t *testing.T) {
+	resp := recoverResponse("boom", "es", func() ipc.Response {
+		panic("kaboom")
+	})
+	if want := i18n.TL("es", "d.internal_error"); resp.Error != want {
+		t.Fatalf("resp.Error = %q, quería la traducción en es: %q", resp.Error, want)
 	}
 }
 
@@ -395,6 +409,39 @@ func TestSubscriberCap(t *testing.T) {
 	defer c.Close()
 	if pr, err := c.Do(ipc.Request{Cmd: "ping"}); err != nil || !pr.OK {
 		t.Fatalf("ping tras tope de suscriptores: %v / %+v", err, pr)
+	}
+}
+
+// TestSubscriberCapHonorsLang cubre un hallazgo de la revisión posterior:
+// el rechazo por tope de suscriptores usaba el idioma GLOBAL del proceso
+// (i18n.T) en vez del idioma que mandó el cliente en la petición
+// (i18n.TL(lang, ...)) — el hermano "shutdown" tres líneas más arriba en
+// serve() sí lo honraba (TL(req.Lang, "d.bye")).
+func TestSubscriberCapHonorsLang(t *testing.T) {
+	d := newTestDaemon(t)
+	d.maxSubscribers = 1
+	go d.Run()
+
+	first, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	if resp, err := first.Subscribe(); err != nil || !resp.OK {
+		t.Fatalf("subscribe: %v / %+v", err, resp)
+	}
+
+	extra, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer extra.Close()
+	resp, err := extra.Do(ipc.Request{Cmd: "subscribe", Lang: "es"})
+	if err != nil {
+		t.Fatalf("subscribe por encima del tope: error de red inesperado: %v", err)
+	}
+	if want := i18n.TL("es", "d.too_many_subs"); resp.Error != want {
+		t.Fatalf("resp.Error = %q, quería la traducción en es: %q", resp.Error, want)
 	}
 }
 

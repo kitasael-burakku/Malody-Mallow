@@ -3,6 +3,7 @@ package viz
 import (
 	"bytes"
 	"math"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -111,6 +112,142 @@ func TestReadLoopDegradesToFake(t *testing.T) {
 	if got := [2]float64{ring[len(ring)-2], ring[len(ring)-1]}; got != [2]float64{0.5, -0.5} {
 		t.Errorf("últimas muestras del ring: %v", got)
 	}
+}
+
+// TestReadLoopArmsRetryOnlyWithBackend cubre el hallazgo UX-N4 de la
+// auditoría técnica: perder el capturador en pleno uso (PipeWire se
+// reinicia, el dispositivo desaparece) degradaba a fake para el resto de
+// la sesión, sin ningún reintento. readLoop debe armar el reintento SOLO
+// si hadBackend (hubo una captura real funcionando alguna vez) — en un
+// sistema sin pw-record/parec instalados, reintentar no aporta nada.
+func TestReadLoopArmsRetryOnlyWithBackend(t *testing.T) {
+	v := newTestViz(0.85, false)
+	v.readLoop(bytes.NewReader(nil)) // EOF inmediato
+	if v.retrying {
+		t.Fatal("sin hadBackend, readLoop no debía armar el reintento")
+	}
+
+	v = newTestViz(0.85, false)
+	v.hadBackend = true
+	v.readLoop(bytes.NewReader(nil))
+	if !v.retrying || v.stopRetry == nil {
+		t.Fatal("con hadBackend, readLoop debía armar el reintento")
+	}
+	v.Close()
+}
+
+// TestArmRetryDoesNotDoubleArm: una segunda llamada mientras ya hay un
+// reintento en vuelo no debe reemplazarlo (evita fugas de goroutines si el
+// evento de muerte se reporta más de una vez).
+func TestArmRetryDoesNotDoubleArm(t *testing.T) {
+	v := newTestViz(0.85, true)
+	v.hadBackend = true
+	v.armRetry()
+	first := v.stopRetry
+	if first == nil {
+		t.Fatal("armRetry debía armar el reintento")
+	}
+	v.armRetry()
+	if v.stopRetry != first {
+		t.Error("una segunda llamada con un retry ya en vuelo no debía reemplazarlo")
+	}
+	v.Close()
+}
+
+// TestCloseStopsRetryImmediately: sin esto, un retry armado sobrevivía
+// hasta su próximo tick (hasta vizRetryInterval completo) en vez de
+// cortarse en el acto al cerrar el visualizador.
+func TestCloseStopsRetryImmediately(t *testing.T) {
+	v := newTestViz(0.85, true)
+	v.hadBackend = true
+	v.armRetry()
+	stop := v.stopRetry
+	v.Close()
+	select {
+	case <-stop:
+	default:
+		t.Fatal("Close() debía cerrar el canal de stop del retry en el acto")
+	}
+}
+
+// fakeCaptureCandidate reemplaza captureCandidates por "cat /dev/zero" (un
+// stand-in que arranca de verdad y tiene stdout con datos, sin depender de
+// pw-record/parec) y devuelve una func para restaurar la lista real.
+func fakeCaptureCandidate(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("cat"); err != nil {
+		t.Skip("cat no está en PATH")
+	}
+	orig := captureCandidates
+	captureCandidates = []candidate{{"cat", []string{"/dev/zero"}}}
+	t.Cleanup(func() { captureCandidates = orig })
+}
+
+// TestStartCaptureKilledIfClosedConcurrently cubre la carrera que la
+// revisión del propio fix de UX-N4 encontró: v.cmd/v.backend se escribían
+// sin lock en startCapture, así que Close() —que SÍ toma el lock para leer
+// v.cmd— podía leer el valor VIEJO mientras un reintento de armRetry
+// terminaba de escribir el nuevo, matando el proceso equivocado y dejando
+// huérfano el recién arrancado. startCapture ahora comprueba v.closed bajo
+// el mismo lock que Close() usa, y si ya cerró, mata el proceso que acaba
+// de arrancar en el acto en vez de registrarlo.
+func TestStartCaptureKilledIfClosedConcurrently(t *testing.T) {
+	fakeCaptureCandidate(t)
+
+	v := newTestViz(0.85, false)
+	v.closed = true // simula que Close() ya corrió justo antes
+
+	err := v.startCapture("auto")
+	if err != errVizClosed {
+		t.Fatalf("startCapture con v.closed=true = %v, quería errVizClosed", err)
+	}
+	if v.cmd != nil {
+		t.Error("v.cmd no debía quedar seteado: el proceso se mató antes de registrarlo")
+	}
+}
+
+// TestStartCaptureResetsFakeAndRetrying cubre el TOCTOU de armRetry que la
+// misma revisión encontró: antes, fake/retrying se limpiaban DESPUÉS de que
+// startCapture devolviera (en la goroutine de armRetry) — si el readLoop
+// recién arrancado moría al instante (backend "aleteando") y llamaba a
+// armRetry de nuevo antes de esa limpieza, la veía todavía en true y no
+// rearmaba nada, dejando fake en false para siempre sin captura real ni
+// reintento. Ahora startCapture limpia fake/retrying atómicamente, bajo el
+// mismo lock que registra v.cmd — no hay ventana entre "el proceso ya
+// corre" y "el estado ya lo refleja".
+func TestStartCaptureResetsFakeAndRetrying(t *testing.T) {
+	fakeCaptureCandidate(t)
+
+	v := newTestViz(0.85, true)
+	v.retrying = true
+	if err := v.startCapture("auto"); err != nil {
+		t.Fatalf("startCapture: %v", err)
+	}
+	defer v.Close()
+
+	if v.Fake() {
+		t.Error("startCapture exitoso debía limpiar fake")
+	}
+	v.mu.Lock()
+	retrying := v.retrying
+	v.mu.Unlock()
+	if retrying {
+		t.Error("startCapture exitoso debía limpiar retrying")
+	}
+}
+
+// TestCloseIsIdempotent cubre el hallazgo de la revisión: una segunda
+// llamada a Close() con un retry en vuelo intentaba cerrar el mismo canal
+// stopRetry dos veces y entraba en pánico (close of closed channel).
+func TestCloseIsIdempotent(t *testing.T) {
+	v := newTestViz(0.85, true)
+	v.hadBackend = true
+	v.armRetry()
+	if v.stopRetry == nil {
+		t.Fatal("setup: armRetry debía armar el reintento")
+	}
+	v.Close()
+	v.Close() // no debe entrar en pánico
 }
 
 // TestFilterCandidates: "auto"/vacío/un valor no reconocido dejan la lista

@@ -7,6 +7,29 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.13.0 — 2026-08-12
+
+Cierra el roadmap completo (fases 1-5) de la segunda auditoría técnica
+integral del proyecto (informe aparte, sin hallazgos por encima de MEDIUM).
+Seguridad y estabilidad: un panic de programación en el demonio ya no
+tumba el proceso entero para todos los clientes (`recover()` en dispatch,
+con los mutex internos hechos a prueba de panic), el cliente IPC deja de
+crecer sin límite si el demonio nunca contesta, y un tope de conexiones
+evita agotar el demonio con suscripciones sin cerrar. Calidad: la
+configuración valida los 7 colores del tema (antes solo el logo se
+autocorregía), tests de stress con ~40 conexiones reales bajo `-race`,
+fuzzing del parser de letras (`.lrc`) y benchmarks persistentes. UX: la
+consola siempre vuelve al fondo al ejecutar un comando, ctrl+home/ctrl+end
+saltan al principio/final de su historial, el color de error ya es
+configurable y la fila seleccionada garantiza contraste sin depender del
+terminal. El visualizador de espectro reintenta solo tras perder
+PipeWire/el dispositivo (antes quedaba en animación falsa por el resto de
+la sesión), y la unit de systemd `--user` suma hardening
+(`NoNewPrivileges`, `ProtectSystem=strict` con `ReadWritePaths`,
+`RestrictAddressFamilies=AF_UNIX` y más), verificado en vivo con una unit
+sandboxeada antes de aplicarlo. Detalle completo, hallazgo por hallazgo,
+en `CLAUDE.md`.
+
 ## v1.12.1 — 2026-08-03
 
 Reportado por el dueño tras usar la 1.12.0: la Command Palette y otros

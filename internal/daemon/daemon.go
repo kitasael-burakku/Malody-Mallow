@@ -308,7 +308,7 @@ func (d *Daemon) serve(conn net.Conn) {
 			// propósito minutos sin que el cliente mande nada, y el
 			// deadline puesto arriba para esta vuelta seguiría corriendo.
 			conn.SetReadDeadline(time.Time{})
-			d.subscribe(conn, sc)
+			d.subscribe(conn, sc, req.Lang)
 			return
 		} else if req.Cmd == "shutdown" {
 			// Como subscribe, se intercepta antes de handle: la respuesta
@@ -347,12 +347,16 @@ func writeResponse(conn net.Conn, resp ipc.Response) error {
 // el proceso del demonio entero para TODOS los clientes (TUI, CLI, MPRIS) —
 // quien la llama vuelve normal tras esta función, sin más efecto que la
 // respuesta de error. No cambia el comportamiento ante SIGKILL/OOM, que ya
-// cubre el sistema operativo.
-func recoverResponse(cmd string, fn func() ipc.Response) (resp ipc.Response) {
+// cubre el sistema operativo. El diagnóstico a stderr usa el idioma GLOBAL
+// del proceso (lo ve el operador del demonio, no el cliente); la respuesta
+// SÍ debe honrar lang (el idioma del cliente que disparó el panic), como
+// hace el resto de dispatch() — se descartaba antes (hallazgo de la
+// revisión posterior).
+func recoverResponse(cmd, lang string, fn func() ipc.Response) (resp ipc.Response) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.panic_recovered", cmd, r))
-			resp = ipc.Response{Error: i18n.T("d.internal_error")}
+			resp = ipc.Response{Error: i18n.TL(lang, "d.internal_error")}
 		}
 	}()
 	return fn()
@@ -370,7 +374,7 @@ const defaultMaxSubscribers = 64
 // estado inicial, y uno nuevo cada vez que notify marca dirty, con un mínimo
 // de 250 ms entre pushes (los ticks de time-pos de mpv llegan varios por
 // segundo). Vuelve —y serve cierra la conexión— cuando el cliente cuelga.
-func (d *Daemon) subscribe(conn net.Conn, sc *bufio.Scanner) {
+func (d *Daemon) subscribe(conn net.Conn, sc *bufio.Scanner, lang string) {
 	s := &subscriber{conn: conn, dirty: make(chan struct{}, 1)}
 	// Registrar antes del primer push: un cambio entre la foto inicial y el
 	// registro se perdería; así a lo sumo genera un push extra inmediato.
@@ -379,7 +383,11 @@ func (d *Daemon) subscribe(conn net.Conn, sc *bufio.Scanner) {
 	d.subMu.Lock()
 	if len(d.subs) >= d.maxSubscribers {
 		d.subMu.Unlock()
-		writeResponse(conn, ipc.Response{Error: i18n.T("d.too_many_subs")})
+		// TL(lang, ...), no T(...): el hermano "shutdown" ya honraba el
+		// idioma del cliente (TL(req.Lang, "d.bye")); este rechazo se había
+		// quedado con el idioma global del proceso (hallazgo de la
+		// revisión posterior).
+		writeResponse(conn, ipc.Response{Error: i18n.TL(lang, "d.too_many_subs")})
 		return
 	}
 	d.subs[s] = struct{}{}
@@ -451,7 +459,7 @@ func (d *Daemon) state() ipc.Response {
 // demonio que sobrevive un panic pero queda con un mutex fantasma está peor
 // que uno que se cae y un supervisor reinicia.
 func (d *Daemon) handle(req ipc.Request) ipc.Response {
-	return recoverResponse(req.Cmd, func() ipc.Response {
+	return recoverResponse(req.Cmd, req.Lang, func() ipc.Response {
 		resp := d.dispatch(req)
 		switch req.Cmd {
 		case "ping", "status", "queue", "search", "scan":

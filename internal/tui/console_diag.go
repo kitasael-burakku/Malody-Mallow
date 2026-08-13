@@ -330,6 +330,7 @@ func (m *Model) conConfig() tea.Cmd {
 		row("config.text", cfg.Theme.Text)
 		row("config.theme_dim", cfg.Theme.Dim)
 		row("config.playing", cfg.Theme.Playing)
+		row("config.error", cfg.Theme.Error)
 		row("config.logo", strings.Join(cfg.Theme.Logo, ", "))
 
 		sec("config.sec_visualizer")

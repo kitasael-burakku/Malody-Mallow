@@ -462,6 +462,20 @@ func KeyConflicts(keys map[string]string) []KeyConflict {
 // Load lee el config; si no existe lo crea con los defaults.
 func Load() (cfg Config, retErr error) {
 	cfg = Default()
+	// def guarda una copia de los valores por defecto para Logo/clampHex
+	// más abajo: más barato que llamar a Default() de nuevo más adelante
+	// (que resuelve defaultMusicDir() otra vez, con su lectura de disco de
+	// user-dirs.dirs — evitar la relectura importa en el hot path de
+	// completado de shell, mismo precedente de rendimiento que motivó la
+	// 1.7.3; hallazgo de la revisión posterior a CFG-1). La copia del
+	// struct es superficial: Theme.Logo (slice) necesita SU PROPIA copia
+	// explícita, porque toml.Decode más abajo puede reescribir el array
+	// que respalda cfg.Theme.Logo IN PLACE (misma longitud, misma
+	// capacidad) — sin esto, def.Theme.Logo terminaba apuntando al mismo
+	// array ya corrompido con lo que haya puesto el usuario (encontrado de
+	// verdad: TestLoadLogoSane fallaba con esta versión del fix).
+	def := cfg
+	def.Theme.Logo = append([]string(nil), cfg.Theme.Logo...)
 	// El decode debe llenar Keys solo con lo que el usuario escribió en
 	// [keys]; resolveKeys mezcla después defaults y preset (retorno con
 	// nombre para que también aplique en las salidas tempranas).
@@ -501,7 +515,7 @@ func Load() (cfg Config, retErr error) {
 		cfg.Visualizer.BarsGravity = 0.92
 	}
 	if !validLogo(cfg.Theme.Logo) {
-		cfg.Theme.Logo = Default().Theme.Logo
+		cfg.Theme.Logo = def.Theme.Logo
 	}
 	// El resto de los colores del tema no llevaban esta guarda: un
 	// config.toml con "accent = \"rojo\"" pasaba sin corrección mientras
@@ -512,7 +526,6 @@ func Load() (cfg Config, retErr error) {
 	// autocorregían y cuáles no. UN CAMPO DE COLOR NUEVO EN Theme O
 	// Visualizer NECESITA SU PROPIO clampHex ACÁ (ver el comentario de
 	// ambos structs): no hay ningún mecanismo que lo aplique solo.
-	def := Default()
 	clampHex(&cfg.Theme.Accent, def.Theme.Accent)
 	clampHex(&cfg.Theme.Border, def.Theme.Border)
 	clampHex(&cfg.Theme.Text, def.Theme.Text)

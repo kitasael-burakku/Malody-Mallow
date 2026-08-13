@@ -1362,17 +1362,138 @@ MEDIUM: el modelo de amenaza (mismo UID = mismo nivel de confianza) sigue
 siendo correcto, sin inyección de comandos, path traversal explotable ni
 SQL injection en ningún punto. El hallazgo de mayor prioridad práctica que
 dejó fue justamente que este roadmap no mencionaba el commit `5f10d3f` —el
-motivo del párrafo de arriba—, seguido de un puñado de MEDIUM concretos
-(recover() en el demonio, cota de lectura del cliente IPC, tope de
-suscriptores simultáneos) y una cola de LOW/INFO (validación de colores del
-tema, sincronía de README, fuzzing/benchmarks persistentes, hardening de
-systemd). A diferencia del párrafo de arriba, estos SÍ tocan código
-compilado (`daemon.go`, `ipc.go`, `config.go`, `player.go` entre otros) en
-cuanto se implementan — no son "sin bump de versión" como la mera
-documentación del `5f10d3f`. La entrada de roadmap correspondiente, con su
-propio bump de versión siguiendo la convención de todo el resto de este
-archivo, se agrega cuando esa tanda quede cerrada y lista para publicarse,
-no en este párrafo intermedio.
+motivo del párrafo de arriba—, seguido de un puñado de MEDIUM concretos y
+una cola de LOW/INFO, organizados en un roadmap de cinco fases que cierra
+la 1.13.0 de abajo.
+
+La **1.13.0** (2026-08-12) implementa las cinco fases de esa auditoría
+completas. Cada fase se revisó con `/code-review` sobre el diff acumulado
+ANTES de seguir a la siguiente — disciplina que pagó de verdad: la review
+sobre fases 1-3 encontró que `recoverResponse` no bastaba por sí solo si
+el código bajo panic tenía un mutex tomado con Lock/Unlock a mano (lo
+recuperaba, pero dejaba el mutex tomado para siempre — peor que el crash
+original), y una segunda review sobre la fase 5 encontró, entre otras
+cosas, una carrera real de datos en el propio mecanismo de reintento del
+visualizador que se acababa de escribir. Ambas rondas están detalladas
+abajo porque el propio proceso de auditar-implementar-revisar es parte de
+lo que esta release demuestra, no solo su resultado.
+
+**Fase 1 — seguridad y estabilidad.** `recoverResponse` (nuevo en
+`daemon.go`) envuelve `handle()` COMPLETO —no solo `dispatch()`— con un
+`recover()`: un panic de programación ya no tumba el proceso del demonio
+entero para TODOS los clientes, y como TODOS los caminos de entrada pasan
+por `handle()` (serve() vía el socket, `Do()` de los tests, y los métodos
+de `mpris.Controller`, que llaman a `handle()` directo sin pasar por el
+socket), envolver ahí cubre a MPRIS también. La revisión posterior
+destapó que no alcanzaba: `handle()`, `advance()`, `notify()` y
+`learnDuration()` tenían `Lock()`/`Unlock()` a mano con múltiples salidas,
+así que un panic a mitad de esas funciones dejaba `d.mu`/`d.notifyMu`
+tomado para siempre aunque el proceso sobreviviera — las cuatro pasaron a
+una función inmediata con `defer` para el lock. Los callbacks
+`onEnd`/`onChange` del player (fire-and-forget, disparados por eventos
+reales de mpv) quedaron protegidos aparte con `safeCall()` en
+`player.go`, porque no pasan por `dispatch()` en absoluto. El cliente IPC
+(`ipc.Client`) pasó de `bufio.Reader` sin tope a un lector acotado a 64
+MiB (SEC-01) — pero la primera versión usaba `bufio.Scanner`, y la
+revisión de la fase 5 encontró (verificado con un programa Go standalone
+aparte) que el error de `Scanner` es "pegajoso": tras un timeout, TODAS
+las llamadas siguientes a `Scan()` fallan con el MISMO error para
+siempre, incluso con datos ya disponibles y un deadline nuevo — dejaba el
+`*Client` inservible tras el primer hiccup de red, algo que el
+`bufio.Reader` de antes de SEC-01 nunca tuvo. La versión final volvió a
+`bufio.Reader` con el tope reimplementado a mano sobre `ReadSlice`.
+`maxSubscribers` (64, campo de instancia como `idleTimeout`) evita agotar
+fds/goroutines del demonio con conexiones `subscribe` sin cerrar (SEC-02);
+el error de `os.Chmod(sock, 0o600)` ya no se descarta (CONC-01).
+
+**Fase 2 — calidad.** `Load()` valida los 7 colores de tema/visualizador
+que no llevaban guarda (antes solo `Logo` se autocorregía; CFG-1) — la
+revisión de la fase 5 encontró de paso que `Load()` llamaba a `Default()`
+tres veces (cada una releyendo `user-dirs.dirs` del disco, en el hot path
+de completado de shell) y que una optimización ingenua de "una sola copia"
+introducía un bug real de aliasing (`toml.Decode` puede reescribir el
+array que respalda `Theme.Logo` IN PLACE; una copia superficial del
+struct dejaba el snapshot de default apuntando al mismo array ya
+corrompido — lo cazó `TestLoadLogoSane`, test ya existente). El error de
+la query inicial de `FillDurations` ya no se descarta en silencio
+(PERF-01). `TestConcurrentClientsStress` prueba ~40 conexiones reales al
+socket bajo `-race` (TEST-1), `FuzzParseLRC` corrió 2M+ ejecuciones sin
+panics (TEST-2), y `BenchmarkScan`/`BenchmarkSearchLimit` quedan
+persistentes en `internal/library` (TEST-3).
+
+**Fase 3 — UX/TUI.** La consola vuelve siempre al fondo (`conScroll = 0`)
+al ejecutar un comando nuevo, en vez de dejar el resultado fuera de vista
+si el usuario había hecho pgup (UX-N1); `ctrl+home`/`ctrl+end` saltan al
+principio/final de su historial —no `home`/`end` sueltos, que chocan con
+el textinput activo— (UX-N2). `Theme.Error` es color configurable (antes
+hardcodeado) y la fila seleccionada pasa de `Reverse(true)` a
+`Background`+`Foreground` explícitos con contraste calculado por fórmula
+YIQ, que no depende de cómo cada terminal implemente el reverse video
+(UX-N3) — la revisión posterior encontró que `conConfig` de la TUI no
+sumó la fila `error` al mismo tiempo que `cmd/maly/config_cmd.go`, la
+misma clase de gap de paridad consola↔CLI que ya mordió al proyecto con
+`remove <pos>`. `library.OpenIfExists` se extrajo de `cmd/maly` al
+paquete `library` para que `internal/tui/select.go` también lo usara sin
+fabricar una biblioteca vacía al abrir sin escanear (UX-N5) — la revisión
+encontró que la función compartida conflaba "no existe" con "existe pero
+`Open()` falló" (DB corrupta/bloqueada), remedio equivocado para un
+comando interactivo; `select.go` volvió a distinguir los dos casos con un
+`os.Stat` propio. `esc` en el selector de idioma cierra con el idioma ya
+activo en vez de tragarse la tecla (UX-N6); el hint de scroll de la ayuda
+decía "cualquier otra tecla cierra" cuando pgup/pgdn/ctrl+u/ctrl+d en
+realidad scrollean (UX-N7).
+
+**Fase 5 — features.** El visualizador reintenta la captura cada 15 s
+tras perderla en pleno uso (PipeWire se reinicia, el dispositivo
+desaparece), en vez de quedar en animación falsa el resto de la sesión —
+solo si `hadBackend` (hubo una captura real alguna vez; sin eso, un
+sistema sin pw-record/parec instalados no gana nada reintentando para
+siempre). La propia revisión de este mecanismo encontró tres bugs de
+concurrencia reales en el primer intento: `startCapture` escribía
+`v.cmd`/`v.backend` sin lock mientras `Close()` los leía CON lock (carrera
+real: `Close()` podía matar el proceso viejo mientras el nuevo del
+reintento quedaba huérfano); `armRetry` tenía un TOCTOU donde `retrying`
+podía quedar en `true` para siempre si el backend "aleteaba" (moría al
+instante tras reconectar); y `Close()` no era idempotente (`sync.Once`
+ahora, como `daemon.Close`). Los tres se cerraron unificando el punto de
+verdad: `v.cmd`, `v.backend`, `v.fake` y `v.retrying` se escriben TODOS
+bajo el mismo lock, en la misma sección atómica de `startCapture`, con un
+chequeo de `v.closed` que mata en el acto un proceso que ganó la carrera
+contra `Close()`. `vizWarned` (el flash de aviso) se resetea cuando el
+viz sale de fake, o una segunda pérdida más tarde en la sesión quedaba
+muda. **SYSD-1**: la unit de systemd `--user` (en `mallow-install.sh` y
+en el `maly.service` del PKGBUILD) suma `NoNewPrivileges`,
+`ProtectSystem=strict`, `PrivateTmp`, `RestrictAddressFamilies=AF_UNIX`,
+`RestrictNamespaces`, `LockPersonality` y los `Protect*` de kernel/cgroups
+—deliberadamente SIN `ProtectHome`, que bloquearía `music_dir` si vive en
+un disco externo. `ProtectSystem=strict` resultó más agresivo de lo que
+la auditoría original asumió: su propio manpage dice que deja TODO de
+solo lectura salvo `/dev`/`/proc`/`/sys` (ni siquiera `$XDG_RUNTIME_DIR`
+queda exento), así que hizo falta `ReadWritePaths=%h/.config/maly
+%h/.local/share/maly %t/maly` para que el demonio pudiera crear su lock,
+sus sockets y el `config.toml` de la primera vez. Verificado EN VIVO antes
+de tocar los archivos reales: una unit de systemd temporal y sandboxeada
+(XDG_CONFIG_HOME/DATA_HOME/RUNTIME_DIR propios, apuntando al mismo binario
+instalado) arrancó limpio, escaneó música real, respondió por IPC, y
+cerró limpio con `maly kill` — todo sin tocar el `maly.service` real del
+dueño, que siguió corriendo en todo momento.
+
+**Fase 4 — rendimiento**: sin cambios, tal como concluyó el roadmap
+original de la auditoría.
+
+Cada fix con lógica o estado nuevo (de ambas rondas de revisión incluidas)
+se verificó en ambas direcciones — revertir, confirmar que el test falla
+por la razón correcta, restaurar —, con dos casos que vale la pena
+recordar: el de `ipc.Client` se verificó además con un programa Go
+standalone fuera del repo (reprodujo el error pegajoso de `Scanner` y la
+recuperación correcta de `Reader` contra un servidor TCP real, no
+simulado), y el de `Theme.Logo` lo cazó un test YA EXISTENTE
+(`TestLoadLogoSane`) en vez de uno nuevo escrito para la ocasión — la
+prueba de que la disciplina de correr la suite completa después de cada
+cambio, no solo los tests nuevos, encuentra regresiones que un test
+dirigido no habría cubierto. `go build`, `go vet`, `gofmt -l .` y
+`go test ./...` limpios; `go test -race` limpio en
+`daemon`/`library`/`mpris`/`player`/`viz`/`ipc`.
 
 ### Post-1.0 (candidatos)
 

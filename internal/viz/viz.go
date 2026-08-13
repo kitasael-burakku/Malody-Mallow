@@ -4,6 +4,7 @@
 package viz
 
 import (
+	"errors"
 	"io"
 	"math"
 	"os/exec"
@@ -20,6 +21,10 @@ const (
 	fMax       = 15000.0
 )
 
+// vizRetryInterval es cada cuánto se reintenta el capturador tras perderlo
+// en pleno uso (ver armRetry).
+const vizRetryInterval = 15 * time.Second
+
 type Viz struct {
 	mu      sync.Mutex
 	cmd     *exec.Cmd
@@ -28,13 +33,26 @@ type Viz struct {
 	backend string // "pw-record", "parec" o ""
 	closed  bool
 
+	// pref es la preferencia de backend del config ([visualizer] backend);
+	// se fija una sola vez en New() y no se vuelve a tocar, así que leerla
+	// sin lock desde la goroutine de armRetry es seguro.
+	pref string
+	// hadBackend marca si ALGUNA vez hubo una captura real funcionando:
+	// solo entonces vale la pena reintentar tras perderla. En un sistema
+	// sin pw-record/parec instalados, reintentar no tiene ningún beneficio
+	// y solo gasta un exec.LookPath por vuelta para siempre.
+	hadBackend bool
+	retrying   bool
+	stopRetry  chan struct{} // no nil solo mientras hay un retry en vuelo
+
 	fft     *fourier.FFT
 	window  []float64 // ventana de Hann precalculada
 	maxSeen float64   // autoganancia con decaimiento lento
 
-	gravity float64
-	bars    []float64
-	start   time.Time
+	gravity   float64
+	bars      []float64
+	start     time.Time
+	closeOnce sync.Once
 }
 
 // New arranca la captura del monitor de audio. Nunca falla: sin backend
@@ -49,12 +67,15 @@ func New(gravity float64, pref string) *Viz {
 		maxSeen: 1,
 		gravity: gravity,
 		start:   time.Now(),
+		pref:    pref,
 	}
 	for i := range v.window {
 		v.window[i] = 0.5 * (1 - math.Cos(2*math.Pi*float64(i)/float64(fftSize-1)))
 	}
 	if err := v.startCapture(pref); err != nil {
 		v.fake = true
+	} else {
+		v.hadBackend = true
 	}
 	return v
 }
@@ -114,8 +135,20 @@ func CaptureBackend(pref string) string {
 	return ""
 }
 
+// errVizClosed marca un startCapture que ganó la carrera contra Close(): el
+// proceso arrancó pero se mata en el acto, así que no cuenta como éxito.
+var errVizClosed = errors.New("viz: closed")
+
 // startCapture intenta los candidatos que deje pref, leyendo s16le mono
-// 44.1kHz.
+// 44.1kHz. v.cmd/v.backend/v.fake/v.retrying se escriben TODOS bajo el mismo
+// v.mu que Close() usa para leerlos, en la misma sección: antes v.cmd y
+// v.backend se escribían sin lock, y Close() podía leer el v.cmd VIEJO
+// mientras un reintento de armRetry escribía el nuevo — Close() mataba el
+// proceso ya muerto y el recién arrancado por el reintento quedaba huérfano
+// (carrera real, encontrada en la revisión del propio fix de UX-N4).
+// También cierra el hueco de armRetry: si Close() ya corrió (v.closed) para
+// cuando este intento consigue arrancar el proceso, se lo mata acá mismo en
+// vez de dejarlo vivo sin que nadie vaya a esperarlo.
 func (v *Viz) startCapture(pref string) error {
 	var lastErr error
 	for _, c := range filterCandidates(pref) {
@@ -134,8 +167,23 @@ func (v *Viz) startCapture(pref string) error {
 			lastErr = err
 			continue
 		}
+		v.mu.Lock()
+		if v.closed {
+			v.mu.Unlock()
+			cmd.Process.Kill()
+			go cmd.Wait()
+			return errVizClosed
+		}
 		v.cmd = cmd
 		v.backend = c.name
+		// fake/retrying se limpian ACÁ, no en el llamador (armRetry): si se
+		// limpiaran después de que startCapture devuelva, un readLoop que
+		// muriera al instante (backend "aleteando") podía ver retrying
+		// todavía en true y no rearmar nada — el arreglo del otro hallazgo
+		// de esta misma revisión (TOCTOU de doble-armado).
+		v.fake = false
+		v.retrying = false
+		v.mu.Unlock()
 		go v.readLoop(stdout)
 		go cmd.Wait()
 		return nil
@@ -163,14 +211,56 @@ func (v *Viz) readLoop(r io.Reader) {
 			closed := v.closed
 			v.mu.Unlock()
 			if !closed {
-				// El proceso de captura murió: degradar a fake.
+				// El proceso de captura murió (PipeWire se reinició, el
+				// dispositivo desapareció, lo mataron a mano): degradar a
+				// fake y armar el reintento periódico para no quedarse en
+				// animación falsa por el resto de la sesión.
 				v.mu.Lock()
 				v.fake = true
 				v.mu.Unlock()
+				v.armRetry()
 			}
 			return
 		}
 	}
+}
+
+// armRetry lanza (si no hay uno ya en vuelo) un reintento periódico de
+// startCapture cada vizRetryInterval. Sin esto, perder el capturador en
+// pleno uso dejaba el visualizador en modo animación falsa por el resto de
+// la sesión, aunque el backend volviera segundos después —p. ej. un
+// `systemctl --user restart pipewire`— (hallazgo UX-N4 de la auditoría
+// técnica). Solo se arma si hadBackend: en un sistema sin pw-record/parec
+// instalados no hay ningún beneficio en reintentar para siempre.
+func (v *Viz) armRetry() {
+	v.mu.Lock()
+	if !v.hadBackend || v.retrying || v.closed {
+		v.mu.Unlock()
+		return
+	}
+	v.retrying = true
+	stop := make(chan struct{})
+	v.stopRetry = stop
+	pref := v.pref
+	v.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(vizRetryInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ticker.C:
+				// El éxito ya deja fake/retrying en el estado correcto
+				// (ver el comentario de startCapture); acá no hace falta
+				// tocar nada más que salir.
+				if err := v.startCapture(pref); err == nil {
+					return
+				}
+			}
+		}
+	}()
 }
 
 // Fake informa si el visualizador está en modo animación (sin captura real).
@@ -281,13 +371,24 @@ func (v *Viz) fakeBars(n int, playing bool) []float64 {
 	return out
 }
 
-// Close mata el proceso de captura.
+// Close mata el proceso de captura y, si había un reintento en vuelo, lo
+// corta también (sin esto sobrevivía hasta su próximo tick, hasta
+// vizRetryInterval de segundos, en vez de cerrarse en el acto). closeOnce
+// la hace idempotente: sin esto, una segunda llamada intentaría cerrar de
+// nuevo el mismo canal de stop ya cerrado y entraría en pánico (mismo
+// patrón que closeOnce en daemon.Daemon).
 func (v *Viz) Close() {
-	v.mu.Lock()
-	v.closed = true
-	cmd := v.cmd
-	v.mu.Unlock()
-	if cmd != nil && cmd.Process != nil {
-		cmd.Process.Kill()
-	}
+	v.closeOnce.Do(func() {
+		v.mu.Lock()
+		v.closed = true
+		cmd := v.cmd
+		stop := v.stopRetry
+		v.mu.Unlock()
+		if stop != nil {
+			close(stop)
+		}
+		if cmd != nil && cmd.Process != nil {
+			cmd.Process.Kill()
+		}
+	})
 }

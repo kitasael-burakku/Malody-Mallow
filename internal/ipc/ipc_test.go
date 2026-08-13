@@ -279,6 +279,51 @@ func TestDoRejectsTruncatedResponse(t *testing.T) {
 	}
 }
 
+// TestDoRecoversAfterTimeoutOnSameClient cubre un hallazgo de la revisión
+// posterior a SEC-01: el bufio.Scanner que reemplazó al bufio.Reader tiene
+// un error "pegajoso" — una vez que Scan() falla una vez (p. ej. por un
+// timeout transitorio), TODAS las llamadas siguientes a Scan() en el MISMO
+// Scanner fallan también, con el MISMO error, sin volver a intentar I/O
+// (verificado a mano: un segundo Scan() con un deadline nuevo seguía
+// fallando aunque ya hubiera datos disponibles). Eso dejaba el *Client
+// entero inservible tras el primer timeout, aunque la conexión siguiera
+// perfectamente sana — algo que el bufio.Reader de antes de SEC-01 nunca
+// tuvo. Este test reproduce exactamente ese escenario: la primera Do()
+// vence por timeout (el demonio nunca contesta esa petición), la segunda
+// Do() sobre el MISMO *Client debe funcionar normal.
+func TestDoRecoversAfterTimeoutOnSameClient(t *testing.T) {
+	sock := serve(t, func(conn net.Conn) {
+		defer conn.Close()
+		sc := bufio.NewScanner(conn)
+		if !sc.Scan() {
+			return // primera petición: se traga, nunca se contesta
+		}
+		if !sc.Scan() {
+			return
+		}
+		conn.Write([]byte(`{"ok":true,"msg":"segunda"}` + "\n"))
+	})
+	c, err := Dial(sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	c.Timeout = 100 * time.Millisecond
+	if _, err := c.Do(Request{Cmd: "status"}); err == nil {
+		t.Fatal("la primera Do() debía fallar por timeout (el demonio nunca contesta esa petición)")
+	}
+
+	c.Timeout = 2 * time.Second
+	resp, err := c.Do(Request{Cmd: "status"})
+	if err != nil {
+		t.Fatalf("la segunda Do() sobre el mismo *Client debía funcionar tras el timeout de la primera: %v", err)
+	}
+	if !resp.OK || resp.Msg != "segunda" {
+		t.Fatalf("segunda respuesta = %+v, quería {OK:true Msg:segunda}", resp)
+	}
+}
+
 // TestDoAcceptsLargeLegitimateResponse cubre otro hallazgo de la misma
 // revisión: el cliente no puede capar las respuestas al mismo tope que el
 // servidor usa para las PETICIONES (1 MiB, tráfico bien distinto) —

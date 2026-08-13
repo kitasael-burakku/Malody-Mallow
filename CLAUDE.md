@@ -1495,6 +1495,53 @@ dirigido no habría cubierto. `go build`, `go vet`, `gofmt -l .` y
 `go test ./...` limpios; `go test -race` limpio en
 `daemon`/`library`/`mpris`/`player`/`viz`/`ipc`.
 
+Sobre la 1.13.0, sin bump de versión (no toca el binario, solo la unit de
+systemd): **`ReadWritePaths=%t/maly` rompía en un boot limpio de verdad**,
+en la propia máquina del dueño, horas después de que SYSD-1 se diera por
+"verificado en vivo". Síntoma: `maly.service` en `start-limit-hit`,
+`status=226/NAMESPACE`, `journalctl` mostrando "Failed to set up mount
+namespacing: /run/user/1000/maly: No such file or directory". Causa: el
+manual de `systemd.exec` es explícito y se había pasado por alto —
+`ReadWritePaths=` exige que la ruta YA EXISTA en el momento en que se arma
+el namespace de montaje, que ocurre ANTES de que el proceso arranque (y
+por lo tanto antes de que `EnsureRuntimeDir` llegue a crearla). En caliente
+—reiniciando el servicio dentro de la misma sesión— el directorio ya
+existía de una corrida anterior y el problema quedaba oculto; en un boot
+real, `/run/user/$UID` es tmpfs recién montado y `maly` no existe ahí
+todavía. La verificación en vivo de SYSD-1 no lo agarró por la misma clase de motivo
+que después causó el bug: la unit de prueba sandboxeada de entonces tenía, por
+conveniencia, un directorio padre más amplio (`%h/.mtst`) ya creado de
+antemano, que enmascaró exactamente este caso — lección repetida de la
+que ya dejaron la 1.6.1 y la fase 5 de arriba: verificar no es suficiente
+si el propio arnés de prueba no reproduce las condiciones reales.
+
+El arreglo usa el mecanismo correcto de systemd en vez de pelear con
+`ReadWritePaths` a mano: `RuntimeDirectory=maly` y
+`ConfigurationDirectory=maly` (con sus `*Mode=0700`) crean
+`$XDG_RUNTIME_DIR/maly` y `$XDG_CONFIG_HOME/maly` ANTES de arrancar el
+proceso, con la propiedad correcta, y quedan exceptuadas de
+`ProtectSystem=strict` solas —sin necesitar tocar `ReadWritePaths` para
+ninguna de las dos—, que es exactamente para lo que existen (`man
+systemd.exec`, tabla de `RuntimeDirectory=`/`StateDirectory=`/
+`CacheDirectory=`/`ConfigurationDirectory=`, columna "Below path for user
+units"). `$XDG_DATA_HOME` (biblioteca y sesión) no tiene una directiva
+dedicada en esa tabla —solo cubre RUNTIME/CONFIGURATION/STATE/CACHE, y
+`StateDirectory=` apunta a `$XDG_STATE_HOME`, no a `$XDG_DATA_HOME`, así
+que no sirve como sustituto—, así que sigue yendo a mano vía
+`ReadWritePaths=`, pero con `-` al principio: el propio manual documenta
+ese prefijo explícitamente para "ignorar la ruta si no existe" en vez de
+abortar el arranque.
+
+Esta vez la verificación fue con el escenario real: una unit de prueba
+aparte, con nombres que no chocan con los reales (`RuntimeDirectory=maly-hwtest`,
+`ConfigurationDirectory=maly-hwtest-cfg`), apuntando a un
+sandbox donde NINGUNO de los tres directorios existía de antemano —ni
+siquiera su padre—, confirmando que arranca limpio y que un `maly scan`
+real escribe la biblioteca (76 pistas) antes de tocar ninguno de los tres
+archivos reales (unit del dueño, `mallow-install.sh`, `maly.service` del
+PKGBUILD, ambos README). Aplicado en caliente a la unit real del dueño sin
+perder la sesión ni la biblioteca ya existentes.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

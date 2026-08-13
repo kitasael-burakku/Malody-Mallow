@@ -408,6 +408,32 @@ ExecStart=%h/.local/bin/maly daemon
 Restart=on-failure
 RestartSec=2
 
+# Hardening: maly solo habla por sockets Unix (su propio IPC, el de mpv, y
+# D-Bus de sesión para MPRIS). Sin ProtectHome: music_dir puede vivir fuera
+# de $HOME (un disco externo). RuntimeDirectory=/ConfigurationDirectory=
+# crean $XDG_RUNTIME_DIR/maly y $XDG_CONFIG_HOME/maly ANTES de arrancar el
+# proceso (a mano con ReadWritePaths hacía falta que ya existieran, lo que
+# rompía en un boot limpio). $XDG_DATA_HOME no tiene directiva dedicada, así
+# que sigue a mano, con "-" para que systemd la ignore si todavía no existe
+# en vez de abortar el arranque.
+NoNewPrivileges=yes
+ProtectSystem=strict
+RuntimeDirectory=maly
+RuntimeDirectoryMode=0700
+ConfigurationDirectory=maly
+ConfigurationDirectoryMode=0700
+ReadWritePaths=-%h/.local/share/maly
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+
 [Install]
 WantedBy=default.target
 ```

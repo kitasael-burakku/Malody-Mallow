@@ -1,90 +1,326 @@
+<div align="center">
+
 # Malody Mallow
 
-![version](https://img.shields.io/badge/version-1.13.0-blue)
-![go](https://img.shields.io/badge/go-%E2%89%A51.25-00ADD8)
-![license](https://img.shields.io/badge/license-GPLv3-blue)
+**A local music player that lives in your terminal, in the spirit of btop
+and lazygit.**
+
+[![version](https://img.shields.io/github/v/tag/kitasael-burakku/Malody-Mallow?sort=semver&label=version&color=blue)](https://github.com/kitasael-burakku/Malody-Mallow/releases)
+[![Go](https://img.shields.io/badge/Go-%E2%89%A51.25-00ADD8?logo=go&logoColor=white)](https://go.dev/dl/)
+[![License](https://img.shields.io/badge/License-GPLv3-blue)](LICENSE)
+[![CI](https://github.com/kitasael-burakku/Malody-Mallow/actions/workflows/ci.yml/badge.svg)](https://github.com/kitasael-burakku/Malody-Mallow/actions/workflows/ci.yml)
+[![AUR](https://img.shields.io/aur/version/maly?label=AUR&logo=archlinux&logoColor=white)](https://aur.archlinux.org/packages/maly)
+[![Platform](https://img.shields.io/badge/Platform-Linux-333333?logo=linux&logoColor=white)](#requirements--compatibility)
 
 🇪🇸 [Español](README.md) · 🇬🇧 [English](README.en.md)
 
-**Malody Mallow** (`maly`) is a local music player that lives in your
-terminal, in the spirit of btop and lazygit: a TUI with panels, cover
-art, synced lyrics, and a spectrum visualizer; a background service that
-keeps playing after you close the window; and an `mpc`/`playerctl`-style
-CLI to drive it from any terminal — or from the desktop, via MPRIS. All
-in a single binary written in Go.
+<img src="pictures/tui-main.jpg" alt="Malody Mallow: library, queue, visualizer, and now playing" width="850"/>
+
+</div>
+
+---
+
+## What is Malody Mallow
+
+**Malody Mallow** (`maly`) is a local music player for your own collection,
+built to live entirely in the terminal. A single Go binary, no runtime and
+no system dependency beyond [mpv](https://mpv.io/):
+
+- A **TUI** with library and queue panels, embedded cover art, synced
+  lyrics, and a live spectrum visualizer.
+- A **background service** (`maly daemon`) that keeps playing after you
+  close the terminal window, with a persistent session.
+- An **`mpc`/`playerctl`-style CLI** to control it from any terminal or
+  script.
+- **MPRIS** desktop integration: `playerctl`, Waybar's `mpris` module, and
+  media keys control it with zero configuration.
+
+### Why use it
+
+If you already live in the terminal and reach for tools like btop or
+lazygit, Malody Mallow fits the same habit: no desktop app to open just to
+play music, and playback doesn't depend on a window staying open. The
+library is yours — your files, indexed in a local SQLite database, no
+account and no streaming — and the player speaks the same protocols the
+rest of your Linux desktop already uses (MPRIS, D-Bus).
+
+### What makes it different
+
+- **True gapless playback**, even with shuffle, repeat-one, or skipping a
+  corrupted file — not just "no audible gap," but the next track already
+  loaded into mpv before the current one ends.
+- **The session survives**: queue, volume, shuffle/repeat, and playback
+  position are restored if you restart the service.
+- **Cover art as a real image** on terminals with kitty's graphics
+  protocol (auto-detected), with automatic half-block fallback on any
+  other truecolor terminal.
+- **Bilingual by default** (English/Spanish), auto-detecting your system
+  language on first run.
+- **`maly get`**: downloads audio with yt-dlp straight into your library
+  and re-indexes it — the same lazygit-style philosophy of coordinating
+  external tools instead of reimplementing them.
+
+---
+
+## Highlights
+
+- Plays MP3, FLAC, OGG, OPUS, M4A, and WAV via mpv.
+- Service + client: music keeps playing even if you close the TUI.
+- SQLite library with accent- and case-insensitive search.
+- Live spectrum visualizer (FFT over the PipeWire/PulseAudio monitor).
+- "Now Playing" screen with cover art, synced lyrics (`.lrc` or embedded), and visualizer.
+- Playlists, fuzzy-search song picker, and an integrated command palette.
+- Dynamic shell completion (bash/fish/zsh): completes commands, real track titles, playlists, and queue positions.
 
 ---
 
 ## Screenshots
 
-![Malody Mallow preview: library, queue, visualizer, and now playing](pictures/maly.jpg)
+<table>
+<tr>
+<td width="50%">
+<img src="pictures/now-playing.png" alt="Now Playing screen with cover art and synced lyrics" width="100%"/>
+<sub align="center"><b>Now Playing</b> — cover art, lyrics, and visualizer</sub>
+</td>
+<td width="50%">
+<img src="pictures/command-palette.jpg" alt="Command palette (ctrl+p)" width="100%"/>
+<sub align="center"><b>Command palette</b> — built-in console (ctrl+p)</sub>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<img src="pictures/song-picker.jpg" alt="Fuzzy-search song picker" width="100%"/>
+<sub align="center"><b>Song picker</b> — fuzzy search (ctrl+o)</sub>
+</td>
+<td width="50%">
+<img src="pictures/desktop-hyprland.png" alt="Malody Mallow integrated into a Hyprland desktop with Waybar" width="100%"/>
+<sub align="center"><b>Desktop integration</b> — Waybar + MPRIS on Hyprland</sub>
+</td>
+</tr>
+</table>
 
-![Now Playing](pictures/Ahora-Suena.png)
+---
 
-![Command palette](pictures/commands.jpg)
+## Table of contents
 
-![Song selector](pictures/selector.jpg)
+- [What is Malody Mallow](#what-is-malody-mallow)
+- [Highlights](#highlights)
+- [Screenshots](#screenshots)
+- [Where to start](#where-to-start)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Requirements & compatibility](#requirements--compatibility)
+- [Installation](#installation)
+- [First run](#first-run)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Project structure](#project-structure)
+- [Development](#development)
+- [Project status](#project-status)
+- [Credits](#credits)
+- [License](#license)
 
-![Maly in Hyprland](pictures/hyprland-maly.png)
+---
+
+## Where to start
+
+| If you are... | Start with... |
+|---|---|
+| A new user who wants to try it now | [Installation](#installation) → [First run](#first-run) |
+| Coming from mpc/playerctl | [CLI](#cli-mpc-style) |
+| Integrating with your desktop (Waybar, media keys) | [MPRIS](#mpris-playerctl-waybar) |
+| Something isn't working | [Troubleshooting](#troubleshooting) — or just run `maly doctor` |
+| Trying to understand the internals | [Architecture](#architecture) |
+| Building or contributing | [Development](#development) |
 
 ---
 
 ## Features
 
-- **mpv backend**: MP3, FLAC, OGG, OPUS, M4A, WAV effortlessly.
-- **Gapless**: the next track in the queue is queued ahead in mpv and the
-  switch happens without cutting the audio — also works with repeat one,
+### Playback
+
+- **mpv backend**: MP3, FLAC, OGG, OPUS, M4A, WAV, with no fuss.
+- **Gapless**: the next queued track is appended to mpv ahead of time, so
+  the switch happens without cutting the audio — also with repeat-one,
   with shuffle, and when skipping corrupted files.
 - **Service + client**: music keeps playing even if you close the TUI (if
-  you launched `maly daemon` separately). Control it from any terminal.
-- **The session persists**: queue, volume, shuffle/repeat, and the current
+  you launched `maly daemon` separately, or left the systemd service
+  running). Control it from any terminal.
+- **The session survives**: queue, volume, shuffle/repeat, and the current
   track with its position are restored when the service restarts — paused,
   ready to resume with `maly play`.
-- **MPRIS**: the service announces itself as `org.mpris.MediaPlayer2.maly`
-  on D-Bus — `playerctl`, Waybar's `mpris` module, and the desktop's media
-  keys see and control it with zero configuration; the track's embedded
-  cover art is published as `mpris:artUrl`.
-- **SQLite library**: tag scanning (artist/album/title/year/genre),
-  accent- and case-insensitive search ("aurea" finds "Áurea").
-- **Spectrum visualizer**: live FFT off the PipeWire/PulseAudio monitor,
-  with a color gradient; bars follow smoothed amplitude (CAVA-style).
-- **"Now Playing" screen (Ctrl+T)**: a fullscreen view with the embedded
-  cover art rendered in the terminal, lyrics synced to playback (`.lrc`
-  sidecar, or embedded in the track), and the visualizer strip. On kitty
-  the cover is drawn as a real image (its graphics protocol,
-  auto-detected); on any other truecolor terminal it falls back to
-  half-blocks.
-- **Ctrl+P palette**: an integrated command console (`maly next`, `vol +5`,
-  `status`…) with output shown right inside the palette.
-- **Ctrl+O selector / `maly select`**: fuzzy search across the whole
-  library (`enter` plays, `tab` adds to the queue); from the CLI it opens
-  as a mini modal without loading the full TUI.
-- **Ctrl+L playlist panel**: manage your playlists without leaving the TUI
-  (`enter` plays, `tab` queues, `ctrl+n` creates, `ctrl+x` deletes), and
-  with `A` you send the library or queue selection to a playlist.
-  Playlists also hang off the Library tree, with their tracks numbered:
-  `enter` expands them and `a` queues them like any other node.
-- **Vim navigation**: `h j k l`, `gg`, `G`, `ctrl+d`/`ctrl+u` across panels
-  (arrow keys still work), and control presets via `maly controls`
-  (`default` | `vim`).
-- **Bilingual**: English/Spanish interface; chosen on first launch
-  (`language` config key).
-- **Dynamic shell completion** (bash/fish/zsh): TAB completes commands,
-  real titles from your library, playlists, and queue positions (see
-  [Completion](#completion-bash--fish--zsh)).
-- **Playlists** with M3U export/import, shuffle, repeat (off/all/one), live queue.
-- **`maly get`**: downloads audio with yt-dlp directly into your library
-  (`maly get "artist song"` or a URL) — with embedded metadata and cover
-  art, and automatic re-scan. A URL with `&list=` NEVER downloads the whole
-  playlist by accident (`--no-playlist` always); for that there's
-  **`maly get playlist <url> [name]`**, which downloads the full playlist
-  into a subfolder and creates a maly playlist with those tracks, in order.
-  yt-dlp and ffmpeg are optional: only `get` uses them.
-- **Theme and keybindings** configurable via TOML: transparent background
-  (uses your terminal's color), live banner colors (the palette's `logo`
-  command), and your own ASCII art via `logo.txt`.
+
+### Library
+
+- **Local SQLite**: tag scanning (artist/album/title/year/genre),
+  accent- and case-insensitive search ("aurea" matches "Áurea").
+- **Durations via ffprobe** (optional): scanning has a second phase that
+  fills in missing durations in parallel; without ffprobe they're learned
+  as each track plays.
+- **Playlists**: create, list, add/remove tracks, play, export/import
+  M3U — from the CLI, the console, or the `ctrl+l` panel.
+
+### TUI
+
+- **Library and queue panels** with vim navigation (`h j k l`, `gg`, `G`,
+  `ctrl+d`/`ctrl+u`; arrow keys also work) and control presets
+  (`maly controls` → `default` | `vim`).
+- **"Now Playing" screen (`ctrl+t`)**: a fullscreen view with the embedded
+  cover art rendered in the terminal, lyrics synced to playback (a `.lrc`
+  sidecar next to the audio file, or embedded in the track), and the
+  visualizer strip.
+- **`ctrl+p` palette**: an integrated command console (`maly next`,
+  `vol +5`, `status`, `get`, `playlist`…) with output inside the palette
+  itself.
+- **`ctrl+o` picker / `maly select`**: fuzzy search across the whole
+  library (`enter` plays, `tab` adds to the queue).
+- **`ctrl+l` playlist panel**: manage your playlists without leaving the
+  TUI, and `A` sends the current library or queue selection to one.
+- **Bilingual**: English/Spanish interface; chosen on first run.
+
+### Visualizer
+
+- **Live FFT** over the PipeWire/PulseAudio audio monitor, with a color
+  gradient; bars follow smoothed amplitude (CAVA-style).
+- Without a capture backend, it falls back to **animation** instead of
+  failing, retrying real capture every 15 seconds.
+
+### Downloads (`maly get`)
+
+- Wraps **yt-dlp** to pull audio straight into your library (MP3 with
+  embedded metadata and cover art) and re-scans automatically.
+- `maly get playlist <url> [name]` downloads an entire playlist into a
+  subdirectory, with `--no-playlist` as the default behavior for plain
+  URLs (so you don't accidentally drag a whole playlist along).
+- Browser-cookie support (`[ytdlp] cookies_from_browser`) for content that
+  requires an account.
+
+### Desktop integration (MPRIS)
+
+- The service announces itself as `org.mpris.MediaPlayer2.maly` on D-Bus —
+  `playerctl`, Waybar's `mpris` module, and desktop media keys see and
+  control it with zero configuration.
+- The track's embedded cover art is published as `mpris:artUrl`.
+
+### Shell
+
+- **Dynamic completion** (bash/fish/zsh): TAB completes commands, real
+  titles from your library, playlist names, and queue positions.
+
+---
+
+## Architecture
+
+Daemon + clients talking over a Unix socket with line-delimited JSON. The
+daemon is the sole owner of mpv, the queue, and the library; the CLI and
+TUI are clients that talk to it over IPC. If no daemon is running, **the
+TUI embeds one in its own process** and it dies with the TUI.
+
+```text
+   maly (TUI)         maly next · status        playerctl · Waybar
+   maly select         maly play · vol           media keys
+        │                     │                          │
+        └──── Unix socket, line-delimited JSON ┐          │ D-Bus
+                                                ▼          ▼ (session)
+                        ┌───────────────────────────────────┐
+                        │            maly daemon             │
+                        │   queue · session · library · MPRIS│
+                        └──────┬───────────┬────────────┬────┘
+                               │           │             │
+                          IPC (JSON)   SQLite (WAL)  pw-record / parec
+                               ▼           ▼             ▼
+                             mpv       library.db    system audio
+                        (playback)   (tags, playlists) monitor (FFT)
+```
+
+| Component | Role |
+|---|---|
+| `cmd/maly` | CLI and TUI entry point; `commands.go` is the single command table (dispatch, help, and completions) |
+| `internal/daemon` | Owns mpv, the queue, and the library; flock-based startup to claim identity, Unix-socket IPC, session persisted as JSON |
+| `internal/player` | mpv wrapper over its own IPC socket; gapless via a two-track window |
+| `internal/queue` | Queue with permutation-based shuffle and repeat |
+| `internal/library` | SQLite (modernc, no CGo) — tags, search, playlists |
+| `internal/mpris` | MPRIS2 integration over the session D-Bus (godbus) |
+| `internal/viz` | Audio capture (pw-record/parec) + FFT for the visualizer |
+| `internal/tui` | Bubble Tea interface: panels, console, pickers, "Now Playing" |
+| `internal/ipc` | The socket's Request/Response protocol, shared by the CLI, TUI, and daemon |
+
+---
+
+## Requirements & compatibility
+
+### Required
+
+| Requirement | For |
+|---|---|
+| **Linux** | mpv + MPRIS/D-Bus + PipeWire/PulseAudio are the project's model; unverified on other operating systems |
+| **[mpv](https://mpv.io/)** | audio engine — without it, the daemon and TUI won't start |
+
+### To build from source
+
+| Requirement | Detail |
+|---|---|
+| **Go ≥ 1.25** | the module is named plain `maly` (not `github.com/…`), so **`go install` doesn't work** — you need to clone and build |
+| **git** | to clone the repository |
+
+### Optional dependencies
+
+Malody Mallow starts and plays with just mpv. Everything else degrades
+silently and never breaks startup:
+
+| Tool | Enables | Without it |
+|---|---|---|
+| **ffprobe** (from ffmpeg) | durations in the second scan phase | learned as each track plays instead; `maly doctor` flags it as info |
+| **yt-dlp** + **ffmpeg** | `maly get` | the command fails with install hints; nothing else is affected |
+| **pw-record** (PipeWire) or **parec** (PulseAudio) | visualizer with real system audio | animation mode + a one-time warning; retries real capture every 15s, but **only if it ever worked at least once** |
+| **D-Bus session bus** | MPRIS: playerctl, Waybar, media keys | one stderr line on startup; the rest of the daemon runs normally |
+| **git** | `maly update` and the new-release check | explicit error when applying an update; the TUI's background check just stays quiet |
+| **curl** | applying an update via `maly update` | error with the installer URL so you can do it by hand |
+
+`maly doctor` is the automated diagnostic for this entire table — check it
+before filing a bug.
+
+### Terminal capabilities
+
+| Capability | Requires | Without it |
+|---|---|---|
+| Cover art as a real image | a kitty terminal (`KITTY_WINDOW_ID` or `TERM` containing `kitty`), **outside tmux** | drawn as half-blocks (`▀`) |
+| Cover art as half-blocks | a truecolor terminal | no other color tier — no 256-color or monochrome mode |
+| Under tmux | — | always half-blocks, even if the terminal behind it is kitty |
+
+### Audio: PipeWire and PulseAudio
+
+The visualizer captures the **monitor** of the default output sink —
+literally whatever audio is playing on the system, not just maly's.
+`pw-record` is tried first, `parec` second (`[visualizer] backend` in the
+config forces one or the other if you have both and the automatic pick is
+worse); `parec` works both on plain PulseAudio and on PipeWire via
+`pipewire-pulse`.
+
+### Download stack: yt-dlp and ffmpeg
+
+`maly get` wraps yt-dlp — maly never talks to any website directly.
+`ffmpeg` is used by yt-dlp to extract and convert to MP3; `ffprobe` (part
+of the same package) is used by maly to read durations. On distros that
+ship an outdated yt-dlp (Debian/Ubuntu), the installer resolves it via
+`pipx` instead.
+
+### Desktop integration: MPRIS and D-Bus
+
+MPRIS2 runs over the D-Bus session bus; without it, there's no integration
+with `playerctl`, Waybar's `mpris` module, or media keys, but the daemon
+otherwise works exactly the same.
+
+---
 
 ## Installation
+
+| Method | Best for | Updates with | Also installs |
+|---|---|---|---|
+| **Mallow Install** | most users | `maly update` | shell completions + systemd service (asks first) |
+| **AUR** (`maly`) | Arch Linux / CachyOS | your AUR helper | completions + systemd service (not enabled) |
+| **Building by hand** | developers | `git pull` + `make build` | nothing else |
 
 ### Quick: Mallow Install (any distro)
 
@@ -92,187 +328,140 @@ in a single binary written in Go.
 curl -fsSL https://raw.githubusercontent.com/kitasael-burakku/Malody-Mallow/main/mallow-install.sh | sh
 ```
 
-The installer is an interactive wizard with the MALODY banner in a color
-gradient: you choose the action (install, update, or uninstall), the scope
-(user or system), and which dependencies to install from a checklist,
-navigating with `↑↓`/`jk` and toggling with space (if the terminal can't do
-raw mode, it falls back to the classic numeric input) — `mpv` and `git`
-come checked; `yt-dlp`+`ffmpeg` (for `maly get`) and the visualizer are
-optional and start unchecked. Long steps (clone, build) pulse with a
-spinner and the elapsed time. It detects your package manager (pacman, apt, dnf,
-zypper, xbps); on Debian/Ubuntu `yt-dlp` is installed via `pipx` because
-the repo's version is old and no longer downloads from YouTube. If your
-distro's Go doesn't meet the minimum, it offers to download the official
-toolchain from go.dev (verified with its SHA-256) to `~/.cache/mallow` —
-only for building, without touching the system. It builds from `main`,
-installs to `~/.local/bin`, and leaves your shell's completions in place.
-Nothing gets installed without asking; without a terminal it runs entirely
-with the defaults.
+An interactive, screen-by-screen wizard: action (install/update/
+uninstall), scope (user in `~/.local/bin`, or system in `/usr/local` with
+sudo), source (latest stable tag by default, or `main` for the development
+branch), and an optional-dependencies checklist. It auto-detects Go if
+already installed with a sufficient version; otherwise it offers to
+download the official one from go.dev into `~/.cache/mallow/go`, verifying
+its published SHA-256 first.
 
-- `--install` / `--update` / `--uninstall` skip the action menu
-  (`--update` shows the version jump; `--uninstall` offers to also delete
-  config and library — kept by default).
-- `--system` installs to `/usr/local` for all users (asks for sudo).
-- Re-running it updates to the latest `main`.
-- Also works from a checkout: `./mallow-install.sh`.
+Non-interactive flags are also supported:
 
-With maly already installed, `maly update` does all of this on its own: it
-checks the repo's tags via git, and if there's a new release it downloads
-the installer and runs it with `--update`. The TUI warns in the footer
-when a new version is available (checked on open and hourly while the TUI
-stays open; the 24h cache is only reused once it already reports a newer
-version, so publishing a release shows up quickly even for a TUI that's
-been open for a while — disabled with `update_check = false` in the
-config).
+```sh
+./mallow-install.sh --install [--system]      # install
+./mallow-install.sh --update                  # rebuild and reinstall
+./mallow-install.sh --uninstall               # uninstall
+./mallow-install.sh --ref=v1.13.0             # pin an exact tag/branch
+```
 
-If you installed maly through a package (e.g. the AUR one), `maly update`
-won't touch `mallow-install.sh`: it points you to your package manager
-(`yay -Syu maly` or equivalent) instead of installing a second copy behind
-pacman's back.
+`--ref=` takes priority over everything else — it's what `maly update` uses
+internally to reinstall the exact announced tag.
 
 ### Arch Linux (AUR)
 
 ```sh
-yay -S maly   # or: paru -S maly
+yay -S maly
+# or
+paru -S maly
 ```
 
-The [`maly`](https://aur.archlinux.org/packages/maly) package builds from
-the latest stable tag, installs bash/fish/zsh completions, and a
-`--user` systemd unit (`systemctl --user enable --now maly`) — not
-enabled automatically, so it doesn't start the daemon on an install you
-haven't configured yet. `yt-dlp`, `ffmpeg`, and PipeWire/PulseAudio are
-`optdepends`, same as in Mallow Install.
+Builds from the latest stable tag, with no CGo (SQLite is
+[modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite), pure Go).
+Depends only on `mpv`; yt-dlp, ffmpeg, pipewire, and pulseaudio are
+`optdepends`. It also installs a `--user` systemd unit, **not enabled** —
+a package shouldn't start services on its own.
+
+See [`aur.archlinux.org/packages/maly`](https://aur.archlinux.org/packages/maly).
+
+> **Note:** if you've ever used the installer and also have the AUR
+> package, you'll end up with two binaries and two systemd units.
+> `maly update` detects a packaged binary (via `/usr/bin` or the channel
+> baked in at build time) and defers to the package manager instead of
+> overwriting it — but it's best to pick one.
 
 ### By hand
-
-System dependencies: `mpv` (audio), Go ≥ 1.25 (to build), and, for the
-visualizer, PipeWire or PulseAudio with their command-line tools.
-Optional: `yt-dlp` and `ffmpeg`, only if you want to download music with
-`maly get`; `ffprobe` (shipped with `ffmpeg`) also lets the scan learn track
-durations without having to play each one.
-
-**Arch Linux**
-
-```sh
-sudo pacman -S mpv pipewire pipewire-pulse go   # pw-record comes with pipewire
-```
-
-**Ubuntu / Debian**
-
-```sh
-sudo apt install mpv pipewire git   # or: pulseaudio-utils instead of pipewire
-sudo snap install go --classic      # apt's golang-go is old (1.22 on Ubuntu 24.04)
-```
-
-On Debian (without snap) install Go from <https://go.dev/dl/>: apt's
-`golang-go` doesn't reach 1.25 and the package disables automatic
-toolchain downloads, so `go build` fails with
-`go.mod requires go >= 1.25.0`.
-
-**Fedora**
-
-```sh
-sudo dnf install mpv pipewire-utils golang git   # mpv without RPM Fusion; pw-record comes in pipewire-utils
-```
-
-> Since Fedora 43 the `golang` package also sets `GOTOOLCHAIN=local` (it
-> won't automatically download another toolchain), same as Debian. Right
-> now this doesn't affect anything because Fedora 43/44 already ships Go
-> 1.25/1.26, but if this project raises its minimum Go version in the
-> future and `go build` fails with `toolchain not available`, install the
-> new version from <https://go.dev/dl/>.
-
-**openSUSE**
-
-```sh
-sudo zypper install mpv pipewire pipewire-tools go git
-```
-
-On Tumbleweed `go` is already ≥ 1.25; on Leap it may be older — if
-`go version` doesn't meet it, install from <https://go.dev/dl/>.
-
-**Void Linux**
-
-```sh
-sudo xbps-install -S mpv pipewire go git
-```
-
-**Clone and build**
 
 ```sh
 git clone https://github.com/kitasael-burakku/Malody-Mallow.git
 cd Malody-Mallow
+make build              # equivalent to: go build -o maly ./cmd/maly
+make install             # installs to ~/.local/bin/maly
+```
+
+`go build ./...` does **not** regenerate the `./maly` binary at the repo
+root — it builds each package into its own cache without leaving anything
+behind; that's why the `Makefile` uses `-o maly ./cmd/maly` explicitly. If
+you'd rather skip `make`, the same two commands work directly:
+
+```sh
 go build -o maly ./cmd/maly
 install -Dm755 maly ~/.local/bin/maly
 ```
 
-If after this you get `maly: command not found`: on Ubuntu/Debian a clean
-install doesn't ship `~/.local/bin`, and `~/.profile` only adds it to PATH
-if the folder already existed at login — the `install` step worked, but
-your current shell doesn't see it. Reload your profile
-(`source ~/.profile`) or open a new session. An alternative that doesn't
-depend on the user's PATH: `sudo install -Dm755 maly /usr/local/bin/maly`.
+<details>
+<summary>Build dependencies per distro</summary>
 
-Without `pw-record`/`parec` maly works the same; the visualizer degrades
-to an animation and warns you once.
+```sh
+# Arch / CachyOS
+sudo pacman -S go git mpv
+
+# Ubuntu / Debian
+sudo apt install golang-go git mpv
+
+# Fedora
+sudo dnf install golang git mpv
+
+# openSUSE
+sudo zypper install go git mpv
+
+# Void
+sudo xbps-install go git mpv
+```
+
+Check your Go version with `go version` — you need ≥ 1.25. On distros
+shipping an older Go, use [go.dev/dl/](https://go.dev/dl/) or let
+`mallow-install.sh` offer to download one on the side, without touching
+the system one.
+
+</details>
 
 ### Completion (bash / fish / zsh)
 
-`maly completions <shell>` prints the script; install it once and TAB
-will complete commands with their description, real titles from your
-library (accent-insensitive search), playlists, queue positions, and
-paths.
-
-**fish**
+The binary generates the scripts itself:
 
 ```sh
-maly completions fish > ~/.config/fish/completions/maly.fish
-```
-
-**bash** (requires the `bash-completion` package, already present on
-Ubuntu/Debian/Fedora; on Arch: `sudo pacman -S bash-completion`)
-
-```sh
-mkdir -p ~/.local/share/bash-completion/completions
 maly completions bash > ~/.local/share/bash-completion/completions/maly
+maly completions fish > ~/.config/fish/completions/maly.fish
+maly completions zsh  > ~/.local/share/zsh/site-functions/_maly
 ```
 
-Without `bash-completion`, add to `~/.bashrc`: `source <(maly completions bash)`.
+`mallow-install.sh` handles this automatically: it installs completions
+only for the shells it finds on your `PATH` (in `--system` mode, it
+installs all three, like a package would). Completion is **dynamic**: TAB
+on `maly play <TAB>` searches real titles from your library rather than a
+fixed list — it uses a bounded row limit (not the whole library) so it
+stays fast even on collections with tens of thousands of tracks.
 
-In bash the first TAB inserts whatever can be decided (a single candidate
-or the common prefix, e.g. `aurea` → `Proporción\ Áurea`); when there are
-several options, the second TAB shows the list with descriptions.
+---
 
-**zsh**
+## First run
+
+The first time you run any subcommand, maly creates
+`~/.config/maly/config.toml` with the defaults (see
+[Configuration](#configuration)) and detects your system language
+(`LC_ALL`/`LC_MESSAGES`/`LANG`) for that session only — it isn't persisted
+until you confirm it.
+
+Opening the TUI for the first time (`maly`, no arguments):
+
+1. If no daemon is running, the TUI embeds one in its own process.
+2. With `language` unset in the config, a language picker appears
+   (English / Español) — saved once you choose.
+3. With an empty library, the panel says so explicitly:
+   `(library empty — run maly scan)`.
 
 ```sh
-mkdir -p ~/.local/share/zsh/site-functions
-maly completions zsh > ~/.local/share/zsh/site-functions/_maly
+maly scan      # index your music (music_dir, or a path you pass)
+maly           # open the TUI
 ```
 
-and in `~/.zshrc`, **before** `compinit`:
+`music_dir` is resolved in this order: the config's `music_dir` key →
+`$XDG_MUSIC_DIR` → `XDG_MUSIC_DIR` from `user-dirs.dirs` → `~/Music`.
 
-```sh
-fpath=(~/.local/share/zsh/site-functions $fpath)
-```
-
-Alternative without touching fpath: `source <(maly completions zsh)`
-after `compinit`.
-
-Open a new shell session and you're set. Completion queries the library
-on every TAB (new titles show up without reinstalling anything) and
-degrades silently: without a library or without the service it simply
-offers no candidates.
+---
 
 ## Usage
-
-```sh
-maly scan            # indexes ~/Music (or config's music_dir) into SQLite
-maly                 # opens the TUI; starts the embedded service if none is running
-```
-
-The first time, `~/.config/maly/config.toml` is created with the
-defaults.
 
 ### TUI
 
@@ -280,121 +469,113 @@ defaults.
 |---|---|
 | `space` | play / pause |
 | `n` / `p` | next / previous |
-| `+` / `-` | volume ±5% |
-| `←` / `→` | seek ±5s |
+| `+` / `-` | volume |
+| `←` / `→` | seek |
 | `tab` | switch panel |
-| `enter` | play track / expand node |
-| `a` | add to queue (track, album, or artist) |
+| `enter` | play selection |
+| `a` | add to queue |
 | `d` | remove from queue |
-| `K` / `J` | move track up / down the queue |
-| `/` | filter the current panel |
-| `h j k l` | vim navigation (`h`/`l` collapse/expand in the library) |
-| `gg` / `G` | go to start / end of the list |
-| `ctrl+d` / `ctrl+u` | half page down / up |
+| `K` / `J` | move track in the queue (up/down) |
+| `/` | filter the active panel |
+| `h j k l` | vim navigation |
+| `gg` / `G` | jump to top / bottom |
+| `ctrl+d` / `ctrl+u` | half-page down / up |
 | `s` / `r` | shuffle / repeat |
 | `v` | toggle visualizer |
-| `ctrl+t` | "Now Playing" screen (cover art and lyrics) |
-| `ctrl+p` | command palette (integrated console) |
-| `ctrl+o` | song selector (fuzzy; `enter` plays, `tab` adds) |
-| `ctrl+l` | playlist panel (`enter` plays, `tab` queues, `ctrl+n` creates, `ctrl+x` deletes) |
-| `A` | add the selection (track, album, or artist) to a playlist |
-| `?` | help |
+| `ctrl+t` | "Now Playing" screen (cover art, lyrics, visualizer) |
+| `ctrl+p` | command palette (built-in console) |
+| `ctrl+o` | song picker (fuzzy search) |
+| `ctrl+l` | playlist panel |
+| `A` | send current selection to a playlist |
+| `?` | full help (every key, including remapped ones) |
 | `q` | quit |
 
-All remappable in the config's `[keys]`. `maly controls vim` activates
-the vim preset (`x` removes from queue, `<`/`>` previous/next); whatever's
-written in `[keys]` always wins over the preset.
+`maly controls vim` changes three keys: `remove→x`, `next→>`, `prev→<` —
+the vim navigation above is always active, under any preset.
 
 ### CLI (mpc-style)
 
+**Playback** — require a running daemon or an open TUI:
+
+| Command | Does |
+|---|---|
+| `maly play [<query>]` | resume, or search the library and play |
+| `maly select` | pick a track with fuzzy search and play it |
+| `maly pause` / `toggle` / `stop` | pause / toggle play-pause / stop |
+| `maly next` / `prev` | next / previous track |
+| `maly jump <pos>` | jump to a queue position |
+| `maly move <from> <to>` | move a queue track to another position |
+| `maly remove <pos>` | remove a track from the queue |
+| `maly add <query\|path>` | add query results or a path to the queue |
+| `maly queue` | show the queue |
+| `maly clear` | clear the queue |
+| `maly status` | show current status |
+| `maly vol <0-100\|+N\|-N>` | set or adjust volume |
+| `maly seek <+N\|-N\|mm:ss>` | seek within the track |
+| `maly shuffle [on\|off]` | toggle or set shuffle |
+| `maly repeat [off\|all\|one]` | cycle or set repeat mode |
+
+**Library** — work without the daemon (except `playlist play`):
+
+| Command | Does |
+|---|---|
+| `maly scan [<path>]` | (re)scan the music library |
+| `maly search <query>` | search by title/artist/album |
+| `maly get <url\|query>` | download audio with yt-dlp into the library |
+| `maly get playlist <url> [name]` | download an entire playlist into a subdirectory |
+| `maly playlist <sub> [args]` | manage playlists — see table below |
+
+`maly playlist` subcommands:
+
+| Subcommand | Args | Needs daemon |
+|---|---|---|
+| `list` | — | no |
+| `show <name>` | name | no |
+| `create <name>` | name | no |
+| `delete <name>` | name (asks for confirmation in an interactive terminal) | no |
+| `add <name> <query>` | name, query | no |
+| `remove <name> <pos>` | name, position | no |
+| `export <name> [file]` | name, optional file (defaults to `<name>.m3u`) | no |
+| `import <file> [name]` | file, optional name | no |
+| `play <name>` | name | **yes** — the only subcommand that talks to the daemon |
+
+**Other** — no daemon needed:
+
+| Command | Does |
+|---|---|
+| `maly controls [<preset>]` | show or set the controls preset |
+| `maly logo [hex… \| default]` | show or set the banner gradient colors |
+| `maly lang [en\|es]`, `-l` | change the interface language |
+| `maly info` | show paths, versions, and library size |
+| `maly doctor` | check that everything maly needs is in place |
+| `maly config` | show the effective configuration (defaults + preset + `[keys]`) |
+| `maly update` | check for a new release and update maly |
+| `maly kill` | stop the daemon |
+| `maly completions <shell>` | print the shell completion script |
+| `maly version`, `-v` | show version (and the running daemon's) |
+| `maly help`, `-h` | show help |
+
 ```sh
-maly daemon                    # service without TUI (headless)
-maly kill                      # stops the service, wherever it lives
-maly play [query]              # plays; with a query, searches the library
-maly select                    # mini fuzzy selector: enter plays, tab adds
-maly pause | toggle | stop
-maly next | prev
-maly jump <pos>                # jumps to that queue position (see maly queue)
-maly move <from> <to>          # moves a queue track to another position
-maly remove <pos>              # removes a track from the queue
-maly add <query|path>          # adds to the queue (accepts files and folders)
-maly queue                     # shows the queue
-maly clear                     # empties the queue
-maly status                    # what's playing, position, volume, modes
-maly vol 80 | vol +5 | vol -5
-maly seek +10 | seek -10 | seek 1:30
-maly shuffle [on|off]
-maly repeat [off|all|one]
-maly search <query>            # searches the library (works without the daemon)
-maly scan [path]               # (re)scans (works without the daemon)
-maly get <url|search>          # downloads audio into the library (requires yt-dlp and ffmpeg)
-maly get playlist <url> [name]            # downloads the full playlist and creates a maly playlist
-maly playlist list
-maly playlist show <name>                 # lists tracks with their position
-maly playlist create <name>
-maly playlist add <name> <query>
-maly playlist remove <name> <position>    # removes the track at that position
-maly playlist play <name>
-maly playlist delete <name>
-maly playlist export <name> [file]        # writes the playlist as M3U
-maly playlist import <file> [name]        # creates a playlist from an M3U
-maly controls [default|vim]    # lists or changes the controls preset
-maly logo [hex… | default]     # shows or sets the banner gradient colors
-maly lang [en|es]              # changes the language (no arg opens the selector); alias -l
-maly info                      # paths, versions and library size
-maly doctor                    # checks that everything maly needs is in place
-maly config                    # shows the configuration currently in effect
-maly update                    # checks for a new release and runs the installer
-maly completions <shell>       # completion script (bash | fish | zsh)
-maly version | -v              # also shows the running service's version, if any
+maly play luna
+maly jump 3
+maly move 3 1
+maly vol +10
+maly seek 1:23
+maly shuffle on
+maly playlist add favs luna
+maly playlist export favs
+maly get "aurora runaway"
+maly get playlist https://youtube.com/playlist?list=... favs
 ```
-
-Library commands (`scan`, `search`, `get`, and all of `playlist` except
-`play`) operate directly on SQLite and don't need the service. Playback
-commands do: open it with `maly` or `maly daemon`. If the service is
-running, `scan` (and `get`'s re-scan) goes through it, and any open TUI
-reloads its library instantly, with nothing to touch.
-
-`maly info`, `maly doctor` and `maly config` also work without the service
-— which is exactly when you need them — and without touching the network.
-`info` lists facts: paths, versions, where your music comes from and how
-much of it there is. `doctor` gives verdicts on mpv, the service,
-`music_dir`, the library and the optional tools (ffprobe, yt-dlp+ffmpeg,
-the visualizer, MPRIS), and exits 1 **only** if something prevents playback
-— missing optional tools are reported as `info`, not as errors. `config`
-shows the EFFECTIVE configuration (defaults ← controls preset ← the user's
-`[keys]`), the same merge that's resolved internally and that until now was
-only visible by reading the code or the commented-out TOML.
-
-`maly get` delegates all web interaction to yt-dlp (like lazygit uses
-git): without `://` it searches the phrase on YouTube and downloads the
-first result; with a URL it downloads it as-is (always with
-`--no-playlist`, so a link with `&list=` never downloads more than you
-asked for). The audio ends up as an MP3 with embedded metadata and cover
-art in `music_dir`, and the library re-scans itself (through the service,
-if it's running).
-
-`maly get playlist <url> [name]` is the deliberate path for downloading a
-whole playlist: it downloads into a subfolder of `music_dir` (named
-whatever you give it, or the playlist's real title if you don't) and
-creates a maly playlist with those tracks, in the same order.
-
-For videos that require an account (age-restricted, etc), set
-`cookies_from_browser` in the config's `[ytdlp]` section: the value goes
-as-is to yt-dlp's `--cookies-from-browser` — `firefox`, `chrome`,
-`browser:profile`, or for derived browsers a profile path, e.g. Zen:
-`firefox:/home/your-user/.config/zen/<profile>`. Note: with Chromium-based
-browsers yt-dlp may ask to unlock the keyring, and if the cookie database
-is locked, close the browser and try again.
 
 ### systemd --user service
 
-It's best to let `systemd --user` manage the daemon instead of launching
-it with `&` from your WM/DE's autostart: you get automatic restart on
-failure, centralized logs, and a clean shutdown of the socket and its
-child `mpv`. `mallow-install.sh` installs it if you accept the offer (and
-the AUR package ships the unit already), or create
-`~/.config/systemd/user/maly.service` by hand:
+To keep maly playing without depending on an open terminal, install the
+user service (`mallow-install.sh` offers it automatically in user scope)
+or create it by hand:
+
+<details>
+<summary>See the full unit (<code>~/.config/systemd/user/maly.service</code>)</summary>
 
 ```ini
 [Unit]
@@ -408,14 +589,30 @@ ExecStart=%h/.local/bin/maly daemon
 Restart=on-failure
 RestartSec=2
 
-# Hardening: maly only talks over Unix sockets (its own IPC, mpv's, and the
-# session D-Bus for MPRIS). No ProtectHome: music_dir can live outside
-# $HOME (an external drive). RuntimeDirectory=/ConfigurationDirectory=
-# create $XDG_RUNTIME_DIR/maly and $XDG_CONFIG_HOME/maly BEFORE the process
-# starts (doing it by hand with ReadWritePaths required the path to already
-# exist, which broke on a clean boot). $XDG_DATA_HOME has no dedicated
-# directive, so it's still manual, with "-" so systemd skips it if it
-# doesn't exist yet instead of aborting startup.
+# Hardening: maly only speaks over Unix sockets (its own IPC, mpv's, and
+# the session D-Bus for MPRIS) and needs nothing else. NO ProtectHome:
+# music_dir can live outside $HOME (an external drive), and that key
+# would block it entirely.
+#
+# RuntimeDirectory=/ConfigurationDirectory= (no manual ReadWritePaths for
+# these two) are the correct way to grant access to $XDG_RUNTIME_DIR/maly
+# and $XDG_CONFIG_HOME/maly under ProtectSystem=strict: systemd CREATES
+# them before the process starts and they're exempted from the rest being
+# read-only, on their own. The first version of this hardening used a
+# manual ReadWritePaths=%t/maly, which REQUIRES the path to already exist
+# when the mount namespace is set up — it worked warm (the runtime dir
+# already existed from a previous run) but broke on a clean boot, with
+# /run/user/$UID/maly still empty: "Failed to set up mount namespacing:
+# ...: No such file or directory", status=226/NAMESPACE (found in
+# production, not in the original verification — the test unit back then
+# happened to have a wider parent directory already created, which masked
+# it).
+#
+# $XDG_DATA_HOME (library/session) has no dedicated systemd directive
+# (it only covers RUNTIME/CONFIGURATION/STATE/CACHE, and STATE points to
+# $XDG_STATE_HOME, not $XDG_DATA_HOME), so it's still handled by hand —
+# but with a leading "-", which systemd documents explicitly for this: if
+# the path doesn't exist yet, it's skipped instead of aborting startup.
 NoNewPrivileges=yes
 ProtectSystem=strict
 RuntimeDirectory=maly
@@ -438,87 +635,96 @@ ProtectHostname=yes
 WantedBy=default.target
 ```
 
+</details>
+
 ```sh
 systemctl --user daemon-reload
-systemctl --user enable --now maly.service
+systemctl --user enable --now maly
 ```
 
-`WantedBy=default.target` on purpose, not `graphical-session.target`: only
-GNOME, KDE and a few other DEs activate that one on their own — on
-Hyprland, sway, and plenty of minimal WMs nobody triggers it unless the
-user wires up a binder unit themselves. `default.target` is reached by any
-`systemd --user` session (graphical, over SSH with
-`loginctl enable-linger`, whatever) without needing your compositor to
-cooperate, so the service just starts with the session — nothing to add to
-Hyprland's (or any other WM's) autostart.
+`default.target` (instead of `graphical-session.target`) is intentional:
+any `systemd --user` session reaches it, without depending on the
+compositor activating it (Hyprland and other minimalist WMs don't, by
+default). maly needs nothing graphical — mpv runs with `--no-video`, MPRIS
+is D-Bus only.
 
-This gives you `systemctl --user status maly` and `journalctl --user -u
-maly` for logs, plus automatic restart (`Restart=on-failure`) if the
-daemon crashes. The `SIGTERM` systemd sends on stop already triggers a
-clean shutdown: it closes the socket, saves the session, and kills its
-child `mpv`.
-
-If you'd rather skip systemd, the plain mode still works — e.g. on
-Hyprland:
-
-```lua
-hl.exec_cmd("maly daemon &") -- systemd-free alternative, no supervision
-```
-
-Toggle for a dedicated terminal (opens/closes a kitty window with the
-TUI, filtering by client so it doesn't kill the autostart daemon):
-
-```lua
--- Programs
-music = "hyprctl clients | grep -i 'title: maly' >/dev/null && pkill -f 'kitty --title maly' || kitty --title maly -e maly"
-```
-
-```lua
--- Keybinds
-hl.bind(mainMod .. "+ M", hl.dsp.exec_cmd(Programs.music))
-```
-
-> Tip: when using `kitty --title maly` in the toggle, always filter by
-> client via `hyprctl` before the `pkill -f`; without that filter,
-> `pkill -f` can reach the very process that invoked it and kill the
-> autostart daemon instead of just the kitty window.
+> If you reinstall or update while the service is running, restart it with
+> `systemctl --user restart maly` (or `maly kill` if you're not using
+> systemd) so it picks up the new binary.
 
 ### MPRIS (playerctl, Waybar…)
 
-While the service is running (TUI open or `maly daemon`), maly is just
-another MPRIS2 player on the desktop:
+With the service running, it appears on the session bus as
+`org.mpris.MediaPlayer2.maly`:
 
 ```sh
 playerctl -p maly play-pause
-playerctl -p maly next
-playerctl -p maly metadata --format '{{artist}} — {{title}}'
-playerctl -p maly position 30      # jumps to second 30
+playerctl -p maly metadata
 ```
 
-For "now playing" in Waybar, the native `mpris` module is enough:
+Waybar's `mpris` module (nwg-piotr) picks it up with no extra
+configuration. Desktop media keys (Hyprland, GNOME, KDE…) control it
+directly too, as long as an MPRIS handler is active (on Hyprland, for
+instance, via a `bindl` to `playerctl`).
 
-```jsonc
-"mpris": {
-    "player": "maly",     // omit it to follow any player
-    "format": "{status_icon} {artist} — {title}",
-    "status-icons": { "playing": "▶", "paused": "⏸" }
-}
-```
-
-Track/state changes are emitted as D-Bus signals (`PropertiesChanged`),
-so applets update instantly with no polling. If there's no session bus
-(e.g. headless), maly warns once and keeps working without MPRIS.
+---
 
 ## Configuration
 
-`~/.config/maly/config.toml` (generated with these defaults):
+File: `${XDG_CONFIG_HOME:-~/.config}/maly/config.toml`, created
+automatically (with `0600` permissions) on the first run of any
+subcommand. `maly config` always shows the **effective** configuration
+(defaults ← `controls` preset ← your `[keys]`).
+
+| Key | Type | Default | Does |
+|---|---|---|---|
+| `music_dir` | string | auto-resolved (`~/Music` or an XDG-derived source) | root of your library |
+| `language` | string | `""` | `""` = ask on TUI open; `"en"` \| `"es"` |
+| `controls` | string | `"default"` | key preset: `default` \| `vim` |
+| `update_check` | bool | `true` | the TUI warns about new releases |
+| `scan_durations` | bool | `true` | fill missing durations with ffprobe while scanning |
+
+`[theme]`:
+
+| Key | Default | Does |
+|---|---|---|
+| `transparent` | `true` | no background of its own; uses the terminal's |
+| `accent` | `#89b4fa` | accent color |
+| `border` | `#45475a` | panel borders |
+| `text` | `#cdd6f4` | primary text |
+| `dim` | `#6c7086` | secondary text |
+| `playing` | `#a6e3a1` | now-playing highlight |
+| `error` | `#f38ba8` | error text (console, flashes) |
+| `logo` | `["#7ab8b8", "#8098a8", "#b85c50"]` | banner gradient stops (2 to 8) |
+
+`[visualizer]`:
+
+| Key | Default | Does |
+|---|---|---|
+| `enabled` | `true` | turns the visualizer on |
+| `color_low` / `color_high` | `#89b4fa` / `#f38ba8` | bar gradient |
+| `bars_gravity` | `0.92` | bar-decay smoothing |
+| `backend` | `"auto"` | `auto` (tries pw-record, then parec) \| `pipewire` \| `pulse` |
+
+`[ytdlp]`:
+
+| Key | Default | Does |
+|---|---|---|
+| `cookies_from_browser` | `""` | passed straight through to yt-dlp's `--cookies-from-browser`; empty = flag omitted. Accepts `browser:profile` |
+
+`[keys]` remaps any action to a Bubble Tea key (defaults in
+[Usage → TUI](#tui)); next to the config, an optional `logo.txt` replaces
+the banner's ASCII art (colors still come from `[theme] logo`).
+
+<details>
+<summary>See the default generated <code>config.toml</code></summary>
 
 ```toml
 music_dir = "~/Music"
-language = ""             # "" = ask on TUI open; "en" | "es"
+language = ""             # "" = ask when opening the TUI; "en" | "es"
 controls = "default"      # key scheme: default | vim (maly controls)
-update_check = true       # the TUI warns if a new version is out (maly update)
-scan_durations = true     # on scan, read missing durations with ffprobe (skipped if not installed)
+update_check = true       # the TUI warns about new versions (maly update)
+scan_durations = true     # while scanning, read missing durations with ffprobe (skipped if it's not installed)
 
 [theme]
 transparent = true        # no background; use the terminal's
@@ -529,22 +735,30 @@ dim = "#6c7086"
 playing = "#a6e3a1"
 error = "#f38ba8"         # error text (console, flashes)
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # banner gradient stops (2 or more)
-# banner art: create logo.txt next to this file with your own ASCII
+# banner art: create a logo.txt next to this file with your own ASCII
 
 [visualizer]
 enabled = true
-color_low = "#89b4fa"     # color at the base of the bars
-color_high = "#f38ba8"    # color at the tips
-bars_gravity = 0.92       # 0-1: how long bars take to fall
-backend = "auto"          # audio capture backend: auto | pipewire | pulse
+color_low = "#89b4fa"
+color_high = "#f38ba8"
+bars_gravity = 0.92
+# audio capture backend: auto (default) | pipewire | pulse — force one if
+# you have both installed and the automatic pick (pw-record, then parec) is worse
+backend = "auto"
 
 [ytdlp]
-# browser to read cookies from for downloads that require an account
-# (age-restricted videos, etc); empty = disabled. Accepts browser:profile
-# (e.g. "firefox:default-release") — the value goes to yt-dlp as-is
+# Browser to read cookies from for downloads that require an account
+# (age-restricted videos, etc). Empty = disabled.
+# Examples: firefox, chrome, chromium, brave, edge, vivaldi
+# Also accepts browser:profile (e.g. "firefox:default-release")
+# if you have multiple profiles — yt-dlp supports it natively.
+# Note: with Chromium-based browsers (chrome/brave/etc) yt-dlp may need
+# to unlock the keyring, and with the browser open its cookie database
+# may be locked — if it fails, close it and try again.
 cookies_from_browser = ""
 
 [keys]
+# Remap actions to Bubble Tea keys, e.g.:
 # play_pause = " "
 # next = "n"
 # prev = "p"
@@ -570,21 +784,148 @@ cookies_from_browser = ""
 # now_playing = "ctrl+t"
 ```
 
-## Architecture
+</details>
 
-- `maly` (no args) opens the TUI; if there's no service, it embeds one
-  (dies when the TUI exits).
-- `maly daemon` leaves it running separately; the TUI and CLI connect to
-  it.
-- Socket: `$XDG_RUNTIME_DIR/maly/maly.sock`, a single-line JSON protocol;
-  the TUI subscribes to changes via push (no polling) and detects if the
-  service is running a different binary version.
-- MPRIS: the service exports `org.mpris.MediaPlayer2.maly` on the session
-  bus (`internal/mpris`, godbus); it only reflects the daemon's state,
-  playback logic isn't duplicated.
-- Database: `~/.local/share/maly/library.db` (pure-Go SQLite, no CGo).
-- maly launches and supervises its own `mpv --idle --no-video` and
-  controls it via JSON IPC; when maly closes, its mpv dies with it.
+### Lyrics (`.lrc`)
+
+Synced lyrics are read from an **`.lrc` sidecar in the same directory as
+the audio file, with the same base name** — `song.mp3` looks for
+`song.lrc` right next to itself, never in a central lyrics directory.
+Without a sidecar, embedded (USLT) lyrics from the file itself are used
+instead. If you want to keep `.lrc` files elsewhere without filling
+`music_dir` with text files, the real option today is a symlink next to
+each track, or embedding the lyrics directly in the MP3.
+
+### Files maly creates
+
+| File | Path |
+|---|---|
+| `config.toml` | `${XDG_CONFIG_HOME:-~/.config}/maly/` |
+| `logo.txt` (optional, you create it) | `${XDG_CONFIG_HOME:-~/.config}/maly/` |
+| `library.db` (+ `-wal` / `-shm`) | `${XDG_DATA_HOME:-~/.local/share}/maly/` |
+| `session.json` | `${XDG_DATA_HOME:-~/.local/share}/maly/` |
+| `update.json` | `${XDG_DATA_HOME:-~/.local/share}/maly/` |
+| `maly.sock`, `mpv.sock`, `maly.lock`, `art/` | `${XDG_RUNTIME_DIR:-/tmp}/maly/` |
+
+---
+
+## Troubleshooting
+
+First stop: **`maly doctor`** — runs with no daemon and no network, and
+diagnoses most of the below automatically.
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `maly: command not found` | `~/.local/bin` isn't in your `PATH` | add it to your `.bashrc`/`.zshrc`/fish config (the installer offers to do this) |
+| "mpv is not installed" when opening the TUI | mpv is missing | install it — it's the only hard dependency |
+| Empty library | you never ran a scan, or `music_dir` points at a directory with no music | `maly scan`, or check `maly info` → `music_path`/`music_src` |
+| Visualizer in animation mode | no `pw-record` or `parec` on PATH | install `pipewire` or `pulseaudio-utils`; maly retries real capture every 15s |
+| No playerctl / media key integration | no D-Bus session bus available | make sure your graphical session exports `DBUS_SESSION_BUS_ADDRESS` |
+| Cover art shows as colored blocks instead of a real image | your terminal isn't kitty, or you're under tmux | expected — the half-blocks fallback works on any truecolor terminal |
+| Durations show as zero in the queue | no ffprobe, or `scan_durations = false` | install `ffmpeg` (it brings ffprobe), or play the track once |
+| `maly get` fails | yt-dlp/ffmpeg missing, or yt-dlp is outdated (YouTube changes often) | `maly doctor` flags it; if yt-dlp is via pipx, `pipx upgrade yt-dlp` |
+| "runs vX.Y.Z, this binary is vA.B.C" | you updated the binary but the old service is still running | `systemctl --user restart maly`, or `maly kill` without systemd |
+| Two binaries / two services installed | the installer and the AUR package both got used | `maly update` already detects a packaged install and won't overwrite it; uninstall one of the two |
+| A key doesn't do what you expect | a `[keys]` conflict: two actions mapped to the same key | `maly doctor` reports it with the exact detail |
+| `go build` fails on the Go version | your Go is older than 1.25 | use [go.dev/dl/](https://go.dev/dl/), or let `mallow-install.sh` offer one on the side |
+
+---
+
+## Project structure
+
+```text
+.
+├── cmd/maly/              CLI, TUI entry point, commands
+│   └── completions/       bash/fish/zsh scripts (embedded in the binary)
+├── internal/
+│   ├── config/             config.toml loading/writing, XDG paths
+│   ├── daemon/             the service: queue, session, startup, IPC dispatch
+│   ├── player/              mpv wrapper (gapless, socket control)
+│   ├── queue/               permutation-based shuffle and repeat
+│   ├── library/             SQLite: tags, search, playlists, M3U
+│   ├── ipc/                 the Unix-socket protocol (Request/Response)
+│   ├── mpris/                MPRIS2 integration (D-Bus)
+│   ├── media/                embedded cover art/lyrics, .lrc
+│   ├── viz/                  audio capture + visualizer FFT
+│   ├── getter/                yt-dlp wrapper (`maly get`)
+│   ├── probe/                 ffprobe wrapper (durations)
+│   ├── update/                 release check against git tags
+│   ├── i18n/                    en/es translation table
+│   ├── safetext/                 sanitizing untrusted text (tags, lyrics)
+│   ├── version/                   binary version
+│   └── tui/                       the full Bubble Tea interface
+├── pictures/               screenshots used in this README
+├── .github/workflows/       CI (build+vet+test, and -race over library/mpris)
+├── mallow-install.sh         bilingual interactive installer
+├── Makefile                   build / vet / test / install / clean
+├── CHANGELOG.md                release log (Spanish)
+├── CLAUDE.md                    deep engineering doc (Spanish)
+└── LICENSE                       GPLv3
+```
+
+---
+
+## Development
+
+```sh
+git clone https://github.com/kitasael-burakku/Malody-Mallow.git
+cd Malody-Mallow
+make build      # go build -o maly ./cmd/maly — go build ./... does NOT regenerate this binary
+make vet        # go vet ./...
+make test       # go test ./...
+```
+
+- `internal/daemon` and `internal/player` tests use a real mpv and
+  self-skip (`t.Skip`) if it's not found on PATH — no mocking needed to
+  run the rest of the suite.
+- `go test -race ./internal/library/ ./internal/mpris/` — the two packages
+  with real goroutine concurrency that don't depend on mpv/ffprobe; it's
+  exactly what CI's `race` job runs.
+- CI (`.github/workflows/ci.yml`) runs two jobs on every push/PR to
+  `main`: `test` (full build + vet + test) and `race` (the two packages
+  above with `-race`).
+- `maly completions <shell>` regenerates the scripts embedded under
+  `cmd/maly/completions/` if you change the command table.
+- To debug TUI or daemon startup in an isolated environment, `CLAUDE.md`
+  documents the XDG sandbox used in development (short paths for mpv's
+  socket, `ao=null` in `mpv.conf`, how to test under tmux).
+
+`CLAUDE.md` is the project's full engineering document: detailed
+per-package architecture, cross-cutting security/concurrency decisions,
+and the reasoned history of every release. `CHANGELOG.md` is the short
+version, release by release.
+
+---
+
+## Project status
+
+Malody Mallow is under active development at a frequent release cadence
+(see [`CHANGELOG.md`](CHANGELOG.md)). The core — gapless playback, a
+persistent service, the SQLite library, MPRIS, the TUI, the CLI — is
+stable and used daily by the author as their main player. The project has
+gone through several self-driven security, performance, and UX audits,
+documented in `CLAUDE.md`.
+
+Mouse support in the TUI is deliberately out of scope. The project stays
+focused on coordinating existing tools (mpv, yt-dlp, ffmpeg) rather than
+reimplementing them.
+
+---
+
+## Credits
+
+Malody Mallow coordinates and builds on:
+
+- [mpv](https://mpv.io/) — audio playback engine.
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [ffmpeg](https://ffmpeg.org/) — audio download and processing (optional).
+- [PipeWire](https://pipewire.org/) / [PulseAudio](https://www.freedesktop.org/wiki/Software/PulseAudio/) — audio capture for the visualizer.
+- [MPRIS2](https://specifications.freedesktop.org/mpris-spec/latest/) over [D-Bus](https://www.freedesktop.org/wiki/Software/dbus/) — desktop integration.
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea), [Lipgloss](https://github.com/charmbracelet/lipgloss), and [Bubbles](https://github.com/charmbracelet/bubbles) (Charm) — the TUI.
+- [modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite) — pure-Go SQLite, no CGo.
+- [gonum](https://www.gonum.org/) — the visualizer's FFT.
+- [godbus](https://github.com/godbus/dbus) — the D-Bus client behind MPRIS.
+
+---
 
 ## License
 

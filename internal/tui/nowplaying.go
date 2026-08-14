@@ -1,9 +1,12 @@
 package tui
 
 import (
+	"fmt"
 	"image"
+	"math"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -277,13 +280,117 @@ func (m *Model) npLyricsLines(w, h int) []string {
 	out := make([]string, 0, h)
 	for i := start; i < start+h && i < len(lyrics); i++ {
 		text := clip(lyrics[i].Text, w-4)
-		st := m.st.dim
-		if i == active {
-			st = m.st.accent.Bold(true)
-		}
-		out = append(out, center(st.Render(text), w))
+		out = append(out, center(m.styleForLyric(i, active).Render(text), w))
 	}
 	return out
+}
+
+// styleForLyric decide la prominencia visual de la línea index respecto a la
+// vigente (active, o -1 si ninguna aplica): current es el ancla de la
+// composición y el resto se atenúa según la distancia, con un empujón extra
+// hacia "next" (dist == 1) frente a "previous" (dist == -1) — la línea que
+// sigue anticipa lo que viene, la que pasó ya no compite por atención. La
+// altura de cada línea no cambia (sigue siendo una fila fija): la sensación
+// de escala se logra enteramente con color/contraste/bold, nunca con layout.
+// Sin ancla (active == -1: letras sin sincronía, o el pos aún no llega a la
+// primera línea) no hay jerarquía posible — cae al dim plano de siempre.
+func (m *Model) styleForLyric(index, active int) lipgloss.Style {
+	if active < 0 {
+		return m.st.dim
+	}
+	switch dist := index - active; {
+	case dist == 0:
+		return m.activeLyricStyle()
+	case dist == 1:
+		return m.lyricBlend(0.40)
+	case dist == -1:
+		return m.lyricBlend(0.18)
+	case dist == 2 || dist == -2:
+		return m.lyricBlend(0.08)
+	default:
+		return m.lyricFar()
+	}
+}
+
+// lyricBlend aclara el dim hacia el accent una fracción t∈[0,1]: es la
+// gradación de las líneas cercanas a la activa (t más alto = más presencia).
+func (m *Model) lyricBlend(t float64) lipgloss.Style {
+	return blendColor(m.st.theme.Dim, m.st.theme.Accent, t)
+}
+
+// lyricFar es el nivel "muy tenue" de las líneas lejanas: el dim empujado
+// hacia el border del tema (más apagado que el propio dim, nunca hacia un
+// color ajeno a la paleta) — perceptiblemente por debajo de las líneas a
+// distancia 2, sin dejar de ser legible sobre el fondo.
+func (m *Model) lyricFar() lipgloss.Style {
+	return blendColor(m.st.theme.Dim, m.st.theme.Border, 0.5)
+}
+
+// blendHex interpola linealmente entre dos colores hex en t∈[0,1] (0=a,
+// 1=b) — la misma aritmética por canal que ya usan logoRamp y el gradiente
+// del visualizador, generalizada a dos colores arbitrarios en vez de fija a
+// blanco. Separada de blendColor (que arma el lipgloss.Style) para poder
+// testear la aritmética sin pasar por el render.
+func blendHex(a, b string, t float64) string {
+	ca, cb := parseHex(a), parseHex(b)
+	var c [3]int
+	for i := range c {
+		c[i] = ca[i] + int(t*float64(cb[i]-ca[i]))
+	}
+	return fmt.Sprintf("#%02x%02x%02x", c[0], c[1], c[2])
+}
+
+func blendColor(a, b string, t float64) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(blendHex(a, b, t)))
+}
+
+// lyricsPulsePeriod/lyricsPulseAmp gobiernan la "respiración" de la línea
+// vigente: periodo largo y amplitud chica a propósito — es un acompañamiento
+// ambiental, no una animación que compita por atención.
+const (
+	lyricsPulsePeriod = 2800 * time.Millisecond
+	lyricsPulseAmp    = 0.16
+)
+
+// lyricsPulse es la intensidad del pulso en [0,1] en el instante t: una onda
+// seno pura, así que el rango queda garantizado sin clamps (sin(x)∈[-1,1]) y
+// no hay división por cero posible (el periodo es una const > 0). Toma un
+// time.Time en vez de un acumulador propio para no necesitar estado ni tick
+// dedicado: es una función del reloj de pared, evaluada donde se use.
+func lyricsPulse(t time.Time) float64 {
+	secs := float64(t.UnixNano()) / float64(time.Second)
+	return (math.Sin(2*math.Pi*secs/lyricsPulsePeriod.Seconds()) + 1) / 2
+}
+
+// pulseColor aclara hex hacia blanco una fracción de lyricsPulseAmp según
+// level∈[0,1]. En level=0 devuelve el color sin cambios: la línea activa
+// nunca es MÁS opaca que el accent de base, el pulso solo puede sumar
+// brillo por encima de él.
+func pulseColor(hex string, level float64) lipgloss.Color {
+	c := parseHex(hex)
+	for i := range c {
+		c[i] += int(level * lyricsPulseAmp * float64(255-c[i]))
+	}
+	return lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", c[0], c[1], c[2]))
+}
+
+// activeLyricStyle es el estilo de la línea vigente: accent+bold con un
+// pulso de brillo sutil ("respiración") mientras suena algo. Se congela en
+// el accent liso —sin evaluar el seno— en pausa o sin pista: ni sigue
+// "consumiendo" el reloj de pared para nada, ni el ojo persigue un
+// movimiento que ya no acompaña a música real (Fase 4: detenerse/congelarse
+// a un estado estable). No hace falta ningún tick nuevo: mientras suena
+// música el demonio ya empuja Status (Position) varios veces por segundo, y
+// cada uno de esos pushes re-renderiza esta capa — el pulso viaja gratis en
+// ese mismo tren en vez de abrir un reloj propio.
+func (m *Model) activeLyricStyle() lipgloss.Style {
+	base := m.st.accent.Bold(true)
+	if !m.playingNow() {
+		return base
+	}
+	return lipgloss.NewStyle().
+		Foreground(pulseColor(m.st.theme.Accent, lyricsPulse(time.Now()))).
+		Bold(true)
 }
 
 // activeLyric es el índice de la línea vigente en pos (la última con

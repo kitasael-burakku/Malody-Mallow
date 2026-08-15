@@ -1542,6 +1542,34 @@ archivos reales (unit del dueño, `mallow-install.sh`, `maly.service` del
 PKGBUILD, ambos README). Aplicado en caliente a la unit real del dueño sin
 perder la sesión ni la biblioteca ya existentes.
 
+La **1.13.1** (2026-08-14) refina la Lyrics View de la capa "Ahora suena"
+(ctrl+t) en dos pasadas sobre el mismo `.lrc` sincronizado que ya existía.
+La primera agrega una jerarquía visual por distancia a la línea vigente:
+`current` queda con un pulso de brillo sutil ("respiración" — una onda
+seno pura sobre el reloj de pared, congelada en pausa; sin ticker propio,
+viaja gratis en los pushes de `Status` que el demonio ya manda varias
+veces por segundo mientras suena música) y el resto de las líneas se
+atenúa mezclando los colores YA existentes del tema (Dim→Accent para las
+cercanas, Dim→Border para las lejanas), con una asimetría deliberada entre
+`next` y `previous` a la misma distancia (next anticipa lo que viene,
+previous ya no compite por atención). La segunda, tras probar la primera
+en vivo, agrega un corte de visibilidad (`maxLyricDistance`, 4): más allá
+de esa distancia el contexto ya no sigue apagándose hasta casi ilegible,
+directamente desaparece (fila en blanco). En la altura de terminal
+dominante (`lyrH≈7`, ver la sección de la TUI) esto casi nunca dispara —la
+ventana natural ya cabe por debajo del corte—; se nota sobre todo en
+terminales altas, que antes llenaban el panel entero de texto casi
+invisible. Ambos cambios quedaron acotados a `internal/tui/nowplaying.go`
++ su test, verificados en vivo con mpv real además de la suite completa.
+
+Entre esas dos pasadas se probó y se descartó una tercera: un "carrusel"
+con espaciadores reservados alrededor de `current` y letter-spacing en su
+texto, diseñado con ayuda de un agente que encontró y corrigió a tiempo un
+bug real de aliasing en el enfoque original de splice para insertar los
+espaciadores. Se implementó y se verificó en vivo (funcionaba), pero el
+dueño decidió no quedarse con ella y volver al enfoque más simple de la
+primera pasada — se revirtió entera sin llegar a commitear.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

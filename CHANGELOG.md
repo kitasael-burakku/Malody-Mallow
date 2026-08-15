@@ -7,6 +7,18 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.13.1 — 2026-08-14
+
+Dos refinamientos sobre la Lyrics View de la capa "Ahora suena" (ctrl+t).
+La línea activa respira con un pulso de brillo sutil mientras suena música
+(se congela en pausa, sin ticker nuevo) y el resto de las líneas se
+atenúa según su distancia a la activa, mezclando los colores del tema ya
+existentes en vez de introducir paletas nuevas. Además, más allá de 4
+líneas de distancia el contexto ya no sigue apagándose hasta casi
+ilegible: directamente desaparece. En la altura de terminal dominante
+(~7 filas de letras) esto casi nunca se nota; en terminales altas evita
+que el panel se llene de texto casi invisible.
+
 ## v1.13.0 — 2026-08-12
 
 Cierra el roadmap completo (fases 1-5) de la segunda auditoría técnica

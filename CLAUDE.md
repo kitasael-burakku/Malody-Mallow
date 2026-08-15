@@ -1688,6 +1688,18 @@ cubierto por el test de protocolo y uno nuevo que fija que la columna nunca
 pide más de las 64 celdas por eje que admiten los placeholders, pero la
 comprobación visual es del dueño.
 
+Sobre la 1.14.0, la **1.14.1** (2026-08-15) corrigió lo único que se vio mal
+al retratar la release en la terminal REAL del dueño (58 filas, casi el
+doble que las 42 en las que se probó el relayout): la columna "Ahora suena"
+quedaba con ~20 filas muertas entre la carátula y la ficha. La causa no era
+el tope de altura de la carátula sino el ANCHO: la imagen es cuadrada, así
+que su alto sale del ancho de la columna y no puede crecer para llenar un
+panel alto. Se cerró por los dos lados — el bloque (carátula + ficha) va
+CENTRADO en vertical en vez de anclado al fondo, y `npMaxW` sube de 32 a 40
+para que en pantallas anchas la carátula gane filas. Lección repetida: el
+tamaño de terminal en el que se prueba un layout es parte del arnés, y 42
+filas no representaban la pantalla del dueño.
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

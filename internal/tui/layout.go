@@ -37,9 +37,12 @@ const (
 	libMinW = 26
 	libMaxW = 34
 	// La columna "Ahora suena" es fija por la carátula: su ancho manda sobre
-	// el alto de la imagen (una celda es ~2 píxeles de alto, ver artrender).
+	// el alto de la imagen (una celda es ~2 píxeles de alto, ver artrender),
+	// y por eso el tope alto es generoso — en una pantalla ancha, 8 celdas
+	// más de columna son 4 filas más de carátula, y la cola (que es la
+	// elástica) ni las nota.
 	npMinW = 28
-	npMaxW = 32
+	npMaxW = 40
 
 	// Alto de la franja del visualizador. Sin panel propio: en la vista
 	// anterior las barras llenaban el tercio izquierdo de una caja de ancho

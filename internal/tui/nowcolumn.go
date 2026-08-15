@@ -14,9 +14,11 @@ const (
 	// álbum, detalle) más los márgenes: lo que la carátula NO puede ocupar.
 	// Es corto porque el progreso no vive acá sino en la barra del pie.
 	npColMetaRows = 6
-	// npColArtMaxH acota la carátula aunque sobre altura: más grande empieza
-	// a competir con la lista de la cola en vez de acompañarla.
-	npColArtMaxH = 14
+	// npColArtMaxH acota la carátula aunque sobre altura y ancho. El límite
+	// que muerde de verdad casi siempre es el ANCHO de la columna (la imagen
+	// es cuadrada: alto = ancho/2), así que este tope solo entra en juego en
+	// pantallas muy anchas.
+	npColArtMaxH = 20
 	// npColArtMinH: por debajo de esto la carátula es una mancha; mejor nada.
 	npColArtMinH = 4
 )
@@ -54,22 +56,24 @@ func (m *Model) npColumn(w, h int) string {
 			m.colArtLines = m.cover.render(img, artW, artH)
 			m.colArtW, m.colArtH = artW, artH
 		}
-		lines = append(lines, "")
 		for _, l := range m.colArtLines {
 			lines = append(lines, " "+l)
 		}
+		lines = append(lines, "")
 	}
 	// Solo la FICHA: los tiempos y la barra de progreso los pone la barra de
 	// ancho completo del pie, que es donde el progreso se lee de verdad.
-	meta := m.npMetaText(innerW - 2)
-	// La ficha se ancla al FONDO del panel: con la carátula arriba y el texto
-	// pegado a ella, todo el aire sobrante quedaba en un bloque muerto al pie
-	// de la columna.
-	for gap := innerH - len(lines) - len(meta) - 1; gap > 0; gap-- {
-		lines = append(lines, "")
-	}
-	for _, l := range meta {
+	for _, l := range m.npMetaText(innerW - 2) {
 		lines = append(lines, " "+l)
+	}
+	// El bloque (carátula + ficha) va CENTRADO en vertical, con el aire
+	// repartido arriba y abajo. La carátula es cuadrada, así que su alto lo
+	// manda el ancho de la columna y no puede crecer para llenar un panel muy
+	// alto: en una terminal de 58 filas quedaban ~20 filas muertas entre la
+	// carátula y una ficha anclada al fondo. Repartido, el sobrante se lee
+	// como margen en vez de como hueco.
+	for gap := (innerH - len(lines)) / 2; gap > 0; gap-- {
+		lines = append([]string{""}, lines...)
 	}
 	return m.st.panel(i18n.T("tui.now_title"), lines, w, h, false)
 }

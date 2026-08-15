@@ -7,6 +7,17 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.14.1 — 2026-08-15
+
+Cierra el hueco que dejaba la columna "Ahora suena" en pantallas altas. La
+carátula es cuadrada, así que su alto lo manda el ancho de la columna y no
+puede estirarse para llenar un panel de 38 filas: con la ficha anclada al
+fondo quedaban ~20 filas muertas en medio, visibles en la captura del README
+de la 1.14.0. Ahora el bloque (carátula + ficha) va centrado en vertical,
+con el aire repartido arriba y abajo, y la columna puede crecer hasta 40
+celdas en pantallas anchas — ocho celdas más de columna son cuatro filas más
+de carátula, y la cola, que es la elástica, ni las nota.
+
 ## v1.14.0 — 2026-08-15
 
 Rediseño completo de la pantalla principal de la TUI, en cinco fases.

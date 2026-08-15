@@ -391,3 +391,73 @@ func TestPanelLetrasEnLaColumna(t *testing.T) {
 		t.Error("sin letras debía verse el aviso")
 	}
 }
+
+// TestNpColumnBloqueCentrado: el aire sobrante de la columna se reparte
+// arriba y abajo. La carátula es cuadrada, así que su alto lo manda el ancho
+// de la columna y no puede estirarse para llenar un panel alto — con la
+// ficha anclada al fondo, una terminal de 58 filas dejaba ~20 filas muertas
+// en medio (visible en la captura del README de la 1.14.0).
+func TestNpColumnBloqueCentrado(t *testing.T) {
+	m := newLayoutTestModel(190, 58)
+	m.npImg = image.NewRGBA(image.Rect(0, 0, 8, 8))
+	m.npTrack = m.currentTrackPath()
+
+	lay := m.layoutOf()
+	lines := strings.Split(m.npColumn(lay.npW, lay.npH), "\n")
+	inner := lines[1 : len(lines)-1] // sin los bordes
+
+	blank := func(l string) bool {
+		return strings.TrimSpace(strings.Map(func(r rune) rune {
+			if r == '│' {
+				return -1
+			}
+			return r
+		}, l)) == ""
+	}
+	top := 0
+	for _, l := range inner {
+		if !blank(l) {
+			break
+		}
+		top++
+	}
+	bottom := 0
+	for i := len(inner) - 1; i >= 0 && blank(inner[i]); i-- {
+		bottom++
+	}
+	if top == 0 {
+		t.Error("el bloque quedó pegado al techo del panel")
+	}
+	if bottom == 0 {
+		t.Error("el bloque quedó pegado al piso del panel")
+	}
+	// Repartido: la diferencia no puede pasar de la línea en blanco que
+	// separa carátula y ficha, más el redondeo del reparto impar.
+	if d := top - bottom; d > 2 || d < -2 {
+		t.Errorf("aire desbalanceado: %d filas arriba, %d abajo", top, bottom)
+	}
+}
+
+// TestNpColumnAprovechaElAncho: con pantalla ancha la columna crece y la
+// carátula con ella (su alto sale del ancho). Es la otra mitad del hueco.
+func TestNpColumnAprovechaElAncho(t *testing.T) {
+	angosta := computeLayout(120, 58, layoutOpts{}).npW
+	ancha := computeLayout(190, 58, layoutOpts{}).npW
+	if ancha <= angosta {
+		t.Errorf("npW no creció con la pantalla: %d en 120, %d en 190", angosta, ancha)
+	}
+	if ancha > npMaxW {
+		t.Errorf("npW = %d supera el tope %d", ancha, npMaxW)
+	}
+
+	m := newLayoutTestModel(190, 58)
+	m.npImg = image.NewRGBA(image.Rect(0, 0, 8, 8))
+	m.npTrack = m.currentTrackPath()
+	m.View()
+	if m.colArtH < 15 {
+		t.Errorf("carátula de %d filas en una pantalla de 190×58: no aprovecha el ancho", m.colArtH)
+	}
+	if m.colArtW != m.colArtH*2 {
+		t.Errorf("carátula de %dx%d: dejó de ser cuadrada", m.colArtW, m.colArtH)
+	}
+}

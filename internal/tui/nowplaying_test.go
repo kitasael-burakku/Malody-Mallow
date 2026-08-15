@@ -287,6 +287,70 @@ func TestNpLyricsClamp(t *testing.T) {
 	}
 }
 
+// TestNpLyricsLinesBlanksBeyondMaxDistance: en una ventana alta (más de
+// 2·maxLyricDistance+1 filas), las líneas dentro del corte conservan su
+// texto atenuado de siempre y las de más allá salen en blanco — no cada vez
+// más tenues, sino ausentes del todo.
+func TestNpLyricsLinesBlanksBeyondMaxDistance(t *testing.T) {
+	th := config.Theme{Accent: "#89b4fa", Dim: "#6c7086", Border: "#45475a"}
+	var lyrics []media.LyricLine
+	for i := 0; i < 30; i++ {
+		lyrics = append(lyrics, media.LyricLine{At: float64(i * 3), Text: "línea"})
+	}
+	const active = 15
+	m := &Model{
+		st:       newStyles(th),
+		npTrack:  "/x.mp3",
+		npLyrics: lyrics,
+		npSynced: true,
+		status:   &ipc.Status{Track: &ipc.TrackInfo{Path: "/x.mp3"}, Position: lyrics[active].At, Paused: true},
+	}
+	const h = 15 // generosa: sin corte se verían ±7 de contexto
+	start := active - h/2
+	out := m.npLyricsLines(30, h)
+	for row, l := range out {
+		i := start + row
+		if i < 0 || i >= len(lyrics) {
+			continue
+		}
+		dist := lyricDistance(i, active)
+		if dist > maxLyricDistance {
+			if l != "" {
+				t.Errorf("fila %d (dist=%d, > corte %d) debería estar en blanco, salió %q", row, dist, maxLyricDistance, l)
+			}
+		} else if l == "" {
+			t.Errorf("fila %d (dist=%d, dentro del corte) no debería estar en blanco", row, dist)
+		}
+	}
+}
+
+// TestNpLyricsLinesNoBlankWithinNaturalWindow: con una ventana chica (el
+// caso dominante, h≈7 — ver lyrH en npView) la distancia natural nunca
+// supera el corte, así que el comportamiento queda idéntico al de antes de
+// este cambio: ninguna fila desaparece por el corte.
+func TestNpLyricsLinesNoBlankWithinNaturalWindow(t *testing.T) {
+	th := config.Theme{Accent: "#89b4fa", Dim: "#6c7086", Border: "#45475a"}
+	var lyrics []media.LyricLine
+	for i := 0; i < 30; i++ {
+		lyrics = append(lyrics, media.LyricLine{At: float64(i * 3), Text: "línea"})
+	}
+	const active = 15
+	m := &Model{
+		st:       newStyles(th),
+		npTrack:  "/x.mp3",
+		npLyrics: lyrics,
+		npSynced: true,
+		status:   &ipc.Status{Track: &ipc.TrackInfo{Path: "/x.mp3"}, Position: lyrics[active].At, Paused: true},
+	}
+	const h = 7
+	out := m.npLyricsLines(30, h)
+	for row, l := range out {
+		if l == "" {
+			t.Errorf("h=%d (ventana natural) no debería producir filas en blanco por el corte; out[%d]=%q out=%v", h, row, l, out)
+		}
+	}
+}
+
 // TestNpMetaTimeLineNoOverflow: la línea de ícono+tiempo era la única de
 // npMeta sin clip — con una duración larga (horas) y un w angosto (el piso
 // de la función, 8), desbordaba (auditoría de UX post-1.12.0).

@@ -279,10 +279,36 @@ func (m *Model) npLyricsLines(w, h int) []string {
 	}
 	out := make([]string, 0, h)
 	for i := start; i < start+h && i < len(lyrics); i++ {
+		if active >= 0 && lyricDistance(i, active) > maxLyricDistance {
+			// Más allá del corte, la línea no se dibuja — el hueco queda en
+			// blanco en vez de rellenarse con texto casi ilegible. La
+			// ventana (start/h) no cambia de tamaño por esto: en una
+			// terminal chica (h≈7, ver lyrH en npView) la distancia natural
+			// ya cabe por debajo del corte y esto no dispara nunca; se nota
+			// sobre todo en terminales altas, donde antes el contexto lejano
+			// llenaba todo el panel.
+			out = append(out, "")
+			continue
+		}
 		text := clip(lyrics[i].Text, w-4)
 		out = append(out, center(m.styleForLyric(i, active).Render(text), w))
 	}
 	return out
+}
+
+// maxLyricDistance acota cuántas líneas de contexto se muestran a cada lado
+// de la activa antes de desaparecer del todo (en vez de seguir apagándose
+// hasta casi ilegible, como hacía lyricFar antes de este corte).
+const maxLyricDistance = 4
+
+// lyricDistance es |index - active|, el mismo cálculo que ya usa
+// styleForLyric pero expuesto aparte para el corte de visibilidad.
+func lyricDistance(index, active int) int {
+	d := index - active
+	if d < 0 {
+		d = -d
+	}
+	return d
 }
 
 // styleForLyric decide la prominencia visual de la línea index respecto a la

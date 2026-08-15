@@ -14,7 +14,7 @@ lazygit.**
 
 🇪🇸 [Español](README.md) · 🇬🇧 [English](README.en.md)
 
-<img src="pictures/tui-main.jpg" alt="Malody Mallow: biblioteca, cola, visualizador y reproducción actual" width="850"/>
+<img src="pictures/tui-main.jpg" alt="Malody Mallow: biblioteca, cola y Ahora suena con carátula y letras, sobre la franja del visualizador" width="850"/>
 
 </div>
 
@@ -164,9 +164,21 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
 
 ### TUI
 
+- **Layout de tres columnas** que se adapta al ancho del terminal:
+  biblioteca (ancho fijo), cola (elástica, se queda con todo el espacio
+  sobrante) y "Ahora suena" con la carátula y las letras sincronizadas. Por
+  debajo de 120 columnas, "Ahora suena" se colapsa a la barra del pie; por
+  debajo de 90, queda una sola columna y `tab` cicla entre biblioteca y cola.
 - **Paneles de biblioteca y cola** con navegación vim (`h j k l`, `gg`, `G`,
   `ctrl+d`/`ctrl+u`; las flechas también funcionan) y presets de controles
   (`maly controls` → `default` | `vim`).
+- **Barra de reproducción con resolución de sub-carácter**: la cabeza avanza
+  en octavos de celda, así que el progreso se mueve de forma continua en vez
+  de saltar de columna en columna.
+- **Títulos limpios**: los sufijos que deja yt-dlp (`(Official Video)`,
+  `[Lyric Video]`, `(Video Oficial)`…) y el artista repetido dentro del
+  título se ocultan **solo al mostrarlos**. La etiqueta del archivo no se
+  toca, así que `maly search` sigue encontrando por el título original.
 - **Pantalla "Ahora suena" (`ctrl+t`)**: vista a pantalla completa con la
   carátula embebida renderizada en el terminal, letras sincronizadas con la
   reproducción (sidecar `.lrc` junto al archivo de audio, o embebidas en la
@@ -689,20 +701,30 @@ subcomando. `maly config` muestra siempre la configuración **efectiva**
 | Clave | Default | Qué hace |
 |---|---|---|
 | `transparent` | `true` | sin fondo propio; usa el del terminal |
-| `accent` | `#89b4fa` | color de acento |
-| `border` | `#45475a` | bordes de panel |
-| `text` | `#cdd6f4` | texto principal |
-| `dim` | `#6c7086` | texto secundario |
-| `playing` | `#a6e3a1` | resalte de la pista en reproducción |
-| `error` | `#f38ba8` | texto de error (consola, flashes) |
+| `accent` | `#7ab8b8` | color de acento: panel enfocado, cursor |
+| `border` | `#3a4448` | reglas y separadores |
+| `text` | `#d4dadb` | texto principal |
+| `dim` | `#6b7a7e` | texto secundario |
+| `playing` | `#b85c50` | resalte de la pista en reproducción |
+| `error` | `#c96f60` | texto de error (consola, flashes) |
+| `accent_dim` | derivado de `accent` | borde de los paneles sin foco |
+| `surface` | derivado de `accent` | fondo de la fila seleccionada |
+| `progress_low` / `progress_high` | derivados de `accent` | gradiente de la barra de reproducción |
+| `progress_shadow` | derivado de `accent` | sombra bajo la barra (solo donde hay altura) |
+| `banner` | `"splash"` | arte ASCII: `splash` (al arrancar) \| `titlebar` (una fila) \| `off` |
 | `logo` | `["#7ab8b8", "#8098a8", "#b85c50"]` | paradas del gradiente del banner (2 a 8) |
+
+Las cinco claves **derivadas** se calculan a partir de `accent` mientras no
+las escribas: cambiás `accent` y bordes, selección y barra de reproducción lo
+acompañan sin tocar nada más. Si preferís fijar alguna a mano, escribila y
+manda la tuya.
 
 `[visualizer]`:
 
 | Clave | Default | Qué hace |
 |---|---|---|
 | `enabled` | `true` | activa el visualizador |
-| `color_low` / `color_high` | `#89b4fa` / `#f38ba8` | gradiente de las barras |
+| `color_low` / `color_high` | `#7ab8b8` / `#b85c50` | gradiente de las barras |
 | `bars_gravity` | `0.92` | suavizado de caída de las barras |
 | `backend` | `"auto"` | `auto` (prueba pw-record, luego parec) \| `pipewire` \| `pulse` |
 
@@ -728,19 +750,28 @@ scan_durations = true     # al escanear, leer con ffprobe las duraciones que fal
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal
-accent = "#89b4fa"
-border = "#45475a"
-text = "#cdd6f4"
-dim = "#6c7086"
-playing = "#a6e3a1"
-error = "#f38ba8"         # texto de error (consola, flashes)
+accent = "#7ab8b8"        # teal del logo: panel enfocado, cursor, acentos
+border = "#3a4448"
+text = "#d4dadb"
+dim = "#6b7a7e"
+playing = "#b85c50"       # terracota del logo: la pista que está sonando
+error = "#c96f60"         # texto de error (consola, flashes)
+# Estos cinco se DERIVAN de accent mientras sigan comentados: cambiá accent y
+# el resto de la UI lo acompaña sin tocar nada más. Descomentá el que quieras
+# fijar a mano (los valores de ejemplo son los que salen del accent de arriba).
+# accent_dim = "#4c7373"      # borde de los paneles SIN foco
+# surface = "#1c2225"         # fondo de la fila seleccionada
+# progress_low = "#4c7373"    # barra de reproducción: arranque del gradiente
+# progress_high = "#7ab8b8"   # barra de reproducción: cabeza
+# progress_shadow = "#2e4545" # sombra bajo la barra
+banner = "splash"         # arte ASCII: splash (al arrancar) | titlebar (una fila) | off
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 o más)
 # arte del banner: crea logo.txt junto a este archivo con tu propio ASCII
 
 [visualizer]
 enabled = true
-color_low = "#89b4fa"
-color_high = "#f38ba8"
+color_low = "#7ab8b8"
+color_high = "#b85c50"
 bars_gravity = 0.92
 # capturador de audio: auto (default) | pipewire | pulse — forzar uno si
 # tenés ambos instalados y el automático (pw-record, luego parec) elige peor

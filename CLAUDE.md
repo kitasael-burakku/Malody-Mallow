@@ -204,7 +204,41 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   `charmbracelet/x/ansi.Strip` para no delegar una propiedad de seguridad en
   una librería externa.
 - `internal/tui` — Bubble Tea. Recibe estado por **suscripción push**
-  (`subscribe`; fallback a polling de 500 ms con reintento). Paneles biblioteca/
+  (`subscribe`; fallback a polling de 500 ms con reintento). **Todo el
+  reparto de la pantalla vive en `computeLayout` (`layout.go`), función
+  PURA** de (ancho, alto, `layoutOpts{viz, banner}`) — no lee el Model, y
+  eso es innegociable: repartida dentro de `View()`, la aritmética de tres
+  columnas + franja del viz + banner es justo la clase de código que se
+  rompe una celda a la vez y solo en ciertos tamaños, imposible de cazar a
+  ojo contra un terminal. La tabla de tests barre 13 anchos × 10 altos × 6
+  combinaciones de opciones y exige que los anchos sumen exactamente `w` y
+  que `bannerH + topH + vizH + nowH + 1 == h`. Tres modos por ancho
+  (`layoutFull` ≥120, `layoutTwoCol` ≥90, `layoutSingle` por debajo — ahí se
+  dibuja SOLO el panel enfocado y `tab` cicla), y un orden de sacrificios
+  por altura que también es decisión y no accidente: cae primero la franja
+  del viz (decoración), después el banner, y la fila de paneles solo cede en
+  el último extremo. Anchos: biblioteca FIJA (26-34; un porcentaje dejaba
+  dos tercios de espacio muerto para nombres de artista de 10-25 caracteres)
+  y "Ahora suena" fija (28-32, la manda la carátula); la COLA es la elástica
+  porque es la de contenido largo. La tercera columna se parte a su vez en
+  `npH`/`lyrH` (carátula+ficha arriba, letras abajo), con `lyrH` topeado a
+  `2*maxLyricDistance+3`: más allá de esa distancia las líneas ya salen en
+  blanco (corte de la 1.13.1), así que estirar el panel solo sumaría filas
+  vacías y ese sobrante vuelve a la carátula. La barra de reproducción
+  (`nowPanel`) es horizontal y de ancho completo en los TRES modos (decisión
+  del dueño: en 26 celdas de columna el progreso no se lee), y el
+  visualizador es una FRANJA sin panel propio. `progress.go` tiene la barra
+  como funciones puras: relleno con gradiente agrupado por pasos, cabeza con
+  octavos horizontales (`▏▎▍▌▋▊▉` — NO los del viz, que llenan por altura y
+  no parten una celda a lo ancho), estela `▓▒` y pista `░`; sus guardas se
+  escriben `!(dur > 0)` y no `dur <= 0` porque NaN es false en toda
+  comparación. `display.go` limpia los títulos SOLO para mostrarlos (artista
+  repetido + sufijos de yt-dlp): un grupo entre paréntesis se descarta solo
+  si TODAS sus palabras están en `noiseWords`, así "(Remix)", "(feat. …)" o
+  "(2016-2017)" sobreviven; no toca la DB ni `ipc`/`library`, que es lo que
+  mantiene a `maly search` encontrando por el título original, y por eso
+  tampoco vive en `internal/safetext` (que es una frontera de SEGURIDAD, no
+  cosmética). Paneles biblioteca/
   cola + consola ctrl+p (tabla propia de comandos en `console.go`, con paridad
   CLI completa: `playlist` en `console_playlist.go`, `get` vía
   `tea.ExecProcess` + `internal/getter` compartido con la CLI, `controls`
@@ -1569,6 +1603,90 @@ bug real de aliasing en el enfoque original de splice para insertar los
 espaciadores. Se implementó y se verificó en vivo (funcionaba), pero el
 dueño decidió no quedarse con ella y volver al enfoque más simple de la
 primera pasada — se revirtió entera sin llegar a commitear.
+
+La **1.14.0** (2026-08-15) es el **rediseño de la pantalla principal**,
+pedido por el dueño como brief propio en cinco fases, con parada y reporte
+al final de cada una. El detalle de layout, barra y limpieza de títulos vive
+en la sección de `internal/tui` de arriba; acá quedan las decisiones y lo
+que costó descubrir.
+
+*Antes de escribir código* se revisó el brief contra la estructura real y
+salieron 13 choques, tres con consecuencias sobre el plan. El más grande:
+**cambiar `config.Default()` no re-tiñe a NADIE**, porque `configTemplate`
+escribe las claves de color en el archivo la primera vez y el config del
+usuario no se reescribe jamás — la paleta nueva solo la ven instalaciones
+nuevas. De ahí salió que `accent_dim`, `surface` y los tres `progress_*` se
+DERIVEN de `accent` (`Theme.ResolveDerived`) en vez de ser literales: un
+tema propio del usuario sigue siendo coherente sin tocar cinco claves más.
+`Load` los vacía antes del decode (mismo patrón que `cfg.Keys = nil`) para
+distinguir "lo escribió el usuario" de "viene del default"; sin eso, un
+accent propio quedaba con bordes y selección de otra paleta. No llevan
+`clampHex`: para ellos vacío e inválido son el mismo caso. En el template
+van COMENTADOS a propósito — escribirlos mataría la derivación. Los otros
+dos choques: `[progress]` como sección propia habría forzado cambiar la
+firma de `newStyles` (que recibe `config.Theme`, y `styles.theme` lo es), y
+la maqueta del brief dibujaba una rejilla con junctions que `panel()` no
+sabe hacer; el dueño eligió `[theme] progress_*` y paneles sueltos.
+
+**El tema del dueño no era el default viejo** sino uno propio (slate/blanco,
+`accent = "#e2e8f0"`), así que no se le sobreescribió: su `config.toml` se
+adaptó a la estructura nueva conservando sus colores. De paso apareció que
+su `border = "#64748b88"` (9 caracteres, con alfa) llevaba desde CFG-1
+clampeándose en silencio al default — maly no soporta `#rrggbbaa` en ningún
+color, y soportarlo se descartó (con `transparent = true` no hay fondo
+conocido contra el que componer).
+
+Cuatro decisiones que el dueño tomó sobre el diseño ya implementado, y que
+conviene no revertir por descuido: la **barra de reproducción va abajo y a
+ancho completo también en tres columnas** (el primer intento la ponía solo
+en la columna, donde 26 celdas no dan para leer el progreso); la columna
+solo lleva **carátula + ficha**, y por eso `npMeta` se partió en
+`npMetaText` (ficha) + el resto — el progreso se dibuja UNA vez, que es lo
+que un test fija ahora, porque duplicarlo ya fue un defecto real hasta la
+1.6.1; las **letras van en panel propio** bajo la columna y no dentro del
+mismo marco; y la **línea vigente se envuelve** (hasta 3 filas, sin cortar
+palabras) mientras el contexto queda a una fila con su `…`. Esa última salió
+de una pregunta del dueño a mitad de implementación y se decidió MIDIENDO
+sus `.lrc` reales: 266 líneas, mediana 25 caracteres, p90 55, máximo 107 —
+en las ~28 celdas útiles de la columna entra solo el 63 %, así que el
+problema era real y no hipotético. Se descartó la marquesina (leer texto que
+se desplaza es peor que leerlo en dos filas, y contradice la autocancelación
+de animaciones de la 1.7.2) y ensanchar la columna (a 40 celdas seguiría
+cortando el 23 %, robándoselo a la cola).
+
+**Tres bugs reales que destaparon los tests del relayout**, todos
+preexistentes o recién introducidos pero invisibles a ojo: los mensajes de
+"biblioteca vacía"/"cola vacía" nunca pasaban por `clip()` y con el panel
+fijo en 30 celdas ensanchaban su propio panel empujando a los de al lado
+(90×24 renderizaba 94 columnas) — misma clase que la 1.12.1, `panel()`
+rellena pero NO acorta; el input de filtro seguía dimensionado a
+`m.width/2 - 6` y sin `Width` correcto bubbles no hace scroll horizontal,
+así que emitía el valor entero (una fila de 253 celdas en una terminal de
+160), exactamente el defecto que la 1.12.1 arregló en la consola; y la
+carátula se achataba cuando el límite era el alto, porque se recortaba solo
+`artH` sin seguir con `artW`. El test que los cazó es el que comprueba que
+TODA fila de `View()` mide exactamente el ancho de la terminal, en 10
+tamaños × viz × banner.
+
+Dos invariantes nuevas que muerden si se olvidan: la columna y la capa
+ctrl+t **cachean la misma carátula a tamaños distintos**, y en kitty
+comparten un único id de imagen (`kittyImgID`), así que al cruzar entre vista
+y capa hay que invalidar AMBOS renders (`invalidateArt`) o los placeholders
+del que se dibuja apuntan a una imagen transmitida para otras dimensiones de
+celda; y `applyStatus` carga carátula y letras también cuando la columna está
+visible (`npColumnVisible`), no solo con `npOpen`.
+
+Verificación: cada pieza con lógica o estado nuevo se comprobó en ambas
+direcciones, y una de esas comprobaciones falló primero por no compilar
+—señal DÉBIL, la lección de la 1.6.1— y hubo que rehacerla para que fallara
+por la razón correcta. La limpieza de títulos se validó además contra la
+biblioteca real del dueño con un test desechable: 47 de 81 pistas mejoran y
+ninguna pierde información real. Lo que NO se pudo verificar: kitty de
+verdad (bajo tmux el renderer degrada a half-blocks por diseño, y desde una
+sesión no gráfica no hay forma de conducir una ventana de kitty); queda
+cubierto por el test de protocolo y uno nuevo que fija que la columna nunca
+pide más de las 64 celdas por eje que admiten los placeholders, pero la
+comprobación visual es del dueño.
 
 ### Post-1.0 (candidatos)
 

@@ -14,7 +14,7 @@ and lazygit.**
 
 🇪🇸 [Español](README.md) · 🇬🇧 [English](README.en.md)
 
-<img src="pictures/tui-main.jpg" alt="Malody Mallow: library, queue, visualizer, and now playing" width="850"/>
+<img src="pictures/tui-main.jpg" alt="Malody Mallow: library, queue, and Now Playing with cover art and lyrics, above the visualizer strip" width="850"/>
 
 </div>
 
@@ -163,9 +163,20 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
 
 ### TUI
 
+- **Three-column layout** that adapts to the terminal width: library (fixed
+  width), queue (elastic — it takes all the leftover space), and "Now
+  Playing" with cover art and synced lyrics. Below 120 columns, "Now
+  Playing" collapses into the footer bar; below 90, a single column remains
+  and `tab` cycles between library and queue.
 - **Library and queue panels** with vim navigation (`h j k l`, `gg`, `G`,
   `ctrl+d`/`ctrl+u`; arrow keys also work) and control presets
   (`maly controls` → `default` | `vim`).
+- **Sub-character progress bar**: the head advances in eighths of a cell, so
+  playback progress moves continuously instead of jumping column to column.
+- **Clean titles**: the suffixes yt-dlp leaves behind (`(Official Video)`,
+  `[Lyric Video]`, `(Video Oficial)`…) and the artist repeated inside the
+  title are hidden **for display only**. The file's tag is untouched, so
+  `maly search` still finds tracks by their original title.
 - **"Now Playing" screen (`ctrl+t`)**: a fullscreen view with the embedded
   cover art rendered in the terminal, lyrics synced to playback (a `.lrc`
   sidecar next to the audio file, or embedded in the track), and the
@@ -689,20 +700,30 @@ subcommand. `maly config` always shows the **effective** configuration
 | Key | Default | Does |
 |---|---|---|
 | `transparent` | `true` | no background of its own; uses the terminal's |
-| `accent` | `#89b4fa` | accent color |
-| `border` | `#45475a` | panel borders |
-| `text` | `#cdd6f4` | primary text |
-| `dim` | `#6c7086` | secondary text |
-| `playing` | `#a6e3a1` | now-playing highlight |
-| `error` | `#f38ba8` | error text (console, flashes) |
+| `accent` | `#7ab8b8` | accent color: focused panel, cursor |
+| `border` | `#3a4448` | rules and separators |
+| `text` | `#d4dadb` | primary text |
+| `dim` | `#6b7a7e` | secondary text |
+| `playing` | `#b85c50` | now-playing highlight |
+| `error` | `#c96f60` | error text (console, flashes) |
+| `accent_dim` | derived from `accent` | border of unfocused panels |
+| `surface` | derived from `accent` | background of the selected row |
+| `progress_low` / `progress_high` | derived from `accent` | progress bar gradient |
+| `progress_shadow` | derived from `accent` | shadow under the bar (only where there's height) |
+| `banner` | `"splash"` | ASCII art: `splash` (at startup) \| `titlebar` (one row) \| `off` |
 | `logo` | `["#7ab8b8", "#8098a8", "#b85c50"]` | banner gradient stops (2 to 8) |
+
+The five **derived** keys are computed from `accent` as long as you don't
+write them: change `accent` and borders, selection, and progress bar follow
+along without touching anything else. To pin one by hand, just write it and
+yours wins.
 
 `[visualizer]`:
 
 | Key | Default | Does |
 |---|---|---|
 | `enabled` | `true` | turns the visualizer on |
-| `color_low` / `color_high` | `#89b4fa` / `#f38ba8` | bar gradient |
+| `color_low` / `color_high` | `#7ab8b8` / `#b85c50` | bar gradient |
 | `bars_gravity` | `0.92` | bar-decay smoothing |
 | `backend` | `"auto"` | `auto` (tries pw-record, then parec) \| `pipewire` \| `pulse` |
 
@@ -728,19 +749,29 @@ scan_durations = true     # while scanning, read missing durations with ffprobe 
 
 [theme]
 transparent = true        # no background; use the terminal's
-accent = "#89b4fa"
-border = "#45475a"
-text = "#cdd6f4"
-dim = "#6c7086"
-playing = "#a6e3a1"
-error = "#f38ba8"         # error text (console, flashes)
+accent = "#7ab8b8"        # logo teal: focused panel, cursor, accents
+border = "#3a4448"
+text = "#d4dadb"
+dim = "#6b7a7e"
+playing = "#b85c50"       # logo terracotta: the track that is playing
+error = "#c96f60"         # error text (console, flashes)
+# These five are DERIVED from accent while they stay commented out: change
+# accent and the rest of the UI follows without touching anything else.
+# Uncomment any you want to pin by hand (the example values are the ones
+# that come out of the accent above).
+# accent_dim = "#4c7373"      # border of UNFOCUSED panels
+# surface = "#1c2225"         # background of the selected row
+# progress_low = "#4c7373"    # progress bar: start of the gradient
+# progress_high = "#7ab8b8"   # progress bar: head
+# progress_shadow = "#2e4545" # shadow under the bar
+banner = "splash"         # ASCII art: splash (at startup) | titlebar (one row) | off
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # banner gradient stops (2 or more)
 # banner art: create a logo.txt next to this file with your own ASCII
 
 [visualizer]
 enabled = true
-color_low = "#89b4fa"
-color_high = "#f38ba8"
+color_low = "#7ab8b8"
+color_high = "#b85c50"
 bars_gravity = 0.92
 # audio capture backend: auto (default) | pipewire | pulse — force one if
 # you have both installed and the automatic pick (pw-record, then parec) is worse

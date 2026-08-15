@@ -7,6 +7,49 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.14.0 — 2026-08-15
+
+Rediseño completo de la pantalla principal de la TUI, en cinco fases.
+
+El **tema** deja Catppuccin y pasa a la paleta del propio logo (teal
+`#7ab8b8` y terracota `#b85c50`), con cinco claves nuevas en `[theme]` —
+`accent_dim`, `surface` y los tres colores de la barra de progreso— que se
+**derivan de `accent`** mientras no las escribas: cambiás un color y bordes,
+selección y barra lo acompañan. La fila seleccionada pasa de una barra de
+accent sólido a un fondo sutil (`surface`) que ya no pesa más que la pista
+sonando, y el panel enfocado se distingue del resto por saturación del
+borde, no por un gris apenas distinto.
+
+La **barra de reproducción** gana resolución de sub-carácter: la cabeza
+avanza en octavos de celda, con una estela que disuelve el corte contra la
+pista y una sombra bajo el tramo reproducido (en la vista "Ahora suena", que
+es donde hay altura para dibujarla).
+
+El **layout** pasa a tres columnas —biblioteca de ancho fijo, cola elástica
+y "Ahora suena" con carátula y letras sincronizadas—, con breakpoints: por
+debajo de 120 columnas "Ahora suena" se colapsa en la barra del pie, y por
+debajo de 90 queda una sola columna donde `tab` cicla entre biblioteca y
+cola. El visualizador pasa a ser una franja sin panel propio y el banner
+ASCII sale de la vista principal: la clave nueva `[theme] banner` elige
+entre `splash` (pantalla de bienvenida al arrancar, por defecto), `titlebar`
+(una sola fila con el gradiente animado) y `off`. Todo el reparto vive en
+una función pura con tests de tabla sobre 13 anchos × 10 altos.
+
+Las **letras** salen de `ctrl+t` y llegan a la pantalla principal, en un
+panel propio bajo la carátula: la línea vigente se envuelve en hasta tres
+filas sin cortar palabras (más de un tercio de las líneas reales no entra en
+una columna angosta) mientras el contexto se mantiene a una fila.
+
+Y los **títulos se muestran limpios**: los sufijos que deja yt-dlp
+(`(Official Video)`, `[Lyric Video]`, `(Video Oficial)`…) y el artista
+repetido dentro del título se ocultan solo al dibujarlos. La etiqueta del
+archivo no se toca, así que `maly search`, la CLI y cualquier script que
+parsee su salida siguen viendo el título original.
+
+Config viejo sigue funcionando sin cambios: las claves nuevas se derivan y
+`banner` toma su default, así que un `config.toml` de una versión anterior
+no necesita ni una línea nueva.
+
 ## v1.13.1 — 2026-08-14
 
 Dos refinamientos sobre la Lyrics View de la capa "Ahora suena" (ctrl+t).

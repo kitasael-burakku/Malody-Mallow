@@ -43,7 +43,12 @@ func newStyles(t config.Theme) styles {
 	s.accent = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Accent))
 	s.playing = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Playing))
 	s.errSt = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Error))
-	s.border = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Border))
+	// El borde del panel SIN foco usa accent_dim y el enfocado accent a
+	// saturación plena: el resalte anterior (borde gris vs borde accent) era
+	// demasiado sutil para leerlo de reojo, que es justo cuando se lee. El
+	// color `border` del tema queda para reglas y separadores (la línea del
+	// panel "Ahora suena" vacío, el nivel más apagado de las letras).
+	s.border = lipgloss.NewStyle().Foreground(lipgloss.Color(t.AccentDim))
 	s.borderFocus = s.accent
 	s.title = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Dim)).Bold(true)
 	s.titleFocus = lipgloss.NewStyle().Foreground(lipgloss.Color(t.Accent)).Bold(true)
@@ -51,20 +56,44 @@ func newStyles(t config.Theme) styles {
 	// terminal decida qué queda de "fondo" (lo que sea que tuviera puesto
 	// como bg, casi siempre el suyo propio) — con un accent de luminancia
 	// media sobre un terminal de tema claro, el texto podía quedar casi
-	// ilegible (hallazgo UX-N3 de la auditoría). selectedFg calcula negro o
-	// blanco según el propio accent, así el contraste no depende del
-	// terminal del usuario.
-	s.selected = lipgloss.NewStyle().Foreground(selectedFg(t.Accent)).Background(lipgloss.Color(t.Accent)).Bold(true)
+	// ilegible (hallazgo UX-N3 de la auditoría).
+	//
+	// El fondo es `surface` y no `accent`: una barra de accent sólido pesaba
+	// visualmente MÁS que la pista en reproducción, que es la información que
+	// de verdad importa en la pantalla. El texto sigue siendo el del tema
+	// mientras contraste de sobra contra ese fondo; si no, contrastFg cae al
+	// negro/blanco garantizado de antes, así el invariante de UX-N3 (la fila
+	// seleccionada es legible sea cual sea el tema) no depende de que el
+	// usuario elija bien los dos colores.
+	s.selected = lipgloss.NewStyle().Foreground(contrastFg(t.Surface, t.Text)).
+		Background(lipgloss.Color(t.Surface)).Bold(true)
 	return s
 }
 
-// selectedFg elige negro o blanco como texto sobre bg (fórmula YIQ estándar
-// de contraste percibido), para que la fila seleccionada sea legible sea
-// cual sea el accent configurado.
+// yiq es la luminancia percibida de un color hex en 0..255 (fórmula YIQ
+// estándar de contraste).
+func yiq(hex string) int {
+	c := parseHex(hex)
+	return (c[0]*299 + c[1]*587 + c[2]*114) / 1000
+}
+
+// minContrastYIQ es la separación de luminancia a partir de la cual se
+// considera que dos colores del tema se leen bien uno sobre otro.
+const minContrastYIQ = 80
+
+// contrastFg devuelve preferred si contrasta lo suficiente contra bg, y si no
+// el negro/blanco que garantiza legibilidad.
+func contrastFg(bg, preferred string) lipgloss.Color {
+	if d := yiq(bg) - yiq(preferred); d >= minContrastYIQ || -d >= minContrastYIQ {
+		return lipgloss.Color(preferred)
+	}
+	return selectedFg(bg)
+}
+
+// selectedFg elige negro o blanco como texto sobre bg, para que la fila
+// seleccionada sea legible sea cual sea el tema configurado.
 func selectedFg(bg string) lipgloss.Color {
-	c := parseHex(bg)
-	yiq := (c[0]*299 + c[1]*587 + c[2]*114) / 1000
-	if yiq >= 128 {
+	if yiq(bg) >= 128 {
 		return lipgloss.Color("#1e1e2e")
 	}
 	return lipgloss.Color("#ffffff")

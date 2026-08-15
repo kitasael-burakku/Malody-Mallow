@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/wordwrap"
 
 	"maly/internal/i18n"
 	"maly/internal/ipc"
@@ -54,6 +55,7 @@ func (m *Model) currentTrackPath() string {
 // que está cacheada (npLoading evita duplicar cargas en vuelo).
 func (m *Model) openNowPlaying() tea.Cmd {
 	m.npOpen = true
+	m.invalidateArt() // la columna y la capa no comparten render (ni id en kitty)
 	if p := m.currentTrackPath(); p != "" && p != m.npTrack && p != m.npLoading {
 		m.npLoading = p
 		return loadNowMeta(p)
@@ -73,6 +75,7 @@ func (m *Model) handleNowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.String() == "esc" || m.is("now_playing", msg) || m.is("quit", msg) {
 		m.npOpen = false
+		m.invalidateArt()
 		return m, nil
 	}
 	if m.is("help", msg) {
@@ -191,26 +194,19 @@ func (m *Model) npView() string {
 	return m.st.panel(i18n.T("tui.now_title"), lines, m.width, m.height, false)
 }
 
-// npMeta arma el bloque de texto de la pista actual en w columnas: título,
-// artista, álbum, detalles y una barra de progreso.
+// npMeta arma el bloque completo de la pista actual en w columnas: la ficha
+// (npMetaText) más los tiempos y la barra de progreso. Lo usa la capa ctrl+t;
+// la columna del layout de tres columnas se queda solo con la ficha, porque
+// el progreso vive en la barra de ancho completo del pie.
 func (m *Model) npMeta(w int) []string {
+	lines := m.npMetaText(w)
+	if m.status == nil || m.status.Track == nil {
+		return lines
+	}
 	if w < 8 {
 		w = 8
 	}
-	if m.status == nil || m.status.Track == nil {
-		return []string{m.st.dim.Render(clip(i18n.T("tui.nothing"), w))}
-	}
-	s, t := m.status, m.status.Track
-	lines := []string{m.st.text.Bold(true).Render(clip(t.Title, w))}
-	if t.Artist != "" {
-		lines = append(lines, m.st.accent.Render(clip(t.Artist, w)))
-	}
-	if t.Album != "" {
-		lines = append(lines, m.st.dim.Render(clip(t.Album, w)))
-	}
-	if detail := npDetail(t); detail != "" {
-		lines = append(lines, m.st.dim.Render(clip(detail, w)))
-	}
+	s := m.status
 
 	lines = append(lines, "")
 	icon := "▶"
@@ -225,6 +221,36 @@ func (m *Model) npMeta(w int) []string {
 	times := clip(ipc.FmtTime(s.Position)+" / "+ipc.FmtTime(s.Duration), w-2)
 	lines = append(lines, m.st.playing.Render(icon)+" "+m.st.text.Render(times))
 	lines = append(lines, m.progressBar(s.Position, s.Duration, w))
+	// La sombra de la barra solo se dibuja acá: esta capa es pantalla
+	// completa y le sobra altura, mientras que en el panel del layout normal
+	// la fila saldría de la cola. Cuando no hay nada que sombrear
+	// (duración desconocida, arranque de la pista) devuelve "" y la fila
+	// queda en blanco, que es exactamente lo que debe verse.
+	lines = append(lines, m.progressShadow(s.Position, s.Duration, w))
+	return lines
+}
+
+// npMetaText es la FICHA de la pista: título, artista, álbum y detalle, sin
+// nada de reproducción. Separada de npMeta para que la columna no duplique la
+// barra de progreso ni los tiempos que ya muestra el pie.
+func (m *Model) npMetaText(w int) []string {
+	if w < 8 {
+		w = 8
+	}
+	if m.status == nil || m.status.Track == nil {
+		return []string{m.st.dim.Render(clip(i18n.T("tui.nothing"), w))}
+	}
+	t := m.status.Track
+	lines := []string{m.st.text.Bold(true).Render(clip(cleanTitle(t.Artist, t.Title), w))}
+	if t.Artist != "" {
+		lines = append(lines, m.st.accent.Render(clip(t.Artist, w)))
+	}
+	if t.Album != "" {
+		lines = append(lines, m.st.dim.Render(clip(t.Album, w)))
+	}
+	if detail := npDetail(t); detail != "" {
+		lines = append(lines, m.st.dim.Render(clip(detail, w)))
+	}
 	return lines
 }
 
@@ -277,8 +303,30 @@ func (m *Model) npLyricsLines(w, h int) []string {
 	if start < 0 {
 		start = 0
 	}
+	// La línea VIGENTE se envuelve en varias filas si no entra de una: es la
+	// única que se está leyendo, y en la columna del layout de tres columnas
+	// el panel mide ~28 celdas útiles, donde más de un tercio de las líneas
+	// reales se cortaba (medido sobre los .lrc del dueño: mediana 25, p90 55,
+	// máximo 107). El contexto sigue a una fila con su "…", que para líneas
+	// que nadie está leyendo es información suficiente — y así la ventana no
+	// baila: solo una línea puede crecer.
+	var wrapped []string
+	if active >= 0 && active < len(lyrics) {
+		wrapped = wrapLyric(lyrics[active].Text, w-4)
+	}
+	// El presupuesto de contexto es lo que sobre tras la vigente.
+	if ctx := h - len(wrapped); active >= 0 && len(wrapped) > 1 {
+		start = active - ctx/2
+		if start > len(lyrics)-1 {
+			start = len(lyrics) - 1
+		}
+		if start < 0 {
+			start = 0
+		}
+	}
+
 	out := make([]string, 0, h)
-	for i := start; i < start+h && i < len(lyrics); i++ {
+	for i := start; i < len(lyrics) && len(out) < h; i++ {
 		if active >= 0 && lyricDistance(i, active) > maxLyricDistance {
 			// Más allá del corte, la línea no se dibuja — el hueco queda en
 			// blanco en vez de rellenarse con texto casi ilegible. La
@@ -290,10 +338,52 @@ func (m *Model) npLyricsLines(w, h int) []string {
 			out = append(out, "")
 			continue
 		}
-		text := clip(lyrics[i].Text, w-4)
-		out = append(out, center(m.styleForLyric(i, active).Render(text), w))
+		st := m.styleForLyric(i, active)
+		if i == active && len(wrapped) > 0 {
+			for _, part := range wrapped {
+				if len(out) >= h {
+					break
+				}
+				out = append(out, center(st.Render(part), w))
+			}
+			continue
+		}
+		out = append(out, center(st.Render(clip(lyrics[i].Text, w-4)), w))
 	}
 	return out
+}
+
+// maxActiveLyricRows acota en cuántas filas se puede partir la línea vigente.
+// Tres filas cubren el 97 % de las líneas reales del corpus del dueño en la
+// columna angosta; más filas empezarían a mover demasiado el resto de la
+// ventana en cada cambio de línea.
+const maxActiveLyricRows = 3
+
+// wrapLyric parte la línea vigente en hasta maxActiveLyricRows filas de w
+// celdas SIN cortar palabras. Si ni así entra, la última fila se recorta con
+// su "…" — perder el final de una línea de 107 caracteres es mejor que
+// comerse media pantalla con una sola.
+func wrapLyric(text string, w int) []string {
+	if w < 4 {
+		w = 4
+	}
+	rows := strings.Split(wordwrap.String(text, w), "\n")
+	if len(rows) > maxActiveLyricRows {
+		rows = rows[:maxActiveLyricRows]
+		rows[maxActiveLyricRows-1] += " …"
+	}
+	for i, r := range rows {
+		// Una palabra sola más larga que w sobrevive a wordwrap (no la parte
+		// a propósito), así que el recorte por fila sigue haciendo falta.
+		rows[i] = clip(strings.TrimRight(r, " "), w)
+	}
+	return rows
+}
+
+// lyricsPanel es el panel de letras de la tercera columna: la misma ventana
+// sincronizada de la capa ctrl+t, en su propio marco.
+func (m *Model) lyricsPanel(w, h int) string {
+	return m.st.panel(i18n.T("tui.lyrics_title"), m.npLyricsLines(w-2, h-2), w, h, false)
 }
 
 // maxLyricDistance acota cuántas líneas de contexto se muestran a cada lado
@@ -352,20 +442,9 @@ func (m *Model) lyricFar() lipgloss.Style {
 	return blendColor(m.st.theme.Dim, m.st.theme.Border, 0.5)
 }
 
-// blendHex interpola linealmente entre dos colores hex en t∈[0,1] (0=a,
-// 1=b) — la misma aritmética por canal que ya usan logoRamp y el gradiente
-// del visualizador, generalizada a dos colores arbitrarios en vez de fija a
-// blanco. Separada de blendColor (que arma el lipgloss.Style) para poder
-// testear la aritmética sin pasar por el render.
-func blendHex(a, b string, t float64) string {
-	ca, cb := parseHex(a), parseHex(b)
-	var c [3]int
-	for i := range c {
-		c[i] = ca[i] + int(t*float64(cb[i]-ca[i]))
-	}
-	return fmt.Sprintf("#%02x%02x%02x", c[0], c[1], c[2])
-}
-
+// blendColor arma el lipgloss.Style de una interpolación entre dos colores
+// (blendHex, en color.go, es la aritmética sola: se testea sin pasar por el
+// render).
 func blendColor(a, b string, t float64) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(blendHex(a, b, t)))
 }

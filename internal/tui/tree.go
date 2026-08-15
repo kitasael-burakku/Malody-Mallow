@@ -79,9 +79,9 @@ func buildTree(tracks []library.Track, lists []plList) *libTree {
 			curAlbum = &node{kind: albumNode, depth: 1, label: album}
 			curArtist.children = append(curArtist.children, curAlbum)
 		}
-		label := tr.Title
+		label := cleanTitle(tr.Artist, tr.Title)
 		if tr.TrackNo > 0 {
-			label = fmt.Sprintf("%02d %s", tr.TrackNo, tr.Title)
+			label = fmt.Sprintf("%02d %s", tr.TrackNo, cleanTitle(tr.Artist, tr.Title))
 		}
 		curAlbum.children = append(curAlbum.children, &node{kind: trackNode, depth: 2, label: label, track: tr})
 	}
@@ -92,7 +92,7 @@ func buildTree(tracks []library.Track, lists []plList) *libTree {
 		for i, tr := range p.tracks {
 			pn.children = append(pn.children, &node{
 				kind: trackNode, depth: 1,
-				label: fmt.Sprintf("%2d %s", i+1, tr.String()), track: tr,
+				label: fmt.Sprintf("%2d %s", i+1, trackLabel(tr.Artist, tr.Title)), track: tr,
 			})
 		}
 		t.roots = append(t.roots, pn)
@@ -223,7 +223,7 @@ func (t *libTree) flatten() {
 		words := strings.Fields(q)
 		for i, tr := range t.all {
 			if containsAll(t.folded[i], words) {
-				t.rows = append(t.rows, &node{kind: trackNode, label: tr.String(), track: tr})
+				t.rows = append(t.rows, &node{kind: trackNode, label: trackLabel(tr.Artist, tr.Title), track: tr})
 			}
 		}
 	} else {

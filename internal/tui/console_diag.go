@@ -331,6 +331,14 @@ func (m *Model) conConfig() tea.Cmd {
 		row("config.theme_dim", cfg.Theme.Dim)
 		row("config.playing", cfg.Theme.Playing)
 		row("config.error", cfg.Theme.Error)
+		// Mismas filas que cmd/maly/config_cmd.go: la paridad consola↔CLI ya
+		// se rompió una vez con `error`, que se agregó solo de un lado.
+		row("config.accent_dim", cfg.Theme.AccentDim)
+		row("config.surface", cfg.Theme.Surface)
+		row("config.progress_low", cfg.Theme.ProgressLow)
+		row("config.progress_high", cfg.Theme.ProgressHigh)
+		row("config.progress_shad", cfg.Theme.ProgressShadow)
+		row("config.banner", cfg.Theme.Banner)
 		row("config.logo", strings.Join(cfg.Theme.Logo, ", "))
 
 		sec("config.sec_visualizer")

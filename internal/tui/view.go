@@ -12,30 +12,10 @@ import (
 )
 
 const (
-	nowPanelH  = 4
-	vizPanelH  = 8
-	minWidth   = 40
-	minHeight  = 12
-	vizMinRows = 22
+	nowPanelH = 4
+	minWidth  = 40
+	minHeight = 12
 )
-
-// layout reparte la altura: logo (si cabe), fila superior (biblioteca+cola),
-// visualizador, ahora suena y una línea de pie.
-func (m *Model) layout() (topH, vizH, logoH int) {
-	if m.height >= m.logo.minRows() {
-		logoH = m.logo.panelH()
-	}
-	vizH = 0
-	if m.vizOn && m.height >= vizMinRows {
-		vizH = vizPanelH
-	}
-	topH = m.height - 1 - nowPanelH - vizH - logoH
-	if topH < 5 {
-		topH += vizH
-		vizH = 0
-	}
-	return topH, vizH, logoH
-}
 
 func (m *Model) libFilterVisible() bool {
 	return (m.filterMode && m.focus == panelLibrary) || m.tree.filter != ""
@@ -46,8 +26,7 @@ func (m *Model) queueFilterVisible() bool {
 }
 
 func (m *Model) libPageH() int {
-	topH, _, _ := m.layout()
-	h := topH - 2
+	h := m.layoutOf().topH - 2
 	if m.libFilterVisible() {
 		h--
 	}
@@ -58,8 +37,7 @@ func (m *Model) libPageH() int {
 }
 
 func (m *Model) queuePageH() int {
-	topH, _, _ := m.layout()
-	h := topH - 2
+	h := m.layoutOf().topH - 2
 	if m.queueFilterVisible() {
 		h--
 	}
@@ -94,24 +72,49 @@ func (m *Model) View() string {
 	if m.npOpen {
 		return m.npView()
 	}
+	if m.splashOn() {
+		return m.splashView()
+	}
 
-	topH, vizH, logoH := m.layout()
-	leftW := m.width / 2
-	rightW := m.width - leftW
-
-	top := lipgloss.JoinHorizontal(lipgloss.Top,
-		m.libraryPanel(leftW, topH),
-		m.queuePanel(rightW, topH),
-	)
+	lay := m.layoutOf()
 	var parts []string
-	if logoH > 0 {
-		parts = append(parts, m.logoPanel(m.width, logoH))
+	if lay.bannerH > 0 {
+		parts = append(parts, m.titleBar(m.width))
 	}
-	parts = append(parts, top)
-	if vizH > 0 {
-		parts = append(parts, m.vizPanel(m.width, vizH))
+	switch lay.mode {
+	case layoutFull:
+		// La tercera columna son DOS paneles apilados: "Ahora suena" con la
+		// carátula y, debajo, las letras (que ya venían cargadas con la
+		// carátula y no se usaban fuera de ctrl+t). Con poca altura, lyrH es
+		// 0 y la columna vuelve a ser un solo panel.
+		right := m.npColumn(lay.npW, lay.npH)
+		if lay.lyrH > 0 {
+			right = lipgloss.JoinVertical(lipgloss.Left, right, m.lyricsPanel(lay.npW, lay.lyrH))
+		}
+		parts = append(parts, lipgloss.JoinHorizontal(lipgloss.Top,
+			m.libraryPanel(lay.libW, lay.topH),
+			m.queuePanel(lay.queueW, lay.topH),
+			right,
+		))
+	case layoutTwoCol:
+		parts = append(parts, lipgloss.JoinHorizontal(lipgloss.Top,
+			m.libraryPanel(lay.libW, lay.topH),
+			m.queuePanel(lay.queueW, lay.topH),
+		))
+	default: // layoutSingle: solo el panel enfocado, a ancho completo
+		if m.focus == panelQueue {
+			parts = append(parts, m.queuePanel(lay.queueW, lay.topH))
+		} else {
+			parts = append(parts, m.libraryPanel(lay.libW, lay.topH))
+		}
 	}
-	parts = append(parts, m.nowPanel(m.width, nowPanelH), m.footer())
+	if lay.vizH > 0 {
+		parts = append(parts, m.vizStrip(m.width, lay.vizH))
+	}
+	if lay.nowH > 0 {
+		parts = append(parts, m.nowPanel(m.width, lay.nowH))
+	}
+	parts = append(parts, m.footer())
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
@@ -121,9 +124,15 @@ func (m *Model) libraryPanel(w, h int) string {
 	var lines []string
 	if m.libFilterVisible() {
 		if m.filterMode && focused {
-			lines = append(lines, m.filterInput.View())
+			// Ancho fijado EN CADA RENDER, como el input de la consola y el
+			// del picker desde la 1.12.1: el panel de biblioteca ya no es
+			// media pantalla sino ~30 celdas fijas, y textinput sin Width
+			// (o con uno mayor que su caja) emite el valor completo y rompe
+			// el borde mientras se escribe.
+			m.filterInput.Width = innerW - 2
+			lines = append(lines, clip(m.filterInput.View(), innerW))
 		} else {
-			lines = append(lines, m.st.accent.Render("/"+m.tree.filter))
+			lines = append(lines, m.st.accent.Render(clip("/"+m.tree.filter, innerW)))
 		}
 	}
 	pageH := m.libPageH()
@@ -133,7 +142,13 @@ func (m *Model) libraryPanel(w, h int) string {
 		case m.libLoadErr != "":
 			lines = append(lines, m.st.errSt.Render(clip(i18n.Tf("tui.lib_err", m.libLoadErr), innerW)))
 		case m.libLoaded:
-			lines = append(lines, m.st.dim.Render(i18n.T("tui.lib_empty")))
+			// clip() obligatorio: el mensaje mide ~32 celdas y el panel de
+			// biblioteca ahora es FIJO en ~30 (antes se llevaba media
+			// pantalla y siempre cabía). panel() no trunca por ancho —
+			// padTo rellena pero no acorta—, así que sin esto el panel
+			// entero se ensancha y arrastra a los de al lado (misma clase
+			// de desborde que la 1.12.1).
+			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.lib_empty"), innerW)))
 		}
 	}
 	end := m.tree.offset + pageH
@@ -198,14 +213,17 @@ func (m *Model) queuePanel(w, h int) string {
 	var lines []string
 	if m.queueFilterVisible() {
 		if m.filterMode && focused {
-			lines = append(lines, m.filterInput.View())
+			m.filterInput.Width = innerW - 2
+			lines = append(lines, clip(m.filterInput.View(), innerW))
 		} else {
-			lines = append(lines, m.st.accent.Render("/"+m.queueFilter))
+			lines = append(lines, m.st.accent.Render(clip("/"+m.queueFilter, innerW)))
 		}
 	}
 	vis := m.visibleQueue()
 	if len(vis) == 0 {
-		lines = append(lines, m.st.dim.Render(i18n.T("tui.queue_empty")))
+		// Mismo motivo que en libraryPanel: el mensaje es más ancho que un
+		// panel angosto (una sola columna en 40 celdas, p. ej.).
+		lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.queue_empty"), innerW)))
 	}
 	pageH := m.queuePageH()
 	end := m.queueOffset + pageH
@@ -219,7 +237,7 @@ func (m *Model) queuePanel(w, h int) string {
 	for v := m.queueOffset; v < end; v++ {
 		real := vis[v]
 		t := m.queue[real]
-		name := t.String()
+		name := trackLabel(t.Artist, t.Title)
 		mark := "  "
 		style := m.st.text
 		if real == curIdx {
@@ -257,10 +275,13 @@ func (m *Model) queuePanel(w, h int) string {
 
 var vizBlocks = []rune(" ▁▂▃▄▅▆▇█")
 
-// vizPanel dibuja el espectro: una columna por barra que sigue la amplitud
-// suavizada, caracteres de octavos y gradiente vertical color_low → color_high.
-func (m *Model) vizPanel(w, h int) string {
-	return m.st.panel(i18n.T("tui.viz_title"), m.vizLines(w-2, h-2), w, h, false)
+// vizStrip dibuja el espectro como FRANJA, sin panel propio: una caja de
+// ancho completo con las barras llenando solo su tercio izquierdo y el resto
+// vacío se veía pobre (hallazgo P3 del rediseño), y el borde costaba dos filas
+// de las pocas que hay abajo. Sin borde, el espectro se apoya en los paneles
+// de arriba como la franja de la capa ctrl+t, que es donde ya se veía bien.
+func (m *Model) vizStrip(w, h int) string {
+	return strings.Join(m.vizLines(w, h), "\n")
 }
 
 // vizLines arma las filas del espectro sin panel, para que la capa "Ahora
@@ -297,53 +318,25 @@ func (m *Model) vizGradient(rows int) []lipgloss.Style {
 	if len(m.vizStyles) == rows {
 		return m.vizStyles
 	}
-	low := parseHex(m.cfg.Visualizer.ColorLow)
-	high := parseHex(m.cfg.Visualizer.ColorHigh)
 	m.vizStyles = make([]lipgloss.Style, rows)
 	for r := 0; r < rows; r++ {
 		f := 0.0
 		if rows > 1 {
 			f = float64(rows-1-r) / float64(rows-1) // fila de abajo = low
 		}
-		col := [3]int{}
-		for i := 0; i < 3; i++ {
-			col[i] = low[i] + int(f*float64(high[i]-low[i]))
-		}
-		m.vizStyles[r] = lipgloss.NewStyle().Foreground(
-			lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", col[0], col[1], col[2])))
+		m.vizStyles[r] = blendColor(m.cfg.Visualizer.ColorLow, m.cfg.Visualizer.ColorHigh, f)
 	}
 	return m.vizStyles
-}
-
-func parseHex(s string) [3]int {
-	var r, g, b int
-	if len(s) == 7 && s[0] == '#' {
-		fmt.Sscanf(s[1:], "%02x%02x%02x", &r, &g, &b)
-	}
-	return [3]int{r, g, b}
 }
 
 func (m *Model) nowPanel(w, h int) string {
 	innerW := w - 2
 	var line1, line2 string
 
-	// Iconos de modos a la derecha.
+	// Tiempos + volumen + modos, a la derecha.
 	var right string
-	if m.status != nil {
-		s := m.status
-		shuf := m.st.dim.Render("⇄")
-		if s.Shuffle {
-			shuf = m.st.accent.Render("⇄")
-		}
-		rep := m.st.dim.Render("⟲")
-		switch s.Repeat {
-		case "all":
-			rep = m.st.accent.Render("⟲")
-		case "one":
-			rep = m.st.accent.Render("⟲¹")
-		}
-		times := ipc.FmtTime(s.Position) + "/" + ipc.FmtTime(s.Duration)
-		right = m.st.text.Render(times) + m.st.dim.Render(fmt.Sprintf("  vol %d%%  ", s.Volume)) + shuf + " " + rep + " "
+	if s := m.status; s != nil {
+		right = m.st.text.Render(ipc.FmtTime(s.Position)+"/"+ipc.FmtTime(s.Duration)) + m.modeIcons()
 	}
 	rightW := lipgloss.Width(right)
 
@@ -357,7 +350,7 @@ func (m *Model) nowPanel(w, h int) string {
 		if s.Paused {
 			icon = "⏸"
 		}
-		name := s.Track.String()
+		name := trackLabel(s.Track.Artist, s.Track.Title)
 		if s.Track.Album != "" {
 			name += " [" + s.Track.Album + "]"
 		}
@@ -369,30 +362,26 @@ func (m *Model) nowPanel(w, h int) string {
 	return m.st.panel(i18n.T("tui.now_title"), []string{line1, line2}, w, h, false)
 }
 
-// progressBar dibuja la barra de reproducción en w columnas. Fuente única: la
-// usan el panel "Ahora suena" del layout normal y la capa ctrl+t, que tenían el
-// cálculo duplicado letra por letra.
-//
-// El clamp INFERIOR no es decorativo. Si Duration es diminuta frente a Position
-// el cociente desborda a +Inf, y `int(+Inf)` en amd64 da el mínimo de int64: un
-// número negativo que no supera w y llegaba tal cual a strings.Repeat, que
-// entra en pánico con conteos negativos y se llevaba la TUI por delante.
-func (m *Model) progressBar(pos, dur float64, w int) string {
-	if w < 0 {
-		w = 0
+// modeIcons es "vol N%  ⇄ ⟲": volumen y los dos modos de reproducción, con el
+// activo en accent. Fuente única de la barra horizontal y del pie en tres
+// columnas, que es donde esa barra ya no existe.
+func (m *Model) modeIcons() string {
+	s := m.status
+	if s == nil {
+		return ""
 	}
-	filled := 0
-	if dur > 0 {
-		filled = int(pos / dur * float64(w))
+	shuf := m.st.dim.Render("⇄")
+	if s.Shuffle {
+		shuf = m.st.accent.Render("⇄")
 	}
-	if filled > w {
-		filled = w
+	rep := m.st.dim.Render("⟲")
+	switch s.Repeat {
+	case "all":
+		rep = m.st.accent.Render("⟲")
+	case "one":
+		rep = m.st.accent.Render("⟲¹")
 	}
-	if filled < 0 {
-		filled = 0
-	}
-	return m.st.accent.Render(strings.Repeat("━", filled)) +
-		m.st.dim.Render(strings.Repeat("─", w-filled))
+	return m.st.dim.Render(fmt.Sprintf("  vol %d%%  ", s.Volume)) + shuf + " " + rep + " "
 }
 
 // footer arma la línea de pie. Cada rama construye el texto PLANO primero y
@@ -405,14 +394,15 @@ func (m *Model) progressBar(pos, dur float64, w int) string {
 // desbordar el ancho de la terminal sin que nada los recortara (auditoría
 // 2026-07-31, hallazgo T23/D10.3).
 func (m *Model) footer() string {
+	hintW := m.width
 	var line string
 	switch {
 	case m.connErr:
-		line = m.st.errSt.Render(clip(i18n.T("tui.no_daemon"), m.width))
+		line = m.st.errSt.Render(clip(i18n.T("tui.no_daemon"), hintW))
 	case m.flash != "" && m.flashErr:
-		line = m.st.errSt.Render(clip(" "+m.flash, m.width))
+		line = m.st.errSt.Render(clip(" "+m.flash, hintW))
 	case m.flash != "":
-		line = m.st.playing.Render(clip(" "+m.flash, m.width))
+		line = m.st.playing.Render(clip(" "+m.flash, hintW))
 	case m.status != nil && m.status.Scanning:
 		// Progreso del scan en vuelo (propio o de otro cliente): llega por
 		// los pushes de suscripción en Status.Scanning/ScanSeen. Con
@@ -421,23 +411,23 @@ func (m *Model) footer() string {
 		if m.status.ScanTotal > 0 {
 			txt = i18n.Tf("cli.scan_durations", m.status.ScanSeen, m.status.ScanTotal)
 		}
-		line = m.st.accent.Render(clip(" "+txt, m.width))
+		line = m.st.accent.Render(clip(" "+txt, hintW))
 	case m.verMismatch != "":
-		line = m.st.errSt.Render(clip(" "+i18n.Tf("tui.svc_version", m.verMismatch), m.width))
+		line = m.st.errSt.Render(clip(" "+i18n.Tf("tui.svc_version", m.verMismatch), hintW))
 	case m.updAvail != "" && version.Packaged():
 		// Con un binario de un gestor de paquetes, "maly update" ya remite
 		// al gestor (ver conUpdate); el aviso del pie sigue el mismo texto.
-		line = m.st.accent.Render(clip(" "+i18n.Tf("tui.update_avail_packaged", m.updAvail), m.width))
+		line = m.st.accent.Render(clip(" "+i18n.Tf("tui.update_avail_packaged", m.updAvail), hintW))
 	case m.updAvail != "":
-		line = m.st.accent.Render(clip(" "+i18n.Tf("tui.update_avail", m.updAvail), m.width))
+		line = m.st.accent.Render(clip(" "+i18n.Tf("tui.update_avail", m.updAvail), hintW))
 	default:
 		hint := i18n.T("tui.footer")
 		if m.embedded {
 			hint += i18n.T("tui.footer_embedded")
 		}
-		line = m.st.dim.Render(clip(hint, m.width))
+		line = m.st.dim.Render(clip(hint, hintW))
 	}
-	return padTo(line, m.width)
+	return padTo(line, hintW)
 }
 
 func (m *Model) helpView() string {

@@ -1,13 +1,14 @@
 package tui
 
 import (
-	"fmt"
 	"math"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"maly/internal/config"
 )
 
 // logoArt: "MALODY" en figlet fuente bloody, 6 líneas.
@@ -19,7 +20,6 @@ const logoArt = ` ███▄ ▄███▓ ▄▄▄       ██▓     ▒
 ░ ▒░   ░  ░ ▒▒   ▓▒█░░ ▒░▓  ░░ ▒░▒░▒░  ▒▒▓  ▒   ██▒▒▒`
 
 const (
-	logoBaseRows = 22 // filas de UI que deben caber además del panel del banner
 	logoSteps    = 24 // resolución del gradiente precalculado
 	logoFreq     = 0.22
 	logoInterval = 80 * time.Millisecond // ~12.5 fps
@@ -63,12 +63,12 @@ func newLogo(stops, art []string) logoModel {
 	return logoModel{cells: cells, width: w, ramp: logoRamp(stops)}
 }
 
-// panelH: líneas de arte + bordes del panel.
-func (l *logoModel) panelH() int { return len(l.cells) + 2 }
-
-// minRows: altura mínima del terminal para dibujar el banner sin aplastar el
-// resto de la UI (con el arte de fábrica equivale al viejo umbral de 30).
-func (l *logoModel) minRows() int { return logoBaseRows + l.panelH() }
+// artH/artW son las dimensiones del arte ya paddeado. Reemplazan a los viejos
+// panelH/minRows, que medían un PANEL del banner dentro de la vista principal
+// — el banner ya no vive ahí (ver [theme] banner): lo único que hace falta
+// saber es si el arte cabe en pantalla para el splash.
+func (l *logoModel) artH() int { return len(l.cells) }
+func (l *logoModel) artW() int { return l.width }
 
 // logoRamp interpola las paradas del gradiente del banner en logoSteps pasos.
 func logoRamp(stops []string) []lipgloss.Style {
@@ -76,24 +76,17 @@ func logoRamp(stops []string) []lipgloss.Style {
 		// Defensa por si llega un config mutado: la paleta Kitasan de siempre.
 		stops = []string{kitasanCyan, kitasanBlueGray, kitasanRed}
 	}
-	hex := make([][3]int, len(stops))
-	for i, s := range stops {
-		hex[i] = parseHex(s)
-	}
 	ramp := make([]lipgloss.Style, logoSteps)
 	for i := range ramp {
-		f := float64(i) / float64(logoSteps-1) * float64(len(hex)-1)
+		// Posición dentro del gradiente multi-parada: la parte entera elige el
+		// tramo y la fraccionaria interpola dentro de él (blendColor, el mismo
+		// helper que usan el visualizador y las letras).
+		f := float64(i) / float64(logoSteps-1) * float64(len(stops)-1)
 		s := int(f)
-		if s >= len(hex)-1 {
-			s = len(hex) - 2
+		if s >= len(stops)-1 {
+			s = len(stops) - 2
 		}
-		t := f - float64(s)
-		var c [3]int
-		for k := 0; k < 3; k++ {
-			c[k] = hex[s][k] + int(t*float64(hex[s+1][k]-hex[s][k]))
-		}
-		ramp[i] = lipgloss.NewStyle().Foreground(
-			lipgloss.Color(fmt.Sprintf("#%02x%02x%02x", c[0], c[1], c[2])))
+		ramp[i] = blendColor(stops[s], stops[s+1], f-float64(s))
 	}
 	return ramp
 }
@@ -102,6 +95,24 @@ func logoRamp(stops []string) []lipgloss.Style {
 func (l *logoModel) tick(energy float64) {
 	l.energy += (energy - l.energy) * 0.2
 	l.phase += 0.10 * (1 + 6*l.energy)
+}
+
+// rampIdx devuelve el paso del gradiente de cada una de las cols columnas
+// según la onda (fase + energía). Compartido por el arte y por la barra de
+// título de una fila.
+func (l *logoModel) rampIdx(cols int) []int {
+	// Con más energía el gradiente se abre desde el cian hacia el rojo.
+	span := 0.35 + 0.65*l.energy
+	idx := make([]int, cols)
+	for c := range idx {
+		v := 0.5 + 0.5*math.Sin(float64(c)*logoFreq-l.phase)
+		i := int(v * span * float64(logoSteps-1))
+		if i >= logoSteps {
+			i = logoSteps - 1
+		}
+		idx[c] = i
+	}
+	return idx
 }
 
 // view devuelve las líneas del logo centradas en innerW, coloreadas por
@@ -116,17 +127,7 @@ func (l *logoModel) view(innerW int) []string {
 	if cols > innerW-pad {
 		cols = innerW - pad
 	}
-	// Con más energía el gradiente se abre desde el cian hacia el rojo.
-	span := 0.35 + 0.65*l.energy
-	idx := make([]int, cols)
-	for c := range idx {
-		v := 0.5 + 0.5*math.Sin(float64(c)*logoFreq-l.phase)
-		i := int(v * span * float64(logoSteps-1))
-		if i >= logoSteps {
-			i = logoSteps - 1
-		}
-		idx[c] = i
-	}
+	idx := l.rampIdx(cols)
 	prefix := strings.Repeat(" ", pad)
 	out := make([]string, len(l.cells))
 	for r, row := range l.cells {
@@ -145,12 +146,50 @@ func (l *logoModel) view(innerW int) []string {
 	return out
 }
 
-// logoVisible: el banner se dibuja y su tick sigue vivo solo si hay altura
-// suficiente y ninguna vista a pantalla completa lo tapa.
+// logoTitle es el texto de la barra de título de una fila. NO usa el arte
+// ASCII (ni el logo.txt del usuario): seis filas de figlet no se colapsan a
+// una, y el gradiente animado se aplica igual sobre las letras del nombre.
+const logoTitle = "MALODY MALLOW"
+
+// titleLine dibuja el banner colapsado a UNA fila: el nombre centrado en w,
+// con el mismo gradiente y la misma onda que el arte grande. Es la forma de
+// tener banner sin pagar las seis filas que el rediseño le quitó a la cola.
+func (l *logoModel) titleLine(w int) string {
+	runes := []rune(logoTitle)
+	if w < len(runes) {
+		return ""
+	}
+	idx := l.rampIdx(len(runes))
+	var b strings.Builder
+	b.WriteString(strings.Repeat(" ", (w-len(runes))/2))
+	for c := 0; c < len(runes); {
+		j := c
+		for j < len(runes) && idx[j] == idx[c] {
+			j++
+		}
+		b.WriteString(l.ramp[idx[c]].Render(string(runes[c:j])))
+		c = j
+	}
+	return b.String()
+}
+
+// logoVisible: hay banner en pantalla (la barra de título o el splash) y su
+// onda debe seguir animándose. Sin banner el reloj no llega ni a armarse.
 func (m *Model) logoVisible() bool {
-	return m.height >= m.logo.minRows() && m.width >= minWidth &&
-		!m.langOpen && !m.showHelp && !m.consoleOpen && !m.songsOpen &&
-		!m.plOpen && !m.npOpen
+	if m.width < minWidth || m.langOpen || m.showHelp || m.consoleOpen ||
+		m.songsOpen || m.plOpen || m.npOpen {
+		return false
+	}
+	if m.splashOn() {
+		return true
+	}
+	return m.cfg.Theme.Banner == config.BannerTitlebar &&
+		m.layoutOf().bannerH > 0
+}
+
+// titleBar es la fila del banner en modo titlebar.
+func (m *Model) titleBar(w int) string {
+	return padTo(m.logo.titleLine(w), w)
 }
 
 // logoEnergy estima la energía del audio (0..1) como media de las barras del
@@ -171,6 +210,28 @@ func (m *Model) logoEnergy() float64 {
 	return e
 }
 
-func (m *Model) logoPanel(w, h int) string {
-	return m.st.panel("", m.logo.view(w-2), w, h, false)
+// --- Splash de arranque ---
+
+// splashDur es lo que dura la pantalla de bienvenida. Corta a propósito: es
+// el hueco que de todas formas se pasa esperando la biblioteca y el primer
+// estado del demonio, no una pausa que se le impone a nadie. Cualquier tecla
+// la salta.
+const splashDur = 900 * time.Millisecond
+
+type splashDoneMsg struct{}
+
+func splashCmd() tea.Cmd {
+	return tea.Tick(splashDur, func(time.Time) tea.Msg { return splashDoneMsg{} })
+}
+
+// splashOn: hay splash en pantalla ahora mismo. Exige que el arte QUEPA — un
+// banner recortado a la mitad como bienvenida es peor que ninguno.
+func (m *Model) splashOn() bool {
+	return m.splash && m.cfg.Theme.Banner == config.BannerSplash &&
+		m.height >= m.logo.artH()+2 && m.width >= m.logo.artW()+2
+}
+
+func (m *Model) splashView() string {
+	art := strings.Join(m.logo.view(m.logo.width), "\n")
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, art)
 }

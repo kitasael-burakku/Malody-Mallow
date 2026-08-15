@@ -22,19 +22,94 @@ import (
 // también su clampHex(...) en Load() — CFG-1 (auditoría técnica) fue
 // exactamente esto: Logo se validaba y los otros 5 colores de entonces no,
 // por la misma razón por la que Error (el más nuevo) casi se queda afuera
-// al agregarlo.
+// al agregarlo. La excepción son los DERIVADOS (AccentDim, Surface,
+// Progress*): no llevan clampHex porque ResolveDerived ya los repuebla
+// cuando no son hex válido — vacío e inválido son el mismo caso ahí.
 type Theme struct {
-	Transparent bool     `toml:"transparent"`
-	Accent      string   `toml:"accent"`
-	Border      string   `toml:"border"`
-	Text        string   `toml:"text"`
-	Dim         string   `toml:"dim"`
-	Playing     string   `toml:"playing"`
-	Error       string   `toml:"error"` // texto de error (consola, flashes)
-	Logo        []string `toml:"logo"`  // paradas hex del gradiente del banner (≥2)
+	Transparent bool   `toml:"transparent"`
+	Accent      string `toml:"accent"`
+	Border      string `toml:"border"`
+	Text        string `toml:"text"`
+	Dim         string `toml:"dim"`
+	Playing     string `toml:"playing"`
+	Error       string `toml:"error"` // texto de error (consola, flashes)
+	// AccentDim y Surface son roles DERIVADOS del accent cuando el usuario
+	// no los fija (ver ResolveDerived): así un tema que solo cambia accent
+	// sigue siendo coherente sin tener que ajustar otras cuatro claves a
+	// mano. AccentDim tiñe el borde de los paneles SIN foco (el enfocado usa
+	// Accent a saturación plena, que es lo que hace legible el foco de
+	// reojo); Surface es el fondo de la fila seleccionada, un fondo sutil en
+	// vez de la barra sólida de accent que pesaba más que la pista sonando.
+	AccentDim string `toml:"accent_dim"`
+	Surface   string `toml:"surface"`
+	// Progress*: colores de la barra de reproducción, también derivados.
+	// Low → High es el gradiente del tramo ya reproducido y Shadow la fila
+	// de sombra bajo él (solo donde hay altura para dibujarla).
+	ProgressLow    string `toml:"progress_low"`
+	ProgressHigh   string `toml:"progress_high"`
+	ProgressShadow string `toml:"progress_shadow"`
+	// Banner: qué hacer con el arte ASCII en la vista principal. Ya no vive
+	// ahí — se comía ~13 % del alto (5-6 filas de cola en 1080p) de forma
+	// permanente a cambio de cero información.
+	//   "splash"   (default) pantalla de arranque, se va sola
+	//   "titlebar" una sola fila con el gradiente animado
+	//   "off"      nada
+	// Un valor no reconocido se comporta como "splash", mismo criterio de
+	// degradar en silencio que un preset de controls inválido.
+	Banner string   `toml:"banner"`
+	Logo   []string `toml:"logo"` // paradas hex del gradiente del banner (≥2)
 	// LogoArt no vive en el TOML: viene del logo.txt opcional junto al
 	// config (Load lo lee); nil = arte de fábrica.
 	LogoArt []string `toml:"-"`
+}
+
+// Factores de derivación del accent. Los valores salen de la paleta del logo
+// ("Kitasan Glass"): con accent = #7ab8b8 reproducen el teal apagado y la
+// sombra que el rediseño fijó a mano, y con cualquier otro accent mantienen
+// la misma relación de luminancia.
+const (
+	accentDimFactor      = 0.62 // accent oscurecido: bordes sin foco
+	progressShadowFactor = 0.37 // más oscuro todavía: sombra de la barra
+	// surfaceBase es el gris casi negro sobre el que se tiñe el accent, y
+	// surfaceTint cuánto: apenas un 6 %, lo justo para que la fila
+	// seleccionada tenga temperatura del tema sin convertirse en un bloque
+	// de color.
+	surfaceBase = "#16191c"
+	surfaceTint = 0.06
+)
+
+// Modos válidos de [theme] banner.
+const (
+	BannerSplash   = "splash"
+	BannerTitlebar = "titlebar"
+	BannerOff      = "off"
+)
+
+// ValidBanner indica si s es un modo de banner conocido.
+func ValidBanner(s string) bool {
+	return s == BannerSplash || s == BannerTitlebar || s == BannerOff
+}
+
+// ResolveDerived rellena los roles derivados que el usuario no fijó (o fijó
+// mal) a partir del accent ya validado. Es idempotente y va DESPUÉS de
+// clampHex: si el accent del config era basura, los derivados salen del
+// accent por defecto y no de la basura.
+func (t *Theme) ResolveDerived() {
+	if !ValidHex(t.AccentDim) {
+		t.AccentDim = scaleHex(t.Accent, accentDimFactor)
+	}
+	if !ValidHex(t.Surface) {
+		t.Surface = BlendHex(surfaceBase, t.Accent, surfaceTint)
+	}
+	if !ValidHex(t.ProgressLow) {
+		t.ProgressLow = t.AccentDim
+	}
+	if !ValidHex(t.ProgressHigh) {
+		t.ProgressHigh = t.Accent
+	}
+	if !ValidHex(t.ProgressShadow) {
+		t.ProgressShadow = scaleHex(t.Accent, progressShadowFactor)
+	}
 }
 
 // ColorLow/ColorHigh: mismo aviso que en Theme — un color nuevo acá necesita
@@ -134,32 +209,48 @@ func ValidPreset(name string) bool {
 	return ok
 }
 
+// Default: la paleta sale del gradiente del propio logo ("Kitasan Glass":
+// teal, azul pizarra, terracota) y no de Catppuccin, que es lo que usa media
+// terminal — la identidad del proyecto ya estaba en el banner y ningún otro
+// elemento de la UI la tocaba. OJO: cambiar estos valores NO re-tiñe ninguna
+// instalación existente, porque configTemplate escribe las claves de color en
+// el archivo la primera vez y el config del usuario no se reescribe nunca
+// (ver §"Restricciones" del rediseño): solo cambia lo que ve una instalación
+// nueva.
 func Default() Config {
-	return Config{
+	c := Config{
 		MusicDir:      collapseTilde(defaultMusicDir()),
 		UpdateCheck:   true,
 		ScanDurations: true,
 		Theme: Theme{
 			Transparent: true,
-			Accent:      "#89b4fa",
-			Border:      "#45475a",
-			Text:        "#cdd6f4",
-			Dim:         "#6c7086",
-			Playing:     "#a6e3a1",
-			Error:       "#f38ba8",
-			// La paleta "Kitasan Glass" del banner (ver internal/tui/styles.go);
-			// config no puede importar tui, así que los literales viven aquí.
+			Accent:      "#7ab8b8", // teal del logo: panel enfocado, cursor
+			Border:      "#3a4448",
+			Text:        "#d4dadb",
+			Dim:         "#6b7a7e",
+			Playing:     "#b85c50", // terracota del logo: contrasta con accent
+			Error:       "#c96f60",
+			Banner:      BannerSplash,
+			// Paradas del gradiente del banner; config no puede importar tui,
+			// así que los literales viven aquí.
 			Logo: []string{"#7ab8b8", "#8098a8", "#b85c50"},
 		},
 		Visualizer: Visualizer{
-			Enabled:     true,
-			ColorLow:    "#89b4fa",
-			ColorHigh:   "#f38ba8",
+			Enabled: true,
+			// El mismo recorrido teal → terracota del logo, para que espectro,
+			// barra de progreso y banner se lean como una sola familia.
+			ColorLow:    "#7ab8b8",
+			ColorHigh:   "#b85c50",
 			BarsGravity: 0.92,
 			Backend:     "auto",
 		},
 		Keys: DefaultKeys(),
 	}
+	// Los derivados quedan resueltos también acá: Default() lo usan varios
+	// llamadores sin pasar por Load (tests, `maly logo`, el demonio) y ninguno
+	// debería recibir colores vacíos.
+	c.Theme.ResolveDerived()
+	return c
 }
 
 // configTemplate es el config.toml inicial; %q recibe la ruta de música ya
@@ -173,19 +264,28 @@ scan_durations = true     # al escanear, leer con ffprobe las duraciones que fal
 
 [theme]
 transparent = true        # sin fondo; usar el del terminal
-accent = "#89b4fa"
-border = "#45475a"
-text = "#cdd6f4"
-dim = "#6c7086"
-playing = "#a6e3a1"
-error = "#f38ba8"         # texto de error (consola, flashes)
+accent = "#7ab8b8"        # teal del logo: panel enfocado, cursor, acentos
+border = "#3a4448"
+text = "#d4dadb"
+dim = "#6b7a7e"
+playing = "#b85c50"       # terracota del logo: la pista que está sonando
+error = "#c96f60"         # texto de error (consola, flashes)
+# Estos cinco se DERIVAN de accent mientras sigan comentados: cambiá accent y
+# el resto de la UI lo acompaña sin tocar nada más. Descomentá el que quieras
+# fijar a mano (los valores de ejemplo son los que salen del accent de arriba).
+# accent_dim = "#4c7373"      # borde de los paneles SIN foco
+# surface = "#1c2225"         # fondo de la fila seleccionada
+# progress_low = "#4c7373"    # barra de reproducción: arranque del gradiente
+# progress_high = "#7ab8b8"   # barra de reproducción: cabeza
+# progress_shadow = "#2e4545" # sombra bajo la barra
+banner = "splash"         # arte ASCII: splash (al arrancar) | titlebar (una fila) | off
 logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 o más)
 # arte del banner: crea logo.txt junto a este archivo con tu propio ASCII
 
 [visualizer]
 enabled = true
-color_low = "#89b4fa"
-color_high = "#f38ba8"
+color_low = "#7ab8b8"
+color_high = "#b85c50"
 bars_gravity = 0.92
 # capturador de audio: auto (default) | pipewire | pulse — forzar uno si
 # tenés ambos instalados y el automático (pw-record, luego parec) elige peor
@@ -480,7 +580,17 @@ func Load() (cfg Config, retErr error) {
 	// [keys]; resolveKeys mezcla después defaults y preset (retorno con
 	// nombre para que también aplique en las salidas tempranas).
 	cfg.Keys = nil
-	defer func() { cfg.resolveKeys() }()
+	// Mismo criterio con los colores derivados: se vacían para que el decode
+	// deje puesto SOLO lo que el usuario escribió, y ResolveDerived complete
+	// el resto desde el accent ya resuelto. Sin esto, el default del accent
+	// sobreviviría al decode y un accent propio del usuario quedaría con
+	// bordes y selección de otra paleta.
+	cfg.Theme.AccentDim, cfg.Theme.Surface = "", ""
+	cfg.Theme.ProgressLow, cfg.Theme.ProgressHigh, cfg.Theme.ProgressShadow = "", "", ""
+	defer func() {
+		cfg.resolveKeys()
+		cfg.Theme.ResolveDerived()
+	}()
 
 	// Sin $HOME (cron, algún unit de systemd) y sin los XDG que lo sustituyen,
 	// las rutas caerían silenciosamente en el directorio actual. Fallar claro.
@@ -516,6 +626,13 @@ func Load() (cfg Config, retErr error) {
 	}
 	if !validLogo(cfg.Theme.Logo) {
 		cfg.Theme.Logo = def.Theme.Logo
+	}
+	// banner sigue el precedente de update_check/scan_durations: como el
+	// decode corre sobre el struct YA inicializado con Default(), un config
+	// viejo que no menciona la clave conserva el default sin necesitar que
+	// nadie lo edite.
+	if !ValidBanner(cfg.Theme.Banner) {
+		cfg.Theme.Banner = def.Theme.Banner
 	}
 	// El resto de los colores del tema no llevaban esta guarda: un
 	// config.toml con "accent = \"rojo\"" pasaba sin corrección mientras

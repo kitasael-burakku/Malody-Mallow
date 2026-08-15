@@ -713,3 +713,144 @@ func TestKeyConflictsAgrupaYOrdena(t *testing.T) {
 		t.Fatalf("KeyConflicts = %+v, quería %+v", got, want)
 	}
 }
+
+// writeCfg escribe un config.toml de prueba en el sandbox de env().
+func writeCfg(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDerivadosSiguenAlAccentDelUsuario es el invariante central del tema
+// derivado: un config que solo cambia accent tiene que arrastrar consigo
+// bordes, selección y barra de progreso. Si los derivados salieran del accent
+// POR DEFECTO (que es lo que pasa si Load no los vacía antes del decode), un
+// usuario con su propio accent quedaría con media UI de otra paleta.
+func TestDerivadosSiguenAlAccentDelUsuario(t *testing.T) {
+	path := env(t)
+	const accent = "#c04080"
+	writeCfg(t, path, "[theme]\naccent = \""+accent+"\"\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want Theme
+	want.Accent = accent
+	want.ResolveDerived()
+	got := cfg.Theme
+	for _, c := range []struct{ name, got, want string }{
+		{"accent_dim", got.AccentDim, want.AccentDim},
+		{"surface", got.Surface, want.Surface},
+		{"progress_low", got.ProgressLow, want.ProgressLow},
+		{"progress_high", got.ProgressHigh, want.ProgressHigh},
+		{"progress_shadow", got.ProgressShadow, want.ProgressShadow},
+	} {
+		if c.got != c.want {
+			t.Errorf("%s = %q, quería %q (derivado de %s)", c.name, c.got, c.want, accent)
+		}
+	}
+	// Y no puede haber quedado nada del accent de fábrica.
+	def := Default()
+	if got.AccentDim == def.Theme.AccentDim || got.Surface == def.Theme.Surface {
+		t.Error("los derivados salieron del accent por defecto, no del del usuario")
+	}
+}
+
+// TestDerivadoExplicitoGana: lo que el usuario escribe a mano manda, igual
+// que con cualquier otra clave del tema.
+func TestDerivadoExplicitoGana(t *testing.T) {
+	path := env(t)
+	writeCfg(t, path, "[theme]\naccent = \"#7ab8b8\"\nsurface = \"#101820\"\nprogress_shadow = \"#001122\"\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Theme.Surface != "#101820" {
+		t.Errorf("surface = %q, se pisó el valor del usuario", cfg.Theme.Surface)
+	}
+	if cfg.Theme.ProgressShadow != "#001122" {
+		t.Errorf("progress_shadow = %q, se pisó el valor del usuario", cfg.Theme.ProgressShadow)
+	}
+	// Los que NO fijó siguen derivándose.
+	if !ValidHex(cfg.Theme.AccentDim) {
+		t.Errorf("accent_dim = %q, quería un derivado válido", cfg.Theme.AccentDim)
+	}
+}
+
+// TestDerivadoInvalidoSeRepuebla: los derivados no pasan por clampHex (vacío
+// e inválido son el mismo caso para ellos), así que el que los repuebla es
+// ResolveDerived — y tiene que hacerlo también con basura, no solo con "".
+func TestDerivadoInvalidoSeRepuebla(t *testing.T) {
+	path := env(t)
+	writeCfg(t, path, "[theme]\naccent = \"#7ab8b8\"\naccent_dim = \"verde\"\nprogress_low = \"#12345\"\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ValidHex(cfg.Theme.AccentDim) || !ValidHex(cfg.Theme.ProgressLow) {
+		t.Errorf("accent_dim = %q, progress_low = %q: quería derivados válidos",
+			cfg.Theme.AccentDim, cfg.Theme.ProgressLow)
+	}
+}
+
+// TestConfigViejoSigueCargando: un config.toml de antes del rediseño (paleta
+// Catppuccin completa, sin ninguna de las claves nuevas) tiene que cargar sin
+// error, conservar TODOS sus colores tal cual —los defaults nuevos no pisan
+// nada— y recibir los derivados coherentes con su propio accent.
+func TestConfigViejoSigueCargando(t *testing.T) {
+	path := env(t)
+	writeCfg(t, path, `[theme]
+transparent = true
+accent = "#89b4fa"
+border = "#45475a"
+text = "#cdd6f4"
+dim = "#6c7086"
+playing = "#a6e3a1"
+error = "#f38ba8"
+`)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := map[string]string{
+		"accent": "#89b4fa", "border": "#45475a", "text": "#cdd6f4",
+		"dim": "#6c7086", "playing": "#a6e3a1", "error": "#f38ba8",
+	}
+	got := map[string]string{
+		"accent": cfg.Theme.Accent, "border": cfg.Theme.Border, "text": cfg.Theme.Text,
+		"dim": cfg.Theme.Dim, "playing": cfg.Theme.Playing, "error": cfg.Theme.Error,
+	}
+	for k, want := range old {
+		if got[k] != want {
+			t.Errorf("%s = %q, quería el valor del usuario %q", k, got[k], want)
+		}
+	}
+	var want Theme
+	want.Accent = "#89b4fa"
+	want.ResolveDerived()
+	if cfg.Theme.AccentDim != want.AccentDim || cfg.Theme.Surface != want.Surface {
+		t.Errorf("derivados = %q/%q, quería %q/%q (del accent viejo)",
+			cfg.Theme.AccentDim, cfg.Theme.Surface, want.AccentDim, want.Surface)
+	}
+}
+
+// TestTemplateDerivadosComentados: el template escribe accent y compañía,
+// pero los derivados van COMENTADOS a propósito — si los escribiera, cambiar
+// accent en un config recién creado dejaría de arrastrar el resto de la UI,
+// que es justo lo que la derivación viene a resolver.
+func TestTemplateDerivadosComentados(t *testing.T) {
+	env(t)
+	tpl := defaultConfigTOML()
+	for _, key := range []string{"accent_dim", "surface", "progress_low", "progress_high", "progress_shadow"} {
+		if !strings.Contains(tpl, "# "+key+" = ") {
+			t.Errorf("el template no documenta %s como clave comentada", key)
+		}
+		if strings.Contains(tpl, "\n"+key+" = ") {
+			t.Errorf("el template escribe %s sin comentar: mataría la derivación", key)
+		}
+	}
+}

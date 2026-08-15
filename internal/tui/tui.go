@@ -97,6 +97,9 @@ type Model struct {
 
 	logo        logoModel
 	logoTicking bool
+	// splash: la pantalla de bienvenida sigue en pantalla. Arranca en true
+	// con [theme] banner = "splash" y la apaga el tick (o cualquier tecla).
+	splash bool
 
 	// Selector inicial de idioma (solo si language = "" en el config).
 	langOpen   bool
@@ -141,12 +144,16 @@ type Model struct {
 	npTrack        string      // pista cuyos datos están cargados
 	npLoading      string      // pista con carga en vuelo ("" = ninguna)
 	npImg          image.Image // carátula decodificada (nil = sin carátula)
-	npArtLines     []string    // render de la carátula, cacheado
+	npArtLines     []string    // render de la carátula (capa ctrl+t), cacheado
 	npArtW, npArtH int         // tamaño en celdas del render cacheado
-	npLyrics       []media.LyricLine
-	npSynced       bool
-	npScroll       int // desplazamiento manual (letras sin sincronía)
-	cover          coverRenderer
+	// Render de la MISMA carátula para la columna del layout de tres
+	// columnas, que va a otro tamaño: ver invalidateArt (nowcolumn.go).
+	colArtLines      []string
+	colArtW, colArtH int
+	npLyrics         []media.LyricLine
+	npSynced         bool
+	npScroll         int // desplazamiento manual (letras sin sincronía)
+	cover            coverRenderer
 
 	// gPending marca que se pulsó una `g` esperando la segunda (gg = inicio).
 	gPending bool
@@ -197,6 +204,7 @@ func Run(cfg config.Config, embedded bool) error {
 		vizOn:       cfg.Visualizer.Enabled,
 		langOpen:    cfg.Language == "",
 		logo:        newLogo(cfg.Theme.Logo, cfg.Theme.LogoArt),
+		splash:      cfg.Theme.Banner == config.BannerSplash,
 		cover:       pickCoverRenderer(),
 		subRetry:    subRetryTicks, // Init ya lanza el primer intento
 	}
@@ -233,6 +241,9 @@ func Run(cfg config.Config, embedded bool) error {
 
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{loadLibrary, m.fetch(), m.subscribeCmd(), tickCmd()}
+	if m.splash {
+		cmds = append(cmds, splashCmd())
+	}
 	if c := m.armVizTick(); c != nil {
 		cmds = append(cmds, c)
 	}
@@ -456,8 +467,10 @@ func (m *Model) applyStatus(resp ipc.Response) tea.Cmd {
 			cmds = append(cmds, loadLibrary)
 		}
 	}
-	// La capa "Ahora suena" recarga carátula y letras al cambiar la pista.
-	if m.npOpen {
+	// Carátula y letras se recargan al cambiar la pista, tanto para la capa
+	// ctrl+t como para la columna del layout de tres columnas (que muestra
+	// la carátula sin que nadie abra nada).
+	if m.npOpen || m.npColumnVisible() {
 		if p := m.currentTrackPath(); p != "" && p != m.npTrack && p != m.npLoading {
 			m.npLoading = p
 			cmds = append(cmds, loadNowMeta(p))
@@ -475,8 +488,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
-		m.filterInput.Width = m.width/2 - 6
-		m.npArtLines = nil // la carátula se re-escala al nuevo tamaño
+		m.invalidateArt() // la carátula se re-escala al tamaño nuevo
 		return m, nil
 
 	case tickMsg:
@@ -524,7 +536,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.vizTicking = false
 			return m, nil
 		}
-		m.vizBars = m.viz.Bars(m.width-2, m.playingNow())
+		m.vizBars = m.viz.Bars(m.width, m.playingNow())
 		// vizWarned se resetea cuando el viz deja de estar en fake: desde
 		// que internal/viz reintenta solo tras perder el backend (UX-N4),
 		// un aviso de una vez ya no alcanza — sin el reset, una SEGUNDA
@@ -728,13 +740,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.npTrack = msg.path
 		m.npImg = msg.img
-		m.npArtLines = nil
+		m.invalidateArt()
 		m.npLyrics = msg.lyrics
 		m.npSynced = msg.synced
 		m.npScroll = 0
 		return m, nil
 
+	case splashDoneMsg:
+		m.splash = false
+		// La onda del banner vivía en el splash; si el modo era ese, su reloj
+		// muere solo (logoVisible pasa a false y el tick no se rearma).
+		return m, nil
+
 	case tea.KeyMsg:
+		// Cualquier tecla salta la bienvenida, y además se procesa: quien
+		// pulsa `q` en el primer segundo quiere salir, no descartar el splash.
+		m.splash = false
 		return m.handleKey(msg)
 	}
 	return m, nil

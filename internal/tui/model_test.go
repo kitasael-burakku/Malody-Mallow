@@ -48,26 +48,38 @@ func TestUpdMsgSoloAvisaSiEsMasNuevo(t *testing.T) {
 // frente a Position el cociente desborda a +Inf, y int(+Inf) en amd64 da el
 // mínimo de int64 — un negativo que no supera w y llegaba tal cual a
 // strings.Repeat, que entra en pánico con conteos negativos y se llevaba la TUI.
+//
+// Este test cubre el MÉTODO del Model (el puente al tema cargado); la
+// aritmética en sí vive en progress_test.go. Con una duración que no sirve la
+// barra ya no dibuja una pista vacía sino nada: el llamador rellena igual, y
+// así "no sé cuánto dura" no se confunde con "recién empieza".
 func TestProgressBarValoresPatologicos(t *testing.T) {
-	m := &Model{st: newStyles(config.Theme{})}
+	th := config.Theme{Accent: "#7ab8b8", Border: "#3a4448"}
+	th.ResolveDerived()
+	m := &Model{st: newStyles(th)}
 	const w = 40
 	casos := []struct {
 		nombre   string
 		pos, dur float64
+		dibuja   bool
 	}{
-		{"cociente desbordado a +Inf", 1e308, 1e-300},
-		{"posición mayor que la duración", 500, 10},
-		{"duración cero", 5, 0},
-		{"duración negativa", 5, -1},
-		{"posición negativa", -5, 10},
-		{"normal, a la mitad", 50, 100},
-		{"al principio", 0, 100},
+		{"cociente desbordado a +Inf", 1e308, 1e-300, true},
+		{"posición mayor que la duración", 500, 10, true},
+		{"duración cero", 5, 0, false},
+		{"duración negativa", 5, -1, false},
+		{"posición negativa", -5, 10, true},
+		{"normal, a la mitad", 50, 100, true},
+		{"al principio", 0, 100, true},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
 			got := m.progressBar(c.pos, c.dur, w) // no debe entrar en pánico
-			if n := lipgloss.Width(got); n != w {
-				t.Errorf("ancho = %d, quería exactamente %d", n, w)
+			want := 0
+			if c.dibuja {
+				want = w
+			}
+			if n := lipgloss.Width(got); n != want {
+				t.Errorf("ancho = %d, quería exactamente %d", n, want)
 			}
 		})
 	}

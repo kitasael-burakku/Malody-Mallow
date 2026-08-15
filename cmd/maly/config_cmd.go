@@ -59,6 +59,14 @@ func runConfig([]string) error {
 	row("config.theme_dim", cfg.Theme.Dim)
 	row("config.playing", cfg.Theme.Playing)
 	row("config.error", cfg.Theme.Error)
+	// Derivados del accent si el usuario no los fijó: se muestran resueltos
+	// (el valor EN EFECTO, que es de lo que trata este comando), no vacíos.
+	row("config.accent_dim", cfg.Theme.AccentDim)
+	row("config.surface", cfg.Theme.Surface)
+	row("config.progress_low", cfg.Theme.ProgressLow)
+	row("config.progress_high", cfg.Theme.ProgressHigh)
+	row("config.progress_shad", cfg.Theme.ProgressShadow)
+	row("config.banner", cfg.Theme.Banner)
 	row("config.logo", strings.Join(cfg.Theme.Logo, ", "))
 
 	sec("config.sec_visualizer")

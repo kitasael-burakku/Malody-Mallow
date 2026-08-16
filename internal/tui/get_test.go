@@ -97,9 +97,16 @@ func TestGetDoneFlashSoloDesdeModal(t *testing.T) {
 		t.Error("el flash de un fallo debe marcarse como error")
 	}
 
-	// Y el camino de éxito también avisa (ahí sigue el re-escaneo).
+	// Y el camino de éxito también avisa (ahí sigue el re-escaneo). Necesita
+	// una pista nueva de verdad en el destino: sin ella el desenlace es un
+	// fallo, porque yt-dlp sale 0 aunque no baje nada.
+	dir := t.TempDir()
+	before, _ := getter.Snapshot(dir)
+	if err := os.WriteFile(filepath.Join(dir, "A - B.mp3"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	m = newConModel()
-	_, cmd := m.Update(getDoneMsg{err: nil, fromModal: true})
+	_, cmd := m.Update(getDoneMsg{err: nil, fromModal: true, dir: dir, before: before})
 	if m.flash == "" {
 		t.Error("una descarga exitosa desde un modal debe avisar por flash")
 	}
@@ -108,6 +115,57 @@ func TestGetDoneFlashSoloDesdeModal(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Error("tras una descarga exitosa debe dispararse el re-escaneo")
+	}
+}
+
+// TestGetDoneSinPistaEsFallo es el corazón de 5a: yt-dlp sale con código 0
+// aunque la descarga falle (un HTTP 403 deja solo la miniatura), así que sin
+// mirar el directorio la TUI anunciaba "Descarga lista" y dejaba la
+// biblioteca igual. Y de paso la miniatura huérfana se limpia.
+func TestGetDoneSinPistaEsFallo(t *testing.T) {
+	dir := t.TempDir()
+	before, _ := getter.Snapshot(dir)
+	// Lo que deja un 403: la miniatura que iba a embeberse, sin mp3.
+	thumb := filepath.Join(dir, "A - B.webp")
+	if err := os.WriteFile(thumb, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newConModel()
+	_, cmd := m.Update(getDoneMsg{err: nil, fromModal: true, dir: dir, before: before})
+
+	if cmd != nil {
+		t.Error("sin pista nueva no debe dispararse el re-escaneo")
+	}
+	if !m.flashErr || m.flash == "" {
+		t.Errorf("debía avisar del fallo, flash = %q (err=%v)", m.flash, m.flashErr)
+	}
+	if _, err := os.Stat(thumb); err == nil {
+		t.Error("la miniatura huérfana debía limpiarse tras una descarga fallida")
+	}
+}
+
+// TestGetDoneNombraLaPista: con una sola pista nueva el aviso la nombra sin
+// esperar al scan — la plantilla -o de getter.Command ya deja el archivo como
+// "Artista - Título".
+func TestGetDoneNombraLaPista(t *testing.T) {
+	dir := t.TempDir()
+	before, _ := getter.Snapshot(dir)
+	if err := os.WriteFile(filepath.Join(dir, "AURORA - Runaway.mp3"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newConModel()
+	m.Update(getDoneMsg{err: nil, fromModal: true, dir: dir, before: before})
+
+	if !strings.Contains(m.flash, "AURORA - Runaway") {
+		t.Errorf("el aviso debía nombrar la pista, flash = %q", m.flash)
+	}
+	if strings.Contains(m.flash, ".mp3") {
+		t.Errorf("el aviso no debía llevar la extensión: %q", m.flash)
+	}
+	if m.flashErr {
+		t.Error("una descarga exitosa no es un error")
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/config"
+	"maly/internal/getter"
 	"maly/internal/i18n"
 	"maly/internal/version"
 )
@@ -373,7 +374,7 @@ func TestConsoleControlsList(t *testing.T) {
 // como ambiguos.
 func TestNewDirEntry(t *testing.T) {
 	dir := t.TempDir()
-	before, err := dirEntries(dir)
+	before, err := getter.Snapshot(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

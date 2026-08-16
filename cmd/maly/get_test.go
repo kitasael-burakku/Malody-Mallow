@@ -601,3 +601,81 @@ func TestGetPlaylistTotalFailureMentionsDownload(t *testing.T) {
 		t.Errorf("el error debía mencionar que no se creó ninguna carpeta de playlist: %v", err)
 	}
 }
+
+// TestGetSinPistaEsError cubre el defecto que destapó la prueba en vivo de la
+// 1.15.0: yt-dlp sale con código 0 aunque la descarga falle. Un video con
+// HTTP 403 deja solo la miniatura, imprime ERROR: y sale 0 — confiar en el
+// código de salida hacía que maly anunciara "Descarga lista" sin haber bajado
+// nada. Quien decide es el diff del directorio.
+func TestGetSinPistaEsError(t *testing.T) {
+	musicDir, argsFile := getSandbox(t)
+	// Reemplaza el yt-dlp falso por uno que se comporta como el 403 real:
+	// escribe la miniatura, se queja por stderr y SALE 0. El bin falso vive
+	// junto al registro de argumentos (ver getSandbox).
+	bin := filepath.Join(filepath.Dir(argsFile), "bin")
+	failing := fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
+out=""
+prev=""
+for a in "$@"; do
+	if [ "$prev" = "-o" ]; then out=$a; fi
+	prev=$a
+done
+printf 'miniatura' > "${out%%/*}/Fake Artist - Fake Song.webp"
+echo 'ERROR: unable to download video data: HTTP Error 403: Forbidden' >&2
+exit 0
+`, argsFile)
+	if err := os.WriteFile(filepath.Join(bin, "yt-dlp"), []byte(failing), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runGet([]string{"aurora", "runaway"})
+	if err == nil {
+		t.Fatal("una descarga que no dejó ninguna pista debe ser error")
+	}
+
+	// Y la miniatura huérfana no se queda acumulando en music_dir.
+	entries, rerr := os.ReadDir(musicDir)
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	for _, e := range entries {
+		t.Errorf("music_dir debía quedar limpio, quedó %q", e.Name())
+	}
+}
+
+// TestGetFalloLimpiaLaMiniatura cubre el otro camino: cuando yt-dlp SÍ
+// reporta el fallo (un HTTP 403 sale con código 1), maly ya daba el error
+// correcto pero volvía sin tocar el .webp que yt-dlp había dejado — la
+// miniatura se baja ANTES del audio, así que cada intento fallido dejaba una
+// en music_dir.
+func TestGetFalloLimpiaLaMiniatura(t *testing.T) {
+	musicDir, argsFile := getSandbox(t)
+	bin := filepath.Join(filepath.Dir(argsFile), "bin")
+	failing := fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
+out=""
+prev=""
+for a in "$@"; do
+	if [ "$prev" = "-o" ]; then out=$a; fi
+	prev=$a
+done
+printf 'miniatura' > "${out%%/*}/Fake Artist - Fake Song.webp"
+echo 'ERROR: unable to download video data: HTTP Error 403: Forbidden' >&2
+exit 1
+`, argsFile)
+	if err := os.WriteFile(filepath.Join(bin, "yt-dlp"), []byte(failing), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runGet([]string{"aurora", "runaway"}); err == nil {
+		t.Fatal("un yt-dlp que falla debe seguir dando error")
+	}
+	entries, rerr := os.ReadDir(musicDir)
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	for _, e := range entries {
+		t.Errorf("la miniatura debía limpiarse tras el fallo, quedó %q", e.Name())
+	}
+}

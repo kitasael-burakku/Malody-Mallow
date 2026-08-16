@@ -49,6 +49,12 @@ type conMsg struct {
 type getDoneMsg struct {
 	err       error
 	fromModal bool
+	// dir/before son la foto del destino ANTES de la descarga: el código de
+	// salida de yt-dlp no alcanza como criterio (una búsqueda sin resultados
+	// sale 0 sin bajar nada), así que quien decide si funcionó es el diff del
+	// directorio — y con él se limpia la miniatura que deja un 403.
+	dir    string
+	before map[string]bool
 }
 
 // getPlaylistDoneMsg vuelve de yt-dlp para `get playlist` (tea.ExecProcess).
@@ -552,9 +558,13 @@ func (m *Model) startGet(spec string, fromModal bool) (tea.Cmd, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
+	// La foto va ANTES de lanzar nada; el desenlace la compara (ver
+	// getDoneMsg). Un error de lectura acá no debería impedir descargar: se
+	// degrada a before nil, que hace el diff inservible pero no rompe.
+	before, _ := getter.Snapshot(dir)
 	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec, Cookies: m.cfg.Ytdlp.CookiesFromBrowser})
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return getDoneMsg{err: err, fromModal: fromModal}
+		return getDoneMsg{err: err, fromModal: fromModal, dir: dir, before: before}
 	}), nil
 }
 
@@ -604,7 +614,7 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 	} else {
 		opts.PlaylistSubdir = true
 		var err error
-		before, err = dirEntries(musicDir)
+		before, err = getter.Snapshot(musicDir)
 		if err != nil {
 			m.conErr(err.Error())
 			return m, nil
@@ -616,6 +626,18 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 		return getPlaylistDoneMsg{err: err, musicDir: musicDir, name: name, dir: dir, before: before}
 	})
+}
+
+// newDirEntry aplica la política de error de la TUI sobre getter.NewSubdir:
+// cualquier conteo distinto de uno es ambiguo y es mejor pedir un nombre
+// explícito que adivinar mal. La CLI tiene su propia versión porque distingue
+// además el caso "la descarga falló del todo" (ver cmd/maly/get.go).
+func newDirEntry(parent string, before map[string]bool) (string, error) {
+	found, n := getter.NewSubdir(parent, before)
+	if n != 1 {
+		return "", errors.New(i18n.T("cli.get_pl_ambiguous"))
+	}
+	return found, nil
 }
 
 // conGetPlaylistFinish corre tras la descarga: re-escanea, resuelve el
@@ -687,45 +709,6 @@ func (m *Model) conGetPlaylistFinish(musicDir, name, dir string, before map[stri
 		notifyRefresh()
 		return conMsg{lines: []string{st.playing.Render(i18n.Tf("cli.get_pl_done", name, len(ids)))}, reload: true}
 	}
-}
-
-// dirEntries lista los nombres de entrada de dir (no recursivo). Duplica el
-// helper homónimo de cmd/maly/get.go: internal/tui no puede importar
-// package main.
-func dirEntries(dir string) (map[string]bool, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	m := make(map[string]bool, len(entries))
-	for _, e := range entries {
-		m[e.Name()] = true
-	}
-	return m, nil
-}
-
-// newDirEntry devuelve el único subdirectorio de parent que no estaba en
-// before: el que yt-dlp acaba de crear con el título de la playlist. Falla
-// si no hay exactamente uno nuevo — ambiguo, mejor pedir un nombre explícito
-// que adivinar mal. Duplica el helper homónimo de cmd/maly/get.go.
-func newDirEntry(parent string, before map[string]bool) (string, error) {
-	entries, err := os.ReadDir(parent)
-	if err != nil {
-		return "", err
-	}
-	var found string
-	n := 0
-	for _, e := range entries {
-		if !e.IsDir() || before[e.Name()] {
-			continue
-		}
-		found = e.Name()
-		n++
-	}
-	if n != 1 {
-		return "", errors.New(i18n.T("cli.get_pl_ambiguous"))
-	}
-	return found, nil
 }
 
 // conControls espeja `maly controls`; al fijar un preset recarga el config ya

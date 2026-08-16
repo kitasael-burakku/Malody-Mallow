@@ -34,6 +34,14 @@ trae cada entrada. Los títulos y los canales pasan por el mismo saneado que
 las etiquetas de las pistas: son texto ajeno que ahora llega con solo
 buscar, sin descargar nada.
 
+Y una descarga deja de darse por buena solo porque yt-dlp salga con código
+0: ahora se comprueba mirando la carpeta de música. El caso que lo motiva es
+una búsqueda que no encuentra nada —un typo basta—, que salía 0 sin bajar
+nada y hacía que maly anunciara "Descarga lista" para cerrar con "La
+biblioteca está vacía", sin decir en ningún momento que no había encontrado
+la canción. De paso, la miniatura que yt-dlp baja antes del audio ya no se
+queda huérfana en tu carpeta cuando la descarga falla.
+
 ## v1.14.1 — 2026-08-15
 
 Cierra el hueco que dejaba la columna "Ahora suena" en pantallas altas. La

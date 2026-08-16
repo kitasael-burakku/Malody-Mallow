@@ -1828,6 +1828,43 @@ espejo estricto) y mención en el pie de la TUI (que ya perdía `? ayuda` /
 `q salir` primero en español por ser más largo — hallazgo D10.3/T23; la
 tecla vive en la ayuda `?`).
 
+Sobre la 1.15.0, el **criterio de éxito de una descarga deja de ser el
+código de salida de yt-dlp** (`internal/getter/diff.go`, con los helpers de
+diff que estaban duplicados entre `cmd/maly` y `internal/tui`). Y acá hay una
+CORRECCIÓN que importa más que el arreglo: durante la prueba en vivo de la
+1.15.0 se concluyó que "yt-dlp sale con código 0 aunque la descarga falle", y
+**eso es falso**. La medición que lo sostenía estaba mal hecha dos veces — se
+leyó el código de salida de una corrida que en realidad HABÍA bajado el mp3
+(nunca se listaron los archivos resultantes), y al intentar confirmarlo se
+midió `$?` después de un pipe, o sea el estado de `tail` y no el de yt-dlp.
+El cuadro real, medido caso por caso y sin pipes:
+
+	descarga correcta       → 0, con el mp3
+	HTTP 403                → 1, dejando SOLO la miniatura .webp
+	video inexistente       → 1, sin dejar nada
+	búsqueda sin resultados → 0, SIN DEJAR NADA
+
+O sea que el código de salida acierta en los fallos de DESCARGA; el agujero
+real es más estrecho y sigue siendo real: una consulta que no encuentra nada
+—un typo basta— sale 0, y `maly get "algo mal escrito"` anunciaba "Descarga
+lista — actualizando la biblioteca" y cerraba con "Listo: 0 nuevas" y "La
+biblioteca está vacía", sin decir en ningún momento que no había encontrado
+la canción. Verificado con un A/B contra el binario de HEAD.
+
+Del 403 salió el segundo arreglo: yt-dlp baja la miniatura ANTES del audio,
+así que un fallo deja un `.webp` huérfano en `music_dir` con cada intento —
+y ese camino (código ≠ 0) volvía sin tocar nada. `getter.Cleanup` lo limpia
+en los DOS caminos, y solo toca archivos que cumplen las tres condiciones:
+no existían antes de esta descarga, están en el primer nivel del destino, y
+su extensión es de intermedio conocido (`.webp`, `.part`…). Sin las tres,
+sería un borrador de archivos del usuario con pasos extra.
+
+La lección de método, que es lo que de verdad deja este ciclo: **medir el
+código de salida sin verificar el efecto observable no es medir**. Las dos
+veces que falló el diagnóstico fue por dar por supuesto lo que no se miró —
+los archivos que quedaron, y de qué proceso venía el `$?`.
+
+
 
 ### Post-1.0 (candidatos)
 
@@ -1886,28 +1923,6 @@ export` ya **no escribe a través de un symlink** (solo afecta al componente
 final de la ruta; un directorio enlazado sigue valiendo).
 
 El ratón en la TUI sigue descartado.
-
-**`yt-dlp` sale con código 0 aunque la descarga falle** (encontrado en la
-prueba en vivo de la 1.15.0, 2026-08-16). Verificado directo: un video que
-responde `HTTP Error 403: Forbidden` deja solo la miniatura `.webp` en
-`music_dir`, imprime `ERROR:` y **sale 0**. Como TODO el flujo `get` confía
-en el código de salida, el desenlace anuncia "Descarga lista — actualizando
-la biblioteca" y no se descargó nada.
-
-Es PREVIO y afecta por igual a `maly get` (CLI), a la consola ctrl+p y al
-buscador nuevo; en la CLI al menos queda el `ERROR:` de yt-dlp en el
-scrollback, mientras que en la pantalla el usuario ve un aviso verde y una
-biblioteca que no cambia. Es el espejo exacto del hallazgo G1 de la 1.11.0,
-que trató el caso opuesto (salir ≠ 0 con éxito PARCIAL de una playlist).
-
-El arreglo natural ya existe en el proyecto y no exige parsear nada: el
-**diff de directorio** (`newFileEntry`, que `runGet` ya calcula hoy solo
-para nombrar lo bajado) pasaría a ser TAMBIÉN el criterio de éxito. Lo que
-lo convierte en un ciclo propio y no en un parche al paso: `newFileEntry`
-vive solo en `cmd/maly` (`internal/tui` no puede importar `package main`),
-así que hay que decidir dónde va el código compartido —¿`internal/getter`?
-¿un `internal/fsdiff`?— y de paso qué hacer con el `.webp` huérfano que
-queda de una descarga fallida.
 
 
 **Latencia del aviso de `update`: ARREGLADO** (anotado y cerrado el

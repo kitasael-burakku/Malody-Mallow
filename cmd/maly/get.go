@@ -53,7 +53,7 @@ func runGet(args []string) error {
 	// —"Done: N new..."—, fácil de confundir con el resultado de la
 	// descarga, sobre todo en una biblioteca grande donde una pista se
 	// pierde entre miles).
-	before, err := dirEntries(dir)
+	before, err := getter.Snapshot(dir)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,20 @@ func runGet(args []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
+		// El 403 baja la miniatura antes de fallar: sin esto se queda
+		// huérfana en music_dir con cada intento.
+		getter.Cleanup(dir, before)
 		return fmt.Errorf("%s", i18n.Tf("cli.get_err", err))
+	}
+
+	// El código de salida no alcanza: una búsqueda que no encuentra nada sale
+	// 0 sin bajar nada (ver la tabla medida en internal/getter/diff.go), y
+	// esto anunciaba "Descarga lista" seguido de "La biblioteca está vacía".
+	// Quien decide es el directorio.
+	got := getter.NewAudioAll(dir, before)
+	if len(got) == 0 {
+		getter.Cleanup(dir, before) // el .webp de la miniatura, si quedó
+		return errors.New(i18n.T("cli.get_nothing"))
 	}
 
 	fmt.Println("\n" + i18n.T("cli.get_scan"))
@@ -71,41 +84,17 @@ func runGet(args []string) error {
 		return err
 	}
 
-	// Diff da 0 o más de un archivo nuevo (yt-dlp puede bajar más de un
-	// ítem para una búsqueda): degradar sin error al mensaje genérico de
-	// arriba en vez de adivinar cuál nombrar.
-	if name, ok := newFileEntry(dir, before); ok {
+	// Con más de un archivo nuevo (una búsqueda puede resolver a varios
+	// ítems) no hay UNA pista que nombrar: queda el mensaje genérico.
+	if len(got) == 1 {
 		if lib, err := openLibrary(); err == nil {
-			if t, ok := lib.ByPath(filepath.Join(dir, name)); ok {
+			if t, ok := lib.ByPath(filepath.Join(dir, got[0])); ok {
 				fmt.Println(i18n.Tf("cli.get_done", t.String()))
 			}
 			lib.Close()
 		}
 	}
 	return nil
-}
-
-// newFileEntry es la contraparte de newDirEntry para archivos: devuelve el
-// único archivo de audio nuevo en dir respecto a before, o ok=false si hay
-// cero o más de uno (caso ambiguo, no se adivina).
-func newFileEntry(dir string, before map[string]bool) (string, bool) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return "", false
-	}
-	var found string
-	n := 0
-	for _, e := range entries {
-		if e.IsDir() || before[e.Name()] || !library.IsAudio(e.Name()) {
-			continue
-		}
-		found = e.Name()
-		n++
-	}
-	if n != 1 {
-		return "", false
-	}
-	return found, true
 }
 
 // runGetPlaylist descarga una playlist completa de yt-dlp a un
@@ -175,7 +164,7 @@ func runGetPlaylist(args []string) error {
 		// música ajena a esta descarga — sin esto la playlist se llevaba
 		// TODO lo que hubiera ahí, no solo lo recién bajado (auditoría
 		// 2026-07-31, hallazgo G3).
-		filesBefore, err = dirEntries(dir)
+		filesBefore, err = getter.Snapshot(dir)
 		if err != nil {
 			return err
 		}
@@ -185,7 +174,7 @@ func runGetPlaylist(args []string) error {
 		// listado de music_dir antes/después — una lectura de directorio,
 		// determinista, sin parsear nada de la salida de yt-dlp.
 		opts.PlaylistSubdir = true
-		before, err = dirEntries(musicDir)
+		before, err = getter.Snapshot(musicDir)
 		if err != nil {
 			return err
 		}
@@ -268,19 +257,6 @@ func runGetPlaylist(args []string) error {
 	return nil
 }
 
-// dirEntries lista los nombres de entrada de dir (no recursivo).
-func dirEntries(dir string) (map[string]bool, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	m := make(map[string]bool, len(entries))
-	for _, e := range entries {
-		m[e.Name()] = true
-	}
-	return m, nil
-}
-
 // newDirEntry devuelve el único subdirectorio de parent que no estaba en
 // before: el que yt-dlp acaba de crear con el título de la playlist. Falla
 // si no hay exactamente uno nuevo. Con más de uno el caso sigue siendo
@@ -289,19 +265,7 @@ func dirEntries(dir string) (map[string]bool, error) {
 // la descarga falló antes de crear ningún directorio — el mensaje lo dice
 // en vez de reciclar el de "ambiguo", que ahí sería engañoso.
 func newDirEntry(parent string, before map[string]bool, partial bool) (string, error) {
-	entries, err := os.ReadDir(parent)
-	if err != nil {
-		return "", err
-	}
-	var found string
-	n := 0
-	for _, e := range entries {
-		if !e.IsDir() || before[e.Name()] {
-			continue
-		}
-		found = e.Name()
-		n++
-	}
+	found, n := getter.NewSubdir(parent, before)
 	switch {
 	case n == 1:
 		return found, nil

@@ -7,6 +7,7 @@ import (
 	"image"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -642,7 +643,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// desenlace va ADEMÁS al flash, que es lo único visible cuando la
 		// descarga no se pidió desde la consola (ver getDoneMsg).
 		if msg.err != nil {
+			// El 403 baja la miniatura antes de fallar: sin esto se queda
+			// huérfana en music_dir con cada intento.
+			getter.Cleanup(msg.dir, msg.before)
 			line := i18n.Tf("cli.get_err", msg.err)
+			m.conErr(line)
+			if msg.fromModal {
+				m.setFlash(line, true)
+			}
+			return m, nil
+		}
+		// Sin error de yt-dlp NO significa que haya bajado algo: una
+		// búsqueda sin resultados sale 0 y no deja nada (ver la tabla medida
+		// en internal/getter/diff.go). Quien decide es el diff.
+		got := getter.NewAudioAll(msg.dir, msg.before)
+		if len(got) == 0 {
+			getter.Cleanup(msg.dir, msg.before) // la miniatura huérfana
+			line := i18n.T("cli.get_nothing")
 			m.conErr(line)
 			if msg.fromModal {
 				m.setFlash(line, true)
@@ -651,7 +668,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
 		if msg.fromModal {
-			m.setFlash(i18n.T("cli.get_scan"), false)
+			// Con una sola pista se puede nombrar sin esperar al scan: el
+			// nombre de archivo ya es "Artista - Título" (la plantilla -o de
+			// getter.Command). Con varias, el mensaje genérico.
+			done := i18n.T("cli.get_scan")
+			if len(got) == 1 {
+				done = i18n.Tf("cli.get_done", strings.TrimSuffix(got[0], filepath.Ext(got[0])))
+			}
+			m.setFlash(done, false)
 		}
 		return m, m.conScan("")
 

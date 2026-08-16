@@ -317,6 +317,22 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   (`updAvail`, prioridad tras `verMismatch`).
 
 Decisiones transversales:
+- **maly NUNCA abre una conexión a internet por su cuenta.** Verificado sobre
+  el árbol entero: ningún paquete importa `net/http`, y TODOS los `net.Dial`
+  /`net.Listen` son sockets `unix` (IPC del demonio y de mpv). Los dos
+  `net/url` de mpris solo arman rutas `file://` para D-Bus. Lo que sale a la
+  red son PROCESOS externos y solo tres: **yt-dlp** —única frontera para
+  contenido y metadatos (descargar y `getter.Search`)—, `git ls-remote` para
+  el chequeo de releases y `curl` para bajar el instalador en `maly update`.
+  Ni siquiera `internal/update` habla HTTP: pudiendo usar la API de GitHub,
+  usa `git ls-remote`.
+  Es una decisión del dueño, tomada explícitamente al descartar las
+  miniaturas del buscador (2026-08-16), y la razón por la que la regla vale
+  más que cada caso suelto: en cuanto maly baje UNA imagen por su cuenta, deja
+  de ser un reproductor que coordina herramientas y pasa a ser un cliente de
+  YouTube — con su gestión de timeouts, reintentos, caché, TLS y user-agent, y
+  con una superficie de red propia que auditar. Cualquier idea que necesite
+  traerse un recurso de la red se resuelve pidiéndoselo a yt-dlp o no se hace.
 - **El demonio y sus hijos mueren juntos.** SIGHUP se maneja explícitamente en
   `runDaemon` y en `tui.Run` (donde llama a `p.Quit()` para que bubbletea
   restaure el terminal): nadie lo hacía —bubbletea solo registra SIGINT y
@@ -1966,11 +1982,13 @@ Medido a 190 columnas: la caja pasa de 100 a 126 celdas y ninguno de los diez
 títulos queda truncado, con la caja comprobada como rectángulo por una
 implementación de ancho independiente de la de lipgloss.
 
-Las miniaturas y la pantalla completa quedan FUERA a propósito, y el motivo
-importa: bajar una miniatura sería la primera petición HTTP de la historia de
-maly (ni `internal/update` la hace — usa `git ls-remote`, y `maly update`
-baja el instalador con curl). Se hará, si se hace, cuando el dueño confirme
-que sigue echándola de menos con las visitas ya puestas.
+Las miniaturas y la pantalla completa quedan **descartadas**, no aplazadas
+(el dueño lo decidió el mismo día, con las visitas ya en uso). Bajar una
+miniatura sería la primera petición de red propia de la historia de maly, y
+de ahí salió el invariante que ahora encabeza las decisiones transversales:
+yt-dlp es la única frontera con lo online. La pantalla completa caía con
+ellas — solo tenía sentido para dar sitio a una imagen. Si la duda vuelve, lo
+que hay que releer es el invariante, no esta entrada.
 
 
 ### Post-1.0 (candidatos)

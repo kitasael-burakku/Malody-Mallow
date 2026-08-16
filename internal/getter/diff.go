@@ -57,12 +57,13 @@ func Snapshot(dir string) (map[string]bool, error) {
 }
 
 // NewAudio devuelve el único archivo de audio que apareció en dir respecto a
-// before. ok=false significa que la descarga NO dejó ninguna pista — con
-// yt-dlp saliendo 0 pase lo que pase, es la única señal fiable de fallo.
+// before.
 //
-// Con más de uno también devuelve false: una búsqueda puede resolver a más
-// de un ítem, y ahí no hay una pista que nombrar. Los llamadores distinguen
-// los dos casos con Count si les importa.
+// ok=false cubre DOS casos distintos que a este nivel no se pueden separar:
+// que no bajara nada (ver la tabla de la cabecera: una búsqueda sin
+// resultados sale 0 sin dejar archivo) y que bajara más de uno, porque una
+// búsqueda puede resolver a varios ítems y entonces no hay UNA pista que
+// nombrar. Quien necesite distinguirlos usa NewAudioAll y mira el conteo.
 func NewAudio(dir string, before map[string]bool) (string, bool) {
 	found := NewAudioAll(dir, before)
 	if len(found) != 1 {
@@ -117,9 +118,9 @@ func NewSubdir(parent string, before map[string]bool) (string, int) {
 //
 // El caso que lo justifica es el .webp de la miniatura, que sin esto se
 // acumula en music_dir con cada 403 de YouTube (medido: yt-dlp baja la
-// miniatura ANTES del audio, así que un 403 la deja huérfana). NUNCA se llama tras una
-// descarga exitosa: ahí los intermedios ya los limpió yt-dlp, y lo que
-// quedara podría ser una carátula que el usuario quiere.
+// miniatura ANTES del audio, así que un fallo la deja huérfana). NUNCA se
+// llama tras una descarga exitosa: ahí los intermedios ya los limpió yt-dlp,
+// y lo que quedara podría ser una carátula que el usuario quiere.
 func Cleanup(dir string, before map[string]bool) int {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

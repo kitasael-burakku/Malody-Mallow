@@ -289,3 +289,37 @@ func TestSearchSinYtdlp(t *testing.T) {
 		t.Errorf("sin yt-dlp en el PATH debe fallar mencionándolo; err = %v", err)
 	}
 }
+
+// TestSearchDescartaLives: solo se tiran los dos estados que no son
+// descargables. La GRABACIÓN de un directo que ya terminó (was_live /
+// post_live) es audio legítimo —muchos conciertos viven así— y descartar
+// "todo lo que no sea not_live" se la llevaría por delante.
+func TestSearchDescartaLives(t *testing.T) {
+	fakeYtdlp(t, emit(
+		`{"title":"en vivo ahora","uploader":"a","duration":1,"url":"https://x/1","live_status":"is_live"}`,
+		`{"title":"estreno","uploader":"a","duration":1,"url":"https://x/2","live_status":"is_upcoming"}`,
+		`{"title":"concierto grabado","uploader":"a","duration":1,"url":"https://x/3","live_status":"was_live"}`,
+		`{"title":"recién terminado","uploader":"a","duration":1,"url":"https://x/4","live_status":"post_live"}`,
+		`{"title":"video normal","uploader":"a","duration":1,"url":"https://x/5","live_status":"not_live"}`,
+		`{"title":"sin el campo","uploader":"a","duration":1,"url":"https://x/6"}`,
+		`{"title":"valor futuro","uploader":"a","duration":1,"url":"https://x/7","live_status":"algo_nuevo"}`,
+	))
+
+	res, err := Search(context.Background(), "x", 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, r := range res {
+		got = append(got, r.Title)
+	}
+	want := []string{"concierto grabado", "recién terminado", "video normal", "sin el campo", "valor futuro"}
+	if len(got) != len(want) {
+		t.Fatalf("sobrevivieron %v, quería %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("resultado %d fue %q, quería %q", i, got[i], want[i])
+		}
+	}
+}

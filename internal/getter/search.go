@@ -14,7 +14,7 @@ package getter
 // HTTP propio, solo un proceso más al que se le pregunta.
 //
 // El acoplamiento se mantiene mínimo a propósito: de los ~50 campos que trae
-// cada entrada se decodifican CUATRO, así que yt-dlp puede agregar, quitar o
+// cada entrada se decodifican CINCO, así que yt-dlp puede agregar, quitar o
 // reordenar el resto sin romper nada.
 
 import (
@@ -122,7 +122,7 @@ func Search(ctx context.Context, query string, n int) ([]Result, error) {
 	return decodeResults(out), nil
 }
 
-// searchEntry es el subconjunto de --dump-json que maly mira. Cuatro campos
+// searchEntry es el subconjunto de --dump-json que maly mira. Cinco campos
 // de los ~50 que trae cada entrada: es toda la superficie de acoplamiento con
 // el formato de yt-dlp.
 type searchEntry struct {
@@ -131,6 +131,22 @@ type searchEntry struct {
 	Channel  string  `json:"channel"`
 	Duration float64 `json:"duration"`
 	URL      string  `json:"url"`
+	// LiveStatus filtra lo que no es descargable como pista; ver notLive.
+	LiveStatus string `json:"live_status"`
+}
+
+// notLive son los DOS valores de live_status que se descartan, enumerados
+// explícitamente en vez de aceptar solo "not_live". La diferencia importa:
+// yt-dlp también reporta "was_live" y "post_live" para la GRABACIÓN de un
+// directo que ya terminó, y eso es audio perfectamente descargable —
+// muchísimos conciertos y sesiones en vivo viven así. Descartar todo lo que
+// no fuera "not_live" se llevaría por delante material real.
+//
+// Un valor desconocido (o ausente, que es el caso normal fuera de YouTube)
+// se conserva: la lista dice qué se tira, no qué se admite.
+var notLive = map[string]bool{
+	"is_live":     true, // transmitiendo ahora mismo
+	"is_upcoming": true, // estreno programado: todavía no existe
 }
 
 // decodeResults lee el flujo de objetos JSON (uno por línea) que escribe
@@ -166,6 +182,9 @@ func decodeResults(out []byte) []Result {
 // el portapapeles — y el recorte de la TUI (reflow/truncate) es ANSI-aware,
 // o sea que CONSERVA los escapes.
 func (e searchEntry) result() (Result, bool) {
+	if notLive[e.LiveStatus] {
+		return Result{}, false
+	}
 	// Clean ANTES de TrimSpace: descartar controles deja espacios expuestos.
 	url := strings.TrimSpace(safetext.Clean(e.URL))
 	// El prefijo es toda la validación que hace falta, y a propósito no se

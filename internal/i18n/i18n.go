@@ -118,6 +118,7 @@ var table = map[string][2]string{
 	"help.palette":        {"command palette", "paleta de comandos"},
 	"help.songs":          {"song selector", "selector de canciones"},
 	"help.playlists":      {"playlist panel", "panel de playlists"},
+	"help.get":            {"search and download music", "buscar y descargar música"},
 	"help.playlist_add":   {"add selection to a playlist", "agregar selección a una playlist"},
 	"help.quit":           {"quit", "salir"},
 	"help.vim_nav":        {"navigate the queue (also arrows) · h/l fold/expand in the library", "navegar la cola (también flechas) · h/l pliega/expande en la biblioteca"},
@@ -159,6 +160,16 @@ var table = map[string][2]string{
 	"sel.title":      {"Select Track", "Elegir canción"},
 	"sel.none":       {"  no matches", "  sin coincidencias"},
 	"sel.none_empty": {"  library empty — ctrl+p then `scan`, or `maly scan` from a terminal", "  biblioteca vacía — ctrl+p y escribe `scan`, o `maly scan` desde una terminal"},
+
+	// ---- TUI: buscador de descargas (ctrl+g) ----
+	"get.title":        {"Download", "Descargar"},
+	"get.ph":           {"what to download…", "qué descargar…"},
+	"get.idle":         {"  type what you want and press enter", "  escribe qué quieres y pulsa enter"},
+	"get.searching":    {"searching %q on YouTube…", "buscando %q en YouTube…"},
+	"get.none":         {"  no results for %q — try other words", "  sin resultados para %q — prueba con otras palabras"},
+	"get.hint_search":  {"enter searches · esc closes", "enter busca · esc cierra"},
+	"get.hint_results": {"%d result(s) · ↑↓ choose · enter downloads · esc closes", "%d resultado(s) · ↑↓ elige · enter descarga · esc cierra"},
+	"get.hint_again":   {"enter searches again · esc closes", "enter busca de nuevo · esc cierra"},
 
 	// ---- TUI: panel de playlists ----
 	"plsel.title":          {"Playlists", "Playlists"},
@@ -267,6 +278,10 @@ var table = map[string][2]string{
 	"cli.get_err":           {"yt-dlp failed: %v (see its output above)", "yt-dlp falló: %v (revisa su salida arriba)"},
 	"cli.get_scan":          {"Download finished — updating the library ...", "Descarga lista — actualizando la biblioteca ..."},
 	"cli.get_done":          {"Downloaded: %s", "Descargado: %s"},
+
+	// ---- búsqueda de descargas (getter.Search) ----
+	"cli.get_search_err":     {"yt-dlp search failed: %s", "la búsqueda con yt-dlp falló: %s"},
+	"cli.get_search_timeout": {"the search timed out after %s — is there a connection?", "la búsqueda agotó su tiempo tras %s — ¿hay conexión?"},
 
 	// ---- maly get playlist ----
 	"cli.usage_get_playlist": {"usage: maly get playlist <url> [name]", "uso: maly get playlist <url> [nombre]"},

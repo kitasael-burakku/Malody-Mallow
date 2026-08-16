@@ -15,18 +15,28 @@ import (
 )
 
 // Tools verifica que yt-dlp y ffmpeg estén en el PATH; si falta alguna,
-// devuelve un error con las instrucciones de instalación.
+// devuelve un error con las instrucciones de instalación. Lo pide la
+// DESCARGA; buscar solo necesita yt-dlp (ver Search).
 func Tools() error {
 	for _, tool := range []string{"yt-dlp", "ffmpeg"} {
-		if _, err := exec.LookPath(tool); err != nil {
-			hint := i18n.Tf("cli.get_install", tool, tool, tool)
-			if tool == "yt-dlp" {
-				hint += " · pipx install yt-dlp"
-			}
-			return fmt.Errorf("%s\n%s", i18n.Tf("cli.get_missing", tool), hint)
+		if err := lookTool(tool); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// lookTool es el chequeo de una herramienta con su mensaje de instalación,
+// compartido por Tools (descarga: yt-dlp + ffmpeg) y Search (solo yt-dlp).
+func lookTool(tool string) error {
+	if _, err := exec.LookPath(tool); err == nil {
+		return nil
+	}
+	hint := i18n.Tf("cli.get_install", tool, tool, tool)
+	if tool == "yt-dlp" {
+		hint += " · pipx install yt-dlp"
+	}
+	return fmt.Errorf("%s\n%s", i18n.Tf("cli.get_missing", tool), hint)
 }
 
 // Spec convierte la consulta en lo que yt-dlp entiende: con "://" es una URL

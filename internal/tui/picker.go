@@ -39,6 +39,17 @@ type picker struct {
 	matches []int
 	cursor  int
 	page    int // filas visibles en el último render (para pgup/pgdown)
+
+	// noFilter: el input es una CAJA DE CONSULTA y no un filtro. Lo usa el
+	// buscador de descargas (ctrl+g), cuyos ítems no son una lista local sino
+	// el resultado de una búsqueda remota: filtrar difusamente diez
+	// resultados recién pedidos no aporta nada, y chocaría con que enter
+	// re-busque con el texto nuevo.
+	noFilter bool
+	// emptyText reemplaza el texto de "sin resultados" cuando el picker no
+	// está sobre la biblioteca y ni sel.none ni sel.none_empty aplican. ""
+	// deja los de siempre.
+	emptyText string
 }
 
 func newPicker(st styles, placeholder string) *picker {
@@ -79,7 +90,7 @@ func (p *picker) setItemsKeeping(items []pickerItem) {
 func (p *picker) filter() {
 	q := strings.TrimSpace(library.Fold(p.input.Value()))
 	p.matches = p.matches[:0]
-	if q == "" {
+	if q == "" || p.noFilter {
 		for i := range p.items {
 			p.matches = append(p.matches, i)
 		}
@@ -180,9 +191,12 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 		// encontró nada) — el panel de biblioteca y la CLI (cli.search_none)
 		// ya distinguían los dos casos; el picker era el único que no
 		// (auditoría 2026-07-31, hallazgo T9).
-		empty := i18n.T("sel.none")
-		if len(p.items) == 0 {
-			empty = i18n.T("sel.none_empty")
+		empty := p.emptyText
+		if empty == "" {
+			empty = i18n.T("sel.none")
+			if len(p.items) == 0 {
+				empty = i18n.T("sel.none_empty")
+			}
 		}
 		// sel.none_empty es un texto fijo largo (~68-74 celdas); sin clip
 		// rompía el borde en terminales angostas.

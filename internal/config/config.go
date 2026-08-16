@@ -177,6 +177,7 @@ func DefaultKeys() map[string]string {
 		"playlist_add": "A",
 		"toggle_viz":   "v",
 		"now_playing":  "ctrl+t",
+		"get":          "ctrl+g",
 	}
 }
 
@@ -327,6 +328,7 @@ cookies_from_browser = ""
 # playlist_add = "A"
 # toggle_viz = "v"
 # now_playing = "ctrl+t"
+# get = "ctrl+g"
 `
 
 func ConfigDir() string {

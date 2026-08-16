@@ -69,6 +69,9 @@ func (m *Model) View() string {
 	if m.plOpen {
 		return m.plView()
 	}
+	if m.getOpen {
+		return m.getView()
+	}
 	if m.npOpen {
 		return m.npView()
 	}
@@ -452,6 +455,7 @@ func (m *Model) helpView() string {
 		{k["palette"], i18n.T("help.palette")},
 		{k["songs"], i18n.T("help.songs")},
 		{k["playlists"], i18n.T("help.playlists")},
+		{k["get"], i18n.T("help.get")},
 		{k["playlist_add"], i18n.T("help.playlist_add")},
 		{k["quit"], i18n.T("help.quit")},
 	}

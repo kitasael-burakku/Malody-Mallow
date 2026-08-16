@@ -3,6 +3,7 @@
 package tui
 
 import (
+	"context"
 	"image"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/config"
+	"maly/internal/getter"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
@@ -126,6 +128,19 @@ type Model struct {
 	// Selector de canciones (ctrl+o): picker fuzzy genérico.
 	songsOpen bool
 	songs     *picker
+
+	// Buscador de descargas (ctrl+g): picker sobre resultados remotos de
+	// yt-dlp (ver get.go). getGen descarta respuestas pisadas por una
+	// búsqueda posterior o por el cierre; getCancel mata el proceso en vuelo.
+	getOpen    bool
+	get        *picker
+	getPhase   getPhase
+	getResults []getter.Result
+	getQuery   string // consulta de los resultados que se están mostrando
+	getErr     string
+	getGen     int
+	getSpin    int
+	getCancel  context.CancelFunc
 
 	// Panel de playlists (ctrl+l): picker fuzzy con dos modos.
 	plOpen    bool
@@ -616,12 +631,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case getResultsMsg:
+		return m.applyGetResults(msg)
+
+	case getSpinMsg:
+		return m.tickGetSpin()
+
 	case getDoneMsg:
+		// El log de la consola es el destino de siempre; con fromModal el
+		// desenlace va ADEMÁS al flash, que es lo único visible cuando la
+		// descarga no se pidió desde la consola (ver getDoneMsg).
 		if msg.err != nil {
-			m.conErr(i18n.Tf("cli.get_err", msg.err))
+			line := i18n.Tf("cli.get_err", msg.err)
+			m.conErr(line)
+			if msg.fromModal {
+				m.setFlash(line, true)
+			}
 			return m, nil
 		}
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
+		if msg.fromModal {
+			m.setFlash(i18n.T("cli.get_scan"), false)
+		}
 		return m, m.conScan("")
 
 	case getPlaylistDoneMsg:
@@ -834,6 +865,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.plOpen {
 		return m.handlePlaylistsKey(msg)
 	}
+	if m.getOpen {
+		return m.handleGetKey(msg)
+	}
 	if m.npOpen {
 		return m.handleNowKey(msg)
 	}
@@ -854,6 +888,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.is("playlists", msg) {
 		m.showHelp = false
 		return m, m.openPlaylists(plBrowse, nil)
+	}
+	if m.is("get", msg) {
+		m.showHelp = false
+		return m, m.openGet()
 	}
 	if m.is("now_playing", msg) {
 		m.showHelp = false

@@ -38,7 +38,18 @@ type conMsg struct {
 }
 
 // getDoneMsg vuelve de yt-dlp (tea.ExecProcess); err nil = descarga ok.
-type getDoneMsg struct{ err error }
+//
+// fromModal distingue quién lanzó la descarga, y no es cosmético: el
+// desenlace se reporta con conPrint/conErr, o sea al log de la consola, que
+// solo se ve con la consola ABIERTA. Lanzada desde una pantalla que se cierra
+// antes de ceder el terminal a yt-dlp, el usuario no vería nada —ni el "listo"
+// ni el error— salvo que el árbol se actualizara solo. Con fromModal el
+// desenlace va además al flash del pie, que ahí sí es visible porque no queda
+// ningún modal tapándolo.
+type getDoneMsg struct {
+	err       error
+	fromModal bool
+}
 
 // getPlaylistDoneMsg vuelve de yt-dlp para `get playlist` (tea.ExecProcess).
 // musicDir/name/dir/before llevan lo que conGetPlaylist ya decidió antes de
@@ -513,19 +524,38 @@ func (m *Model) conGet(args []string) (tea.Model, tea.Cmd) {
 	if args[0] == "playlist" {
 		return m.conGetPlaylist(args[1:])
 	}
-	if err := getter.Tools(); err != nil {
+	spec := getter.Spec(strings.Join(args, " "))
+	cmd, err := m.startGet(spec, false)
+	if err != nil {
 		m.conErr(err.Error())
 		return m, nil
+	}
+	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_start", spec, m.cfg.MusicPath())))
+	return m, cmd
+}
+
+// startGet lanza yt-dlp sobre spec y devuelve el tea.Cmd que espera su
+// salida. Es el punto único de descarga de una pista dentro de la TUI: desde
+// acá el flujo —getDoneMsg → re-escaneo → LibGen → todos los clientes
+// recargan— es el mismo venga de donde venga, así que quien quiera descargar
+// solo tiene que aportar un spec.
+//
+// Los errores (falta yt-dlp/ffmpeg, no se pudo crear music_dir) vuelven al
+// llamador en vez de imprimirse acá: la consola los escribe en su log y otras
+// pantallas los muestran a su manera. fromModal viaja hasta getDoneMsg (ver
+// su comentario).
+func (m *Model) startGet(spec string, fromModal bool) (tea.Cmd, error) {
+	if err := getter.Tools(); err != nil {
+		return nil, err
 	}
 	dir := m.cfg.MusicPath()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		m.conErr(err.Error())
-		return m, nil
+		return nil, err
 	}
-	spec := getter.Spec(strings.Join(args, " "))
-	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_start", spec, dir)))
 	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec, Cookies: m.cfg.Ytdlp.CookiesFromBrowser})
-	return m, tea.ExecProcess(cmd, func(err error) tea.Msg { return getDoneMsg{err: err} })
+	return tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return getDoneMsg{err: err, fromModal: fromModal}
+	}), nil
 }
 
 // conGetPlaylist espeja `maly get playlist`: descarga una playlist completa

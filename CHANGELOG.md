@@ -7,6 +7,25 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.16.1 — 2026-08-16
+
+Los resultados de búsqueda muestran ahora las visitas junto a la duración
+(`[04:10 · 808M]`), que es lo que separa la subida buena de un re-upload
+cualquiera — y esa pregunta no la contestaban ni el título ni el canal.
+Buscando "aurora runaway" aparecen dos resultados con el mismo canal, el
+mismo título y la misma duración: uno con 808M visitas y otro con 423K. El
+dato ya venía en lo que yt-dlp devuelve, así que no hay ninguna consulta
+nueva.
+
+Va sin decimales y sin la palabra "visitas" a propósito: lo que discrimina es
+el orden de magnitud, y tanto el separador decimal como la palabra se
+comerían espacio del título.
+
+Y esa pantalla —y solo esa— gana ancho: es la única cuyos textos vienen de
+fuera y son largos. En terminales anchas la caja pasa de 100 a 126 columnas y
+los títulos dejan de cortarse; por debajo de 150 columnas no cambia nada, y
+el resto de los paneles tampoco.
+
 ## v1.16.0 — 2026-08-16
 
 Tres refinamientos sobre el buscador de descargas de la 1.15.0.

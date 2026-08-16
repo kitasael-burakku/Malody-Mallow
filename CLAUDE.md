@@ -1931,6 +1931,48 @@ No se hizo, y sigue siendo deliberado: entrada de `pick` en
 comando) y bloquear la descarga de algo ya marcado.
 
 
+La **1.16.1** (2026-08-16) contesta en el buscador la pregunta que ni el
+título ni el canal contestaban: **cuál es la subida canónica**. `view_count`
+ya venía en el `--dump-json` que se decodifica, así que no hay red nueva ni
+proceso extra — sexto campo de los ~50. El caso apareció en la PRIMERA
+búsqueda real de la prueba en vivo: `AURORA — Runaway [04:10 · 808M]` y
+`AURORA — Runaway [04:10 · 423K]`, mismo canal, mismo título, misma
+duración; sin el dato son indistinguibles.
+
+Tres decisiones que conviene no re-descubrir:
+
+- **`ViewCount` se decodifica como `float64`, no como `int64`**, igual que
+  `Duration`. Con `int64`, una entrada en notación exponencial rompe el
+  `Decode` y —como `decodeResults` corta el bucle ante un objeto ilegible— se
+  pierden TODOS los resultados posteriores. Verificado revirtiéndolo: 1 de 4.
+- **Sin decimales y sin la palabra "visitas"**, y las dos por el mismo
+  motivo: un decimal obligaría a elegir separador (`6,6M` o `6.6M`) y la
+  palabra obligaría a i18n, y ambas se comerían celdas de título en una fila
+  que ya se recorta. Se trunca en vez de redondear para que 999999 dé `999K`
+  y no `1000K`. Duración y visitas comparten UN corchete: dos costarían tres
+  celdas más por fila.
+- **`channel_is_verified` se descartó**, aunque estaba sobre la mesa. No hay
+  glifo libre —el `✓` ya es el de "ya lo tienes" y `pickerItem.label` es una
+  sola cadena que el picker pinta con un solo estilo, así que no se pueden
+  colorear trozos— y en la práctica es redundante con las visitas y con el
+  nombre del canal, que ya se muestra.
+
+El **ancho** se resuelve partiendo `pickerWidth` en `pickerWidthMax(termW,
+max)`: solo las dos pantallas de búsqueda piden 140, por ser los únicos
+pickers cuyos ítems son texto AJENO y largo. Los otros tres no cambian una
+celda, y por debajo de 150 columnas tampoco cambia nada porque manda la regla
+de los dos tercios — o sea que nadie que hoy esté cómodo nota la diferencia.
+Medido a 190 columnas: la caja pasa de 100 a 126 celdas y ninguno de los diez
+títulos queda truncado, con la caja comprobada como rectángulo por una
+implementación de ancho independiente de la de lipgloss.
+
+Las miniaturas y la pantalla completa quedan FUERA a propósito, y el motivo
+importa: bajar una miniatura sería la primera petición HTTP de la historia de
+maly (ni `internal/update` la hace — usa `git ls-remote`, y `maly update`
+baja el instalador con curl). Se hará, si se hace, cuando el dueño confirme
+que sigue echándola de menos con las visitas ya puestas.
+
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del

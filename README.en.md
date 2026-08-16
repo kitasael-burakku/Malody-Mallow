@@ -211,9 +211,12 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
 - Browser-cookie support (`[ytdlp] cookies_from_browser`) for content that
   requires an account.
 - **`ctrl+g` inside the TUI** opens a search screen: you type, `enter`
-  searches YouTube, and you pick from the results before downloading.
-  `maly get "a query"` from the CLI still grabs the first result without
-  asking, which is what you want once you know exactly what to request.
+  searches YouTube, and you pick from the results before downloading;
+  anything already in your library is marked with `✓`, and live streams
+  and scheduled premieres are left out. `maly get pick <query>` is the
+  same from the terminal, without opening the TUI. `maly get "a query"`
+  still grabs the first result without asking, which is what you want
+  once you know exactly what to request.
 
 ### Desktop integration (MPRIS)
 
@@ -542,6 +545,7 @@ the vim navigation above is always active, under any preset.
 | `maly scan [<path>]` | (re)scan the music library |
 | `maly search <query>` | search by title/artist/album |
 | `maly get <url\|query>` | download audio with yt-dlp into the library |
+| `maly get pick <query>` | search and choose the result before downloading |
 | `maly get playlist <url> [name]` | download an entire playlist into a subdirectory |
 | `maly playlist <sub> [args]` | manage playlists — see table below |
 
@@ -585,6 +589,7 @@ maly shuffle on
 maly playlist add favs luna
 maly playlist export favs
 maly get "aurora runaway"
+maly get pick "aurora runaway"
 maly get playlist https://youtube.com/playlist?list=... favs
 ```
 

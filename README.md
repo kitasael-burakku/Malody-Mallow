@@ -214,9 +214,12 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
 - Soporte para cookies de navegador (`[ytdlp] cookies_from_browser`) para
   contenido que requiere cuenta.
 - **`ctrl+g` dentro de la TUI** abre un buscador: escribes, `enter` busca
-  en YouTube y eliges entre los resultados antes de descargar. `maly get
-  "una consulta"` desde la CLI sigue bajando el primer resultado sin
-  preguntar, que es lo que quieres cuando ya sabes qué vas a pedir.
+  en YouTube y eliges entre los resultados antes de descargar; los que ya
+  están en tu biblioteca salen marcados con `✓`, y los directos en curso
+  y estrenos programados no aparecen. `maly get pick <búsqueda>` es lo
+  mismo desde la terminal, sin abrir la TUI. `maly get "una consulta"`
+  sigue bajando el primer resultado sin preguntar, que es lo que quieres
+  cuando ya sabes qué vas a pedir.
 
 ### Integración de escritorio (MPRIS)
 
@@ -545,6 +548,7 @@ navegación vim de arriba está siempre activa, en cualquier preset.
 | `maly scan [<ruta>]` | (re)escanea la biblioteca de música |
 | `maly search <consulta>` | busca por título/artista/álbum |
 | `maly get <url\|consulta>` | descarga audio con yt-dlp a la biblioteca |
+| `maly get pick <búsqueda>` | busca y te deja elegir el resultado antes de descargar |
 | `maly get playlist <url> [nombre]` | descarga una playlist completa a un subdirectorio |
 | `maly playlist <sub> [args]` | gestiona playlists — ver tabla abajo |
 
@@ -588,6 +592,7 @@ maly shuffle on
 maly playlist add favs luna
 maly playlist export favs
 maly get "aurora runaway"
+maly get pick "aurora runaway"
 maly get playlist https://youtube.com/playlist?list=... favs
 ```
 

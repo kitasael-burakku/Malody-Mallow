@@ -7,6 +7,29 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.16.0 — 2026-08-16
+
+Tres refinamientos sobre el buscador de descargas de la 1.15.0.
+
+Los resultados que **ya están en tu biblioteca** salen marcados con `✓`, con
+el hueco equivalente en los demás para que la columna de títulos siga
+alineada. La comparación es por título limpio, sin el artista: el canal de
+YouTube casi nunca es el artista real —una descarga de supercell puede
+quedar acreditada al canal que la subió—, así que incluirlo daría falsos
+negativos casi siempre. Es una pista y no un bloqueo: un cover legítimo con
+el mismo título saldrá marcado y descargarlo sigue estando a un enter.
+
+Los **directos en curso y los estrenos programados** ya no aparecen entre los
+resultados: no son descargables como pista. La grabación de un directo que ya
+terminó sí se conserva — muchos conciertos viven así, y descartarlos se
+llevaría por delante material real.
+
+Y llega **`maly get pick <búsqueda>`**: el mismo elegir-antes-de-bajar desde
+la terminal, sin abrir la TUI. Es un subcomando y no un flag porque la CLI de
+maly no tiene parser de flags, siguiendo el precedente de `maly get playlist`.
+No necesita el servicio corriendo: descargar no pasa por él salvo el
+re-escaneo final, que ya funciona igual sin demonio.
+
 ## v1.15.0 — 2026-08-16
 
 Buscador de descargas dentro de la TUI: `ctrl+g` abre una pantalla donde

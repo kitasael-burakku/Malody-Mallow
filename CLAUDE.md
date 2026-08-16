@@ -252,7 +252,9 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   buscador de descargas ctrl+g (`get.go`: picker sobre resultados REMOTOS de
   yt-dlp, de dos fases porque cada consulta cuesta ~1 s de red — elige una
   URL y se la pasa a `startGet`, que es el punto único de descarga de la TUI
-  y NO vive acá sino en `console.go`, compartido con la consola). Los modales tapan el footer: los flashes no se ven con un
+  y NO vive acá sino en `console.go`, compartido con la consola; `get_pick.go`
+  es su gemelo suelto para `maly get pick`, con el patrón de `RunSelect` pero
+  SIN exigir demonio). Los modales tapan el footer: los flashes no se ven con un
   modal abierto (el panel de playlists los dibuja bajo el modal por eso).
   El árbol de la biblioteca (`tree.go`) incluye las playlists como raíces
   tras los artistas (`playlistNode`, pistas hijas directas numeradas por
@@ -1864,6 +1866,69 @@ código de salida sin verificar el efecto observable no es medir**. Las dos
 veces que falló el diagnóstico fue por dar por supuesto lo que no se miró —
 los archivos que quedaron, y de qué proceso venía el `$?`.
 
+
+
+La **1.16.0** (2026-08-16) cierra los tres candidatos que la 1.15.0 había
+dejado anotados como opcionales, más la corrección de unos comentarios que
+afirmaban lo que la propia 1.15.0 ya había refutado (el doc de `NewAudio`
+conservaba "yt-dlp sale con código 0 pase lo que pase" y remitía a un `Count`
+inexistente). Ninguna toca el demonio ni el protocolo.
+
+**Lo que ya tienes sale marcado** (`✓` en `getItems`, `internal/tui/get.go`).
+La decisión que importa es la CLAVE de comparación: título limpio y plegado
+**sin el artista**. El uploader de YouTube casi nunca es el artista real —una
+descarga de supercell puede quedar acreditada a "LumenAster23"—, así que
+incluirlo daría falsos negativos prácticamente siempre; `cleanTitle` además
+iguala el ruido de yt-dlp, con lo que una pista ya bajada y su propio
+resultado remoto producen la MISMA cadena. Verificado en ambas direcciones
+INCLUIDA la variante con artista, que es el error fácil. Es una PISTA y no un
+bloqueo: un cover legítimo con el mismo título saldrá marcado y descargarlo
+sigue estando a un enter — falso positivo barato, falso negativo caro. El
+marcador va delante con hueco equivalente en los no marcados, porque el ancho
+escasea (los títulos ya se recortan). El conjunto sale del árbol que la TUI
+ya tiene cargado —ni una consulta más a la base— y se recalcula por
+respuesta, no se cachea, para que una descarga hecha entre dos búsquedas de
+la misma sesión aparezca marcada.
+
+**Lives y estrenos fuera** (`notLive`, `internal/getter/search.go`).
+`live_status` llega gratis en el `--dump-json` que ya se decodifica, pero
+solo se descartan DOS de sus cinco valores: `is_live` e `is_upcoming`.
+`was_live` y `post_live` son la GRABACIÓN de un directo que ya terminó y eso
+es audio perfectamente descargable —muchísimos conciertos viven así—, así que
+la variante ingenua ("todo lo que no sea `not_live`") se llevaría por delante
+material real; el test la ejercita explícitamente. Un valor desconocido se
+conserva: la lista dice qué se tira, no qué se admite.
+
+**`maly get pick <búsqueda>`** lleva el ctrl+g a la línea de comandos.
+Subcomando y no flag porque la CLI no tiene parser de flags —`-v`/`-l`/`-h`
+son COMANDOS—, siguiendo el precedente de `get playlist`. Lo barato viene de
+partir `runGet` en resolver-el-spec y **`downloadOne`**, que es el camino
+común de las dos formas y ya traía todo lo de la 1.15.0 (snapshot,
+verificación por diff, limpieza de intermedios en los dos caminos de fallo,
+re-escaneo y el nombre de lo bajado): la rama `pick` solo aporta la URL
+elegida. `tui.RunGetPick` clona el patrón de `RunSelect` con una diferencia
+deliberada: **NO exige demonio**. `RunSelect` lo pide porque reproduce; acá
+descargar no pasa por él salvo el re-escaneo final, que ya degrada solo a
+escribir directo en la DB, y copiar ese chequeo le negaría la descarga a
+quien no tenga el servicio levantado. La biblioteca se abre solo si existe
+(nada de fabricar una base vacía, misma regla que `info`/`doctor`) y un fallo
+al leerla no es fatal: sin ella simplemente no se marca nada.
+
+Dos redes de seguridad del propio proyecto saltaron en esta tanda y las dos
+tenían razón: `TestUsageCabeEnColumna` rechazó el usage largo que había
+escrito para `get` (la columna del help es de 28, y los subcomandos de `get`
+nunca estuvieron ahí — `playlist` tampoco), y el test fijo de completions
+obligó a declarar los dos subcomandos a mano, que es exactamente el aviso que
+se busca. Quedan compartidos entre las dos pantallas `pickedResult` (los
+ítems guardan el ÍNDICE, no la URL) y `oneLine`.
+
+Probado en vivo: `maly get pick` bajo tmux con búsqueda real, elección con ↓,
+descarga, y el `✓` apareciendo al repetir la misma búsqueda con la pista ya
+en la biblioteca.
+
+No se hizo, y sigue siendo deliberado: entrada de `pick` en
+`ConsoleCommands` (la consola ya tiene ctrl+g, que es mejor que escribir un
+comando) y bloquear la descarga de algo ya marcado.
 
 
 ### Post-1.0 (candidatos)

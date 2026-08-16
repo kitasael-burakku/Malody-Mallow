@@ -58,7 +58,8 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   language on first run.
 - **`maly get`**: downloads audio with yt-dlp straight into your library
   and re-indexes it — the same lazygit-style philosophy of coordinating
-  external tools instead of reimplementing them.
+  external tools instead of reimplementing them. With `ctrl+g` you pick
+  from the results inside the TUI, instead of blindly taking the first.
 
 ---
 
@@ -188,6 +189,9 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   library (`enter` plays, `tab` adds to the queue).
 - **`ctrl+l` playlist panel**: manage your playlists without leaving the
   TUI, and `A` sends the current library or queue selection to one.
+- **`ctrl+g` download search**: type what you want, `enter` searches
+  YouTube and the list shows each result's channel and length; `enter`
+  on the one you pick downloads it and the library updates on its own.
 - **Bilingual**: English/Spanish interface; chosen on first run.
 
 ### Visualizer
@@ -206,6 +210,10 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   URLs (so you don't accidentally drag a whole playlist along).
 - Browser-cookie support (`[ytdlp] cookies_from_browser`) for content that
   requires an account.
+- **`ctrl+g` inside the TUI** opens a search screen: you type, `enter`
+  searches YouTube, and you pick from the results before downloading.
+  `maly get "a query"` from the CLI still grabs the first result without
+  asking, which is what you want once you know exactly what to request.
 
 ### Desktop integration (MPRIS)
 
@@ -497,6 +505,7 @@ maly           # open the TUI
 | `ctrl+p` | command palette (built-in console) |
 | `ctrl+o` | song picker (fuzzy search) |
 | `ctrl+l` | playlist panel |
+| `ctrl+g` | download search (pick the result before downloading) |
 | `A` | send current selection to a playlist |
 | `?` | full help (every key, including remapped ones) |
 | `q` | quit |
@@ -813,6 +822,7 @@ cookies_from_browser = ""
 # playlist_add = "A"
 # toggle_viz = "v"
 # now_playing = "ctrl+t"
+# get = "ctrl+g"
 ```
 
 </details>

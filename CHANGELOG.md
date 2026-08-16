@@ -7,6 +7,33 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.15.0 — 2026-08-16
+
+Buscador de descargas dentro de la TUI: `ctrl+g` abre una pantalla donde
+escribes qué quieres, `enter` busca en YouTube y la lista muestra canal y
+duración de cada resultado; `enter` sobre el que elijas lo descarga y la
+biblioteca se actualiza sola. Corrige una carencia real de `maly get`, que
+bajaba **el primer resultado a ciegas**: si salía el equivocado, el único
+recurso era borrar el archivo y reformular la consulta.
+
+Es de dos fases —escribir, `enter` para buscar, elegir, `enter` para
+descargar— y no un filtro en vivo tipo fzf, porque cada búsqueda cuesta
+alrededor de un segundo de red y un proceso de yt-dlp: filtrar por pulsación
+sería un proceso por tecla. Como los resultados dejan de corresponder en
+cuanto editas la consulta, `enter` cambia de significado solo y el pie de la
+pantalla dice cuál tiene en cada momento, para que corregir una palabra
+nunca dispare una descarga que no pediste.
+
+La descarga no cambia de dueño: la pantalla solo elige una URL y se la pasa
+al mismo camino de siempre (yt-dlp toma el terminal, su progreso pasa
+directo, y al volver se reescanea la biblioteca), así que el demonio no se
+tocó y el protocolo IPC tampoco. Por dentro, `getter.Search` le pide a
+yt-dlp su salida JSON —su interfaz de máquina, no el texto de progreso, que
+maly sigue sin parsear— y se queda con cuatro campos de los cincuenta que
+trae cada entrada. Los títulos y los canales pasan por el mismo saneado que
+las etiquetas de las pistas: son texto ajeno que ahora llega con solo
+buscar, sin descargar nada.
+
 ## v1.14.1 — 2026-08-15
 
 Cierra el hueco que dejaba la columna "Ahora suena" en pantallas altas. La

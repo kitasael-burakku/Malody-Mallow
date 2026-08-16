@@ -59,7 +59,8 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   sistema en el primer arranque.
 - **`maly get`**: baja audio con yt-dlp directo a tu biblioteca y la
   reindexa — la misma filosofía de lazygit de coordinar herramientas
-  externas en vez de reimplementarlas.
+  externas en vez de reimplementarlas. Con `ctrl+g` eliges entre los
+  resultados desde la propia TUI, en vez de bajar el primero a ciegas.
 
 ---
 
@@ -189,6 +190,10 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   biblioteca (`enter` reproduce, `tab` agrega a la cola).
 - **Panel de playlists `ctrl+l`**: gestiona tus playlists sin salir de la
   TUI, y con `A` mandas la selección de la biblioteca o la cola a una.
+- **Buscador de descargas `ctrl+g`**: escribe qué quieres, `enter` busca
+  en YouTube y la lista muestra canal y duración de cada resultado;
+  `enter` sobre el que elijas lo descarga y la biblioteca se actualiza
+  sola.
 - **Bilingüe**: interfaz en English/Español; se elige al primer arranque.
 
 ### Visualizador
@@ -208,6 +213,10 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   URLs sueltas (para no arrastrar una playlist entera por accidente).
 - Soporte para cookies de navegador (`[ytdlp] cookies_from_browser`) para
   contenido que requiere cuenta.
+- **`ctrl+g` dentro de la TUI** abre un buscador: escribes, `enter` busca
+  en YouTube y eliges entre los resultados antes de descargar. `maly get
+  "una consulta"` desde la CLI sigue bajando el primer resultado sin
+  preguntar, que es lo que quieres cuando ya sabes qué vas a pedir.
 
 ### Integración de escritorio (MPRIS)
 
@@ -499,6 +508,7 @@ maly           # abre la TUI
 | `ctrl+p` | paleta de comandos (consola integrada) |
 | `ctrl+o` | selector de canciones (búsqueda difusa) |
 | `ctrl+l` | panel de playlists |
+| `ctrl+g` | buscador de descargas (elige el resultado antes de bajar) |
 | `A` | manda la selección actual a una playlist |
 | `?` | ayuda completa (todas las teclas, incluidas las remapeadas) |
 | `q` | salir |
@@ -813,6 +823,7 @@ cookies_from_browser = ""
 # playlist_add = "A"
 # toggle_viz = "v"
 # now_playing = "ctrl+t"
+# get = "ctrl+g"
 ```
 
 </details>

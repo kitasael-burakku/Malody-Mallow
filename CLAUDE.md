@@ -48,7 +48,10 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   las reimplementa): descarga MP3 con metadata/carátula embebidas a `music_dir`
   y re-escanea (vía IPC si el demonio responde, directo a la DB si no);
   yt-dlp/ffmpeg opcionales vía `exec.LookPath` con mensaje de instalación; el
-  progreso de yt-dlp pasa directo al terminal, cero parsing.
+  progreso de yt-dlp pasa directo al terminal, cero parsing. La ÚNICA salida
+  de yt-dlp que maly lee es `--dump-json` (`getter.Search`, 1.15.0): su
+  interfaz de máquina, no el texto de progreso — la distinción está detallada
+  en la cabecera de `internal/getter/search.go` y en la 1.15.0 del roadmap.
   `[ytdlp] cookies_from_browser` del config viaja tal cual a
   `--cookies-from-browser` (passthrough sin validar, "" = sin flag; los
   comentarios del template del config son estáticos en español, sin i18n);
@@ -244,7 +247,12 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   `tea.ExecProcess` + `internal/getter` compartido con la CLI, `controls`
   aplica el preset en vivo recargando `m.keys`) + picker
   fuzzy genérico (`picker.go`, usado por ctrl+o canciones, ctrl+l playlists y
-  `maly select`). Los modales tapan el footer: los flashes no se ven con un
+  `maly select`; sus knobs `noFilter`/`emptyText`, con valor cero =
+  comportamiento de siempre, existen para el buscador de descargas) +
+  buscador de descargas ctrl+g (`get.go`: picker sobre resultados REMOTOS de
+  yt-dlp, de dos fases porque cada consulta cuesta ~1 s de red — elige una
+  URL y se la pasa a `startGet`, que es el punto único de descarga de la TUI
+  y NO vive acá sino en `console.go`, compartido con la consola). Los modales tapan el footer: los flashes no se ven con un
   modal abierto (el panel de playlists los dibuja bajo el modal por eso).
   El árbol de la biblioteca (`tree.go`) incluye las playlists como raíces
   tras los artistas (`playlistNode`, pistas hijas directas numeradas por
@@ -1700,6 +1708,127 @@ para que en pantallas anchas la carátula gane filas. Lección repetida: el
 tamaño de terminal en el que se prueba un layout es parte del arnés, y 42
 filas no representaban la pantalla del dueño.
 
+La **1.15.0** (2026-08-16) agrega el **buscador de descargas de la TUI**
+(`ctrl+g`): escribir una consulta, elegir entre los resultados de YouTube y
+descargar el elegido, sin salir de la interfaz. Cierra una carencia real de
+`maly get`, que baja **el primer resultado a ciegas** (`ytsearch1:`): si sale
+el equivocado, el único recurso es borrar el archivo y reformular. Salió de
+un análisis de factibilidad pedido por el dueño ANTES de tocar código, y ese
+análisis refutó tres premisas de la idea original — vale la pena que queden
+escritas, porque cada una habría llevado a construir mal:
+
+- **No existía búsqueda remota en maly, y agregarla mueve una frontera.** El
+  proyecto había esquivado TRES veces el parseo de la salida de yt-dlp (el
+  diff de directorio, `%(playlist_index)02d` en el nombre,
+  `%(playlist_title)s` como subdirectorio). La línea que se mantiene es "no
+  parsear la salida HUMANA" —progreso, avisos, errores—, que es frágil y
+  cambia sin aviso; `--dump-json` es su interfaz de MÁQUINA y consumirla es
+  lo mismo que se hace con ffprobe en `internal/probe`. Lo que la filosofía
+  sí prohíbe —que maly hable con YouTube por su cuenta— sigue sin pasar.
+- **El comportamiento fzf en tiempo real es IMPOSIBLE acá.** fzf filtra un
+  conjunto local ya materializado; cada consulta acá cuesta ~0,95 s de red y
+  un proceso nuevo (medido, `ytsearch8`), o sea un yt-dlp por pulsación. De
+  ahí que la pantalla sea de DOS FASES, y de ahí que el fuzzy sobre los
+  resultados sea casi decorativo: si no está lo que buscas, reformulas la
+  consulta, no filtras diez líneas que acabas de pedir.
+- **La descarga NO pertenece al demonio.** La idea pedía "que la maneje el
+  daemon", pero hoy no le pertenece: `getter` arma el comando y el CLIENTE
+  lo corre (`cmd.Run` en la CLI, `tea.ExecProcess` en la TUI). Meterla ahí
+  habría exigido inventar trabajos asíncronos, progreso por push,
+  cancelación y errores parciales — un subsistema entero en un demonio cuyo
+  `dispatch` es a propósito un switch plano bajo un solo mutex, y cuya única
+  op larga (scan) ya costó tres mecanismos especiales. Habría sido el peor
+  error posible del cambio.
+
+Con eso, la implementación resultó pequeña: **cero cambios en el demonio,
+cero en el protocolo IPC, cero dependencias nuevas** (`sahilm/fuzzy` y el
+`textinput` de bubbles ya estaban; el parseo es `encoding/json`). Ocho de
+los nueve pasos del flujo ya existían y solo hubo que conectarlos.
+
+**`getter.Search` (`internal/getter/search.go`)** es la única pieza
+genuinamente nueva. Tres detalles que costarían un rato redescubrir:
+
+- **`--dump-json`, NO `--print` con separador.** La variante barata está
+  ROTA de entrada: un resultado real de buscar "aurora runaway" es `AURORA -
+  Runaway | Sub Español - Lyrics + (VIDEO OFICIAL) HD`, con el separador
+  obvio dentro del título. `%(title)j` escapa el contenido pero el `|` sigue
+  literal entre comillas. Lo encoda `TestSearchTitleConSeparadores`,
+  verificado en ambas direcciones (con parseo por `|`, el título vuelve
+  cortado). Se decodifican CUATRO campos de los ~50 que trae cada entrada:
+  toda la superficie de acoplamiento con el formato de yt-dlp.
+- **`cmd.WaitDelay` es lo que hace que el timeout SIRVA**, y no es evidente.
+  `exec.CommandContext` mata al proceso lanzado, pero `cmd.Output()` sigue
+  esperando a que se cierre el pipe de stdout, y cualquier hijo vivo lo
+  mantiene abierto: proceso muerto y llamada colgada igual. Lo destapó el
+  test, que sin esto tardaba los 5 s enteros del proceso falso PESE a la
+  cancelación — o sea que el timeout no servía para nada.
+- **Quién venció importa.** `Search` conserva el `parent` context: si el
+  llamador canceló (cerrar la pantalla) o su deadline era más corto, vuelve
+  SU error y no el mensaje "tras 20 s" de maly, que ahí sería mentira. Sin
+  esa distinción la pantalla no podría separar "esc del usuario" de "se cayó
+  la red". La URL se toma de yt-dlp (`url` del JSON) en vez de armarse desde
+  el `id`: maly no tiene por qué conocer la forma de una URL de YouTube, y
+  el prefijo `https://` de regalo garantiza que no empiece con guion.
+
+Los títulos y canales son la **SEGUNDA frontera de ingesta de texto ajeno**
+del proyecto (la primera fue el título de playlist de `get playlist`,
+1.11.0) y la más expuesta: acá el texto llega con solo BUSCAR, sin descargar
+nada. Van por `safetext.Clean`, y sin él el PoC de siempre pasa entero.
+
+**La pantalla (`internal/tui/get.go`)** clona el tríptico de ctrl+o
+(`openGet`/`handleGetKey`/`getView` + rama en las dos cadenas de `View()` y
+`handleKey`, cerrando `showHelp` al abrir por el hallazgo T1). Dos
+decisiones que aparecieron implementando y no estaban en el plan:
+
+- **`enter` tenía dos significados en el mismo estado.** Con resultados en
+  pantalla, editar la consulta y pulsar enter debería BUSCAR, pero enter era
+  "descargar": corregir una palabra disparaba una descarga que nadie pidió.
+  Se resuelve con `getStale()`, DERIVADO (`texto ≠ consulta buscada`) en vez
+  de un flag que habría que acordarse de bajar en cada camino, y el hint del
+  pie dice cuál de los dos significados está activo. El revert lo confirmó:
+  sin ese chequeo, editar + enter cierra la pantalla descargando.
+- **Dos knobs genéricos en `picker`**, ambos con valor cero = comportamiento
+  de siempre: `noFilter` (el input es caja de CONSULTA, no filtro — filtrar
+  localmente chocaría con que enter re-busque) y `emptyText` (`sel.none` y
+  `sel.none_empty` hablan de la biblioteca y acá no aplican).
+
+`esc` no solo descarta la respuesta por generación: también cancela el
+contexto y mata el yt-dlp en vuelo. El contador `getGen` cubre la única
+carrera real —dos enter seguidos pueden resolver en orden inverso— con el
+mismo patrón que `loadGen` en `internal/player`. El reloj del spinner se
+autocancela fuera del estado "buscando", en la línea de la 1.7.2.
+
+**Lección de verificación, y es nueva:** un test mío NO servía y hubo que
+rehacerlo dos veces. El del salto de línea en el cuerpo del panel (los
+errores de `getter.Tools()` traen la instrucción de instalación en una
+SEGUNDA línea, y el cuerpo es UNA fila) pasaba con y sin el arreglo. Primero
+porque usé un error con primera línea larguísima, que `clip` corta ANTES de
+llegar al salto — el error real tiene la primera línea corta. Y aun con el
+caso correcto seguía pasando, porque las aserciones medían "no se pasa del
+ancho" y la corrupción real es una fila MÁS ANGOSTA: el `\n` parte la fila y
+deja la primera mitad sin borde derecho. La aserción buena es que la caja
+sea un RECTÁNGULO — toda fila mide exactamente lo mismo (`boxLinesSameWidth`,
+complementaria a `boxLinesFitWithin`, que solo ve el desborde). Es la
+tercera vez que este defecto aparece (consola 1.12.1, paneles vacíos
+1.14.0), y la primera en que el chequeo queda con la forma correcta.
+
+Probado en vivo bajo tmux con sandbox XDG: búsqueda ~1 s / 10 resultados,
+spinner animando, el hint cambiando al editar, descarga del resultado
+SELECCIONADO (verificado porque el `.webp` intermedio llevaba el título del
+2.º resultado, que era el elegido con un ↓) y la cadena cerrando hasta
+`Biblioteca (1) · 1/1` con la pista en el árbol. La alineación con CJK se
+midió con una implementación de ancho INDEPENDIENTE de la de lipgloss
+(`east_asian_width` sobre lo que capturó tmux): las 15 filas de la caja,
+exactamente 80 celdas, incluidas `supercell / 君の知らない物語` y un canal que
+es un carácter combinante.
+
+No se hizo, y es deliberado: entrada en `ConsoleCommands` (es una PANTALLA,
+no un comando — ctrl+o y ctrl+t tampoco figuran ahí, y la consola nunca fue
+espejo estricto) y mención en el pie de la TUI (que ya perdía `? ayuda` /
+`q salir` primero en español por ser más largo — hallazgo D10.3/T23; la
+tecla vive en la ayuda `?`).
+
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del
@@ -1757,6 +1886,29 @@ export` ya **no escribe a través de un symlink** (solo afecta al componente
 final de la ruta; un directorio enlazado sigue valiendo).
 
 El ratón en la TUI sigue descartado.
+
+**`yt-dlp` sale con código 0 aunque la descarga falle** (encontrado en la
+prueba en vivo de la 1.15.0, 2026-08-16). Verificado directo: un video que
+responde `HTTP Error 403: Forbidden` deja solo la miniatura `.webp` en
+`music_dir`, imprime `ERROR:` y **sale 0**. Como TODO el flujo `get` confía
+en el código de salida, el desenlace anuncia "Descarga lista — actualizando
+la biblioteca" y no se descargó nada.
+
+Es PREVIO y afecta por igual a `maly get` (CLI), a la consola ctrl+p y al
+buscador nuevo; en la CLI al menos queda el `ERROR:` de yt-dlp en el
+scrollback, mientras que en la pantalla el usuario ve un aviso verde y una
+biblioteca que no cambia. Es el espejo exacto del hallazgo G1 de la 1.11.0,
+que trató el caso opuesto (salir ≠ 0 con éxito PARCIAL de una playlist).
+
+El arreglo natural ya existe en el proyecto y no exige parsear nada: el
+**diff de directorio** (`newFileEntry`, que `runGet` ya calcula hoy solo
+para nombrar lo bajado) pasaría a ser TAMBIÉN el criterio de éxito. Lo que
+lo convierte en un ciclo propio y no en un parche al paso: `newFileEntry`
+vive solo en `cmd/maly` (`internal/tui` no puede importar `package main`),
+así que hay que decidir dónde va el código compartido —¿`internal/getter`?
+¿un `internal/fsdiff`?— y de paso qué hacer con el `.webp` huérfano que
+queda de una descarga fallida.
+
 
 **Latencia del aviso de `update`: ARREGLADO** (anotado y cerrado el
 2026-07-21). Nunca fue un fallo —`maly update` funcionaba y el aviso salía—,

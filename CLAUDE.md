@@ -2118,7 +2118,15 @@ repartido en las secciones 04/05/07/10/13 del informe
   eso garantiza que la primera salida visible de un usuario no-inglés sea
   en inglés (relacionado con D10.1, ya cerrado en la 1.12.0 — revisar si
   sigue aplicando).
-- **D14.4** — desinstalar hereda la ceguera de D14.1 (ya cerrado en la
-  1.12.0 para instalar/actualizar): en una máquina con el paquete de AUR,
-  `--uninstall` reporta "no encontré nada que quitar" en vez de señalar
-  la copia empaquetada.
+- **D14.4** — CERRADO (2026-08-16, sin bump: solo instalador). `--uninstall`
+  ya no dice "no encontré nada que quitar" cuando existe la copia del gestor
+  de paquetes: la señala y remite al gestor. Informa y NO borra —`/usr/bin`
+  sigue siendo territorio del gestor y el script nunca instala ni desinstala
+  ahí—, así que el comentario de `PKG_BIN` que decía que la omisión era
+  deliberada quedó corregido: lo deliberado es no tocar esa copia, no callarla.
+  En la misma tanda, `inst_comp` dejó de tragarse un binario roto: si el maly
+  recién compilado no puede emitir sus completions —o las emite VACÍAS, el
+  mismo agujero que el PKGBUILD cerró en la 1.11.1— avisa en vez de instalar
+  un archivo de 0 bytes en silencio. Verificado con binarios falsos en las dos
+  direcciones (el código viejo instalaba los 0 bytes) y con una instalación
+  completa de punta a punta en una sandbox XDG.

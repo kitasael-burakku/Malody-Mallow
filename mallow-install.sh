@@ -450,7 +450,9 @@ USR_INST=0 SYS_INST=0
 # ya resolvió del lado de `maly update` (version.Packaged()). A propósito
 # NO alimenta s_def (línea de abajo, ámbito) ni el bucle de --uninstall:
 # /usr/bin es territorio del gestor de paquetes, y este script nunca
-# instala ni desinstala ahí.
+# instala ni desinstala ahí. Sí lo MENCIONA al desinstalar cuando no
+# encontró nada suyo (D14.4): callarlo mientras maly sigue funcionando era
+# engañoso, que es distinto de administrarlo.
 PKG_BIN=/usr/bin/maly
 PKG_INST=0
 [ -x "$PKG_BIN" ] && PKG_INST=1
@@ -587,7 +589,20 @@ if [ "$ACTION" = uninstall ]; then
 			msg "quitado: $f" "removed: $f"
 		fi
 	done
-	[ "$found" -eq 1 ] || warn 'no encontré nada que quitar en esas rutas' 'nothing to remove at those paths'
+	if [ "$found" -eq 0 ]; then
+		# Cerrar D14.4 de la auditoría de UX: instalar y actualizar ya
+		# detectan la copia del gestor de paquetes (PKG_BIN), pero
+		# desinstalar no, y "no encontré nada que quitar" es engañoso cuando
+		# maly SÍ está instalado y sigue funcionando. Se informa, no se
+		# borra: /usr/bin es del gestor y este script nunca instala ni
+		# desinstala ahí (misma línea que el aviso de --update).
+		if [ "$PKG_INST" -eq 1 ]; then
+			warn "no hay nada que quitar en esas rutas, pero maly SÍ está instalado en $PKG_BIN por tu gestor de paquetes — quítalo con él; este script nunca administra esa copia" \
+				"nothing to remove at those paths, but maly IS installed at $PKG_BIN by your package manager — remove it with that instead; this script never manages that copy"
+		else
+			warn 'no encontré nada que quitar en esas rutas' 'nothing to remove at those paths'
+		fi
+	fi
 
 	# El servicio systemd --user (si se instaló) se para y se quita sin
 	# preguntar: es parte de la instalación, no dato del usuario — a
@@ -1099,8 +1114,20 @@ $SUDO install -Dm755 "$TMP/maly" "$BIN/maly"
 msg "instalado: $BIN/maly" "installed: $BIN/maly"
 
 # inst_comp genera la completion con el binario recién compilado y la instala.
+#
+# Un fallo acá NO es un caso benigno que saltarse en silencio: el binario
+# acaba de salir de nuestro propio `go build`, así que si no puede emitir sus
+# completions es que algo se compiló mal. Se avisa (y no se instala un
+# archivo vacío) en vez de dejar una instalación muda a medias — misma
+# lección que el PKGBUILD en la 1.11.1, donde `install -Dm644 <(cmd)` tampoco
+# propagaba el fallo y dejaba destinos de 0 bytes. No se aborta: el binario
+# ya está instalado y morir aquí dejaría el trabajo por la mitad.
 inst_comp() {
-	"$TMP/maly" completions "$1" > "$TMP/comp.$1" 2>/dev/null || return 0
+	if ! "$TMP/maly" completions "$1" > "$TMP/comp.$1" 2>/dev/null || [ ! -s "$TMP/comp.$1" ]; then
+		warn "el binario recién compilado no pudo generar las completions de $1 — revisa \`$BIN/maly version\`" \
+			"the freshly built binary could not generate the $1 completions — check \`$BIN/maly version\`"
+		return 0
+	fi
 	$SUDO install -Dm644 "$TMP/comp.$1" "$2"
 	msg "completions $1: $2" "completions $1: $2"
 }

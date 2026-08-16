@@ -14,6 +14,7 @@ import (
 	"maly/internal/getter"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/library"
 )
 
 // El buscador de descargas (ctrl+g) es un picker sobre resultados REMOTOS de
@@ -162,7 +163,7 @@ func (m *Model) applyGetResults(msg getResultsMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.getResults = msg.results
-	m.get.setItems(getItems(msg.results))
+	m.get.setItems(getItems(msg.results, m.ownedSet()))
 	if len(msg.results) == 0 {
 		m.getPhase = getEmpty
 	} else {
@@ -171,12 +172,46 @@ func (m *Model) applyGetResults(msg getResultsMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// ownedSet usa el árbol YA cargado: ni una consulta más a la
+// base. Se recalcula al llegar cada respuesta (una pasada, con ~1 s de red de
+// por medio) en vez de cachearse, para que una descarga hecha entre dos
+// búsquedas de la misma sesión aparezca marcada.
+func (m *Model) ownedSet() map[string]bool {
+	if m.tree == nil {
+		return nil
+	}
+	return ownedTitles(m.tree.all)
+}
+
 func (m *Model) tickGetSpin() (tea.Model, tea.Cmd) {
 	if !m.getOpen || m.getPhase != getSearching {
 		return m, nil // el reloj muere solo al dejar de buscar
 	}
 	m.getSpin++
 	return m, getSpinCmd()
+}
+
+// ownedTitles arma el conjunto de títulos que YA están en la biblioteca, para
+// marcar en los resultados lo que no hace falta volver a bajar.
+//
+// La clave es el título limpio y plegado, SIN el artista, y eso es
+// deliberado: el uploader de YouTube casi nunca es el artista real (una
+// descarga de "supercell" puede quedar acreditada a "LumenAster23"), así que
+// incluirlo daría falsos negativos prácticamente siempre. cleanTitle quita
+// además el ruido de yt-dlp, con lo que una pista ya descargada y su propio
+// resultado remoto producen la MISMA cadena.
+func ownedTitles(tracks []library.Track) map[string]bool {
+	owned := make(map[string]bool, len(tracks))
+	for _, t := range tracks {
+		if k := ownedKey(t.Artist, t.Title); k != "" {
+			owned[k] = true
+		}
+	}
+	return owned
+}
+
+func ownedKey(artist, title string) string {
+	return strings.TrimSpace(library.Fold(cleanTitle(artist, title)))
 }
 
 // getItems arma las entradas del picker. El valor es el ÍNDICE en
@@ -188,10 +223,20 @@ func (m *Model) tickGetSpin() (tea.Model, tea.Cmd) {
 // títulos traen exactamente el ruido que ya sabe quitar ("(Official Video)",
 // el canal repetido delante del título). La duración es la señal que separa
 // una canción de un mix de tres horas o un live, y sale gratis del JSON.
-func getItems(res []getter.Result) []pickerItem {
+//
+// owned marca lo que ya está en la biblioteca. Es una PISTA y no un bloqueo:
+// un cover legítimo con el mismo título saldrá marcado, y descargarlo sigue
+// estando a un enter — falso positivo barato, falso negativo caro. El
+// marcador va delante y los no marcados llevan su hueco, para que la columna
+// de títulos siga alineada (el ancho ya escasea: los títulos se recortan).
+func getItems(res []getter.Result, owned map[string]bool) []pickerItem {
 	items := make([]pickerItem, 0, len(res))
 	for i, r := range res {
-		label := trackLabel(r.Uploader, r.Title)
+		mark := "  "
+		if owned[ownedKey(r.Uploader, r.Title)] {
+			mark = "✓ "
+		}
+		label := mark + trackLabel(r.Uploader, r.Title)
 		if r.Duration > 0 {
 			label += "  [" + ipc.FmtTime(r.Duration) + "]"
 		}

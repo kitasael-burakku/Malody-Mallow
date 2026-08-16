@@ -12,6 +12,7 @@ import (
 
 	"maly/internal/config"
 	"maly/internal/getter"
+	"maly/internal/library"
 )
 
 // fakeTools deja yt-dlp y ffmpeg mudos en un PATH propio: startGet solo los
@@ -479,5 +480,64 @@ func TestGetViewNoDesborda(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestOwnedMarcaLoQueYaTienes: el marcador compara por título limpio y
+// plegado SIN el artista, porque el uploader de YouTube casi nunca es el
+// artista real — incluirlo daría falsos negativos siempre.
+func TestOwnedMarcaLoQueYaTienes(t *testing.T) {
+	// Una pista tal como la deja `maly get`: acreditada al canal, no al
+	// artista, y con el ruido de yt-dlp en el título.
+	owned := ownedTitles([]library.Track{
+		{Artist: "LumenAster23", Title: "Kimi no Shiranai Monogatari (Official Video)"},
+		{Artist: "AURORA", Title: "Runaway"},
+	})
+
+	res := []getter.Result{
+		// Mismo título, OTRO canal: debe marcarse igual.
+		{Title: "Kimi no Shiranai Monogatari", Uploader: "ryo (supercell)", URL: "https://x/1"},
+		// Mismo título con ruido distinto: cleanTitle los iguala.
+		{Title: "Runaway [Lyric Video]", Uploader: "AURORA VEVO", URL: "https://x/2"},
+		// Otra canción: sin marcar.
+		{Title: "Runaway Train", Uploader: "Soul Asylum", URL: "https://x/3"},
+	}
+	items := getItems(res, owned)
+
+	for i, want := range []bool{true, true, false} {
+		got := strings.HasPrefix(items[i].label, "✓")
+		if got != want {
+			t.Errorf("resultado %d (%q): marcado=%v, quería %v", i, res[i].Title, got, want)
+		}
+	}
+	// Los no marcados llevan su hueco: la columna de títulos queda alineada.
+	if !strings.HasPrefix(items[2].label, "  ") {
+		t.Errorf("un resultado sin marcar debe llevar el hueco: %q", items[2].label)
+	}
+	if lipgloss.Width(items[0].label[:len("✓ ")]) != lipgloss.Width(items[2].label[:2]) {
+		t.Error("el marcador y su hueco deben ocupar lo mismo")
+	}
+}
+
+// TestOwnedBibliotecaVacia: sin biblioteca no se marca nada (y no revienta).
+func TestOwnedBibliotecaVacia(t *testing.T) {
+	items := getItems([]getter.Result{{Title: "algo", Uploader: "a", URL: "https://x/1"}}, nil)
+	if strings.HasPrefix(items[0].label, "✓") {
+		t.Errorf("sin biblioteca no debe marcarse nada: %q", items[0].label)
+	}
+}
+
+// TestOwnedSetUsaElArbolCargado: el conjunto sale del árbol que la TUI ya
+// tiene en memoria — nada de reconsultar la base por cada búsqueda.
+func TestOwnedSetUsaElArbolCargado(t *testing.T) {
+	m := newGetModel()
+	m.tree = buildTree([]library.Track{{Artist: "a", Title: "Runaway", Path: "/x.mp3"}}, nil)
+	if !m.ownedSet()[ownedKey("a", "Runaway")] {
+		t.Error("ownedSet debía reconocer la pista del árbol")
+	}
+
+	m.tree = nil // antes de la primera carga
+	if m.ownedSet() != nil {
+		t.Error("sin árbol cargado no hay conjunto")
 	}
 }

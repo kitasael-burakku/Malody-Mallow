@@ -182,14 +182,21 @@ func completeTracks(args []string, cur string) []string {
 // completeGet ofrece "playlist" como único candidato del primer argumento:
 // el resto (URL, búsqueda, nombre de playlist) es texto libre sin fuente
 // sensata de completado.
+// getSubs son los subcomandos de `maly get`. Lista fija y no derivada: el
+// resto de la línea es una consulta libre o una URL, que no se completan.
+var getSubs = []string{"pick", "playlist"}
+
 func completeGet(args []string, cur string) []string {
 	if len(args) > 0 {
 		return nil
 	}
-	if strings.HasPrefix("playlist", cur) {
-		return []string{"playlist"}
+	var out []string
+	for _, s := range getSubs {
+		if strings.HasPrefix(s, cur) {
+			out = append(out, s)
+		}
 	}
-	return nil
+	return out
 }
 
 // completePlaylist anida: primero el subcomando, después nombres de playlist

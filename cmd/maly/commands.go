@@ -223,6 +223,7 @@ func helpText() string {
 	example("maly playlist add favs luna")
 	example("maly playlist export favs")
 	example("maly get \"aurora runaway\"")
+	example("maly get pick \"aurora runaway\"")
 	example("maly get playlist https://youtube.com/playlist?list=... favs")
 
 	sec(i18n.T("cli.sec_keys"), i18n.T("cli.sec_keys_note"))

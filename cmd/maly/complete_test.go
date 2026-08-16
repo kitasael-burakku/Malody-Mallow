@@ -87,18 +87,23 @@ func TestCompletePlaylistSubs(t *testing.T) {
 	}
 }
 
-// TestCompleteGetPlaylist: el único candidato dinámico de `get` es el
-// subcomando "playlist"; el resto (URL, búsqueda, nombre) es texto libre.
-func TestCompleteGetPlaylist(t *testing.T) {
+// TestCompleteGetSubs: los únicos candidatos dinámicos de `get` son sus
+// subcomandos; el resto (URL, búsqueda, nombre) es texto libre. Lista FIJA a
+// propósito, como la de TestCompletePlaylistSubs: si se agrega un subcomando
+// hay que tocar este test, que es justo el aviso que se quiere.
+func TestCompleteGetSubs(t *testing.T) {
 	xdgSandbox(t)
-	if got := strings.Join(values(completeArgs([]string{"get", ""})), ","); got != "playlist" {
+	if got := strings.Join(values(completeArgs([]string{"get", ""})), ","); got != "pick,playlist" {
 		t.Errorf("primer argumento de get: %q", got)
 	}
 	if got := strings.Join(values(completeArgs([]string{"get", "pl"})), ","); got != "playlist" {
 		t.Errorf("prefijo \"pl\": %q", got)
 	}
+	if got := strings.Join(values(completeArgs([]string{"get", "pi"})), ","); got != "pick" {
+		t.Errorf("prefijo \"pi\": %q", got)
+	}
 	if got := completeArgs([]string{"get", "https://x"}); got != nil {
-		t.Errorf("un prefijo que no matchea \"playlist\" no debe ofrecerlo: %v", got)
+		t.Errorf("un prefijo que no matchea ningún subcomando no debe ofrecer nada: %v", got)
 	}
 	if got := completeArgs([]string{"get", "playlist", "https://x/list", ""}); got != nil {
 		t.Errorf("el segundo argumento en adelante es texto libre: %v", got)

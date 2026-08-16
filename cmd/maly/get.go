@@ -13,6 +13,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/library"
 	"maly/internal/safetext"
+	"maly/internal/tui"
 )
 
 // runGet descarga audio a music_dir con yt-dlp y re-escanea la biblioteca:
@@ -23,31 +24,70 @@ func runGet(args []string) error {
 	if len(args) == 0 {
 		return errors.New(i18n.T("cli.usage_get_cmd"))
 	}
-	if args[0] == "playlist" {
+	switch args[0] {
+	case "playlist":
 		return runGetPlaylist(args[1:])
+	case "pick":
+		return runGetPick(args[1:])
 	}
 	if err := getter.Tools(); err != nil {
 		return err
 	}
-
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	dir := cfg.MusicPath()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-
 	query := strings.Join(args, " ")
-	spec := getter.Spec(query)
 	// El mensaje usa la consulta ORIGINAL, no spec: Spec() antepone
 	// "ytsearch1:" para lo que no es URL, y ese prefijo interno de yt-dlp no
 	// tiene nada que hacerle en un mensaje de usuario (auditoría 2026-07-31,
 	// hallazgo G4). spec sigue siendo lo que se le pasa a yt-dlp.
-	fmt.Println(i18n.Tf("cli.get_start", query, dir))
+	return downloadOne(cfg, getter.Spec(query), query)
+}
+
+// runGetPick busca en YouTube y deja ELEGIR el resultado antes de bajarlo,
+// como el ctrl+g de la TUI pero sin abrirla. Existe porque `maly get
+// <consulta>` baja el primer resultado a ciegas.
+//
+// No exige demonio: descargar no pasa por él salvo el re-escaneo final, que
+// ya degrada solo a escribir directo en la DB. Por eso NO se copia el
+// ipc.Ping que sí hace `maly select`, que reproduce y por tanto lo necesita.
+func runGetPick(args []string) error {
+	query := strings.TrimSpace(strings.Join(args, " "))
+	if query == "" {
+		return errors.New(i18n.T("cli.usage_get_pick"))
+	}
+	if err := getter.Tools(); err != nil {
+		return err
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	// El picker devuelve "" si el usuario canceló con esc/ctrl+c: cancelar no
+	// es un error, así que se sale en silencio y con código 0.
+	url, err := tui.RunGetPick(cfg, query)
+	if err != nil {
+		return err
+	}
+	if url == "" {
+		return nil
+	}
+	return downloadOne(cfg, url, url)
+}
+
+// downloadOne baja UNA pista y deja la biblioteca al día. Es el camino común
+// de `maly get <consulta|url>` y de `maly get pick`: label es lo que se le
+// muestra al usuario (la consulta escrita o la URL elegida), spec lo que se
+// le pasa a yt-dlp.
+func downloadOne(cfg config.Config, spec, label string) error {
+	dir := cfg.MusicPath()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	fmt.Println(i18n.Tf("cli.get_start", label, dir))
 	// Snapshot ANTES de descargar: mismo mecanismo de diff que get playlist
-	// (dirEntries), aplicado acá a una descarga de una sola pista, para
+	// (getter.Snapshot), aplicado acá a una descarga de una sola pista, para
 	// poder decir DESPUÉS qué se bajó en concreto (auditoría 2026-07-31,
 	// hallazgo G5: el cierre eran los totales de la biblioteca COMPLETA
 	// —"Done: N new..."—, fácil de confundir con el resultado de la

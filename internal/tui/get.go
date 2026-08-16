@@ -249,16 +249,15 @@ func getItems(res []getter.Result, owned map[string]bool) []pickerItem {
 // downloadSelected para poder fijar en un test que enter descarga el que está
 // seleccionado y no otro.
 func (m *Model) selectedResult() (getter.Result, bool) {
-	it, ok := m.get.current()
-	if !ok {
-		return getter.Result{}, false
-	}
-	i, err := strconv.Atoi(it.value)
-	if err != nil || i < 0 || i >= len(m.getResults) {
-		return getter.Result{}, false
-	}
-	return m.getResults[i], true
+	return pickedResult(m.get, m.getResults)
 }
+
+// oneLine aplasta un error multilínea en una sola fila. Los de
+// getter.Tools() traen su instrucción de instalación en una SEGUNDA línea, y
+// el cuerpo de un panel es UNA fila: sin esto el salto parte la fila y deja
+// la primera mitad sin borde derecho. Compartido con la pantalla de
+// `maly get pick`.
+func oneLine(s string) string { return strings.ReplaceAll(s, "\n", " · ") }
 
 // downloadSelected entrega la URL elegida a startGet y cierra la pantalla:
 // yt-dlp toma el terminal y su progreso pasa directo, como en la consola.
@@ -288,10 +287,7 @@ func (m *Model) getBody() string {
 	case getEmpty:
 		return i18n.Tf("get.none", m.getQuery)
 	case getFailed:
-		// Los errores de getter.Tools() traen su instrucción de instalación
-		// en una SEGUNDA línea, y el cuerpo del panel es una sola: sin esto,
-		// el salto de línea rompe el marco.
-		return strings.ReplaceAll(m.getErr, "\n", " · ")
+		return oneLine(m.getErr)
 	default:
 		return i18n.T("get.idle")
 	}

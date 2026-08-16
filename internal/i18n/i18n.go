@@ -170,6 +170,8 @@ var table = map[string][2]string{
 	"get.hint_search":  {"enter searches · esc closes", "enter busca · esc cierra"},
 	"get.hint_results": {"%d result(s) · ↑↓ choose · enter downloads · esc closes", "%d resultado(s) · ↑↓ elige · enter descarga · esc cierra"},
 	"get.hint_again":   {"enter searches again · esc closes", "enter busca de nuevo · esc cierra"},
+	"get.hint_pick":    {"%d result(s) · ↑↓ choose · enter downloads · esc cancels", "%d resultado(s) · ↑↓ elige · enter descarga · esc cancela"},
+	"get.hint_cancel":  {"esc cancels", "esc cancela"},
 
 	// ---- TUI: panel de playlists ----
 	"plsel.title":          {"Playlists", "Playlists"},
@@ -271,7 +273,8 @@ var table = map[string][2]string{
 	"cli.scan_noexist":      {"%s does not exist (from %s). Point maly at your music with: maly scan <path>", "%s no existe (viene de %s). Indica dónde está tu música con: maly scan <ruta>"},
 	"cli.scan_noexist_arg":  {"%s does not exist", "%s no existe"},
 	"cli.search_none":       {"No results. Did you scan the library? (maly scan)", "Sin resultados. ¿Ya escaneaste la biblioteca? (maly scan)"},
-	"cli.usage_get_cmd":     {"usage: maly get <url|search> | maly get playlist <url> [name]", "uso: maly get <url|búsqueda> | maly get playlist <url> [nombre]"},
+	"cli.usage_get_cmd":     {"usage: maly get <url|search> | maly get pick <search> | maly get playlist <url> [name]", "uso: maly get <url|búsqueda> | maly get pick <búsqueda> | maly get playlist <url> [nombre]"},
+	"cli.usage_get_pick":    {"usage: maly get pick <search> — search and choose before downloading", "uso: maly get pick <búsqueda> — busca y elige antes de descargar"},
 	"cli.get_missing":       {"maly get needs %s, which is not in your PATH", "maly get necesita %s, que no está en tu PATH"},
 	"cli.get_install":       {"install it: sudo pacman -S %s · sudo apt install %s · sudo dnf install %s", "instálalo: sudo pacman -S %s · sudo apt install %s · sudo dnf install %s"},
 	"cli.get_start":         {"Downloading %s → %s", "Descargando %s → %s"},

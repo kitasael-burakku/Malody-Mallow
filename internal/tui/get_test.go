@@ -541,3 +541,125 @@ func TestOwnedSetUsaElArbolCargado(t *testing.T) {
 		t.Error("sin árbol cargado no hay conjunto")
 	}
 }
+
+// TestPickBodyYHint fijan los textos por estado de `maly get pick`, con la
+// misma división que la pantalla de la TUI: el cuerpo dice en qué estado
+// está, el pie qué teclas hay.
+func TestPickBodyYHint(t *testing.T) {
+	if b := pickBody(getSearching, "aurora", "", 0); !strings.Contains(b, "aurora") {
+		t.Errorf("buscando debía nombrar la consulta: %q", b)
+	}
+	if b := pickBody(getEmpty, "aurora", "", 0); !strings.Contains(b, "aurora") {
+		t.Errorf("sin resultados debía nombrar la consulta: %q", b)
+	}
+	if b := pickBody(getResults, "aurora", "", 0); b != "" {
+		t.Errorf("con resultados el cuerpo lo ocupa la lista: %q", b)
+	}
+	// El error de getter.Tools() trae la instrucción de instalación en una
+	// SEGUNDA línea, y el cuerpo del panel es UNA fila: un \n ahí parte la
+	// fila y deja la primera mitad sin borde derecho.
+	b := pickBody(getFailed, "aurora", "maly get necesita ffmpeg\ninstálalo: pacman -S ffmpeg", 0)
+	if strings.Contains(b, "\n") {
+		t.Errorf("el cuerpo debe ser UNA línea: %q", b)
+	}
+	if !strings.Contains(b, "ffmpeg") || !strings.Contains(b, "instálalo") {
+		t.Errorf("aplastar el error no debe perder texto: %q", b)
+	}
+
+	if h := pickHint(getResults, 7); !strings.Contains(h, "7") {
+		t.Errorf("con resultados el pie debía contarlos: %q", h)
+	}
+	if pickHint(getSearching, 0) == pickHint(getResults, 0) {
+		t.Error("el pie debe distinguir buscando de elegible")
+	}
+}
+
+// TestPickedResultSigueAlCursor: el picker guarda el ÍNDICE, no la URL, así
+// que resolverlo mal descargaría otra cosa. Es la misma función que usa la
+// pantalla de la TUI (selectedResult se apoya en ella).
+func TestPickedResultSigueAlCursor(t *testing.T) {
+	res := []getter.Result{
+		{Title: "uno", URL: "https://x/1"},
+		{Title: "dos", URL: "https://x/2"},
+	}
+	pk := newPicker(newStyles(config.Theme{}), "")
+	pk.noFilter = true
+	pk.setItems(getItems(res, nil))
+
+	if r, ok := pickedResult(pk, res); !ok || r.URL != "https://x/1" {
+		t.Fatalf("sin mover el cursor debía ser el primero: %+v", r)
+	}
+	pk.handleKey(tea.KeyMsg{Type: tea.KeyDown})
+	if r, ok := pickedResult(pk, res); !ok || r.URL != "https://x/2" {
+		t.Fatalf("tras un ↓ debía ser el segundo: %+v", r)
+	}
+	// Lista vacía: no hay nada que elegir y no debe reventar.
+	empty := newPicker(newStyles(config.Theme{}), "")
+	if _, ok := pickedResult(empty, res); ok {
+		t.Error("sin ítems no hay resultado elegido")
+	}
+}
+
+// TestPickModelFlujo: la consulta ya viene dada, así que se busca de entrada;
+// enter con resultados devuelve la URL elegida y esc cancela sin error.
+func TestPickModelFlujo(t *testing.T) {
+	newModel := func() *getPickModel {
+		return &getPickModel{
+			st: newStyles(config.Theme{}), pk: newPicker(newStyles(config.Theme{}), ""),
+			query: "aurora", width: 100, height: 30,
+		}
+	}
+
+	m := newModel()
+	if cmd := m.Init(); cmd == nil || m.phase != getSearching {
+		t.Fatal("debía arrancar buscando sin pedir otro enter")
+	}
+	m.Update(getResultsMsg{results: []getter.Result{
+		{Title: "uno", URL: "https://x/1"},
+		{Title: "dos", URL: "https://x/2"},
+	}})
+	if m.phase != getResults {
+		t.Fatalf("con resultados la fase debía ser getResults, fue %v", m.phase)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.chosen != "https://x/2" {
+		t.Errorf("enter debía elegir el segundo, eligió %q", m.chosen)
+	}
+
+	// esc cancela: sin URL y sin error, para que la CLI salga con código 0.
+	c := newModel()
+	c.Update(getResultsMsg{results: []getter.Result{{Title: "uno", URL: "https://x/1"}}})
+	c.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if c.chosen != "" || c.err != nil {
+		t.Errorf("cancelar no es un error: chosen=%q err=%v", c.chosen, c.err)
+	}
+
+	// Enter mientras busca no elige nada.
+	s := newModel()
+	s.Init()
+	s.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if s.chosen != "" {
+		t.Errorf("enter buscando no debía elegir: %q", s.chosen)
+	}
+}
+
+// TestPickViewNoDesborda: mismo invariante que la pantalla de la TUI —
+// panel() rellena pero NO acorta, y los títulos de YouTube son texto ajeno
+// arbitrariamente largo.
+func TestPickViewNoDesborda(t *testing.T) {
+	largo := strings.Repeat("título interminable ", 20)
+	for _, w := range []int{60, 100, 200} {
+		m := &getPickModel{
+			st: newStyles(config.Theme{}), pk: newPicker(newStyles(config.Theme{}), ""),
+			query: largo, width: w, height: 30,
+		}
+		m.pk.noFilter = true
+		m.Update(getResultsMsg{results: []getter.Result{
+			{Title: largo, Uploader: largo, Duration: 3600, URL: "https://x/1"},
+		}})
+		out := m.View()
+		boxLinesFitWithin(t, out, pickerWidth(w))
+		boxLinesSameWidth(t, out, pickerWidth(w))
+	}
+}

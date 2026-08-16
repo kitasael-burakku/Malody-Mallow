@@ -467,13 +467,13 @@ func TestGetViewNoDesborda(t *testing.T) {
 				m.openGet()
 				tc.setup(m)
 				out := m.getView()
-				boxLinesFitWithin(t, out, pickerWidth(w))
+				boxLinesFitWithin(t, out, pickerWidthMax(w, getPickerWidth))
 				// La caja es un RECTÁNGULO: toda fila mide exactamente lo
 				// mismo. Solo medir "no se pasa del ancho" no basta — un \n
 				// dentro de una línea parte la fila y deja la primera mitad
 				// SIN borde derecho, que es más angosta y por tanto pasaría
 				// el chequeo de tope.
-				boxLinesSameWidth(t, out, pickerWidth(w))
+				boxLinesSameWidth(t, out, pickerWidthMax(w, getPickerWidth))
 				if strings.Count(out, "\n")+1 > m.height {
 					t.Errorf("ancho %d: la vista tiene más filas (%d) que la terminal (%d)",
 						w, strings.Count(out, "\n")+1, m.height)
@@ -659,7 +659,74 @@ func TestPickViewNoDesborda(t *testing.T) {
 			{Title: largo, Uploader: largo, Duration: 3600, URL: "https://x/1"},
 		}})
 		out := m.View()
-		boxLinesFitWithin(t, out, pickerWidth(w))
-		boxLinesSameWidth(t, out, pickerWidth(w))
+		boxLinesFitWithin(t, out, pickerWidthMax(w, getPickerWidth))
+		boxLinesSameWidth(t, out, pickerWidthMax(w, getPickerWidth))
+	}
+}
+
+// TestFmtViews: sin decimales y sin palabras, por lo que dice su doc — lo que
+// discrimina es el orden de magnitud, y un separador decimal obligaría a
+// elegir entre "6,6M" y "6.6M".
+func TestFmtViews(t *testing.T) {
+	for _, tc := range []struct {
+		in   int64
+		want string
+	}{
+		{0, ""}, {-5, ""}, // desconocido: nada
+		{1, "1"}, {999, "999"},
+		{1_000, "1K"}, {12_345, "12K"},
+		{999_999, "999K"}, // truncado, no "1000K"
+		{1_000_000, "1M"}, {6_637_486, "6M"}, {808_022_045, "808M"},
+		{1_500_000_000, "1B"},
+	} {
+		if got := fmtViews(tc.in); got != tc.want {
+			t.Errorf("fmtViews(%d) = %q, quería %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// TestGetItemsMeta: duración y visitas comparten UN corchete, y cada una
+// desaparece sola si no se conoce.
+func TestGetItemsMeta(t *testing.T) {
+	items := getItems([]getter.Result{
+		{Title: "completo", Uploader: "a", Duration: 250, Views: 808_022_045, URL: "https://x/1"},
+		{Title: "sin visitas", Uploader: "a", Duration: 250, URL: "https://x/2"},
+		{Title: "sin duración", Uploader: "a", Views: 12_345, URL: "https://x/3"},
+		{Title: "pelado", Uploader: "a", URL: "https://x/4"},
+	}, nil)
+
+	if !strings.Contains(items[0].label, "[04:10 · 808M]") {
+		t.Errorf("con ambos datos debía ir un solo corchete: %q", items[0].label)
+	}
+	if !strings.HasSuffix(items[1].label, "[04:10]") {
+		t.Errorf("sin visitas queda la duración sola: %q", items[1].label)
+	}
+	if !strings.HasSuffix(items[2].label, "[12K]") {
+		t.Errorf("sin duración quedan las visitas solas: %q", items[2].label)
+	}
+	if strings.Contains(items[3].label, "[") {
+		t.Errorf("sin ninguno de los dos no debe haber corchete: %q", items[3].label)
+	}
+}
+
+// TestPickerWidthMax: subir el tope de las pantallas de búsqueda no toca una
+// sola celda de los demás pickers ni de las terminales normales — la regla de
+// los dos tercios sigue mandando por debajo del tope.
+func TestPickerWidthMax(t *testing.T) {
+	for _, tc := range []struct {
+		term, shared, get int
+	}{
+		{190, 100, 126}, // terminal ancha: acá sí se nota
+		{150, 100, 100},
+		{120, 80, 80}, // manda 2/3: idénticos
+		{80, 53, 53},
+		{40, 36, 36}, // muy angosta: termW-4 en ambos
+	} {
+		if got := pickerWidth(tc.term); got != tc.shared {
+			t.Errorf("pickerWidth(%d) = %d, quería %d", tc.term, got, tc.shared)
+		}
+		if got := pickerWidthMax(tc.term, getPickerWidth); got != tc.get {
+			t.Errorf("ancho de búsqueda(%d) = %d, quería %d", tc.term, got, tc.get)
+		}
 	}
 }

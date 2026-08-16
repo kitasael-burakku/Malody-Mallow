@@ -14,7 +14,7 @@ package getter
 // HTTP propio, solo un proceso más al que se le pregunta.
 //
 // El acoplamiento se mantiene mínimo a propósito: de los ~50 campos que trae
-// cada entrada se decodifican CINCO, así que yt-dlp puede agregar, quitar o
+// cada entrada se decodifican SEIS, así que yt-dlp puede agregar, quitar o
 // reordenar el resto sin romper nada.
 
 import (
@@ -54,6 +54,11 @@ type Result struct {
 	Uploader string
 	Duration float64 // segundos; 0 = desconocida (lives, streams)
 	URL      string
+	// Views separa la subida canónica de un re-upload cualquiera, que es la
+	// pregunta que ni el título ni el canal contestan: buscando "aurora
+	// runaway", el oficial tiene 808M y los dos siguientes 6M y 10M. 0 =
+	// desconocido (no se muestra).
+	Views int64
 }
 
 // Search le pide a yt-dlp los n primeros resultados de buscar query en
@@ -122,7 +127,7 @@ func Search(ctx context.Context, query string, n int) ([]Result, error) {
 	return decodeResults(out), nil
 }
 
-// searchEntry es el subconjunto de --dump-json que maly mira. Cinco campos
+// searchEntry es el subconjunto de --dump-json que maly mira. Seis campos
 // de los ~50 que trae cada entrada: es toda la superficie de acoplamiento con
 // el formato de yt-dlp.
 type searchEntry struct {
@@ -133,6 +138,11 @@ type searchEntry struct {
 	URL      string  `json:"url"`
 	// LiveStatus filtra lo que no es descargable como pista; ver notLive.
 	LiveStatus string `json:"live_status"`
+	// ViewCount se decodifica como float64 y no como int64 a propósito, igual
+	// que Duration: si yt-dlp emitiera el número en notación exponencial, un
+	// int64 fallaría el Decode y —al cortar decodeResults el bucle ante un
+	// objeto ilegible— se perderían TODOS los resultados a partir de ahí.
+	ViewCount float64 `json:"view_count"`
 }
 
 // notLive son los DOS valores de live_status que se descartan, enumerados
@@ -210,7 +220,11 @@ func (e searchEntry) result() (Result, bool) {
 	if !(dur > 0) {
 		dur = 0
 	}
-	return Result{Title: title, Uploader: up, Duration: dur, URL: url}, true
+	var views int64
+	if e.ViewCount > 0 { // misma guarda, mismo motivo
+		views = int64(e.ViewCount)
+	}
+	return Result{Title: title, Uploader: up, Duration: dur, URL: url, Views: views}, true
 }
 
 // cmdErr resume el fallo de yt-dlp. Su stderr dice qué pasó de verdad;

@@ -48,6 +48,12 @@ const (
 // panel y la consulta cuesta lo mismo que pedir tres.
 const getResultCount = 10
 
+// getPickerWidth es el tope de ancho de las pantallas de búsqueda, más alto
+// que el de los demás pickers (ver pickerWidthMax). Medido: en un terminal de
+// 190 columnas la caja pasa de 100 a 126 celdas; en uno de 120 o de 80 no
+// cambia nada, porque ahí manda la regla de los dos tercios.
+const getPickerWidth = 140
+
 // getSpinFrames es el spinner de la búsqueda (mismo braille que el
 // instalador).
 var getSpinFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
@@ -237,12 +243,45 @@ func getItems(res []getter.Result, owned map[string]bool) []pickerItem {
 			mark = "✓ "
 		}
 		label := mark + trackLabel(r.Uploader, r.Title)
+		// Duración y visitas comparten UN corchete: dos costarían tres celdas
+		// más por fila justo donde escasean, y juntos se leen como una tabla.
+		var meta []string
 		if r.Duration > 0 {
-			label += "  [" + ipc.FmtTime(r.Duration) + "]"
+			meta = append(meta, ipc.FmtTime(r.Duration))
+		}
+		if v := fmtViews(r.Views); v != "" {
+			meta = append(meta, v)
+		}
+		if len(meta) > 0 {
+			label += "  [" + strings.Join(meta, " · ") + "]"
 		}
 		items = append(items, newPickerItem(label, strconv.Itoa(i)))
 	}
 	return items
+}
+
+// fmtViews abrevia el número de visitas: 808022045 → "808M", 12345 → "12K".
+//
+// SIN decimales y SIN la palabra "visitas", y las dos cosas por el mismo
+// motivo: un decimal obligaría a elegir separador (6,6M o 6.6M) y la palabra
+// obligaría a i18n, y ambas se comerían celdas de título en una fila que ya
+// se recorta. El número solo se entiende igual en los dos idiomas, y lo que
+// de verdad discrimina es el orden de magnitud —808M frente a 6M—, no la
+// primera cifra decimal.
+//
+// Se trunca en vez de redondear para que 999999 dé "999K" y no "1000K".
+func fmtViews(n int64) string {
+	switch {
+	case n <= 0:
+		return "" // desconocido: no se muestra nada
+	case n < 1_000:
+		return strconv.FormatInt(n, 10)
+	case n < 1_000_000:
+		return strconv.FormatInt(n/1_000, 10) + "K"
+	case n < 1_000_000_000:
+		return strconv.FormatInt(n/1_000_000, 10) + "M"
+	}
+	return strconv.FormatInt(n/1_000_000_000, 10) + "B"
 }
 
 // selectedResult resuelve el resultado bajo el cursor. Separado de
@@ -304,7 +343,7 @@ func (m *Model) getHint() string {
 }
 
 func (m *Model) getView() string {
-	w := pickerWidth(m.width)
+	w := pickerWidthMax(m.width, getPickerWidth)
 	maxRows := m.height - 10
 	if maxRows > 14 {
 		maxRows = 14

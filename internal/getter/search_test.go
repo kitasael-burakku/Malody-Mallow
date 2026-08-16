@@ -323,3 +323,35 @@ func TestSearchDescartaLives(t *testing.T) {
 		}
 	}
 }
+
+// TestSearchViewCount: las visitas separan la subida canónica de un
+// re-upload, que es la pregunta que ni el título ni el canal contestan.
+// El campo se decodifica como float64 a propósito (ver searchEntry): con
+// int64, una entrada en notación exponencial rompería el Decode y
+// decodeResults perdería TODOS los resultados a partir de ahí.
+func TestSearchViewCount(t *testing.T) {
+	fakeYtdlp(t, emit(
+		`{"title":"oficial","uploader":"a","duration":250,"url":"https://x/1","view_count":808022045}`,
+		`{"title":"exponencial","uploader":"a","duration":250,"url":"https://x/2","view_count":8.08e8}`,
+		`{"title":"sin el campo","uploader":"a","duration":250,"url":"https://x/3"}`,
+		`{"title":"nulo","uploader":"a","duration":250,"url":"https://x/4","view_count":null}`,
+	))
+
+	res, err := Search(context.Background(), "x", 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res) != 4 {
+		t.Fatalf("quería 4 resultados, hubo %d: %+v", len(res), res)
+	}
+	if res[0].Views != 808022045 {
+		t.Errorf("visitas mal decodificadas: %d", res[0].Views)
+	}
+	if res[1].Views != 808000000 {
+		t.Errorf("la notación exponencial debía decodificar, dio %d", res[1].Views)
+	}
+	// Ausente o null quedan en 0 = desconocido, y no se muestra nada.
+	if res[2].Views != 0 || res[3].Views != 0 {
+		t.Errorf("sin dato debía quedar en 0: %d / %d", res[2].Views, res[3].Views)
+	}
+}

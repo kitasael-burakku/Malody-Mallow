@@ -148,18 +148,29 @@ func (p *picker) handleKey(msg tea.KeyMsg) tea.Cmd {
 
 // pickerWidth calcula el ancho del modal según el ancho del terminal (mismo
 // criterio que la consola ctrl+p).
-func pickerWidth(termW int) int {
+//
+// Tope de 100: subido en su día de 80 porque en terminales anchas las
+// descripciones largas de conHelp() (p. ej. la de playlist, que lista los
+// ocho subcomandos) perdían más texto del necesario — 100 les da lugar de
+// sobra sin volver la caja desproporcionada en terminales normales (decisión
+// del dueño, auditoría de UX post-1.12.0).
+func pickerWidth(termW int) int { return pickerWidthMax(termW, 100) }
+
+// pickerWidthMax es pickerWidth con el tope elegido por el llamador. Existe
+// para las pantallas de búsqueda de descargas, que son los únicos pickers
+// cuyos ítems son texto AJENO y largo (títulos de YouTube, que se recortan
+// constantemente) y que además llevan duración y visitas al final.
+//
+// La regla de los dos tercios manda igual: el tope solo deja de estorbar en
+// terminales anchas, así que subirlo NO cambia una sola celda por debajo de
+// 150 columnas y nadie que hoy esté cómodo nota la diferencia.
+func pickerWidthMax(termW, max int) int {
 	w := termW * 2 / 3
 	if w < 50 {
 		w = termW - 4
 	}
-	// Tope subido de 80 a 100: en terminales anchas, descripciones largas
-	// de conHelp() (p. ej. la de playlist, que lista los ocho subcomandos)
-	// perdían más texto del necesario contra un tope conservador — 100 les
-	// da lugar de sobra sin volver la caja desproporcionada en terminales
-	// normales (decisión del dueño, auditoría de UX post-1.12.0).
-	if w > 100 {
-		w = 100
+	if w > max {
+		w = max
 	}
 	return w
 }

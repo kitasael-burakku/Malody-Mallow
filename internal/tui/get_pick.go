@@ -148,7 +148,7 @@ func (m *getPickModel) View() string {
 	if m.done || m.width == 0 {
 		return ""
 	}
-	w := pickerWidth(m.width)
+	w := pickerWidthMax(m.width, getPickerWidth)
 	maxRows := m.height - 8
 	if maxRows > 12 {
 		maxRows = 12

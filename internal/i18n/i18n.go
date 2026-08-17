@@ -245,7 +245,7 @@ var table = map[string][2]string{
 	"cli.preset_vim":        {"x removes, < / > prev/next (hjkl, gg, G always work)", "x quita, < / > anterior/siguiente (hjkl, gg y G siempre funcionan)"},
 	"cli.sec_examples":      {"EXAMPLES", "EJEMPLOS"},
 	"cli.sec_keys":          {"TUI KEYS", "ATAJOS EN LA TUI"},
-	"cli.sec_keys_note":     {"press ? inside the TUI for the full list", "pulsa ? dentro de la TUI para la lista completa"},
+	"cli.sec_keys_note":     {"as configured; ? shows them inside the TUI too", "tal como están configuradas; ? también las muestra dentro de la TUI"},
 	"cli.unknown":           {"maly: unknown subcommand %q", "maly: subcomando desconocido %q"},
 	"cli.more":              {"run `maly -h` for help", "ejecuta `maly -h` para ver la ayuda"},
 

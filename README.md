@@ -505,6 +505,7 @@ maly           # abre la TUI
 | `h j k l` | navegación vim |
 | `gg` / `G` | inicio / fin de la lista |
 | `ctrl+d` / `ctrl+u` | media página abajo / arriba |
+| `pgup` / `pgdn` · `home` / `end` | página arriba/abajo · inicio / final |
 | `s` / `r` | shuffle / repeat |
 | `v` | alterna el visualizador |
 | `ctrl+t` | pantalla "Ahora suena" (carátula, letras, visualizador) |

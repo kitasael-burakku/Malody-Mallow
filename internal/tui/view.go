@@ -434,31 +434,9 @@ func (m *Model) footer() string {
 }
 
 func (m *Model) helpView() string {
-	k := m.keys
-	rows := [][2]string{
-		{k["play_pause"], i18n.T("help.play_pause")},
-		{k["next"] + " / " + k["prev"], i18n.T("help.next_prev")},
-		{k["vol_up"] + " / " + k["vol_down"], i18n.T("help.volume")},
-		{k["seek_forward"] + " / " + k["seek_back"], i18n.T("help.seek")},
-		{k["switch_panel"], i18n.T("help.switch")},
-		{"enter", i18n.T("help.enter")},
-		{k["add"], i18n.T("help.add")},
-		{k["remove"], i18n.T("help.remove")},
-		{k["move_up"] + " / " + k["move_down"], i18n.T("help.move")},
-		{k["filter"], i18n.T("help.filter")},
-		{"h j k l", i18n.T("help.vim_nav")},
-		{"gg/G ctrl+d/u", i18n.T("help.jump_scroll")},
-		{"pgup/pgdn home/end", i18n.T("help.page_keys")},
-		{k["shuffle"] + " / " + k["repeat"], i18n.T("help.shuffle_repeat")},
-		{k["toggle_viz"], i18n.T("help.toggle_viz")},
-		{k["now_playing"], i18n.T("help.now_playing")},
-		{k["palette"], i18n.T("help.palette")},
-		{k["songs"], i18n.T("help.songs")},
-		{k["playlists"], i18n.T("help.playlists")},
-		{k["get"], i18n.T("help.get")},
-		{k["playlist_add"], i18n.T("help.playlist_add")},
-		{k["quit"], i18n.T("help.quit")},
-	}
+	// Las filas salen de HelpRows, compartida con la sección de atajos de
+	// `maly -h`: un atajo nuevo aparece en los dos lados o en ninguno.
+	rows := HelpRows(m.keys)
 	// Columna de teclas a la medida de la más ancha, en vez de un ancho fijo:
 	// las teclas son configurables ([keys] del usuario) y "pgup/pgdn
 	// home/end" (fila agregada después del 14 original) ya lo superaba —
@@ -466,24 +444,16 @@ func (m *Model) helpView() string {
 	// separación (auditoría de UX post-1.12.0). El modal ya agranda la caja
 	// al contenido (ver el cálculo de w más abajo), así que no hay tope que
 	// respetar acá.
-	keys := make([]string, len(rows))
 	labelW := 0
-	for i, r := range rows {
-		key := r[0]
-		if key == " " {
-			key = i18n.T("help.space")
-		} else if strings.HasPrefix(key, " / ") {
-			key = i18n.T("help.space") + key[1:]
-		}
-		keys[i] = key
-		if kw := lipgloss.Width(key); kw > labelW {
+	for _, r := range rows {
+		if kw := lipgloss.Width(r[0]); kw > labelW {
 			labelW = kw
 		}
 	}
 	content := make([]string, 0, len(rows))
-	for i, r := range rows {
+	for _, r := range rows {
 		content = append(content, fmt.Sprintf("  %s %s",
-			m.st.accent.Render(padTo(keys[i], labelW)), m.st.text.Render(r[1])))
+			m.st.accent.Render(padTo(r[0], labelW)), m.st.text.Render(r[1])))
 	}
 	closeHint, scrollHint := i18n.T("help.close"), i18n.T("help.scroll_hint")
 	// Ancho a la medida de la fila más larga (los textos varían por idioma;

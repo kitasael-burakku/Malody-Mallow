@@ -10,6 +10,7 @@ import (
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/tui"
 	"maly/internal/version"
 )
 
@@ -188,8 +189,18 @@ func helpText() string {
 	example := func(line string) {
 		b.WriteString("  " + dim.Render("$ ") + line + "\n")
 	}
-	key := func(k, descKey string) {
-		b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(fmt.Sprintf("%-14s", k)), i18n.T(descKey)))
+	// Ancho de la columna de teclas a la medida de la más larga, como en el
+	// modal `?`: las teclas son configurables ([keys], preset de controls) y
+	// un %-14s fijo dejaba pegadas a su descripción las filas más anchas.
+	keyRows := tui.HelpRows(helpKeys())
+	keyW := 0
+	for _, r := range keyRows {
+		if w := lipgloss.Width(r[0]); w > keyW {
+			keyW = w
+		}
+	}
+	key := func(k, desc string) {
+		b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(padRight(k, keyW)), desc))
 	}
 
 	b.WriteString(bold.Render("Malody Mallow") + " " + dim.Render("(maly) v"+version.Version) + " — " + i18n.T("cli.tagline") + "\n")
@@ -227,17 +238,29 @@ func helpText() string {
 	example("maly get playlist https://youtube.com/playlist?list=... favs")
 
 	sec(i18n.T("cli.sec_keys"), i18n.T("cli.sec_keys_note"))
-	key(i18n.T("help.space"), "help.play_pause")
-	key("n / p", "help.next_prev")
-	key("tab", "help.switch")
-	key("/", "help.filter")
-	key("ctrl+p", "help.palette")
-	key("ctrl+o", "help.songs")
-	key("ctrl+l", "help.playlists")
-	key("v", "help.toggle_viz")
-	key("ctrl+t", "help.now_playing")
-	key("?", "help.show")
-	key("q", "help.quit")
+	for _, r := range keyRows {
+		key(r[0], r[1])
+	}
 
 	return b.String()
+}
+
+// helpKeys devuelve las teclas ya resueltas (defaults ← preset ← [keys]) para
+// la sección de atajos. main() ya llamó a config.Load() para fijar el idioma,
+// así que acá no hay ningún efecto nuevo sobre el disco; si falla, Load
+// devuelve igual el config por defecto con las teclas resueltas (retorno con
+// nombre + defer), que es exactamente lo que hay que mostrar.
+func helpKeys() map[string]string {
+	cfg, _ := config.Load()
+	return cfg.Keys
+}
+
+// padRight rellena a la derecha midiendo en CELDAS (lipgloss.Width) y no en
+// bytes: %-14s contaba bytes y una tecla no ASCII habría descuadrado la
+// columna.
+func padRight(s string, w int) string {
+	if pad := w - lipgloss.Width(s); pad > 0 {
+		return s + strings.Repeat(" ", pad)
+	}
+	return s
 }

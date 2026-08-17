@@ -1,9 +1,12 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/tui"
 )
@@ -78,6 +81,51 @@ func TestConsoleParityConCLI(t *testing.T) {
 		}
 		if !inConsole[c.name] {
 			t.Errorf("%q existe en la CLI pero no en tui.ConsoleCommands — la consola de ctrl+p lo trataría como comando desconocido", c.name)
+		}
+	}
+}
+
+// TestHelpAtajosDesdeHelpRows: la sección de atajos de `maly -h` sale de
+// tui.HelpRows, la misma lista que pinta el modal `?`. Antes era una copia a
+// mano que se quedó atrás — ctrl+g (el buscador de descargas de la 1.15.0)
+// nunca llegó a aparecer, y con ella tampoco volumen, seek, mover en la cola
+// ni shuffle/repeat. Con la lista compartida, un atajo nuevo sale en los dos
+// lados o en ninguno.
+func TestHelpAtajosDesdeHelpRows(t *testing.T) {
+	xdgSandbox(t)
+	out := helpText()
+	for _, r := range tui.HelpRows(config.DefaultKeys()) {
+		if !strings.Contains(out, r[0]) {
+			t.Errorf("`maly -h` no muestra la tecla %q (%s)", r[0], r[1])
+		}
+		if !strings.Contains(out, r[1]) {
+			t.Errorf("`maly -h` no muestra la descripción %q", r[1])
+		}
+	}
+}
+
+// TestHelpAtajosReflejanElConfig: las teclas del help son las EFECTIVAS
+// (defaults ← preset de controls ← [keys] del usuario), no los defaults
+// hardcodeados — si no, el help le miente a cualquiera que las haya
+// cambiado.
+func TestHelpAtajosReflejanElConfig(t *testing.T) {
+	xdgSandbox(t)
+	cfgDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "maly")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.toml"),
+		[]byte("[keys]\nnow_playing = \"ctrl+w\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out := helpText()
+	if !strings.Contains(out, "ctrl+w") {
+		t.Error("`maly -h` ignora la tecla remapeada en [keys]: no muestra ctrl+w")
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, i18n.T("help.now_playing")) && strings.Contains(line, "ctrl+t") {
+			t.Errorf("`maly -h` sigue anunciando el default para una tecla remapeada: %q", line)
 		}
 	}
 }

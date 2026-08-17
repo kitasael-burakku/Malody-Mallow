@@ -502,6 +502,7 @@ maly           # open the TUI
 | `h j k l` | vim navigation |
 | `gg` / `G` | jump to top / bottom |
 | `ctrl+d` / `ctrl+u` | half-page down / up |
+| `pgup` / `pgdn` · `home` / `end` | page up/down · first / last |
 | `s` / `r` | shuffle / repeat |
 | `v` | toggle visualizer |
 | `ctrl+t` | "Now Playing" screen (cover art, lyrics, visualizer) |

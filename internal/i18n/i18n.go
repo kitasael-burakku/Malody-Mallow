@@ -429,6 +429,7 @@ var table = map[string][2]string{
 	"pl.delete_kept":    {"kept %q", "%q se mantiene"},
 	"pl.no_results":     {"no results for %q", "sin resultados para %q"},
 	"pl.added":          {"%d track(s) added to %q", "%d pista(s) agregadas a %q"},
+	"pl.add_nf_hint":    {"create it first: maly playlist create %s", "créala primero: maly playlist create %s"},
 	"pl.unknown":        {"unknown playlist subcommand %q", "subcomando playlist desconocido %q"},
 	"pl.usage_export":   {"usage: maly playlist export <name> [file.m3u]", "uso: maly playlist export <nombre> [archivo.m3u]"},
 	"pl.usage_import":   {"usage: maly playlist import <file.m3u> [name]", "uso: maly playlist import <archivo.m3u> [nombre]"},

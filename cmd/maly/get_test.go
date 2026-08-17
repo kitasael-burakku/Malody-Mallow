@@ -679,3 +679,59 @@ exit 1
 		t.Errorf("la miniatura debía limpiarse tras el fallo, quedó %q", e.Name())
 	}
 }
+
+// failingYtdlp reemplaza el yt-dlp falso del sandbox por uno que no descarga
+// nada y falla, que es lo que hace el de verdad ante un URL muerto o un
+// bloqueo por región.
+func failingYtdlp(t *testing.T, argsFile string) {
+	t.Helper()
+	bin := filepath.Join(filepath.Dir(argsFile), "bin")
+	script := fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$@" > %q
+echo 'ERROR: Video unavailable' >&2
+exit 1
+`, argsFile)
+	if err := os.WriteFile(filepath.Join(bin, "yt-dlp"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestGetPlaylistFalloNoDejaDirectorioVacio: con nombre explícito el destino
+// se crea ANTES de invocar a yt-dlp, así que una descarga que no deja nada
+// dejaba un directorio vacío huérfano en music_dir por cada intento
+// (hallazgo G7). Lo que creamos nosotros y quedó vacío se va con el error.
+func TestGetPlaylistFalloNoDejaDirectorioVacio(t *testing.T) {
+	musicDir, argsFile := getPlaylistSandbox(t, "no se usa")
+	failingYtdlp(t, argsFile)
+
+	if err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc", "Mi", "Mix"}); err == nil {
+		t.Fatal("una descarga que no deja nada debe dar error")
+	}
+	if _, err := os.Stat(filepath.Join(musicDir, "Mi Mix")); !os.IsNotExist(err) {
+		t.Errorf("el directorio vacío debía limpiarse tras el fallo (stat: %v)", err)
+	}
+}
+
+// TestGetPlaylistFalloRespetaDirectorioPreexistente: la limpieza solo alcanza
+// al directorio que creó ESTA corrida. Uno que ya existía —con música del
+// usuario dentro— no se toca ni aunque la descarga falle.
+func TestGetPlaylistFalloRespetaDirectorioPreexistente(t *testing.T) {
+	musicDir, argsFile := getPlaylistSandbox(t, "no se usa")
+	failingYtdlp(t, argsFile)
+
+	dir := filepath.Join(musicDir, "Mi Mix")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ajena := filepath.Join(dir, "Cancion Ajena.mp3")
+	if err := os.WriteFile(ajena, []byte("mp3 falso"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runGetPlaylist([]string{"https://youtube.com/playlist?list=abc", "Mi", "Mix"}); err == nil {
+		t.Fatal("una descarga que no deja nada debe dar error")
+	}
+	if _, err := os.Stat(ajena); err != nil {
+		t.Errorf("la música que ya estaba ahí no se toca: %v", err)
+	}
+}

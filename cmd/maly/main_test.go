@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -102,5 +103,36 @@ func TestEnvLangHint(t *testing.T) {
 				t.Errorf("envLangHint() = %q, quería %q", got, c.want)
 			}
 		})
+	}
+}
+
+// TestRunSearchNoCreaLaBase cubre el hallazgo C24: `maly search` abría la
+// biblioteca con openLibrary, que la CREA si no existe — consultar dejaba en
+// disco una base vacía que nadie pidió, rompiendo la regla que info, doctor y
+// las completions sí respetan.
+func TestRunSearchNoCreaLaBase(t *testing.T) {
+	xdgSandbox(t)
+
+	if err := runSearch([]string{"luna"}); err != nil {
+		t.Fatalf("sin biblioteca, search no debe fallar (solo avisar): %v", err)
+	}
+	if _, err := os.Stat(config.DBPath()); err == nil {
+		t.Fatal("runSearch creó la base de datos: debía abrir por openLibraryIfExists, no por openLibrary")
+	}
+}
+
+// TestRunSearchConBaseSigueBuscando: la otra mitad del invariante — con la
+// base ya creada, search debe seguir encontrando lo que hay.
+func TestRunSearchConBaseSigueBuscando(t *testing.T) {
+	xdgSandbox(t)
+
+	lib, err := openLibrary() // el camino que SÍ la crea
+	if err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	if err := runSearch([]string{"loquesea"}); err != nil {
+		t.Fatalf("con base existente, search no debía fallar: %v", err)
 	}
 }

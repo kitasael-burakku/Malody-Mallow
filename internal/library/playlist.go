@@ -35,11 +35,27 @@ func (l *Library) Playlists() ([]Playlist, error) {
 	return out, rows.Err()
 }
 
+// ErrPlaylistNotFound marca "esa playlist no existe" para que un llamador
+// pueda sumar su propio remedio (p. ej. `playlist add` sugiriendo
+// `playlist create`) sin comparar el TEXTO del error: sale de i18n y cambia
+// con el idioma del proceso, la misma trampa que dejó anotada el retry de
+// player.seek en la 1.5.0. El mensaje visible no cambia: PlaylistNotFound
+// lo produce en Error(), ya traducido.
+var ErrPlaylistNotFound = errors.New("playlist not found")
+
+// PlaylistNotFound es el error de playlistID. Su Error() se traduce en el
+// momento de imprimirlo, no al construirlo.
+type PlaylistNotFound struct{ Name string }
+
+func (e *PlaylistNotFound) Error() string { return i18n.Tf("lib.pl_nf", e.Name) }
+
+func (e *PlaylistNotFound) Is(target error) bool { return target == ErrPlaylistNotFound }
+
 func (l *Library) playlistID(name string) (int64, error) {
 	var id int64
 	err := l.db.QueryRow(`SELECT id FROM playlists WHERE name = ?`, name).Scan(&id)
 	if err == sql.ErrNoRows {
-		return 0, errors.New(i18n.Tf("lib.pl_nf", name))
+		return 0, &PlaylistNotFound{Name: name}
 	}
 	return id, err
 }

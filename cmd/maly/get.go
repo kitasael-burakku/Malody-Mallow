@@ -144,7 +144,7 @@ func downloadOne(cfg config.Config, spec, label string) error {
 // común al copiar y pegar de YouTube— sin que nadie lo pidiera. El comando
 // normal ahora siempre pasa --no-playlist (ver getter.Command); este es el
 // camino deliberado para cuando SÍ se quiere la playlist completa.
-func runGetPlaylist(args []string) error {
+func runGetPlaylist(args []string) (retErr error) {
 	if len(args) == 0 || !strings.Contains(args[0], "://") {
 		return errors.New(i18n.T("cli.usage_get_playlist"))
 	}
@@ -195,8 +195,23 @@ func runGetPlaylist(args []string) error {
 			}
 		}
 		dir = filepath.Join(musicDir, name)
+		// El directorio se crea ANTES de invocar a yt-dlp (es su destino), así
+		// que una descarga que no deja nada dejaba un directorio vacío
+		// huérfano en music_dir por cada intento (auditoría de UX post-1.12.0,
+		// hallazgo G7). Solo se limpia el que creamos NOSOTROS en esta
+		// corrida, y con os.Remove, que falla si no está vacío: nunca puede
+		// llevarse música del usuario por delante.
+		_, statErr := os.Stat(dir)
+		createdDir := os.IsNotExist(statErr)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
+		}
+		if createdDir {
+			defer func() {
+				if retErr != nil {
+					os.Remove(dir)
+				}
+			}()
 		}
 		opts.Dir = dir
 		// Snapshot de lo que YA había en dir antes de descargar: con

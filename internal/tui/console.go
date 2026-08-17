@@ -62,12 +62,15 @@ type getDoneMsg struct {
 // lanzar el proceso: ExecProcess solo puede devolver el error, así que el
 // resto del estado tiene que viajar en el mensaje. name == "" significa que
 // no había nombre explícito y dir/before son los datos para el diffing.
+// createdDir dice si dir lo creó ESTA corrida (nombre explícito): solo
+// entonces se limpia el directorio vacío que deja una descarga fallida.
 type getPlaylistDoneMsg struct {
-	err      error
-	musicDir string
-	name     string
-	dir      string
-	before   map[string]bool
+	err        error
+	musicDir   string
+	name       string
+	dir        string
+	before     map[string]bool
+	createdDir bool
 }
 
 // updRunMsg trae el instalador listo para correr (hay release nuevo);
@@ -597,6 +600,7 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 	opts := getter.Opts{Dir: musicDir, Spec: url, Cookies: m.cfg.Ytdlp.CookiesFromBrowser, Playlist: true}
 	var dir string
 	var before map[string]bool
+	createdDir := false
 	if name != "" {
 		// Nombre explícito: validarlo como componente de ruta ANTES de
 		// tocar el filesystem o la red — es entrada del usuario
@@ -606,6 +610,12 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		dir = filepath.Join(musicDir, name)
+		// Espejo del hallazgo G7 en la CLI: el destino se crea antes de
+		// invocar a yt-dlp, así que un intento fallido dejaba un directorio
+		// vacío en music_dir. Se limpia solo el que creamos acá, y con
+		// os.Remove, que se niega si no está vacío.
+		_, statErr := os.Stat(dir)
+		createdDir = os.IsNotExist(statErr)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			m.conErr(err.Error())
 			return m, nil
@@ -624,7 +634,7 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_pl_start", url, musicDir)))
 	cmd := getter.Command(opts)
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return getPlaylistDoneMsg{err: err, musicDir: musicDir, name: name, dir: dir, before: before}
+		return getPlaylistDoneMsg{err: err, musicDir: musicDir, name: name, dir: dir, before: before, createdDir: createdDir}
 	})
 }
 
@@ -645,10 +655,17 @@ func newDirEntry(parent string, before map[string]bool) (string, error) {
 // demonio. Todo en el mismo tea.Cmd —E/S bloqueante, como conLib/conScan—
 // porque son unos pocos pasos secuenciales sin nada que la UI necesite ver
 // a medias.
-func (m *Model) conGetPlaylistFinish(musicDir, name, dir string, before map[string]bool) tea.Cmd {
+func (m *Model) conGetPlaylistFinish(musicDir, name, dir string, before map[string]bool, createdDir bool) tea.Cmd {
 	sock, st := m.sock, m.st
 	return func() tea.Msg {
-		errLine := func(err error) tea.Msg { return conMsg{lines: []string{st.errSt.Render(err.Error())}} }
+		// Cualquier salida por error deja el destino como estaba: si lo
+		// creamos nosotros y quedó vacío, se va con él (hallazgo G7).
+		errLine := func(err error) tea.Msg {
+			if createdDir {
+				os.Remove(dir)
+			}
+			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
+		}
 
 		c, err := ipc.Dial(sock)
 		if err != nil {
@@ -661,7 +678,7 @@ func (m *Model) conGetPlaylistFinish(musicDir, name, dir string, before map[stri
 			return errLine(err)
 		}
 		if !resp.OK {
-			return conMsg{lines: []string{st.errSt.Render(resp.Error)}}
+			return errLine(errors.New(resp.Error))
 		}
 
 		if name == "" {

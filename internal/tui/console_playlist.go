@@ -119,6 +119,12 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 				ids[i] = t.ID
 			}
 			if err := lib.AddToPlaylist(name, ids); err != nil {
+				// Espejo del `playlist add` de la CLI: el remedio va en la
+				// MISMA línea, que acá el error se pinta dentro del panel
+				// (hallazgo C26).
+				if errors.Is(err, library.ErrPlaylistNotFound) {
+					return nil, fmt.Errorf("%w — %s", err, i18n.Tf("pl.add_nf_hint", name))
+				}
 				return nil, err
 			}
 			return []string{st.playing.Render(i18n.Tf("pl.added", len(tracks), name))}, nil

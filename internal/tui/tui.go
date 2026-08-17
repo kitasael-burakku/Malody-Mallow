@@ -681,11 +681,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case getPlaylistDoneMsg:
 		if msg.err != nil {
+			// El destino se creó antes de invocar a yt-dlp: si la descarga no
+			// dejó nada, no dejar el hueco (hallazgo G7). os.Remove se niega
+			// con cualquier cosa dentro.
+			if msg.createdDir {
+				os.Remove(msg.dir)
+			}
 			m.conErr(i18n.Tf("cli.get_err", msg.err))
 			return m, nil
 		}
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
-		return m, m.conGetPlaylistFinish(msg.musicDir, msg.name, msg.dir, msg.before)
+		return m, m.conGetPlaylistFinish(msg.musicDir, msg.name, msg.dir, msg.before, msg.createdDir)
 
 	case updTickMsg:
 		// Volver a mirar y re-armar el tick. Cuando el cache ya anuncia algo,

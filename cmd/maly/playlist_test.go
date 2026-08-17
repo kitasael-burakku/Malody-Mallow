@@ -85,3 +85,39 @@ func TestPlaylistExportNoClobber(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestPlaylistAddNoExisteSugiereCreate cubre el hallazgo C26: agregar a una
+// playlist inexistente decía solo "no existe", sin el remedio — hay que
+// crearla antes. La detección es por TIPO (library.ErrPlaylistNotFound) y no
+// por el texto del error, que sale de i18n y cambia con el idioma.
+func TestPlaylistAddNoExisteSugiereCreate(t *testing.T) {
+	xdgSandbox(t)
+
+	// Una pista indexada, para llegar al AddToPlaylist (sin resultados el
+	// comando corta antes con otro error).
+	lib, err := openLibrary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	track := filepath.Join(dir, "Luna.mp3")
+	if err := os.WriteFile(track, []byte("mp3 falso"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	err = runPlaylist([]string{"add", "favs", "Luna"})
+	if err == nil {
+		t.Fatal("agregar a una playlist inexistente debe fallar")
+	}
+	if !strings.Contains(err.Error(), "playlist create") {
+		t.Errorf("el error debía sugerir cómo crearla, dio: %v", err)
+	}
+	// Una sola línea: el espejo de la consola lo pinta dentro de un panel.
+	if strings.Contains(err.Error(), "\n") {
+		t.Errorf("el error debe caber en una línea, dio: %q", err.Error())
+	}
+}

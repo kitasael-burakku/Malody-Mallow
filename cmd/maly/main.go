@@ -361,9 +361,15 @@ func runSearch(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("%s", i18n.T("cli.usage_search"))
 	}
-	lib, err := openLibrary()
-	if err != nil {
-		return err
+	// Sin base todavía, `search` NO la crea: openLibrary la fabricaría vacía
+	// y dejaría en disco una biblioteca que nadie pidió, justo por consultarla
+	// (misma regla que ya respetan info/doctor y las completions). Sin ella la
+	// respuesta correcta es la que ya existe para "no encontré nada", que
+	// además remite a `maly scan` (auditoría de UX post-1.12.0, hallazgo C24).
+	lib, ok := openLibraryIfExists()
+	if !ok {
+		fmt.Fprintln(os.Stderr, i18n.T("cli.search_none"))
+		return nil
 	}
 	defer lib.Close()
 	tracks, err := lib.Search(strings.Join(args, " "))

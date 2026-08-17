@@ -14,6 +14,7 @@ import (
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/library"
 )
 
 // runPlaylist opera directo sobre SQLite salvo `play`, que necesita demonio.
@@ -160,6 +161,17 @@ func runPlaylist(args []string) error {
 			ids[i] = t.ID
 		}
 		if err := lib.AddToPlaylist(name, ids); err != nil {
+			// "no existe" es el fallo esperable acá (a diferencia de
+			// show/remove/delete, que operan sobre algo que ya se listó), y
+			// el remedio no estaba en ninguna parte del mensaje: hay que
+			// crearla antes (auditoría de UX post-1.12.0, hallazgo C26). Se
+			// detecta por tipo y no por texto — el texto sale de i18n.
+			// Una sola línea a propósito: el espejo de la consola (ctrl+p)
+			// pinta el error dentro de un panel, y un salto de línea ahí
+			// parte la caja — el defecto que la 1.15.0 dejó documentado.
+			if errors.Is(err, library.ErrPlaylistNotFound) {
+				return fmt.Errorf("%w — %s", err, i18n.Tf("pl.add_nf_hint", name))
+			}
 			return err
 		}
 		fmt.Println(i18n.Tf("pl.added", len(tracks), name))

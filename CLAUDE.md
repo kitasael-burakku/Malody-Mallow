@@ -1991,6 +1991,81 @@ ellas — solo tenía sentido para dar sitio a una imagen. Si la duda vuelve, lo
 que hay que releer es el invariante, no esta entrada.
 
 
+La **1.16.2** (2026-08-17) tiene una pieza con sustancia y tres arreglos
+chicos. Todos salen de repasar los P3 que la auditoría de UX de la 1.12.0
+dejó marcados para un ciclo aparte (ver "Post-1.0"), más un reporte del
+dueño sobre la ayuda de la CLI.
+
+**La sección de atajos de `maly -h` sale ahora de `tui.HelpRows`**, la MISMA
+lista que pinta el modal `?` (`internal/tui/helprows.go`). Era una copia a
+mano, con las teclas literales, y falló de las dos maneras en que una copia
+falla: se quedó atrás —`ctrl+g`, el buscador de descargas de la 1.15.0, nunca
+llegó a aparecer, y con él tampoco volumen, seek, mover en la cola ni
+shuffle/repeat: mostraba 11 filas de 22— y mentía, porque anunciaba los
+defaults aunque el usuario tuviera un preset de `controls` o teclas propias
+en `[keys]`. La lista compartida es el mismo patrón que la tabla de comandos
+(fuente única de dispatch, help y completions) y la red de paridad
+consola↔CLI: un atajo nuevo aparece en los dos lados o en ninguno.
+
+Tres detalles que conviene no re-descubrir. `helpKeys()` resuelve las teclas
+con `config.Load()`, y eso NO agrega ningún efecto sobre el disco: `main()`
+ya la llama en cada invocación para fijar el idioma, y su retorno con nombre
++ defer garantiza teclas resueltas incluso si el config falla. `keyLabel`
+sustituye el espacio por su nombre POR TECLA y no por fila ya compuesta,
+así que también cubre el espacio como segunda mitad de un par (la versión
+vieja, dentro de `helpView`, solo miraba el prefijo `" / "`). Y el ancho de
+la columna se calcula con `lipgloss.Width`, no con `%-14s`: el fijo contaba
+BYTES y descuadraba con cualquier tecla no ASCII, además de quedarse corto
+con `pgup/pgdn home/end`, que es la fila que ya había mordido al modal.
+
+La red que impide la próxima desincronización es
+`TestHelpRowsCubreTodasLasTeclas`: toda acción de `config.DefaultKeys()`
+—salvo `help`, que es el modal mostrándose a sí mismo— tiene que tener fila
+en `HelpRows`. Mapea cada acción a un valor ÚNICO (`<<accion>>`) en vez de a
+su tecla real, porque con las de verdad una acción sin fila puede "pasar" de
+casualidad: hay teclas compartidas (`K`/`J`, `+`/`-`) y letras sueltas que
+aparecen dentro de otras cadenas.
+
+Los tres chicos, cada uno un P3 con impacto real:
+
+- **C24** — `maly search` abría con `openLibrary`, que CREA la base: una
+  consulta sin haber escaneado nunca dejaba en disco una biblioteca vacía
+  que nadie pidió. Pasa a `openLibraryIfExists` y, sin base, responde con
+  `cli.search_none`, el mensaje que ya existía y que además remite a `maly
+  scan` — no hizo falta clave nueva.
+- **G7** — con nombre explícito, `get playlist` crea el destino ANTES de
+  invocar a yt-dlp (es su `-o`), así que cada intento fallido dejaba un
+  directorio vacío huérfano en `music_dir`. Se limpia solo el que creó ESA
+  corrida (`os.Stat` antes del `MkdirAll`) y con `os.Remove`, que se niega si
+  no está vacío: no puede llevarse música del usuario por delante. El espejo
+  de la TUI necesitó llevar el flag en `getPlaylistDoneMsg`, porque
+  `ExecProcess` parte el flujo en dos funciones.
+- **C26** — agregar a una playlist inexistente decía solo "no existe". El
+  remedio va ahora en el mismo mensaje, y la detección es por TIPO
+  (`library.ErrPlaylistNotFound` + `PlaylistNotFound`, cuyo `Error()` se
+  traduce al imprimirlo) y no por el texto, que sale de i18n y cambia con el
+  idioma — la trampa que la 1.5.0 ya había dejado anotada con el retry de
+  `player.seek`. Va en UNA sola línea a propósito: el espejo de la consola lo
+  pinta dentro de un panel, y un salto de línea ahí parte la caja (el defecto
+  que costó dos intentos de test en la 1.15.0).
+
+Cerrados sin código, verificando contra HEAD que ya no aplicaban: **C23**
+(`maly config` sí está en ambos README desde D13.1), **D10.5** (las claves
+`cli.logo*` ya las usa un comando CLI real desde C21) y **D13.5** (la
+detección de idioma de D10.1 hace que la primera salida salga en el idioma
+del sistema). **C25**, **G8** y **D7.6** siguen como "no cambiar", que es lo
+que la propia auditoría recomendaba.
+
+Cada arreglo con lógica nueva se verificó en ambas direcciones, y dos de las
+reversiones fallaron primero por NO COMPILAR (variable sin usar, import sin
+usar) — señal débil, la lección de la 1.6.1: hubo que rehacerlas quitando
+también lo que sobraba para que el test fallara por la razón correcta. De
+paso, un `git checkout` usado para restaurar una de esas reversiones se
+llevó por delante el fix que ya estaba en el archivo; el arnés de
+verificación conviene que sea `cp` de una copia, no `git checkout`, mientras
+haya cambios sin commitear.
+
+
 ### Post-1.0 (candidatos)
 
 La lista, que la 1.5.0 había dejado vacía, la reabrió la auditoría del
@@ -2090,34 +2165,32 @@ secciones respectivas"), sin desarrollo individual — el detalle real vive
 repartido en las secciones 04/05/07/10/13 del informe
 (`~/Documents/maly-ux-audit.html`):
 
-- **C23** — `maly config` (desde la 1.9.0) no aparece en ningún README.
-- **C24** — `maly search` crea `library.db` vacía si no existía (usa
-  `openLibrary`, no `openLibraryIfExists`), rompiendo la regla que
-  `info`/`doctor`/las completions sí respetan.
-- **C25** — la cola tiene `move`, las playlists no. La auditoría lo marca
-  como asimetría consciente y **no recomienda cerrarlo** — revisar es
-  sobre todo confirmar que siga siendo la decisión correcta, no
-  implementar `playlist move`.
-- **C26** — `playlist add` a una playlist inexistente no menciona
-  `playlist create` en el mensaje de error.
-- **G7** — una descarga fallida con nombre explícito deja un directorio
-  vacío huérfano en `music_dir` (el `MkdirAll` corre antes de invocar
-  yt-dlp).
-- **G8** — `yt-dlp failed: exit status 1 (see its output above)` es
-  técnico pero el paréntesis mitiga. La auditoría ya dice **sin acción**
-  — candidato a cerrarse como "no cambiar" sin tocar código.
-- **D7.6** — `runDaemon` agrega `(socket: %s)` al error de "ya corriendo".
-  La auditoría lo marca **correcto y con alcance acotado** (único
-  contexto donde la ruta es accionable) — mismo caso que G8, probable "no
-  cambiar".
-- **D10.5** — las claves `cli.logo*` viven en el namespace `cli.` pero
-  solo las usa la paleta de la TUI (ver C21, ya cerrado en la 1.12.0 con
-  `maly logo` como comando CLI real — revisar si el hallazgo sigue
-  vigente tal cual o si `runLogo`/`conLogo` ya lo resolvieron de rebote).
-- **D13.5** — el README ordena "primero `maly scan`, luego `maly`", pero
-  eso garantiza que la primera salida visible de un usuario no-inglés sea
-  en inglés (relacionado con D10.1, ya cerrado en la 1.12.0 — revisar si
-  sigue aplicando).
+Los diez quedaron revisados el 2026-08-17: tres con código en la 1.16.2,
+tres cerrados por estar ya resueltos de rebote y tres confirmados como "no
+cambiar" (más D14.4, que se había cerrado antes). La lista completa, con el
+desenlace de cada uno:
+
+- **C23** — CERRADO sin código: `maly config` sí está en ambos README
+  (`README.md`, `README.en.md`), lo cerró D13.1 en la 1.12.0. El hallazgo
+  ya no aplicaba.
+- **C24** — CERRADO con código en la 1.16.2 (ver su entrada).
+- **C25** — NO CAMBIAR, confirmado: la cola tiene `move` y las playlists
+  no, y la auditoría ya lo marcaba como asimetría consciente. Revisar era
+  confirmar la decisión, no implementar `playlist move`.
+- **C26** — CERRADO con código en la 1.16.2 (ver su entrada).
+- **G7** — CERRADO con código en la 1.16.2 (ver su entrada).
+- **G8** — NO CAMBIAR, confirmado: `yt-dlp failed: exit status 1 (see its
+  output above)` es técnico, pero el paréntesis manda a la salida real de
+  yt-dlp, que es donde está la causa. La auditoría ya decía "sin acción".
+- **D7.6** — NO CAMBIAR, confirmado: `runDaemon` agrega `(socket: %s)` al
+  error de "ya corriendo", y es el único contexto donde esa ruta es
+  accionable.
+- **D10.5** — CERRADO sin código: las claves `cli.logo*` ya las usa un
+  comando CLI real (`runLogo`, registrado en la tabla de `commands.go`)
+  desde que C21 se cerró en la 1.12.0. El namespace `cli.` es el correcto.
+- **D13.5** — CERRADO sin código: la detección de idioma de D10.1 (1.12.0,
+  `envLangHint`) hace que la primera salida ya salga en el idioma del
+  sistema, así que el orden que sugiere el README no la deja en inglés.
 - **D14.4** — CERRADO (2026-08-16, sin bump: solo instalador). `--uninstall`
   ya no dice "no encontré nada que quitar" cuando existe la copia del gestor
   de paquetes: la señala y remite al gestor. Informa y NO borra —`/usr/bin`

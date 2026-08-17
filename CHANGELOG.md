@@ -7,6 +7,23 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.16.2 — 2026-08-17
+
+La sección de atajos de `maly -h` ya no es una copia a mano: sale de la misma
+lista que pinta el modal `?` dentro de la TUI. Estaba desfasada —`ctrl+g`, el
+buscador de descargas, nunca llegó a aparecer, y con él tampoco volumen, seek,
+mover en la cola ni shuffle/repeat— y encima anunciaba siempre los defaults,
+así que le mentía a cualquiera con un preset de `controls` o unas teclas
+propias en `[keys]`. Ahora muestra las teclas EFECTIVAS y un atajo nuevo sale
+en los dos lados o en ninguno.
+
+Con eso, tres arreglos chicos: `maly search` ya no crea una biblioteca vacía
+en disco solo por consultarla sin haber escaneado (la regla que info, doctor y
+las completions ya respetaban); `maly get playlist <url> <nombre>` limpia el
+directorio vacío que dejaba en `music_dir` cada intento fallido —solo el que
+creó esa corrida, y solo si quedó vacío—; y agregar a una playlist que no
+existe dice ahora cómo crearla.
+
 ## v1.16.1 — 2026-08-16
 
 Los resultados de búsqueda muestran ahora las visitas junto a la duración

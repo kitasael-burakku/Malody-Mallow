@@ -344,7 +344,7 @@ func TestCloseWaitsForCallback(t *testing.T) {
 		done:    make(chan struct{}),
 		exited:  exited,
 	}
-	p.onEnd = func(reason, next string) {
+	p.onEnd = func(reason, next string, gen int64) {
 		close(started)
 		<-release
 		p.State() // reentra al player: prueba que Close no espera con p.mu tomado
@@ -355,11 +355,11 @@ func TestCloseWaitsForCallback(t *testing.T) {
 	// start-file/idle.
 	p.pendingEnd = "eof"
 	p.pendingGen = p.loadGen
-	if reason, next, ok := p.resolveEnd(); ok {
+	if reason, next, gen, ok := p.resolveEnd(); ok {
 		p.cbWG.Add(1)
 		go func() {
 			defer p.cbWG.Done()
-			p.onEnd(reason, next)
+			p.onEnd(reason, next, gen)
 		}()
 	} else {
 		t.Fatal("resolveEnd no devolvió el end-file pendiente")

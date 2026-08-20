@@ -7,6 +7,25 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.16.3 — 2026-08-20
+
+Cerrada una condición de carrera que podía saltarse una canción entera. Al
+terminar una pista, el demonio recibe el aviso de mpv en segundo plano; si
+justo en ese instante llegaba una orden que recargaba la reproducción —un
+salto a otra pista, por ejemplo— el aviso viejo se aplicaba igual sobre una
+situación que ya había cambiado. El resultado era que la cola avanzaba sin
+que la canción prometida llegara a sonar: la interfaz mostraba una pista
+mientras se oía otra, y la siguiente desaparecía de la reproducción. De
+paso, la duración aprendida en ese momento se guardaba en la fila
+equivocada de la biblioteca.
+
+El arreglo hace que el demonio compruebe, antes de hacerle caso al aviso,
+que la reproducción no cambió mientras el aviso viajaba. Es una ventana de
+milisegundos y hacía falta caer justo dentro, pero cuando pasaba se perdía
+una canción sin ninguna señal de que algo hubiera fallado. Seis tests
+nuevos la fijan, tres reproduciendo el fallo y tres cuidando que el camino
+normal siga intacto.
+
 ## v1.16.2 — 2026-08-17
 
 La sección de atajos de `maly -h` ya no es una copia a mano: sale de la misma

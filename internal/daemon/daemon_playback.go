@@ -21,7 +21,7 @@ import (
 // que mpv hizo, se repara a mano cuando no pudo encadenar, y se re-arma la
 // ventana con la promesa siguiente. chained es la entrada que el player
 // tenía anexada al terminar la pista ("" = ninguna): mpv encadena a ella.
-func (d *Daemon) advance(reason, chained string) {
+func (d *Daemon) advance(reason, chained string, gen int64) {
 	// El cuerpo bajo d.mu va en una función inmediata con defer (no
 	// Lock/Unlock a mano, que tenía tres salidas distintas): esto corre
 	// desde el callback onEnd/onChange del player, que ahora se protege con
@@ -38,6 +38,26 @@ func (d *Daemon) advance(reason, chained string) {
 	skipNotify, queueFailed := func() (bool, bool) {
 		d.mu.Lock()
 		defer d.mu.Unlock()
+
+		if gen != d.pl.LoadGen() {
+			// Un loadfile replace de otro cliente (jump, play, next, stop…)
+			// se cruzó entre resolveEnd y este punto: el desenlace es de una
+			// carga ya superada y `chained` describe una promesa que mpv ya
+			// no tiene. Ni cuenta para la racha ni avanza la cola.
+			//
+			// Hace falta ADEMÁS de la comparación con PeekNext de más abajo,
+			// que no lo cubre: esa compara la promesa vieja contra la COLA,
+			// no contra lo que mpv reproduce, así que un jump al índice que
+			// ya era el actual deja PeekNext idéntico y matchea por
+			// coincidencia — avanzando sobre una premisa anulada y saltándose
+			// la pista prometida (se pierde entera: el syncWindowLocked del
+			// final la saca de la playlist de mpv). La generación es lo único
+			// que distingue "mpv encadenó de verdad" de "alguien recargó".
+			//
+			// skipNotify como el eco tras stop: el mutador que subió la
+			// generación ya realineó la ventana y notificó por su handle().
+			return true, false
+		}
 
 		if reason == "error" {
 			if d.stopped {

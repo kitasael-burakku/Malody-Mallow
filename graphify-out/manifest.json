@@ -162,10 +162,10 @@
     "semantic_hash": "1a4cc1bfaa081bab0c4ad77d3c8e2a73"
   },
   "internal/daemon/daemon_playback.go": {
-    "mtime": 1786596052.5102868,
-    "seen": 1787161226.0750716,
-    "ast_hash": "2f2c0e6d13f3f91059a6476d62ca7a5a",
-    "semantic_hash": "2f2c0e6d13f3f91059a6476d62ca7a5a"
+    "mtime": 1787229006.7989967,
+    "seen": 1787229087.6234524,
+    "ast_hash": "d2bf555e5110eb7aa718fffa51855a08",
+    "semantic_hash": ""
   },
   "internal/daemon/daemon_resolve.go": {
     "mtime": 1785351675.596996,
@@ -366,16 +366,16 @@
     "semantic_hash": "9d72f29e05c395f75bc15d52e1f4ca1d"
   },
   "internal/player/player.go": {
-    "mtime": 1786542639.3373775,
-    "seen": 1787161226.0750916,
-    "ast_hash": "0132df61a3c8fdf40fbbf261947b1958",
-    "semantic_hash": "0132df61a3c8fdf40fbbf261947b1958"
+    "mtime": 1787228777.2573516,
+    "seen": 1787229087.6234777,
+    "ast_hash": "a39b7b8b5bd1d4ad3ae6751aefa3b70b",
+    "semantic_hash": ""
   },
   "internal/player/player_test.go": {
-    "mtime": 1786184010.4024048,
-    "seen": 1787161226.0750923,
-    "ast_hash": "8509b08655ebfe0a7ab8041315cb1034",
-    "semantic_hash": "8509b08655ebfe0a7ab8041315cb1034"
+    "mtime": 1787228801.1287274,
+    "seen": 1787229087.6234784,
+    "ast_hash": "8b81cb04e948933fee62bdd1832fcf75",
+    "semantic_hash": ""
   },
   "internal/probe/probe.go": {
     "mtime": 1784539646.1068878,
@@ -714,10 +714,10 @@
     "semantic_hash": "6cf9609af1062cab1790100d33f52683"
   },
   "CLAUDE.md": {
-    "mtime": 1787199390.8297591,
-    "seen": 1787226225.2022014,
-    "ast_hash": "290052b7df1a934cfaeec3bc94081952",
-    "semantic_hash": "290052b7df1a934cfaeec3bc94081952"
+    "mtime": 1787229074.2403355,
+    "seen": 1787229087.6235175,
+    "ast_hash": "48fcaffbd0c4639ab20c321417e4fe25",
+    "semantic_hash": ""
   },
   "README.en.md": {
     "mtime": 1786956957.4020464,
@@ -760,5 +760,11 @@
     "seen": 1787198650.495581,
     "ast_hash": "5859ff7e5efc39463a6e27d2f8951b8a",
     "semantic_hash": "5859ff7e5efc39463a6e27d2f8951b8a"
+  },
+  "internal/daemon/daemon_race_test.go": {
+    "mtime": 1787228915.2146907,
+    "seen": 1787229087.623454,
+    "ast_hash": "aad96538e6171118b4cac4c51850a2aa",
+    "semantic_hash": ""
   }
 }

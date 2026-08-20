@@ -13,5 +13,8 @@ graphify-out/cache/
 .claude/RESUME.md
 # solo contiene la ruta absoluta del proyecto; graphify lo regenera
 graphify-out/.graphify_root
+# ruta absoluta al intérprete de Python de cada máquina (pipx/uv/venv); el
+# skill lo reescribe solo — mismo motivo que .graphify_root
+graphify-out/.graphify_python
 # snapshots regenerables de Graphify
 graphify-out/20*/

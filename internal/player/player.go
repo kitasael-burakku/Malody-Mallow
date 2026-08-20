@@ -37,8 +37,8 @@ type Player struct {
 	reqID    int64
 	pending  map[int64]chan mpvReply
 	state    State
-	onEnd    func(reason, next string) // pista terminada; next = entrada anexada que mpv encadena
-	onChange func()                    // cambio de estado observado (pausa, pista, posición…)
+	onEnd    func(reason, next string, gen int64) // pista terminada; next = entrada anexada que mpv encadena; gen = loadGen del desenlace
+	onChange func()                               // cambio de estado observado (pausa, pista, posición…)
 	closed   bool
 	done     chan struct{}
 	exited   chan struct{} // cerrado cuando el proceso mpv termina
@@ -90,9 +90,13 @@ type mpvEvent struct {
 // sola, "error" si mpv no pudo reproducirla; next es la ruta que SetNext
 // tenía anexada en ese momento ("" = ninguna) — mpv encadena a ella solo,
 // así que el demonio reconcilia sin consultar (justo tras el end-file mpv
-// está entre entradas y su propiedad path aún no existe). onChange se
-// invoca ante cambios de estado observados (lo usa el demonio para MPRIS).
-func Start(socketPath string, onEnd func(reason, next string), onChange func()) (*Player, error) {
+// está entre entradas y su propiedad path aún no existe). gen es la
+// generación de carga vigente cuando se resolvió el desenlace: el callback
+// viaja por `go` sin ningún lock sostenido, así que para cuando corra puede
+// haberse cruzado un loadfile replace de otro cliente; comparar gen contra
+// LoadGen() es lo que deja detectarlo (ver resolveEnd). onChange se invoca
+// ante cambios de estado observados (lo usa el demonio para MPRIS).
+func Start(socketPath string, onEnd func(reason, next string, gen int64), onChange func()) (*Player, error) {
 	mpvBin, err := exec.LookPath("mpv")
 	if err != nil {
 		return nil, errors.New(i18n.T("p.no_mpv"))
@@ -296,21 +300,21 @@ func (p *Player) handleEvent(ev mpvEvent) {
 		// Desenlace de un end-file pendiente: mpv arrancó otra entrada por
 		// su cuenta — la anexada por SetNext (nextPath sigue vigente: el
 		// espejo se invalida pero el valor no se pisa hasta otro SetNext).
-		if reason, next, ok := p.resolveEnd(); ok {
+		if reason, next, gen, ok := p.resolveEnd(); ok {
 			p.cbWG.Add(1)
 			go func() {
 				defer p.cbWG.Done()
-				safeCall(func() { p.onEnd(reason, next) })
+				safeCall(func() { p.onEnd(reason, next, gen) })
 			}()
 		}
 
 	case "idle":
 		// Desenlace contrario: no había nada que encadenar.
-		if reason, _, ok := p.resolveEnd(); ok {
+		if reason, _, gen, ok := p.resolveEnd(); ok {
 			p.cbWG.Add(1)
 			go func() {
 				defer p.cbWG.Done()
-				safeCall(func() { p.onEnd(reason, "") })
+				safeCall(func() { p.onEnd(reason, "", gen) })
 			}()
 		}
 	}
@@ -393,19 +397,27 @@ func (p *Player) LoadPaused(path string) error {
 	return err
 }
 
-// resolveEnd consume el end-file pendiente y devuelve su reason y la
-// entrada anexada a la que mpv encadena. ok=false si no había pendiente, si
-// un loadfile replace propio se cruzó (el desenlace es de esa carga, no del
-// fin de pista) o si no hay callback.
-func (p *Player) resolveEnd() (reason, next string, ok bool) {
+// resolveEnd consume el end-file pendiente y devuelve su reason, la entrada
+// anexada a la que mpv encadena y la generación de carga a la que pertenece
+// el desenlace. ok=false si no había pendiente, si un loadfile replace propio
+// se cruzó (el desenlace es de esa carga, no del fin de pista) o si no hay
+// callback.
+//
+// La generación se DEVUELVE además de comprobarse acá porque este chequeo
+// solo cubre la ventana [end-file → start-file/idle]: el callback sale
+// después por `go`, sin ningún lock sostenido, y entre este punto y el
+// momento en que el demonio toma su propio mutex todavía puede cruzarse un
+// loadfile replace de otro cliente. Quien reciba gen tiene que volver a
+// compararlo contra LoadGen() antes de actuar sobre el desenlace.
+func (p *Player) resolveEnd() (reason, next string, gen int64, ok bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	reason = p.pendingEnd
 	p.pendingEnd = ""
 	if reason == "" || p.pendingGen != p.loadGen || p.onEnd == nil {
-		return "", "", false
+		return "", "", 0, false
 	}
-	return reason, p.nextPath, true
+	return reason, p.nextPath, p.loadGen, true
 }
 
 // SetNext deja la playlist interna de mpv como ventana de dos entradas —
@@ -481,6 +493,19 @@ func (p *Player) LoadCount() int64 {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.loads
+}
+
+// LoadGen devuelve la generación de carga vigente. A diferencia de
+// LoadCount, que es diagnóstico (¿hubo loadfile replace en este cambio de
+// pista?), esta existe para REVALIDAR un desenlace en vuelo: quien recibió un
+// gen de resolveEnd lo compara contra este valor antes de actuar, y si no
+// coinciden es que un loadfile replace se cruzó mientras el callback esperaba
+// —típicamente el mutex del demonio— y el desenlace ya no describe lo que mpv
+// está reproduciendo.
+func (p *Player) LoadGen() int64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.loadGen
 }
 
 func (p *Player) intProp(name string) (int, error) {

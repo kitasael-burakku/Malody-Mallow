@@ -106,8 +106,16 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   `learnDuration` aprende la duración desde mpv: muta la cola en memoria
   bajo `d.mu` pero hace su `SetDuration` FUERA (era la única escritura a
   SQLite bajo el mutex, y se dispara en cada cambio de pista).
-  `advance(reason, chained)` es la política de avance y salto de pistas
-  irreproducibles (guarda `errStreak`, silencio deliberado `stopped`).
+  `advance(reason, chained, gen)` es la política de avance y salto de pistas
+  irreproducibles (guarda `errStreak`, silencio deliberado `stopped`). Tiene
+  DOS guardas contra una promesa obsoleta y no se solapan: `gen !=
+  d.pl.LoadGen()` (primer chequeo bajo `d.mu`) detecta que un cliente RECARGÓ
+  mpv entre `resolveEnd` y este punto (jump, play, next, stop), y `chained ==
+  PeekNext().Path` detecta que una mutación cambió la promesa SIN recargar
+  (move, shuffle, remove). La de ruta sola NO alcanza porque compara contra la
+  COLA y no contra lo que mpv reproduce: un `jump` al índice que ya era el
+  actual deja `PeekNext` idéntico y matchea por coincidencia — ver la entrada
+  del roadmap sobre la carrera de la promesa obsoleta.
   `scan` corre SIN `d.mu` (guarda `scanning` atómica) y sube `libGen` (la
   generación de biblioteca que `statusLocked` adjunta como `Status.LibGen`)
   solo si algo cambió, despertando a los suscriptores; los clientes recargan
@@ -131,7 +139,14 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   rezagados tras end-file). Un end-file queda `pendingEnd` y se resuelve con el
   evento siguiente (start-file = encadenó, idle = no había nada); `loadGen`
   descarta desenlaces pisados por cargas propias. Callbacks (`onEnd`,
-  `onChange`) SIEMPRE async con `go` — en línea deadlockean readLoop.
+  `onChange`) SIEMPRE async con `go` — en línea deadlockean readLoop. Y
+  justamente por ese `go`, `loadGen` se valida en DOS puntos: `resolveEnd`
+  cubre la ventana `[end-file → start-file/idle]`, pero el callback sale sin
+  ningún lock sostenido, así que `resolveEnd` DEVUELVE la generación y el
+  consumidor la revalida contra `LoadGen()` antes de actuar — esa segunda
+  ventana, `[resolveEnd → el consumidor toma su mutex]`, es la que dejaba
+  perder una pista entera (roadmap: carrera de la promesa obsoleta).
+  `LoadGen()` es para eso; `LoadCount()`, en cambio, es diagnóstico de gapless.
 - `internal/queue` — cola con shuffle/repeat. El shuffle es por PERMUTACIÓN
   (`order`/`pos`; `staged` guarda el ciclo siguiente en el wrap de repeat
   all): nada se repite hasta agotar el ciclo, y sin repeat all el ciclo
@@ -2064,6 +2079,85 @@ paso, un `git checkout` usado para restaurar una de esas reversiones se
 llevó por delante el fix que ya estaba en el archivo; el arnés de
 verificación conviene que sea `cp` de una copia, no `git checkout`, mientras
 haya cambios sin commitear.
+
+La **1.16.3** (2026-08-20) cierra **una carrera real entre `advance()` y los
+mutadores de la cola** que perdía una pista entera. Salió de una pregunta del
+dueño —"¿puede `advance()` avanzar usando una promesa ya obsoleta?"— y la
+respuesta era que sí.
+
+`resolveEnd` (`player.go`) captura `chained` bajo `p.mu` y despacha el
+callback con `go` **sin sostener ningún lock**; `advance` recién toma `d.mu`
+después. En esa ventana cualquier `dispatch` puede ganar el mutex y emitir un
+`loadfile replace`. La guarda que había —`chained == PeekNext().Path`— compara
+la promesa vieja contra la **cola**, no contra lo que mpv reproduce, así que un
+`jump` al índice que YA era el actual (recarga mpv pero deja `PeekNext`
+idéntico) matcheaba por coincidencia y confirmaba un encadenado que la recarga
+ya había anulado.
+
+La intercalación, con cola `[a b c]` sonando a y b anexada: a termina, mpv
+encadena a b, `resolveEnd` devuelve `chained="b"` y despacha el callback;
+antes de que corra, llega `jump 0`, que recarga a y rearma la ventana con b;
+entonces corre el callback, `PeekNext` sigue siendo b, matchea, y `q.Next(true)`
+mueve `Index` a b. Resultado medido con mpv real: **mpv reproduce a mientras la
+cola dice b**, y el `syncWindowLocked` del final saca a b de la playlist de
+mpv — al terminar a, mpv encadena a c y **b no suena nunca**. La desincronía
+además llega a disco: `notify()` llama a `learnDuration()` de entrada, que
+cruza `q.Current()` (=b) con `d.pl.State()` (=la duración de a) y termina en
+`d.lib.SetDuration(b, duraciónDeA)`, fuera de `d.mu`. Los tres efectos
+—desincronía, pista perdida, duración corrupta en SQLite— se reprodujeron por
+separado antes de tocar nada.
+
+El arreglo usa el mecanismo que el proyecto ya tenía, extendido al tramo que le
+faltaba: `loadGen` existía justamente para esto (*"los desenlaces que siguen son
+de esta carga"*) pero se leía en UN solo lugar, `resolveEnd`, que corre ANTES
+del `go` — cubría `[end-file → start-file/idle]` y no `[resolveEnd → advance
+toma d.mu]`. Ahora `resolveEnd` **devuelve** la generación, el callback la
+lleva (`onEnd(reason, next, gen)`, `advance(reason, chained, gen)`) y `advance`
+la revalida contra `LoadGen()` como primer chequeo bajo `d.mu`, saliendo con
+`skipNotify` igual que el eco tras stop (el mutador que subió la generación ya
+realineó y notificó por su propio `handle()`). Las dos guardas quedan vivas y
+son complementarias: la de generación ataja lo que RECARGA (jump, play, next,
+stop) y la de ruta lo que muta SIN recargar (move, shuffle, remove).
+
+Se descartó la alternativa de comparar contra `p.CurrentPath()` —que existe y
+se documenta como "la verdad viva"— porque es un round-trip IPC a mpv con
+`d.mu` tomado, justo lo que las tres excepciones de "antes de `d.mu`" existen
+para evitar. De paso quedó anotado que esa función **no tiene ningún llamador
+de producción**: su único uso en el repo es un test.
+
+Dos cosas que este ciclo deja como lección de método:
+
+- **`go test -race` es CIEGO a esta clase de defecto.** No hay ningún acceso a
+  memoria sin sincronizar: la cola siempre bajo `d.mu`, el espejo siempre bajo
+  `p.mu`. Lo que viaja mal es un VALOR obsoleto cruzando entre dos dominios de
+  lock, y el detector no puede verlo. Confirmado corriendo `-race` sobre los
+  tests que fallaban: ni un `DATA RACE`. O sea que el job `race` de CI no lo
+  habría encontrado ni con `daemon` en su lista.
+- **Una medición negativa sin verificar su precondición no es una medición.**
+  El primer intento de reproducir la corrupción de duración dio negativo y casi
+  se descarta la hipótesis; la causa era que el test llamaba a `advance` antes
+  de que mpv publicara `duration`, y `learnDuration` corta con
+  `st.Duration <= 0`. Con un `waitStatus` esperando el dato, reproduce. Es la
+  misma trampa de la 1.15.0, esta vez del lado del arnés.
+
+Los seis tests viven en `internal/daemon/daemon_race_test.go`: tres fijan el
+defecto (jump, pista perdida, duración corrupta), `TestAdvanceObsoletoTrasNext`
+y `TestAdvanceObsoletoTrasMove` ejercitan una guarda cada una —el de move es
+el que impide que la de ruta quede sin nadie que la pruebe, porque `move` no
+mueve `loadGen`— y `TestAdvanceGeneracionVigenteAvanza` fija el camino feliz.
+La reversión para verificar se hizo neutralizando **solo el cuerpo del
+chequeo** y dejando la firma: un revert que quite el parámetro no compila, y
+eso es señal DÉBIL (la lección de la 1.6.1, que ya mordió dos veces en la
+1.16.2). `TestGaplessChain` y `TestGaplessRepeatOne` siguen en verde: son la red
+del camino feliz con mpv real.
+
+Fuera de alcance a propósito: el **append duplicado** (el `end-file` baja
+`nextKnown` y desarma el guard de no-op de `SetNext`, así que un mutador en esa
+ventana re-anexa la pista que mpv ya está encadenando) se auto-repara en el
+`syncWindowLocked` siguiente y solo sería audible si esa pista falla al
+instante, donde `errStreak` corta igual; y el **reordenamiento de dos `advance`
+concurrentes**, que capturan la MISMA generación y por tanto el chequeo nuevo
+no los separa — peor caso medido, una recarga de más.
 
 
 ### Post-1.0 (candidatos)

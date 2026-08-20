@@ -1,2 +1,17 @@
 # binario compilado
 /maly
+
+# graphify: el grafo (graph.json, graph.html, GRAPH_REPORT.md, manifest.json) SÍ
+# se versiona — es el mapa que Claude Code consulta. Lo de abajo, no:
+graphify-out/cost.json
+graphify-out/cache/
+
+# Claude Code: el skill de graphify y su CLAUDE.md SÍ se versionan (son
+# portables). Estos dos no: settings.json lleva la ruta absoluta del binario
+# de graphify de cada máquina, y RESUME.md es un checkpoint de sesión.
+.claude/settings.json
+.claude/RESUME.md
+# solo contiene la ruta absoluta del proyecto; graphify lo regenera
+graphify-out/.graphify_root
+# snapshots regenerables de Graphify
+graphify-out/20*/

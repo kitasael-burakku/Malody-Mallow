@@ -2203,3 +2203,27 @@ desenlace de cada uno:
   un archivo de 0 bytes en silencio. Verificado con binarios falsos en las dos
   direcciones (el código viejo instalaba los 0 bytes) y con una instalación
   completa de punta a punta en una sandbox XDG.
+
+## graphify
+
+El repo tiene un grafo de conocimiento en `graphify-out/` (1574 nodos, 4396
+aristas, 80 comunidades): código Go parseado con tree-sitter más una capa
+semántica sobre CLAUDE.md, ambos README, el CHANGELOG y las capturas de
+`pictures/`. Cada arista viene marcada `EXTRACTED` (explícita en la fuente) o
+`INFERRED` (deducida al resolver).
+
+Reglas:
+- Para preguntas sobre el código, primero `graphify query "<pregunta>"`. Para
+  relaciones, `graphify path "<A>" "<B>"`; para un concepto suelto,
+  `graphify explain "<concepto>"`. Devuelven un subgrafo acotado, mucho más
+  chico que GRAPH_REPORT.md o que un grep en crudo.
+- `graphify-out/GRAPH_REPORT.md` solo para repaso amplio de arquitectura, o
+  cuando query/path/explain no den contexto suficiente. `graph.html` es la
+  misma información navegable en el browser, para consulta humana.
+- Tras modificar código, `graphify update .` para mantener el grafo al día
+  (solo AST, sin coste de API). Eso NO reindexa la documentación: si cambian
+  CLAUDE.md o los README, hace falta `graphify extract . --backend claude-cli`,
+  que sí gasta tokens.
+- El grafo indexa también `.claude/skills/graphify/`, o sea la documentación de
+  la propia herramienta: unos 21 nodos que no son de maly. Se excluyen con un
+  `.graphifyignore` con `.claude/` y un re-extract.

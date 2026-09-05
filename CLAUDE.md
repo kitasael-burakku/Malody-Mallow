@@ -345,7 +345,19 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   `maxLogoArt` líneas en config).
 - `internal/i18n` — `T/Tf` (idioma global) y `TL/TLf` (por petición: el cliente
   manda `Request.Lang` y el demonio responde en ese idioma). `TestTableIntegrity`
-  valida en/es al agregar claves.
+  valida en/es al agregar claves, y `callsites_test.go` valida los SITIOS DE
+  LLAMADA parseando el árbol desde `../../` con `go/ast`: que la clave exista,
+  que `Tf`/`TLf` pasen tantos argumentos como verbos tiene la clave, que
+  ningún `T`/`TL` pida una clave con verbos (el `fmt.Sprintf(i18n.T(k), …)`
+  que cerró A-19) y que no queden claves muertas. Hace falta porque **`go vet`
+  no puede ayudar acá**: reconoce printf-wrappers cuando el formato es un
+  PARÁMETRO, y en `Tf` el formato sale de buscar la clave en la tabla. Dos
+  detalles que muerden si se tocan: las cadenas literales se recogen de todo
+  el árbol MENOS del propio paquete `i18n` (si no, cada clave de la tabla se
+  usaría a sí misma y el chequeo de claves muertas sería vacuo — verificado),
+  y los `_test.go` quedan fuera porque usan claves inventadas a propósito. Las
+  claves que se ARMAN por concatenación (`"cli.preset_"+name`) van en una
+  lista a mano.
 - `internal/update` — chequeo de releases fiel a la filosofía "coordinar
   herramientas": `git ls-remote --tags` contra el repo (nada de HTTP propio),
   mayor tag semver vs `version.Version`, cache 24 h en

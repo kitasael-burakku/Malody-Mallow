@@ -168,7 +168,7 @@ func (m *selectModel) View() string {
 	if maxRows > 12 {
 		maxRows = 12
 	}
-	hint := fmt.Sprintf(i18n.T("songs.hint"), len(m.pk.matches))
+	hint := i18n.Tf("songs.hint", len(m.pk.matches))
 	box := m.pk.render(i18n.T("sel.title"), hint, w, maxRows)
 	if m.flash != "" {
 		box += "\n " + m.flash

@@ -126,7 +126,6 @@ var table = map[string][2]string{
 	"help.page_keys":      {"page up/down · top / bottom", "avanzar/retroceder página · inicio / final"},
 	"help.close":          {"  any key closes this help", "  cualquier tecla cierra esta ayuda"},
 	"help.scroll_hint":    {"  ↑/↓ pgup/pgdn scroll · other keys close", "  ↑/↓ pgup/pgdn desplazan · otras teclas cierran"},
-	"help.show":           {"show this help", "mostrar esta ayuda"},
 	"help.space":          {"space", "espacio"},
 
 	// ---- TUI: selector de idioma ----

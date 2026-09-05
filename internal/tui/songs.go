@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -65,7 +64,7 @@ func (m *Model) songsView() string {
 	if maxRows > 14 {
 		maxRows = 14
 	}
-	hint := fmt.Sprintf(i18n.T("songs.hint"), len(m.songs.matches))
+	hint := i18n.Tf("songs.hint", len(m.songs.matches))
 	box := m.songs.render(i18n.T("songs.title"), hint, w, maxRows)
 	// El flash de "agregado a la cola" (tab) se armaba y nunca se dibujaba:
 	// era el único picker sin esto — plView() sí lo hace, mismo patrón acá

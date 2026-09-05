@@ -263,9 +263,9 @@ func (m *Model) plView() string {
 	}
 	var hint string
 	if m.plMode == plTarget {
-		hint = fmt.Sprintf(i18n.T("plsel.hint_add"), len(m.pl.matches), len(m.plPending))
+		hint = i18n.Tf("plsel.hint_add", len(m.pl.matches), len(m.plPending))
 	} else {
-		hint = fmt.Sprintf(i18n.T("plsel.hint"), len(m.pl.matches))
+		hint = i18n.Tf("plsel.hint", len(m.pl.matches))
 	}
 	if len(m.pl.items) == 0 && m.pl.input.Value() == "" {
 		hint = i18n.T("plsel.empty")

@@ -365,7 +365,17 @@ func runScan(args []string) error {
 }
 
 func runSearch(args []string) error {
-	if len(args) == 0 {
+	// La guarda mira el CONTENIDO y no la cantidad de argumentos: `maly
+	// search ""` pasaba con un argumento vacío, y Search("") no filtra nada
+	// —SearchLimit arma su WHERE con strings.Fields(Fold(q)), que con cadena
+	// vacía o solo espacios da cero palabras— así que volcaba la biblioteca
+	// entera en pantalla. Inofensivo (hay que escribirlo a propósito) pero
+	// contradecía el razonamiento con el que la 1.6.1 decidió que la consulta
+	// vacía "no es alcanzable"; sí lo era, por acá (auditoría 2026-09-04,
+	// hallazgo A-20). Ojo: esta ruta NO pasa por el demonio —lee SQLite
+	// directo—, así que nunca tuvo nada que ver con d.mu.
+	q := strings.TrimSpace(strings.Join(args, " "))
+	if q == "" {
 		return fmt.Errorf("%s", i18n.T("cli.usage_search"))
 	}
 	// Sin base todavía, `search` NO la crea: openLibrary la fabricaría vacía
@@ -379,7 +389,7 @@ func runSearch(args []string) error {
 		return nil
 	}
 	defer lib.Close()
-	tracks, err := lib.Search(strings.Join(args, " "))
+	tracks, err := lib.Search(q)
 	if err != nil {
 		return err
 	}

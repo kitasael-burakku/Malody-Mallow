@@ -143,6 +143,60 @@ func TestRunSearchConBaseSigueBuscando(t *testing.T) {
 	}
 }
 
+// TestRunSearchVacioNoVuelcaLaBiblioteca cubre el hallazgo A-20 de la
+// auditoría 2026-09-04: la guarda contaba ARGUMENTOS y no contenido, así que
+// `maly search ""` pasaba con un argumento vacío y Search("") no filtra nada
+// —SearchLimit arma su WHERE con strings.Fields(Fold(q)), y con cadena vacía
+// o solo espacios eso da cero palabras—, imprimiendo la biblioteca entera.
+//
+// Se comprueban las DOS mitades: que devuelve error Y que no imprimió nada.
+// Solo lo primero dejaría pasar una versión que avisa después de volcar la
+// tabla.
+func TestRunSearchVacioNoVuelcaLaBiblioteca(t *testing.T) {
+	xdgSandbox(t)
+
+	// Una biblioteca con contenido: sin esto, "no imprime nada" se cumpliría
+	// por vacía y el test pasaría con el defecto presente.
+	lib, err := openLibrary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	musica := t.TempDir()
+	for _, n := range []string{"una.mp3", "otra.mp3"} {
+		if err := os.WriteFile(filepath.Join(musica, n), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if res, err := lib.Scan(musica, nil); err != nil || res.Added != 2 {
+		t.Fatalf("escaneo previo: %+v, %v", res, err)
+	}
+	lib.Close()
+
+	// Control: con una consulta de verdad SÍ imprime.
+	if out := captureStdout(t, func() {
+		if err := runSearch([]string{"una"}); err != nil {
+			t.Errorf("búsqueda normal: %v", err)
+		}
+	}); !strings.Contains(out, "una") {
+		t.Fatalf("la búsqueda normal debía imprimir resultados, salió %q", out)
+	}
+
+	for _, q := range []string{"", "   ", "	"} {
+		var err error
+		out := captureStdout(t, func() { err = runSearch([]string{q}) })
+		if err == nil {
+			t.Errorf("search %q debía ser error de uso, no una consulta", q)
+		}
+		if strings.Contains(out, "una") || strings.Contains(out, "otra") {
+			t.Errorf("search %q volcó la biblioteca:\n%s", q, out)
+		}
+	}
+	// Y varios argumentos que juntos son vacíos tampoco cuelan.
+	if err := runSearch([]string{"", " "}); err == nil {
+		t.Error("varios argumentos vacíos también debían ser error de uso")
+	}
+}
+
 // TestScanMandaLaRutaResuelta cubre el hallazgo A-03 de la auditoría técnica
 // del 2026-09-04: daemon.New guarda una copia del config y no vuelve a
 // mirarlo jamás, así que `maly scan` sin argumentos mandaba Query:"" y el

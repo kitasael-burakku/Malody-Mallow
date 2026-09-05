@@ -531,3 +531,27 @@ func TestConScanMandaLaRutaResuelta(t *testing.T) {
 		t.Fatal("el demonio falso no recibió ninguna petición")
 	}
 }
+
+// TestConsoleSearchNoMandaConsultaVacia fija la premisa con la que la 1.6.1
+// decidió dejar `search` DENTRO de d.mu: la consulta vacía —la única que
+// recorre la biblioteca entera, ~96 ms con 40.000 pistas— "no es alcanzable
+// por el demonio". A-20 encontró que sí lo era por la CLI, pero esa ruta lee
+// SQLite directo y nunca toca d.mu; la consola es el ÚNICO cliente que manda
+// la op `search` al demonio, y no puede mandarla vacía porque execConsole
+// parte la línea con strings.Fields.
+//
+// El test existe porque esa garantía es de strings.Fields y no de una guarda
+// explícita: si algún día la consola aprendiera a respetar comillas (se
+// discutió en C14), `search ""` llegaría al demonio y la premisa caería en
+// silencio.
+func TestConsoleSearchNoMandaConsultaVacia(t *testing.T) {
+	for _, linea := range []string{"search", "search   ", "search \t "} {
+		m := newConModel()
+		if _, cmd := m.execConsole(linea); cmd != nil {
+			t.Errorf("%q no debía llegar a mandar nada al demonio", linea)
+		}
+		if salida := strings.Join(m.conLines, "\n"); !strings.Contains(salida, i18n.T("cli.usage_search")) {
+			t.Errorf("%q debía responder con el uso, salió %q", linea, salida)
+		}
+	}
+}

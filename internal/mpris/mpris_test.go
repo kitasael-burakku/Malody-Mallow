@@ -2,6 +2,7 @@ package mpris
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"testing"
 	"time"
@@ -330,6 +331,53 @@ func TestSetVolume(t *testing.T) {
 		t.Error("setVolume con tipo inválido no devolvió error")
 	}
 	f.wantNone(t)
+}
+
+// TestSetVolumeRechazaNoFinitos cubre el hallazgo A-16 de la auditoría
+// 2026-09-04: NaN es false en TODA comparación, así que atravesaba los dos
+// clamps de setVolume —la misma familia de defectos que la 1.6.0 cerró con
+// finite() en el demonio y con la última barrera de player.SetVolume, pero
+// esta frontera es ANTERIOR a las dos—. int(NaN*100+0.5) da el mínimo de
+// int64 en amd64, que viaja como "-9223372036854775808", parseAdjust lo lee
+// como ajuste relativo (empieza con "-"), es finito, y el clamp lo deja en 0:
+// el reproductor se MUTEA en silencio, el peor de los tres desenlaces
+// posibles, y la spec pide InvalidArgs.
+//
+// Se comprueban las dos mitades: que devuelve error Y que no llega ningún
+// comando al demonio. Solo lo primero dejaría pasar una versión que rechaza
+// y despacha igual.
+//
+// Los infinitos van en la tabla aunque NO estaban rotos: los clamps ya los
+// recortaban bien (Inf > 1 y -Inf < 0 son true, a diferencia de NaN). Se
+// fijan porque la barrera se escribe "no finito" —como finite() en el resto
+// del árbol— y no "NaN". Al revertir se ve la diferencia: NaN despacha
+// "-9223372036854775808", los infinitos despachan "100" y "0".
+func TestSetVolumeRechazaNoFinitos(t *testing.T) {
+	f := newFakeCtrl(&ipc.Status{})
+	s := &Service{ctrl: f}
+
+	for _, c := range []struct {
+		nombre string
+		in     float64
+	}{
+		{"NaN", math.NaN()},
+		{"+Inf", math.Inf(1)},
+		{"-Inf", math.Inf(-1)},
+	} {
+		t.Run(c.nombre, func(t *testing.T) {
+			if err := s.setVolume(c.in); err == nil {
+				t.Errorf("setVolume(%v) debía devolver ErrInvalidArg", c.in)
+			}
+			f.wantNone(t)
+		})
+	}
+
+	// El hermano setRate ya lo atrapaba, pero por accidente (v != 1.0 es
+	// true para NaN): se fija para que siga siendo cierto si algún día se
+	// admite más de una velocidad.
+	if err := s.setRate(math.NaN()); err == nil {
+		t.Error("setRate(NaN) debía devolver ErrInvalidArg")
+	}
 }
 
 func TestSetShuffle(t *testing.T) {

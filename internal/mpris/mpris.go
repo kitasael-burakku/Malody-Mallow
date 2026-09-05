@@ -8,6 +8,7 @@ package mpris
 import (
 	"fmt"
 	"hash/fnv"
+	"math"
 	"net/url"
 	"sync"
 
@@ -243,7 +244,24 @@ func (s *Service) propSpec(st *ipc.Status) map[string]map[string]*propDef {
 
 func (s *Service) setVolume(val any) *dbus.Error {
 	v, ok := val.(float64)
-	if !ok {
+	// NaN se rechaza ANTES de los clamps porque los ATRAVIESA: es false en
+	// TODA comparación, la misma familia de defectos que la 1.6.0 persiguió
+	// por el árbol y cerró con finite() en el demonio y con la última
+	// barrera de player.SetVolume. Esta frontera es ANTERIOR a las dos, así
+	// que ninguna lo salvaba: int(NaN*100+0.5) es implementation-defined y
+	// en amd64 da el mínimo de int64, que SetVolume(int) manda como la
+	// cadena "-9223372036854775808"; parseAdjust la lee como ajuste relativo
+	// (empieza con "-"), la ve finita, y el clamp deja el volumen en 0
+	// —medido de punta a punta: de 70 a 0—. O sea que el reproductor se
+	// MUTEA en silencio, el peor de los tres desenlaces posibles, cuando la
+	// spec de MPRIS pide InvalidArgs (auditoría 2026-09-04, hallazgo A-16).
+	//
+	// Los infinitos NO estaban rotos —Inf > 1 y -Inf < 0 son true, así que
+	// los clamps ya los recortaban bien— y se rechazan igual: la barrera es
+	// "no finito", no "NaN", que es como está escrita en el resto del árbol
+	// (finite()), y un valor infinito tampoco es un volumen que nadie quiso
+	// pedir. El hermano setRate atrapa NaN por accidente: v != 1.0 es true.
+	if !ok || math.IsNaN(v) || math.IsInf(v, 0) {
 		return prop.ErrInvalidArg
 	}
 	if v < 0 {

@@ -399,7 +399,14 @@ Decisiones transversales:
   lo rechaza — y con aquel error descartado el comando se perdía y costaba 5 s
   de timeout con `d.mu` tomado (un `maly vol NaN` congelaba el demonio entero).
   Lo cortan `finite()` en daemon y, como última barrera, `player.command` y
-  `SetVolume`.
+  `SetVolume`. La frontera MPRIS es ANTERIOR a las dos y quedó fuera hasta la
+  auditoría del 2026-09-04 (A-16): `mpris.setVolume` clampaba `[0,1]` y un
+  `Volume = NaN` atravesaba los dos clamps, `int(NaN*100+0.5)` daba el mínimo
+  de int64 y llegaba como la cadena `"-9223372036854775808"`, que `parseAdjust`
+  lee como ajuste relativo, ve finita y clampa — muteando el reproductor en
+  silencio (medido: de 70 a 0). Ahora rechaza no finitos con `ErrInvalidArg`,
+  como pide la spec. Los infinitos NO estaban rotos ahí (los clamps sí los
+  recortan); se rechazan igual porque la barrera se escribe "no finito".
 - El demonio adjunta `Response.Version` en toda respuesta; CLI y TUI avisan si
   difiere del binario.
 - `config.Load()` mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del

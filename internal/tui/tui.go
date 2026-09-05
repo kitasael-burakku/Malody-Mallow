@@ -155,6 +155,14 @@ type Model struct {
 	// cursor, y confirmar por índice borraría otra playlist.
 	plConfirm string
 
+	// conPlConfirm: "" = sin borrado pendiente en la CONSOLA; no vacío =
+	// nombre de la playlist que `playlist delete` dejó armada esperando
+	// confirmación. Es un campo aparte del de arriba a propósito: son dos
+	// caminos distintos (el panel ctrl+l con ctrl+x, y la consola ctrl+p)
+	// que pueden estar abiertos en momentos distintos, y compartir el campo
+	// dejaría a uno cancelando el borrado pendiente del otro.
+	conPlConfirm string
+
 	// Capa "Ahora suena" (ctrl+t): pantalla completa con carátula y letras.
 	npOpen         bool
 	npTrack        string      // pista cuyos datos están cargados
@@ -680,18 +688,22 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.conScan("")
 
 	case getPlaylistDoneMsg:
+		// yt-dlp sale con código != 0 ante CUALQUIER ítem privado/borrado/
+		// bloqueado por región, que en playlists reales de YouTube es la
+		// norma y no la excepción. Cortar acá dejaba huérfano en disco todo
+		// lo que SÍ había bajado, sin scan ni playlist: 0 pistas y sin
+		// reintento posible. La CLI dejó de hacerlo en la 1.12.0 (hallazgo
+		// G1) y esta mitad siguió abortando hasta la auditoría 2026-09-04
+		// (A-04). Ahora se avisa y se sigue con lo que sobrevivió: si no
+		// sobrevivió nada, cli.get_pl_empty más adelante ya es el caso
+		// terminal y limpia el directorio por el camino de errLine (G7).
+		partial := false
 		if msg.err != nil {
-			// El destino se creó antes de invocar a yt-dlp: si la descarga no
-			// dejó nada, no dejar el hueco (hallazgo G7). os.Remove se niega
-			// con cualquier cosa dentro.
-			if msg.createdDir {
-				os.Remove(msg.dir)
-			}
-			m.conErr(i18n.Tf("cli.get_err", msg.err))
-			return m, nil
+			m.conErr(i18n.Tf("cli.get_pl_partial", msg.err))
+			partial = true
 		}
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
-		return m, m.conGetPlaylistFinish(msg.musicDir, msg.name, msg.dir, msg.before, msg.createdDir)
+		return m, m.conGetPlaylistFinish(msg, partial)
 
 	case updTickMsg:
 		// Volver a mirar y re-armar el tick. Cuando el cache ya anuncia algo,

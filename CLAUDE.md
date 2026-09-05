@@ -273,7 +273,17 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   cola + consola ctrl+p (tabla propia de comandos en `console.go`, con paridad
   CLI completa: `playlist` en `console_playlist.go`, `get` vía
   `tea.ExecProcess` + `internal/getter` compartido con la CLI, `controls`
-  aplica el preset en vivo recargando `m.keys`) + picker
+  aplica el preset en vivo recargando `m.keys`; `playlist delete` NO borra:
+  arma `conPlConfirm` y lo resuelve la línea SIGUIENTE, que se consume pase
+  lo que pase —igual que `confirmYesNo` de la CLI, que lee UNA línea— y es
+  campo aparte del `plConfirm` del panel ctrl+l para que un camino no cancele
+  el borrado pendiente del otro. En `get playlist`, `planGetPlaylist` toma
+  TODAS las decisiones previas a la descarga y `newTrackIDs` filtra lo que ya
+  estaba en el destino: van separadas de sus consumidores porque
+  `tea.ExecProcess` solo se resuelve dentro del runtime de bubbletea y al
+  resto solo se llega pasando por el demonio, así que sin partirlas no hay
+  forma de comprobar en un test qué decidió esta mitad — que es exactamente
+  cómo A-04 pudo pasar desapercibido) + picker
   fuzzy genérico (`picker.go`, usado por ctrl+o canciones, ctrl+l playlists y
   `maly select`; sus knobs `noFilter`/`emptyText`, con valor cero =
   comportamiento de siempre, existen para el buscador de descargas) +
@@ -417,6 +427,14 @@ Decisiones transversales:
 - TUI: probar bajo tmux (`new-session -d`, `send-keys`, `capture-pane -p`);
   bajo `script -qec` el init espera ~5 s por OSC 11. El pane NO es fish aunque
   el shell del usuario lo sea: usar `env VAR=... cmd`, no `set -x`.
+- `tmux send-keys` TOKENIZA por espacios y busca nombres de tecla en cada
+  token, **incluso con `-l`**: escribir `playlist delete favs` manda un
+  `playlist`, la tecla **Delete** y un `favs`, así que a la TUI le llega
+  `playlist  favs` y el comando falla por una razón que no tiene nada que ver
+  con el código. Solo muerde con la palabra SUELTA (`AAdeleteBB` pasa entera).
+  Se esquiva partiendo el token entre dos llamadas (`-l "playlist de"` +
+  `-l "lete favs"`). Vale para cualquier token que sea nombre de tecla:
+  `delete`, `up`, `space`, `enter`, `bspace`…
 - Matar procesos de prueba SOLO por PID exacto (`pgrep -a -x maly`) y el mpv por
   su socket (`pkill -f "input-ipc-server=<runtime>/maly/mpv.sock"`). NUNCA
   `pkill -f` con cadenas que aparezcan en la propia línea de comandos del shell.

@@ -12,6 +12,7 @@ import (
 
 	"maly/internal/config"
 	"maly/internal/getter"
+	"maly/internal/i18n"
 	"maly/internal/library"
 )
 
@@ -728,5 +729,282 @@ func TestPickerWidthMax(t *testing.T) {
 		if got := pickerWidthMax(tc.term, getPickerWidth); got != tc.get {
 			t.Errorf("ancho de búsqueda(%d) = %d, quería %d", tc.term, got, tc.get)
 		}
+	}
+}
+
+// --- A-04: los cuatro arreglos que solo vivían en la CLI ---------------------
+//
+// La auditoría 2026-09-04 encontró que `get playlist` y `playlist delete`
+// están escritos dos veces (internal/tui no puede importar cmd/maly) y que
+// las dos copias ya no hacían lo mismo: tres hallazgos que la auditoría de UX
+// de la 1.12.0 dio por cerrados (G1, G2, G3) más la confirmación de C15/T26
+// seguían vivos solo en la mitad CLI. La red que el proyecto ya tenía
+// —ConsoleCommands + TestConsoleParityConCLI— compara NOMBRES de comando, y
+// la divergencia era de COMPORTAMIENTO, así que por construcción no podía
+// cazarla. Estos tests son esa red, para los cuatro casos.
+
+// TestConGetPlaylistNoAbortaConDescargaParcial cubre G1: yt-dlp sale con
+// código != 0 ante cualquier ítem privado/borrado/bloqueado, que en playlists
+// reales de YouTube es la norma. La consola cortaba ahí, dejando huérfano en
+// disco todo lo que SÍ había bajado: 0 pistas y sin reintento posible.
+func TestConGetPlaylistNoAbortaConDescargaParcial(t *testing.T) {
+	m := newConModel()
+	dir := t.TempDir()
+	msg := getPlaylistDoneMsg{
+		err:      errors.New("exit status 1"),
+		musicDir: dir,
+		name:     "favs",
+		dir:      dir,
+	}
+	_, cmd := m.Update(msg)
+	if cmd == nil {
+		t.Fatal("con una descarga parcial la consola debía seguir, no abortar")
+	}
+	salida := strings.Join(m.conLines, "\n")
+	if !strings.Contains(salida, i18n.T("cli.get_scan")) {
+		t.Errorf("debía anunciar el re-escaneo y seguir; salió:\n%s", salida)
+	}
+	// Y el fallo no se traga: se avisa como parcial, no como corte.
+	if !strings.Contains(salida, i18n.Tf("cli.get_pl_partial", msg.err)) {
+		t.Errorf("debía avisar del fallo parcial; salió:\n%s", salida)
+	}
+}
+
+// TestConGetPlaylistChoqueDeNombreAntesDeDescargar cubre G2: el choque de
+// nombre lo detectaba CreatePlaylist al FINAL, tras bajar la playlist entera.
+// Se comprueba contra el efecto observable —que yt-dlp no llegue a
+// invocarse— y no solo contra el mensaje.
+func TestConGetPlaylistChoqueDeNombreAntesDeDescargar(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+	fakeTools(t)
+
+	musicDir := filepath.Join(tmp, "musica")
+	if err := os.MkdirAll(filepath.Dir(config.DBPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.CreatePlaylist("favs"); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	m := newConModel()
+	m.cfg = config.Config{MusicDir: musicDir}
+	_, cmd := m.conGetPlaylist([]string{"https://x/lista", "favs"})
+	if cmd != nil {
+		t.Fatal("con el nombre ya tomado no debía llegar a lanzar yt-dlp")
+	}
+	if salida := strings.Join(m.conLines, "\n"); !strings.Contains(salida, i18n.Tf("lib.pl_exists", "favs")) {
+		t.Errorf("debía decir que la playlist ya existe; salió:\n%s", salida)
+	}
+	// Y no debe haber creado el destino: el chequeo va antes del filesystem.
+	if _, err := os.Stat(filepath.Join(musicDir, "favs")); err == nil {
+		t.Error("no debía crear el directorio destino tras rechazar el nombre")
+	}
+}
+
+// TestConGetPlaylistSoloLoRecienBajado cubre G3: con nombre explícito, dir
+// puede ser un directorio preexistente con música ajena, y la consola metía
+// en la playlist TODO lo que hubiera ahí. Se verifica sobre el snapshot, que
+// es la pieza que faltaba: sin él, filesBefore viaja nil y el filtro de
+// conGetPlaylistFinish no puede excluir nada.
+func TestConGetPlaylistSoloLoRecienBajado(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+	fakeTools(t)
+
+	musicDir := filepath.Join(tmp, "musica")
+	destino := filepath.Join(musicDir, "favs")
+	if err := os.MkdirAll(destino, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Música que YA estaba en el destino y no es de esta descarga.
+	if err := os.WriteFile(filepath.Join(destino, "ajena.mp3"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(config.DBPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newConModel()
+	m.cfg = config.Config{MusicDir: musicDir}
+
+	// Primera mitad: la decisión. planGetPlaylist tiene que sacar el
+	// snapshot de dir; sin él filesBefore viaja nil y el filtro de más abajo
+	// no puede excluir nada por mucho que exista.
+	msg, opts, err := m.planGetPlaylist("https://x/lista", "favs")
+	if err != nil {
+		t.Fatalf("planGetPlaylist: %v", err)
+	}
+	if opts.Dir != destino {
+		t.Errorf("yt-dlp debía bajar a %q, va a %q", destino, opts.Dir)
+	}
+	if msg.filesBefore == nil {
+		t.Fatal("con nombre explícito debía viajar el snapshot de dir (filesBefore)")
+	}
+	if !msg.filesBefore["ajena.mp3"] {
+		t.Errorf("el snapshot debía incluir lo que ya estaba, trajo %v", msg.filesBefore)
+	}
+
+	// Segunda mitad: el filtro. Con la descarga ya hecha (una pista nueva
+	// junto a la ajena) y la biblioteca indexada, la playlist tiene que
+	// quedarse SOLO con la nueva.
+	if err := os.WriteFile(filepath.Join(destino, "nueva.mp3"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.Scan(musicDir, nil); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	lib, err = library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	ids, err := newTrackIDs(lib, destino, msg.filesBefore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 1 {
+		t.Fatalf("la playlist debía llevarse 1 pista (la recién bajada), se lleva %d", len(ids))
+	}
+	tr, ok := lib.ByPath(filepath.Join(destino, "nueva.mp3"))
+	if !ok || ids[0] != tr.ID {
+		t.Errorf("la pista elegida no es la recién bajada")
+	}
+}
+
+// TestConsolePlaylistDeletePideConfirmacion cubre C15/T26 en el tercer
+// camino: la CLI y el panel ctrl+l ya confirmaban, la consola borraba de una.
+// Una playlist armada a mano no tiene deshacer.
+func TestConsolePlaylistDeletePideConfirmacion(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+	if err := os.MkdirAll(filepath.Dir(config.DBPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	crear := func(m *Model, nombre string) {
+		t.Helper()
+		_, cmd := m.execConsole("playlist create " + nombre)
+		if cmd == nil {
+			t.Fatal("create debía devolver un tea.Cmd")
+		}
+		cmd()
+	}
+	sigueExistiendo := func(nombre string) bool {
+		t.Helper()
+		lib, err := library.Open(config.DBPath())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer lib.Close()
+		lists, err := lib.Playlists()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range lists {
+			if p.Name == nombre {
+				return true
+			}
+		}
+		return false
+	}
+
+	// 1. El primer `delete` NO borra: arma la confirmación y lo dice.
+	m := newConModel()
+	crear(m, "favs")
+	if _, cmd := m.execConsole("playlist delete favs"); cmd != nil {
+		t.Fatal("el primer delete no debía borrar nada")
+	}
+	if m.conPlConfirm != "favs" {
+		t.Fatalf("debía quedar armada la confirmación para 'favs', quedó %q", m.conPlConfirm)
+	}
+	if !sigueExistiendo("favs") {
+		t.Fatal("la playlist se borró sin confirmar")
+	}
+	if salida := strings.Join(m.conLines, "\n"); !strings.Contains(salida, i18n.Tf("pl.delete_confirm_console", "favs")) {
+		t.Errorf("debía pedir confirmación; salió:\n%s", salida)
+	}
+
+	// 2. Cualquier cosa que no sea sí/y cancela, y consume la línea (igual
+	//    que confirmYesNo en la CLI, que lee UNA línea y termina).
+	m2 := newConModel()
+	if _, cmd := m2.execConsole("playlist delete favs"); cmd != nil {
+		t.Fatal("el primer delete no debía borrar nada")
+	}
+	if _, cmd := m2.execConsole("queue"); cmd != nil {
+		t.Error("la línea que cancela se consume, no se ejecuta como comando")
+	}
+	if m2.conPlConfirm != "" {
+		t.Errorf("cancelar debía limpiar la confirmación, quedó %q", m2.conPlConfirm)
+	}
+	if !sigueExistiendo("favs") {
+		t.Fatal("la playlist se borró tras cancelar")
+	}
+
+	// 3. Solo sí/y borra de verdad.
+	m3 := newConModel()
+	if _, cmd := m3.execConsole("playlist delete favs"); cmd != nil {
+		t.Fatal("el primer delete no debía borrar nada")
+	}
+	_, cmd := m3.execConsole("s")
+	if cmd == nil {
+		t.Fatal("confirmar debía devolver el tea.Cmd que borra")
+	}
+	cmd()
+	if sigueExistiendo("favs") {
+		t.Fatal("tras confirmar, la playlist debía estar borrada")
+	}
+}
+
+// TestConGetPlaylistFinishLimpiaElDirectorioQueCreo cubre la interacción
+// G1↔G7: al dejar de abortar ante un fallo de yt-dlp (G1), la limpieza del
+// directorio vacío dejó de hacerla el handler y pasó a depender enteramente
+// de errLine, más abajo. Si eso no se cumpliera, cada descarga fallida
+// dejaría un directorio huérfano en music_dir — el defecto que G7 cerró.
+func TestConGetPlaylistFinishLimpiaElDirectorioQueCreo(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+
+	musicDir := filepath.Join(tmp, "musica")
+	destino := filepath.Join(musicDir, "favs")
+	if err := os.MkdirAll(destino, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	m := newConModel()
+	m.sock = filepath.Join(tmp, "no-hay-demonio.sock")
+	msg := getPlaylistDoneMsg{
+		musicDir:    musicDir,
+		name:        "favs",
+		dir:         destino,
+		filesBefore: map[string]bool{},
+		createdDir:  true,
+	}
+	// partial=true: la descarga falló y no dejó nada, el caso que antes
+	// cortaba en el handler y ahora llega hasta acá.
+	out, ok := m.conGetPlaylistFinish(msg, true)().(conMsg)
+	if !ok {
+		t.Fatal("esperaba un conMsg")
+	}
+	if len(out.lines) == 0 {
+		t.Error("un fallo total debía reportar algo")
+	}
+	if _, err := os.Stat(destino); err == nil {
+		t.Error("el directorio que creamos y quedó vacío debía irse con el error (G7)")
 	}
 }

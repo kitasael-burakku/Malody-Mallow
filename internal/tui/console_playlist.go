@@ -91,13 +91,14 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 			m.conErr(i18n.T("pl.usage_delete"))
 			return m, nil
 		}
+		// No borra: arma la confirmación y la resuelve la línea siguiente
+		// (ver la guarda al principio de execConsole). C15/T26 le puso
+		// confirmación a este borrado en la CLI y en el panel ctrl+l; la
+		// consola quedó sin ella hasta A-04.
 		name := strings.Join(args, " ")
-		return m, m.conLib(true, func(lib *library.Library) ([]string, error) {
-			if err := lib.DeletePlaylist(name); err != nil {
-				return nil, err
-			}
-			return []string{st.playing.Render(i18n.Tf("pl.deleted", name))}, nil
-		})
+		m.conPlConfirm = name
+		m.conPrint(m.st.dim.Render(i18n.Tf("pl.delete_confirm_console", name)))
+		return m, nil
 
 	case "add":
 		if len(args) < 2 {
@@ -201,4 +202,16 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 		m.conErr(i18n.Tf("pl.unknown", sub) + "\n" + i18n.T("pl.usage"))
 		return m, nil
 	}
+}
+
+// conPlaylistDelete borra de verdad. Vive aparte porque quien la llama no es
+// el comando sino la confirmación de la línea siguiente.
+func (m *Model) conPlaylistDelete(name string) tea.Cmd {
+	st := m.st
+	return m.conLib(true, func(lib *library.Library) ([]string, error) {
+		if err := lib.DeletePlaylist(name); err != nil {
+			return nil, err
+		}
+		return []string{st.playing.Render(i18n.Tf("pl.deleted", name))}, nil
+	})
 }

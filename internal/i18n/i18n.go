@@ -441,6 +441,11 @@ var table = map[string][2]string{
 	"pl.imported":       {"Playlist %q created with %d track(s) from %s", "Playlist %q creada con %d pista(s) desde %s"},
 	"pl.import_skip":    {"  skipped (not in the library): %s", "  saltada (no está en la biblioteca): %s"},
 
+	// Variante de pl.delete_confirm para la consola de la TUI: ahí no hay
+	// prompt de stdin, así que la confirmación es la línea SIGUIENTE que se
+	// escriba (ver la guarda al principio de execConsole).
+	"pl.delete_confirm_console": {"delete playlist %q? this can't be undone — type y to confirm, anything else cancels", "¿eliminar la playlist %q? no se puede deshacer — escribe s para confirmar, cualquier otra cosa cancela"},
+
 	// ---- Demonio ----
 	"d.already":              {"another maly daemon is already running", "ya hay un servicio de maly corriendo"},
 	"d.bye":                  {"daemon shutting down", "apagando el servicio"},

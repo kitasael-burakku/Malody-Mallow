@@ -351,8 +351,14 @@ func TestConsolePlaylistRoundTrip(t *testing.T) {
 		t.Errorf("show vacía: salida inesperada %q", msg.lines)
 	}
 
-	if msg := run("playlist delete favs"); !msg.reload {
-		t.Errorf("delete debe pedir recarga del árbol")
+	// delete ya no borra de una: arma la confirmación (A-04) y la resuelve
+	// la línea siguiente. Su cobertura propia está en
+	// TestConsolePlaylistDeletePideConfirmacion.
+	if _, cmd := m.execConsole("playlist delete favs"); cmd != nil {
+		t.Error("delete debe armar la confirmación, no borrar de una")
+	}
+	if msg := run("s"); !msg.reload {
+		t.Errorf("delete confirmado debe pedir recarga del árbol")
 	} else if len(msg.lines) == 0 || !strings.Contains(msg.lines[0], i18n.Tf("pl.deleted", "favs")) {
 		t.Errorf("delete: salida inesperada %q", msg.lines)
 	}
@@ -384,21 +390,28 @@ func TestNewDirEntry(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Sin nada nuevo: ambiguo.
-	if got, err := newDirEntry(dir, before); err == nil {
+	if got, err := newDirEntry(dir, before, false); err == nil {
 		t.Errorf("sin subdirectorios nuevos debía fallar, dio %q", got)
+	}
+	// Sin nada nuevo pero con la descarga fallada: la causa probable no es
+	// ambigüedad sino que yt-dlp no llegó a crear ningún directorio, y el
+	// mensaje lo dice (espejo de la CLI, A-04).
+	if _, err := newDirEntry(dir, before, true); err == nil ||
+		err.Error() != i18n.T("cli.get_pl_dl_failed") {
+		t.Errorf("con partial y cero nuevos quería cli.get_pl_dl_failed, salió %v", err)
 	}
 	if err := os.Mkdir(filepath.Join(dir, "Mi Playlist"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	// Exactamente uno nuevo: se identifica.
-	if got, err := newDirEntry(dir, before); err != nil || got != "Mi Playlist" {
+	if got, err := newDirEntry(dir, before, false); err != nil || got != "Mi Playlist" {
 		t.Fatalf("newDirEntry = (%q, %v), quería (\"Mi Playlist\", nil)", got, err)
 	}
 	// Dos nuevos: vuelve a ser ambiguo.
 	if err := os.Mkdir(filepath.Join(dir, "Otra"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := newDirEntry(dir, before); err == nil {
+	if got, err := newDirEntry(dir, before, false); err == nil {
 		t.Errorf("con dos subdirectorios nuevos debía fallar, dio %q", got)
 	}
 }

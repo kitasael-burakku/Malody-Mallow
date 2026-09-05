@@ -756,6 +756,21 @@ func (c Config) ScanTarget(query string) (dir, originKey string, explicit bool) 
 	return dir, originKey, false
 }
 
+// ScanNoExistErr forma el mensaje de "la ruta a escanear no existe". Vive
+// aquí, junto a ScanTarget —que ya devuelve originKey SOLO para este
+// mensaje—, porque desde el hallazgo A-03 el mensaje lo produce el CLIENTE y
+// no el demonio: el cliente manda la ruta ya resuelta, así que el demonio
+// deja de saber de dónde salió (ni si era explícita). Un solo punto para los
+// dos espejos, la CLI y la consola de la TUI.
+func ScanNoExistErr(dir, originKey string, explicit bool) error {
+	if explicit {
+		// Con ruta explícita el usuario ya sabe qué escribió: decirle de
+		// dónde "viene" sería ruido.
+		return errors.New(i18n.Tf("cli.scan_noexist_arg", dir))
+	}
+	return errors.New(i18n.Tf("cli.scan_noexist", dir, i18n.T(originKey)))
+}
+
 // SaveLanguage persiste solo la clave language en config.toml.
 func SaveLanguage(code string) error { return saveTopLevel("language", code) }
 

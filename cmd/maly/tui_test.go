@@ -1,12 +1,23 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/json"
 	"errors"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"golang.org/x/sys/unix"
+
+	"maly/internal/config"
 	"maly/internal/daemon"
 	"maly/internal/i18n"
+	"maly/internal/ipc"
 )
 
 // TestEmbeddedStartErrTraduceAlreadyRunning cubre el hallazgo D7.2 de la
@@ -68,3 +79,103 @@ type wrapErr struct {
 
 func (w *wrapErr) Error() string { return w.msg + ": " + w.err.Error() }
 func (w *wrapErr) Unwrap() error { return w.err }
+
+// TestRunTUIFallbackAClienteConLockTomado cubre el hallazgo A-02 de la
+// auditoría técnica del 2026-09-04: si otro proceso tiene el flock pero el
+// socket todavía no contesta —el demonio está arrancando y espera hasta 5 s a
+// mpv, o hay dos `maly` lanzados a la vez—, daemon.New devuelve
+// ErrAlreadyRunning y la TUI se NEGABA a abrir. Debe esperar y entrar como
+// cliente.
+//
+// Mismo montaje que TestNoRoboElSocketDeUnDemonioArrancando en
+// internal/daemon: alguien tiene el lock y el socket aún no responde. Acá el
+// flock se toma a mano (acquireLock no se exporta) y el "demonio" que arranca
+// es un listener que empieza a contestar ping con retraso.
+func TestRunTUIFallbackAClienteConLockTomado(t *testing.T) {
+	xdgSandbox(t)
+	rt, err := config.EnsureRuntimeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// El que arranca: tiene el lock y todavía no atiende nada.
+	lock, err := os.OpenFile(filepath.Join(rt, "maly.lock"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+
+	// …y empieza a contestar un rato después, como haría al terminar de
+	// abrir la base y esperar a mpv.
+	listo := make(chan struct{})
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		ln, err := net.Listen("unix", config.SocketPath())
+		if err != nil {
+			close(listo)
+			return
+		}
+		close(listo)
+		defer ln.Close()
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				br := bufio.NewReader(c)
+				for {
+					if _, err := br.ReadString('\n'); err != nil {
+						return
+					}
+					if err := json.NewEncoder(c).Encode(ipc.Response{OK: true}); err != nil {
+						return
+					}
+				}
+			}(c)
+		}
+	}()
+	t.Cleanup(func() { <-listo })
+
+	var notice bytes.Buffer
+	embedded, stop, err := startOrAttach(config.Default(), 5*time.Second, &notice)
+	if err != nil {
+		t.Fatalf("con el lock tomado la TUI debía abrir como cliente, falló: %v", err)
+	}
+	stop()
+	if embedded {
+		t.Error("no podíamos haber embebido un demonio: el lock era de otro")
+	}
+	// El aviso solo sale si la espera pasa de un segundo; acá contesta antes.
+	if notice.Len() != 0 {
+		t.Errorf("una espera corta no debía imprimir nada, salió %q", notice.String())
+	}
+}
+
+// TestWaitForDaemonSeRindeYAvisa: agotado el presupuesto, waitForDaemon
+// devuelve false, y por el camino avisa por pantalla para que unos segundos
+// de terminal mudo no parezcan un cuelgue.
+func TestWaitForDaemonSeRindeYAvisa(t *testing.T) {
+	xdgSandbox(t)
+	if _, err := config.EnsureRuntimeDir(); err != nil {
+		t.Fatal(err)
+	}
+	var notice bytes.Buffer
+	inicio := time.Now()
+	// Sin socket, cada Ping falla al instante (el Dial no encuentra nada),
+	// así que la cadencia la marca daemonStartupPoll y el presupuesto se
+	// respeta de verdad.
+	if waitForDaemon(config.SocketPath(), 1500*time.Millisecond, &notice) {
+		t.Fatal("no había ningún demonio: waitForDaemon debía rendirse")
+	}
+	if d := time.Since(inicio); d < 1500*time.Millisecond {
+		t.Errorf("se rindió en %v, antes de agotar el presupuesto", d)
+	}
+	if notice.Len() == 0 {
+		t.Error("una espera de más de un segundo debía avisar por pantalla")
+	}
+}

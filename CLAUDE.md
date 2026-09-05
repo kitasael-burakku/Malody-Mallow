@@ -39,7 +39,13 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
 
 - `cmd/maly` — CLI. `commands.go` tiene la **tabla de comandos**: fuente única de
   verdad para dispatch, help y completions de shell (bash/fish/zsh vía
-  `__complete` oculto). Al agregar un subcomando de playlist, actualizar la lista
+  `__complete` oculto). `tui.go` decide en `startOrAttach` si la TUI embebe el
+  demonio o entra como cliente: ante `ErrAlreadyRunning` NO se rinde —el flock
+  ya dijo que hay otro— sino que espera hasta 8 s a que conteste
+  (`waitForDaemon`), porque un demonio arrancando tarda hasta 5 s esperando a
+  mpv y no contesta al ping (1.16.4). `runScan` manda la ruta ya RESUELTA y
+  nunca `Query: ""`: el config del demonio es de cuando arrancó, así que
+  resolverla él anunciaba una ruta y escaneaba otra. Al agregar un subcomando de playlist, actualizar la lista
   fija de `TestCompletePlaylistSubs`. El completado de pistas pide con TOPE
   (`library.SearchLimit`, `completeFetch` filas) y no con `Search`: la palabra
   parcial vacía es la consulta que recorre la biblioteca entera, y un TAB no
@@ -181,7 +187,14 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   direcciones (con `fillWorkers = 1` falla). Escribe en lotes de
   `fillBatchSize` (50, no 500: cada elemento cuesta un ffprobe) y lo que
   falla queda en 0 para que el próximo scan reintente (nada de centinelas:
-  todos los consumidores prueban `> 0`). `IsAudio` es el filtro único de extensiones.
+  todos los consumidores prueban `> 0`). `IsAudio` es el filtro único de
+  extensiones. La purga de `Scan` tiene una GUARDA: si el walk no vio ni un
+  archivo de audio y `countUnderRoot` dice que la base sí tiene pistas bajo
+  esa raíz, no borra nada y devuelve `*ScanEmpty` (un root vacío es casi
+  siempre un montaje ausente, y el `ON DELETE CASCADE` de `playlist_tracks`
+  vaciaría además TODAS las playlists) — va DESPUÉS del walk porque un
+  directorio vacío es indistinguible de uno montado hasta recorrerlo, y
+  cuenta con el mismo `underRoot` que usa la purga; ver la 1.16.4.
 - `internal/probe` — ffprobe para las duraciones, en la línea de "coordinar
   herramientas" de `internal/getter`. A diferencia de `getter.Tools`, la
   ausencia NO es error: `Available()` falso = la fase se salta en silencio.
@@ -382,7 +395,10 @@ Decisiones transversales:
 - `config.Load()` mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del
   usuario, vía un defer con retorno con nombre — mantener ese orden si se toca.
   `ScanTarget` resuelve el directorio a escanear (query explícita o music_dir
-  con origen para mensajes de error). Una clave booleana que deba venir
+  con origen para mensajes de error) y `ScanNoExistErr` forma el mensaje de
+  "esa ruta no existe": vive ahí porque desde la 1.16.4 lo produce el CLIENTE
+  —el demonio recibe la ruta ya resuelta y ya no sabe de dónde salió— y así
+  los dos espejos, CLI y consola, comparten un solo punto. Una clave booleana que deba venir
   ACTIVA por defecto se puebla en `Default()` (`update_check`,
   `scan_durations`): `toml.Decode` corre sobre el struct ya inicializado, así
   que un config viejo que no la menciona conserva el default. El zero-value
@@ -2159,6 +2175,129 @@ instante, donde `errStreak` corta igual; y el **reordenamiento de dos `advance`
 concurrentes**, que capturan la MISMA generación y por tanto el chequeo nuevo
 no los separa — peor caso medido, una recarga de más.
 
+La **1.16.4** (2026-09-05) es la **Phase 0** de una auditoría técnica y
+arquitectónica completa sobre la 1.16.3 (35 hallazgos: 1 CRITICAL, 5 HIGH,
+11 MEDIUM, 11 LOW y 8 oportunidades; informe aparte en `~/Audits/MalyAu/`,
+con una sección **KEEP** de 48 puntos y una **Explicitly Don't Do** de 18).
+Tres ítems, los únicos marcados "fix now". El resto queda repartido en
+Phase 1/2/3 y **no** entra acá.
+
+**A-01 (CRITICAL) — un escaneo con el `music_dir` vacío borraba la
+biblioteca y VACIABA TODAS LAS PLAYLISTS.** `Scan` construía `seen` y
+purgaba de la base toda entrada bajo `root` que no estuviera ahí, sin
+ninguna guarda sobre el TAMAÑO del borrado. Un `root` que existe pero está
+vacío —el punto de montaje de un disco externo sin montar, un NFS/SSHFS
+caído, un `music_dir` recién cambiado (A-03), o el `os.MkdirAll` que
+`maly get` hace antes de bajar nada— purgaba las 4.000 filas de una. Y
+como `playlist_tracks` tiene `ON DELETE CASCADE` sobre `tracks(id)` con
+las claves foráneas activas, el borrado se llevaba el CONTENIDO de todas
+las playlists: lo único que el usuario arma a mano y que maly no puede
+reconstruir de ningún sitio — el mismo argumento con el que C15/T26 le
+puso confirmación a `playlist delete` y a `ctrl+x`. Era la única pérdida
+de datos irreversible del proyecto.
+
+La guarda es la mínima de las tres que proponía la auditoría (decisión del
+dueño): si el walk no vio NI UN archivo de audio y `countUnderRoot` dice
+que la base sí tiene pistas ahí, no se purga y se devuelve `*ScanEmpty`.
+Tres cosas que conviene no re-descubrir:
+
+- **Va DESPUÉS del walk, no antes.** Un `root` que existe pero está vacío
+  es indistinguible de uno montado hasta haberlo recorrido: el `os.Stat`
+  del principio de `Scan` dice que sí, que es un directorio.
+- **`countUnderRoot` reusa `underRoot`**, el mismo criterio con el que
+  `purgeGone` decide a quién borra. Contar con otro criterio dejaría un
+  hueco justo donde importa.
+- **El error va por TIPO** (`ErrScanEmpty` + `ScanEmpty`, cuyo `Error()`
+  se traduce al imprimirlo), no por texto, así que el demonio lo reconoce
+  con `errors.As` y lo re-traduce con `TLf` al idioma del CLIENTE —
+  `Error()` ya lo formó, pero con el idioma global del proceso, que es el
+  del demonio y no el de quien preguntó. Mismo patrón que
+  `ErrPlaylistNotFound` (1.16.2, C26). El mensaje va en UNA línea: el
+  espejo de la consola lo dibuja dentro de un panel.
+
+**Sin escape, a propósito** (decisión del dueño, y la que la auditoría
+recomendaba): ni subcomando `scan force` ni clave de config. maly no tiene
+parser de flags, un subcomando costaría tabla de comandos + completions +
+ayuda + espejo de la consola + i18n, y una clave se pone una vez y se
+olvida — justo lo contrario de una confirmación puntual. Quien de verdad
+quiera vaciar la biblioteca borra `library.db`, y el propio mensaje se lo
+dice.
+
+Un test EXISTENTE cazó el borde de la guarda antes que ningún test nuevo:
+`TestScanPurgeDotDotDir` quitaba la única pista bajo `root` para comprobar
+el filtro `..covers/` de la purga, que bajo la guarda nueva es exactamente
+el caso de refusal. El fixture ganó una pista que sobrevive, así que ahora
+mide el FILTRO con el árbol presente, que es lo que quería medir. Es la
+segunda vez que la suite completa (y no el test dirigido) encuentra el
+efecto colateral — la primera fue `TestLoadLogoSane` en la 1.13.0.
+
+**A-02 (HIGH) — la TUI se negaba a abrir mientras el demonio arrancaba.**
+`runTUI` preguntaba con `ipc.Ping` y, ante `ErrAlreadyRunning`, devolvía el
+error. Pero el ping es justo la heurística que el proyecto declaró
+insuficiente al introducir el flock: *"un demonio ocupado arrancando
+(esperando hasta 5 s a mpv) tampoco contesta al ping aunque esté vivo"*
+(comentario de `acquireLock`). O sea que `daemon.New` ya tenía la respuesta
+buena —el kernel dice que hay otro— y `runTUI` la tiraba. Escenarios
+cotidianos: `maly.service` compitiendo con el usuario en los primeros
+segundos del login, y dos `maly` lanzados a la vez. Y el mensaje engañaba:
+"ya hay otro demonio corriendo" describe bien el estado del sistema y mal
+el del usuario, para quien es exactamente la razón por la que la TUI NO
+debería fallar.
+
+`startOrAttach` (extraído de `runTUI` para poder testearlo sin pasar por
+bubbletea, mismo motivo por el que `embeddedStartErr` ya vivía aparte) cae
+a modo cliente: `waitForDaemon` sondea el socket hasta
+`daemonStartupBudget` (8 s = el techo de 5 s de `player.Start` esperando a
+mpv, más margen para abrir la base, reponer la sesión y registrar MPRIS),
+cada 200 ms. Silencio si contesta rápido —el caso normal— y una línea al
+stderr pasado un segundo, para que varios segundos de terminal mudo no
+parezcan un cuelgue; si vence, el mensaje dice lo que de verdad pasó
+("arrancando y no respondió en 8 s"), no "ya hay otro demonio".
+
+**A-03 (mitad barata, HIGH) — `maly scan` anunciaba una ruta y escaneaba
+otra.** `daemon.New(cfg)` guarda una copia del config y no vuelve a
+mirarlo jamás, así que `maly scan` sin argumentos mandaba `Query: ""` y el
+demonio resolvía con `d.cfg.ScanTarget("")`, o sea con el `music_dir` que
+tenía al ARRANCAR — mientras el cliente imprimía `cli.scan_start` con el
+que acababa de leer del disco. Con `maly.service` habilitado el demonio
+vive semanas, así que la ventana es el caso normal y no uno raro. Ahora el
+cliente manda siempre la ruta ya RESUELTA (`runScan` y `conScan`), como ya
+hacía `get playlist`, y el demonio deja de tener voz. La mitad estructural
+—que el demonio relea el config— es Phase 2 y no entra acá.
+
+La consecuencia que no es obvia: con la ruta siempre explícita, el demonio
+ya no puede formar el mensaje de "esa ruta no existe" (no sabe de dónde
+salió ni si era explícita), así que lo forma el cliente ANTES de dialar.
+Para no duplicarlo entre los dos espejos vive en `config.ScanNoExistErr`,
+junto a `ScanTarget` — que ya devolvía `originKey` SOLO para ese mensaje.
+El `!explicit` de `daemon_scan.go` se conserva igual: un cliente de una
+versión anterior (binarios desparejados a mitad de una actualización)
+sigue mandando `Query: ""`.
+
+Verificación. Cada arreglo con lógica nueva lleva test en ambas
+direcciones, con la reversión hecha por `cp` de una copia y no por `git
+checkout` (la trampa de la 1.16.2). Los tres fallaron por la razón
+correcta, COMPILANDO — la lección de la 1.6.1 —, y en A-02 hizo falta un
+segundo intento: la primera reversión dejaba el `case` de
+`ErrAlreadyRunning` en pie con la llamada anulada, y el test fallaba con el
+mensaje de timeout NUEVO en vez del de HEAD; recién quitando el `case`
+entero reprodujo `another maly daemon is already running (socket: …)`, que
+es lo que la auditoría transcribió. Además, la reversión de A-01 se
+completó con un test desechable que midió el efecto observable y no solo el
+error: biblioteca 4→0 y playlist 4→0, exactamente la reproducción del
+informe. Y A-03 se comprobó con un A/B contra un binario compilado de HEAD
+(`git archive`), porque su síntoma es silencioso: HEAD anuncia `musicB` e
+indexa `musicA`. En vivo, bajo tmux con sandbox XDG, la TUI esperó al
+demonio que aparecía a mitad de la espera y abrió en modo CLIENTE
+(verificado porque el demonio siguió vivo tras cerrarla, no porque la TUI
+se dibujara). `go build`, `go vet`, `gofmt -l .`, `go test ./...` y
+`go test -race ./...` limpios.
+
+Se agregó de más, y a propósito, un test que la auditoría no pedía:
+`TestConScanMandaLaRutaResuelta`, el espejo de `TestScanMandaLaRutaResuelta`
+en la consola. Es la clase exacta de A-04 —tres arreglos publicados que
+sobrevivieron en un solo lado por no tener test del otro—, y el arreglo de
+A-03 toca los dos espejos.
 
 ### Post-1.0 (candidatos)
 

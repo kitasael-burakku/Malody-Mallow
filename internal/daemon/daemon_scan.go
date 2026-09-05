@@ -8,6 +8,7 @@ import (
 
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/library"
 	"maly/internal/probe"
 )
 
@@ -40,6 +41,14 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 		d.wakeSubs()
 	})
 	if err != nil {
+		// La guarda de purga (no se vio ni un archivo de audio y la base sí
+		// tiene pistas ahí) se reconoce por TIPO y se re-traduce al idioma
+		// del cliente: Error() ya la formó, pero con el idioma GLOBAL de
+		// este proceso, que es el del demonio y no el de quien preguntó.
+		var empty *library.ScanEmpty
+		if errors.As(err, &empty) {
+			return ipc.Response{Error: i18n.TLf(lang, "lib.scan_empty", empty.Root, empty.Have)}
+		}
 		if !explicit && errors.Is(err, fs.ErrNotExist) {
 			return ipc.Response{Error: i18n.TLf(lang, "cli.scan_noexist", dir, i18n.TL(lang, origin))}
 		}

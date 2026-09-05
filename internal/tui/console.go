@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -502,6 +503,17 @@ func (m *Model) conScan(query string) tea.Cmd {
 			query = abs
 		}
 	}
+	// La ruta viaja RESUELTA (hallazgo A-03, espejo de runScan): el config
+	// del demonio es de cuando arrancó, el de la TUI es de cuando se abrió.
+	// Y, como el demonio ya no puede formar el mensaje de "no existe" —lo
+	// recibe todo como explícito—, lo forma el cliente antes de dialar.
+	dir, origin, explicit := m.cfg.ScanTarget(query)
+	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+		e := config.ScanNoExistErr(dir, origin, explicit)
+		return func() tea.Msg {
+			return conMsg{lines: []string{st.errSt.Render(e.Error())}}
+		}
+	}
 	return func() tea.Msg {
 		c, err := ipc.Dial(sock)
 		if err != nil {
@@ -509,7 +521,7 @@ func (m *Model) conScan(query string) tea.Cmd {
 		}
 		defer c.Close()
 		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
-		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: query})
+		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: dir})
 		if err != nil {
 			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
 		}

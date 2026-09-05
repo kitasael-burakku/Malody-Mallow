@@ -7,6 +7,31 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.16.4 — 2026-09-05
+
+Un escaneo ya no puede vaciar la biblioteca cuando la música no está. Si
+`maly scan` recorre el directorio de música y no encuentra ni un archivo de
+audio —el caso típico es un disco externo sin montar, un directorio de red
+caído o un `music_dir` recién cambiado, donde el punto de montaje sigue
+existiendo como carpeta vacía—, hasta ahora concluía que toda la música se
+había borrado y limpiaba la biblioteca entera. Y como las playlists apuntan
+a las pistas indexadas, se quedaban vacías con ella: lo único que uno arma a
+mano y que maly no puede reconstruir de ningún sitio. Ahora se niega y lo
+dice, contando cuántas pistas acaba de proteger.
+
+La interfaz también abre en un caso en el que antes se negaba: si el
+servicio está arrancando —los primeros segundos tras iniciar sesión, con
+`maly.service` habilitado, o dos `maly` lanzados a la vez—, escribir `maly`
+mostraba un error en vez del reproductor. Ahora espera a que el servicio
+termine de arrancar (hasta 8 s, avisando si tarda) y se conecta a él.
+
+Y `maly scan` deja de anunciar una ruta y escanear otra. El servicio lee la
+configuración al arrancar y no vuelve a mirarla, así que tras cambiar
+`music_dir` con el servicio ya corriendo se seguía escaneando el directorio
+viejo mientras el mensaje mostraba el nuevo. Ahora la ruta la resuelve quien
+ejecuta el comando, que es el único que tiene la configuración al día — lo
+que además desactiva el disparador más silencioso del problema anterior.
+
 ## v1.16.3 — 2026-08-20
 
 Cerrada una condición de carrera que podía saltarse una canción entera. Al

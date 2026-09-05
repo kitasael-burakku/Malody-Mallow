@@ -1,12 +1,18 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"maly/internal/config"
+	"maly/internal/ipc"
 )
 
 // TestRunLogo cubre el hallazgo C21 de la auditoría P2: `logo` solo existía
@@ -134,5 +140,90 @@ func TestRunSearchConBaseSigueBuscando(t *testing.T) {
 
 	if err := runSearch([]string{"loquesea"}); err != nil {
 		t.Fatalf("con base existente, search no debía fallar: %v", err)
+	}
+}
+
+// TestScanMandaLaRutaResuelta cubre el hallazgo A-03 de la auditoría técnica
+// del 2026-09-04: daemon.New guarda una copia del config y no vuelve a
+// mirarlo jamás, así que `maly scan` sin argumentos mandaba Query:"" y el
+// demonio resolvía el destino con el music_dir que tenía al ARRANCAR —
+// mientras el cliente anunciaba por pantalla el que acababa de leer del
+// disco. El mensaje y el efecto se contradecían, y si el music_dir viejo ya
+// no tenía música, ese escaneo fantasma purgaba la biblioteca entera (A-01).
+//
+// El cliente es el único con el config fresco: manda siempre la ruta ya
+// resuelta y el demonio deja de tener voz.
+func TestScanMandaLaRutaResuelta(t *testing.T) {
+	xdgSandbox(t)
+	rt, err := config.EnsureRuntimeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = rt
+
+	// music_dir del config: la ruta que el cliente debe resolver y mandar.
+	musica := filepath.Join(t.TempDir(), "musica")
+	if err := os.MkdirAll(musica, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfgDir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "maly")
+	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	toml := "music_dir = " + strconv.Quote(musica) + "\n"
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.toml"), []byte(toml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// Un "demonio" que solo anota qué le pidieron.
+	ln, err := net.Listen("unix", config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	pedidos := make(chan ipc.Request, 4)
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				br := bufio.NewReader(c)
+				for {
+					linea, err := br.ReadBytes('\n')
+					if err != nil {
+						return
+					}
+					var req ipc.Request
+					if err := json.Unmarshal(linea, &req); err != nil {
+						return
+					}
+					pedidos <- req
+					if err := json.NewEncoder(c).Encode(ipc.Response{OK: true, Msg: "ok"}); err != nil {
+						return
+					}
+				}
+			}(c)
+		}
+	}()
+
+	if err := runScan(nil); err != nil {
+		t.Fatalf("runScan: %v", err)
+	}
+	select {
+	case req := <-pedidos:
+		if req.Cmd != "scan" {
+			t.Fatalf("el demonio recibió %q, quería \"scan\"", req.Cmd)
+		}
+		if req.Query == "" {
+			t.Fatal("Query vacío: el demonio volvería a resolver la ruta con SU config rancio")
+		}
+		if req.Query != musica {
+			t.Errorf("Query = %q, quería el music_dir resuelto %q", req.Query, musica)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("el demonio falso no recibió ninguna petición")
 	}
 }

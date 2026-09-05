@@ -219,6 +219,18 @@ func runScan(args []string) error {
 		}
 	}
 	dir, origin, explicit := cfg.ScanTarget(query)
+	// La ruta viaja RESUELTA al demonio (hallazgo A-03): su copia del config
+	// es de cuando arrancó, así que con un music_dir cambiado anunciábamos
+	// una ruta y escaneábamos otra — y si la vieja ya no tenía música, ese
+	// escaneo fantasma purgaba la biblioteca entera (A-01). El cliente es el
+	// único con el config fresco, así que decide él.
+	//
+	// Consecuencia: el demonio ya no puede producir el mensaje de "esa ruta
+	// no existe" (recibe todo como explícito y no conoce el origen), así que
+	// lo produce el cliente aquí, antes de dialar.
+	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
+		return config.ScanNoExistErr(dir, origin, explicit)
+	}
 	fmt.Println(i18n.Tf("cli.scan_start", dir))
 
 	// Con el demonio vivo el escaneo va a través de él: su LibGen sube y
@@ -263,7 +275,7 @@ func runScan(args []string) error {
 				}
 			}
 		}
-		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: query})
+		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: dir})
 		stopProgress()
 		if err != nil {
 			return err
@@ -297,16 +309,11 @@ func runScan(args []string) error {
 	}
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			// Ruta por defecto que no existe: decir de dónde salió y cómo
-			// apuntar a la música. Con ruta explícita el usuario ya sabe qué
-			// escribió — antes de aquí, ese caso caía en el error crudo de
-			// Go ("stat /ruta: no such file or directory"); ahora un
-			// mensaje limpio consistente con el resto de la CLI (auditoría
-			// 2026-07-31, hallazgo C20).
-			if !explicit {
-				return fmt.Errorf("%s", i18n.Tf("cli.scan_noexist", dir, i18n.T(origin)))
-			}
-			return fmt.Errorf("%s", i18n.Tf("cli.scan_noexist_arg", dir))
+			// Ruta que desapareció entre el chequeo de arriba y el escaneo:
+			// el mismo mensaje limpio en vez del error crudo de Go ("stat
+			// /ruta: no such file or directory") — auditoría 2026-07-31,
+			// hallazgo C20.
+			return config.ScanNoExistErr(dir, origin, explicit)
 		}
 		return err
 	}

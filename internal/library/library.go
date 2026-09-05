@@ -212,6 +212,10 @@ type pending struct {
 // recibe el acumulado de archivos de audio vistos — también los saltados por
 // mtime, porque reflejan el avance real del walk; el total no se conoce por
 // adelantado y el throttling es responsabilidad del llamador.
+//
+// No borra nada si el recorrido no encontró NI UN archivo de audio y la base
+// sí tiene pistas bajo root: devuelve *ScanEmpty sin tocar la base (ver la
+// guarda de purga más abajo).
 func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error) {
 	var res ScanResult
 	info, err := os.Stat(root)
@@ -272,8 +276,58 @@ func (l *Library) Scan(root string, progress func(seen int)) (ScanResult, error)
 		return res, walkErr
 	}
 
+	// Guarda de purga: un root sin UN SOLO archivo de audio, cuando la base
+	// sí tiene pistas ahí, es casi siempre un montaje ausente (disco externo
+	// sin montar, NFS/SSHFS caído, el music_dir recién movido) y NUNCA una
+	// razón legítima para borrar la biblioteca entera. Y no es solo la
+	// biblioteca: playlist_tracks tiene ON DELETE CASCADE sobre tracks(id),
+	// así que el purge se llevaría por delante el CONTENIDO de todas las
+	// playlists — lo único que el usuario arma a mano y que maly no puede
+	// reconstruir desde ningún sitio (el mismo argumento con el que C15/T26
+	// le puso confirmación a `playlist delete`). Sin escape a propósito:
+	// quien de verdad quiera vaciarla borra library.db.
+	//
+	// Va DESPUÉS del walk y no antes: un root que existe pero está vacío es
+	// indistinguible de uno montado hasta haberlo recorrido.
+	if len(seen) == 0 {
+		if n := countUnderRoot(known, root); n > 0 {
+			return res, &ScanEmpty{Root: root, Have: n}
+		}
+	}
+
 	l.purgeGone(root, known, seen, &res)
 	return res, nil
+}
+
+// ErrScanEmpty marca "no vi ni un archivo de audio bajo root, pero la base sí
+// tiene pistas ahí". Sentinel para que el demonio pueda reconocerlo por TIPO
+// y re-traducirlo al idioma del cliente, en vez de comparar el texto del
+// error —que sale de i18n y cambia con el idioma del proceso—; mismo patrón
+// que ErrPlaylistNotFound (1.16.2, hallazgo C26).
+var ErrScanEmpty = errors.New("scan found no audio under root")
+
+// ScanEmpty es el error de la guarda de purga de Scan. Su Error() se traduce
+// en el momento de imprimirlo, no al construirlo.
+type ScanEmpty struct {
+	Root string // la raíz que se recorrió sin encontrar nada
+	Have int    // cuántas pistas tiene la base bajo esa raíz
+}
+
+func (e *ScanEmpty) Error() string { return i18n.Tf("lib.scan_empty", e.Root, e.Have) }
+
+func (e *ScanEmpty) Is(target error) bool { return target == ErrScanEmpty }
+
+// countUnderRoot cuenta cuántas de las pistas ya indexadas cuelgan de root,
+// con el mismo criterio que usa purgeGone para decidir a quién borra: la
+// guarda tiene que contar exactamente lo que el purge se llevaría.
+func countUnderRoot(known map[string]int64, root string) int {
+	n := 0
+	for p := range known {
+		if underRoot(root, p) {
+			n++
+		}
+	}
+	return n
 }
 
 // loadKnownMtimes lee los mtimes ya indexados, para que Scan pueda saltar

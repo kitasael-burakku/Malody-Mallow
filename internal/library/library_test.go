@@ -2,6 +2,7 @@ package library
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -732,7 +733,15 @@ func TestScanPurgeDotDotDir(t *testing.T) {
 	if err := os.WriteFile(track, []byte("no es audio"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if res, err := lib.Scan(root, nil); err != nil || res.Added != 1 {
+	// Una pista que SOBREVIVE al segundo escaneo de root. Sin ella, quitar
+	// la de ..covers dejaría el árbol sin un solo archivo de audio y saltaría
+	// la guarda de purga (ver TestScanNoPurgaConRootVacio), que es un caso
+	// distinto del que este test mide: acá se comprueba el FILTRO de la
+	// purga, con el árbol presente.
+	if err := os.WriteFile(filepath.Join(root, "queda.mp3"), []byte("no es audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if res, err := lib.Scan(root, nil); err != nil || res.Added != 2 {
 		t.Fatalf("primer escaneo: %+v, %v", res, err)
 	}
 
@@ -1040,5 +1049,93 @@ func TestOldDBDropsDeadIndexes(t *testing.T) {
 		if hasIndex(t, dbPath, name) {
 			t.Errorf("Open() debía haber dropeado %s de una base vieja", name)
 		}
+	}
+}
+
+// TestScanNoPurgaConRootVacio cubre el hallazgo A-01 de la auditoría técnica
+// del 2026-09-04 (CRITICAL, la única pérdida de datos irreversible del
+// proyecto): un escaneo sobre un root que EXISTE pero no tiene ni un archivo
+// de audio —un disco externo sin montar, un NFS caído, un music_dir recién
+// movido (A-03)— borraba la biblioteca entera, y como playlist_tracks tiene
+// ON DELETE CASCADE sobre tracks(id), se llevaba por delante el CONTENIDO de
+// todas las playlists. Sin aviso y sin deshacer.
+//
+// Lo que fija este test es justamente lo segundo: que las playlists SIGUEN
+// pobladas. Comprobar solo Count() dejaría pasar una guarda que devolviera
+// error después de haber purgado.
+func TestScanNoPurgaConRootVacio(t *testing.T) {
+	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	root := fakeMusicDir(t, 4)
+	if res, err := lib.Scan(root, nil); err != nil || res.Added != 4 {
+		t.Fatalf("primer escaneo: %+v, %v", res, err)
+	}
+	if err := lib.CreatePlaylist("favs"); err != nil {
+		t.Fatal(err)
+	}
+	todas, err := lib.All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]int64, 0, len(todas))
+	for _, tr := range todas {
+		ids = append(ids, tr.ID)
+	}
+	if err := lib.AddToPlaylist("favs", ids); err != nil {
+		t.Fatal(err)
+	}
+
+	// El montaje desaparece: el directorio sigue ahí, vacío.
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if err := os.RemoveAll(filepath.Join(root, e.Name())); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	res, scanErr := lib.Scan(root, nil)
+	if scanErr == nil {
+		t.Fatalf("el escaneo de un root vacío debía negarse a purgar, devolvió %+v", res)
+	}
+	if !errors.Is(scanErr, ErrScanEmpty) {
+		t.Fatalf("Scan = %v, quería ErrScanEmpty", scanErr)
+	}
+	if res.Removed != 0 {
+		t.Errorf("Removed = %d, quería 0: la guarda va ANTES de la purga", res.Removed)
+	}
+	if n, _ := lib.Count(); n != 4 {
+		t.Errorf("quedaron %d pistas, quería 4", n)
+	}
+	// Lo que de verdad no se puede reconstruir.
+	pistas, err := lib.PlaylistTracks("favs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pistas) != 4 {
+		t.Fatalf("la playlist quedó con %d pistas, quería 4 (ON DELETE CASCADE)", len(pistas))
+	}
+
+	// El error trae la raíz y cuántas pistas se salvaron, que es lo que hace
+	// accionable el mensaje.
+	var vacio *ScanEmpty
+	if !errors.As(scanErr, &vacio) {
+		t.Fatalf("el error debía ser *ScanEmpty, es %T", scanErr)
+	}
+	if vacio.Root != root || vacio.Have != 4 {
+		t.Errorf("ScanEmpty = {Root:%q Have:%d}, quería {%q 4}", vacio.Root, vacio.Have, root)
+	}
+
+	// Y la guarda NO se mete cuando no hay nada que proteger: un root vacío
+	// sin pistas indexadas debajo es un escaneo normal que no borra nada.
+	otro := t.TempDir()
+	if res, err := lib.Scan(otro, nil); err != nil || res.Added != 0 {
+		t.Fatalf("escaneo de un root vacío sin pistas indexadas: %+v, %v", res, err)
 	}
 }

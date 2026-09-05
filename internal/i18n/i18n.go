@@ -283,6 +283,10 @@ var table = map[string][2]string{
 	"cli.get_done":          {"Downloaded: %s", "Descargado: %s"},
 	"cli.get_nothing":       {"the download left no track in your music folder — the search may have matched nothing, or yt-dlp reported an error above", "la descarga no dejó ninguna pista en tu carpeta de música — puede que la búsqueda no encontrara nada, o que yt-dlp reportara un error arriba"},
 
+	// ---- espera a un demonio que ya tiene el lock pero aún no contesta ----
+	"cli.wait_daemon":         {"waiting for the maly service to finish starting...", "esperando a que termine de arrancar el servicio de maly..."},
+	"cli.wait_daemon_timeout": {"the maly service is starting but did not answer within %s", "el servicio de maly está arrancando pero no respondió en %s"},
+
 	// ---- búsqueda de descargas (getter.Search) ----
 	"cli.get_search_err":     {"yt-dlp search failed: %s", "la búsqueda con yt-dlp falló: %s"},
 	"cli.get_search_timeout": {"the search timed out after %s — is there a connection?", "la búsqueda agotó su tiempo tras %s — ¿hay conexión?"},
@@ -541,4 +545,8 @@ var table = map[string][2]string{
 	"lib.pl_exists":      {"playlist %q already exists", "la playlist %q ya existe"},
 	"lib.pl_pos":         {"no position %d in %q (it has 1-%d)", "no hay posición %d en %q (tiene 1-%d)"},
 	"lib.m3u_empty":      {"no library tracks found in %s (scan the music first: maly scan)", "ninguna pista de la biblioteca encontrada en %s (escanea la música primero: maly scan)"},
+	// Guarda de purga del escaneo. UNA sola línea: el espejo de la consola
+	// la dibuja dentro de un panel y un salto la partiría (la trampa que
+	// costó dos intentos de test en la 1.15.0).
+	"lib.scan_empty": {"no audio files under %s, but the library has %d tracks there: not removing them (is the disk mounted?). To empty the library on purpose, delete the database that `maly info` shows", "ningún archivo de audio bajo %s, pero la biblioteca tiene %d pistas ahí: no las voy a borrar (¿está montado el disco?). Para vaciar la biblioteca a propósito, borrá la base que muestra `maly info`"},
 }

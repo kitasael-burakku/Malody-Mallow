@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,6 +17,7 @@ import (
 	"maly/internal/config"
 	"maly/internal/getter"
 	"maly/internal/i18n"
+	"maly/internal/ipc"
 	"maly/internal/version"
 )
 
@@ -437,5 +442,79 @@ func TestConsoleSelect(t *testing.T) {
 	}
 	if !m.songsOpen || cmd == nil {
 		t.Errorf("select debe abrir el picker de canciones")
+	}
+}
+
+// TestConScanMandaLaRutaResuelta es el espejo de
+// TestScanMandaLaRutaResuelta (cmd/maly): la consola ctrl+p también manda la
+// ruta ya resuelta, para que el demonio no la decida con su copia rancia del
+// config (hallazgo A-03).
+//
+// El test existe por lo que la propia auditoría señala en A-04: internal/tui
+// no puede importar cmd/maly, así que cada arreglo de scan/get/playlist hay
+// que aplicarlo dos veces — y tres arreglos ya publicados sobrevivieron en un
+// solo lado por no tener test del otro.
+func TestConScanMandaLaRutaResuelta(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(tmp, "rt"))
+
+	musica := filepath.Join(tmp, "musica")
+	if err := os.MkdirAll(musica, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sock := filepath.Join(tmp, "s.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	pedidos := make(chan ipc.Request, 4)
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				br := bufio.NewReader(c)
+				for {
+					linea, err := br.ReadBytes('\n')
+					if err != nil {
+						return
+					}
+					var req ipc.Request
+					if err := json.Unmarshal(linea, &req); err != nil {
+						return
+					}
+					pedidos <- req
+					if err := json.NewEncoder(c).Encode(ipc.Response{OK: true, Msg: "ok"}); err != nil {
+						return
+					}
+				}
+			}(c)
+		}
+	}()
+
+	m := &Model{
+		st:   newStyles(config.Theme{}),
+		sock: sock,
+		cfg:  config.Config{MusicDir: musica},
+	}
+	if msg := m.conScan("")(); msg == nil {
+		t.Fatal("conScan no devolvió ningún mensaje")
+	}
+	select {
+	case req := <-pedidos:
+		if req.Query == "" {
+			t.Fatal("Query vacío: el demonio volvería a resolver la ruta con SU config rancio")
+		}
+		if req.Query != musica {
+			t.Errorf("Query = %q, quería el music_dir resuelto %q", req.Query, musica)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("el demonio falso no recibió ninguna petición")
 	}
 }

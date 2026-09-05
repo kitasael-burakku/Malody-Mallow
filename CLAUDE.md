@@ -204,8 +204,21 @@ TUI lo **embebe** en su proceso (`cmd/maly/tui.go`) y muere con ella.
   además permite testear sin ffprobe ni audio real.
 - `internal/mpris` — MPRIS2 (godbus). `props.go` es una implementación PROPIA de
   org.freedesktop.DBus.Properties porque godbus/prop tiene una data race con
-  propiedades mapa y nunca borra claves — no volver a prop. Los métodos D-Bus
-  despachan `ctrl.Do` en goroutine (en línea deadlockea vía SetMust).
+  propiedades mapa y nunca borra claves — no volver a prop. Solo los TRES
+  setters de propiedades (`setVolume`, `setShuffle`, `setLoop`) despachan en
+  goroutine; los OCHO métodos del Player (`Next`, `Play`, `Seek`…) corren en
+  línea desde siempre. Este archivo decía que despachaban todos "porque en
+  línea deadlockea vía SetMust", y era un fósil de la época de godbus/prop:
+  su `Set` sostiene `p.mut` mientras llama al callback y su `SetMust` toma el
+  mismo mutex, así que ahí sí interbloqueaba — pero `props.go` (el reemplazo)
+  suelta `p.mu` ANTES de llamar al setter, a propósito y documentado en su
+  comentario, y `Update` toma `s.mu`, que ninguna entrada D-Bus sostiene. Hoy
+  el `go` de los setters compra LATENCIA, no seguridad: la respuesta D-Bus
+  sale sin esperar el viaje al demonio y a mpv. Y que los ocho corran en línea
+  es seguro por godbus, no por maly: despacha cada llamada entrante con `go
+  conn.handleCall(msg)` (v5.2.2, `conn.go:435`), así que un método bloqueante
+  no detiene el bucle de lectura de la conexión — si algún día se cambia de
+  librería D-Bus, esa garantía hay que volver a comprobarla (A-17).
   `metadataOf` es pura; el wrapper `Service.metadata` añade `artUrl` (carátula
   embebida → cache SHA-1 en runtime dir, `art.go`; la extracción vive en
   `internal/media`). El cache está ACOTADO a `maxArtBytes` (32 MB) con evicción

@@ -241,6 +241,15 @@ func (s *Service) propSpec(st *ipc.Status) map[string]map[string]*propDef {
 // Los setters despachan el comando en una goroutine: la respuesta D-Bus
 // sale de inmediato aunque mpv tarde, y el Update posterior confirma (o
 // corrige) el valor publicado.
+//
+// El `go` es por LATENCIA y no por seguridad, aunque se haya escrito en la
+// época en que sí lo era: con godbus/prop, Set sostiene su mutex mientras
+// llama al callback y SetMust toma el mismo mutex, así que un setter en línea
+// cuyo comando terminara en SetMust interbloqueaba. props.go —el reemplazo
+// propio— suelta p.mu ANTES de llamar al setter (está dicho en su comentario)
+// y Update toma s.mu, que ninguna entrada D-Bus sostiene, así que hoy no hay
+// interbloqueo por ninguno de los dos lados. Los OCHO métodos del Player, más
+// abajo, nunca llevaron `go` por eso mismo (auditoría 2026-09-04, A-17).
 
 func (s *Service) setVolume(val any) *dbus.Error {
 	v, ok := val.(float64)
@@ -317,6 +326,15 @@ func (root) Quit() *dbus.Error  { return nil }
 // player implementa org.mpris.MediaPlayer2.Player. Los errores del demonio
 // (p. ej. "no hay siguiente pista") se tragan a propósito: la spec pide que
 // los métodos sean no-op cuando la acción no aplica.
+//
+// Corren EN LÍNEA, sin `go`, y es seguro por una propiedad de godbus y no de
+// maly: despacha cada llamada entrante con `go conn.handleCall(msg)` (v5.2.2,
+// conn.go:435), así que uno lento no detiene el bucle de lectura de la
+// conexión. Si se cambia de librería D-Bus, esto hay que volver a
+// comprobarlo. Ponerles `go` daría la garantía sin depender de la
+// dependencia —la spec pide que sean no-op, así que la respuesta no lleva
+// información— pero cambiaría el orden relativo entre, por ejemplo, un Next()
+// y el push que lo sigue, así que no se hace de paso (A-17).
 type player struct{ s *Service }
 
 func (p player) next() *dbus.Error      { p.s.ctrl.Next(); return nil }

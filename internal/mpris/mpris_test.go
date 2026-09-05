@@ -16,8 +16,8 @@ import (
 // — mismo par que el viejo ipc.Request{Cmd,Value} — para que want/wantNone y
 // todas las aserciones existentes no tengan que reescribirse: lo que cambió
 // es la interfaz que el servicio llama, no lo que hay que verificar. Los
-// métodos llegan desde goroutines (los callbacks de prop), así que van por
-// canal.
+// métodos llegan desde goroutines (los setters de propiedades despachan con
+// `go`; ver el comentario que los precede), así que van por canal.
 type call struct{ cmd, value string }
 
 type fakeCtrl struct {

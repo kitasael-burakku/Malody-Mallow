@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -64,6 +66,7 @@ func runDoctor([]string) error {
 		checkLibrary(),
 		checkKeys(cfg),
 	}
+	checks = append(checks, checkLinkedDirs(cfg)...)
 	checks = append(checks, checkOptionalTools(cfg)...)
 	checks = append(checks, checkUpdate())
 	if cfgErr != nil {
@@ -146,6 +149,58 @@ func checkMusicDir(cfg config.Config) check {
 		return check{lvlWarn, label, i18n.Tf("doc.music_notdir", dir), nil}
 	}
 	return check{lvlOK, label, dir, nil}
+}
+
+// checkLinkedDirs avisa de los directorios ENLAZADOS de primer nivel bajo
+// music_dir. filepath.WalkDir no sigue enlaces simbólicos: los archivos
+// enlazados sí se indexan (no son directorios, y el filtro mira la
+// extensión), pero un directorio enlazado se salta ENTERO y el escaneo dice
+// "0 nuevas" sin distinguir "no hay música" de "hay música detrás de un
+// enlace que no miro". Organizar la biblioteca así —~/Music/Discos →
+// /mnt/nas/flac— es un patrón habitual en Linux y justo en el público de
+// maly (A-13).
+//
+// Es lvlInfo y no warn: no seguir enlaces es una decisión defendible (ciclos,
+// duplicados, y underRoot dejaría de tener sentido para la purga, que desde
+// la 1.16.4 además sostiene la guarda de A-01). Lo que no era defendible es
+// que estuviera tomada en silencio.
+//
+// Solo el primer nivel: es donde la gente los pone, y recorrer el árbol
+// entero buscando enlaces sería hacer el trabajo que justamente se evita.
+func checkLinkedDirs(cfg config.Config) []check {
+	dir, _ := cfg.MusicDirOrigin()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil // checkMusicDir ya reportó que no se puede leer
+	}
+	var linked []string
+	for _, e := range entries {
+		if e.Type()&os.ModeSymlink == 0 {
+			continue
+		}
+		// Solo los que apuntan a un DIRECTORIO: un archivo enlazado se
+		// indexa igual y no hay nada que avisar.
+		if fi, err := os.Stat(filepath.Join(dir, e.Name())); err == nil && fi.IsDir() {
+			linked = append(linked, e.Name())
+		}
+	}
+	if len(linked) == 0 {
+		return nil
+	}
+	sort.Strings(linked)
+	c := check{lvlInfo, i18n.T("doc.lbl_links"),
+		i18n.Tf("doc.links_found", len(linked)), nil}
+	for _, n := range linked {
+		// El destino resuelto, que es lo que hay que escanear: apuntar al
+		// ENLACE no sirve (WalkDir hace lstat de su propia raíz, así que un
+		// enlace ni siquiera se recorre — comprobado).
+		dest, err := filepath.EvalSymlinks(filepath.Join(dir, n))
+		if err != nil {
+			continue
+		}
+		c.cont = append(c.cont, i18n.Tf("doc.links_hint", n, dest))
+	}
+	return []check{c}
 }
 
 // checkLibrary mira la base SIN crearla (openLibraryIfExists): un diagnóstico

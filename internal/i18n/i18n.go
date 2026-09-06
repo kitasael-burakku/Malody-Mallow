@@ -314,6 +314,9 @@ var table = map[string][2]string{
 	// nombres propios de herramientas externas, no conceptos.
 	"doc.lbl_service":     {"service", "servicio"},
 	"doc.lbl_music_dir":   {"music_dir", "music_dir"},
+	"doc.lbl_links":       {"linked dirs", "dirs enlazados"},
+	"doc.links_found":     {"%d linked director(y/ies) under your music folder are NOT indexed", "%d directorio(s) enlazado(s) bajo tu carpeta de música NO se indexan"},
+	"doc.links_hint":      {"%s → scan the destination: maly scan %s", "%s → escanea el destino: maly scan %s"},
 	"doc.lbl_library":     {"library", "biblioteca"},
 	"doc.lbl_visualizer":  {"visualizer", "visualizador"},
 	"doc.lbl_update":      {"update", "actualización"},

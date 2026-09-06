@@ -28,7 +28,16 @@ encoda `TestFillDurationsProbesInParallel`, verificado en ambas
 direcciones (con `fillWorkers = 1` falla). Escribe en lotes de
 `fillBatchSize` (50, no 500: cada elemento cuesta un ffprobe) y lo que
 falla queda en 0 para que el próximo scan reintente (nada de centinelas:
-todos los consumidores prueban `> 0`). `IsAudio` es el filtro único de
+todos los consumidores prueban `> 0`). `Scan` NO sigue enlaces simbólicos, y es decisión y no descuido: seguirlos
+rompería `underRoot` —y con él la purga, que desde la 1.16.4 además sostiene
+la guarda de A-01— y traería ciclos y pistas duplicadas por dos rutas. Los
+ARCHIVOS enlazados sí se indexan (no son directorios y el filtro mira la
+extensión); los DIRECTORIOS enlazados se saltan enteros. Apuntar `Scan` al
+enlace tampoco sirve: `filepath.WalkDir` hace `lstat` de su propia raíz, así
+que ni la recorre — el remedio es escanear el DESTINO, y es lo que dicen ambos
+README y el chequeo `checkLinkedDirs` de `maly doctor` (A-13; seguir enlaces
+de primer nivel queda como Phase 3).
+`IsAudio` es el filtro único de
 extensiones. La purga de `Scan` tiene una GUARDA: si el walk no vio ni un
 archivo de audio y `countUnderRoot` dice que la base sí tiene pistas bajo
 esa raíz, no borra nada y devuelve `*ScanEmpty` (un root vacío es casi

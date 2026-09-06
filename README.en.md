@@ -481,6 +481,21 @@ maly           # open the TUI
 `music_dir` is resolved in this order: the config's `music_dir` key →
 `$XDG_MUSIC_DIR` → `XDG_MUSIC_DIR` from `user-dirs.dirs` → `~/Music`.
 
+**Symlinks.** A linked *file* is indexed like any other, but a linked
+**directory** is skipped: the scan does not follow symlinks, so it never has
+to deal with cycles or with the same track indexed twice under two paths. If
+your music lives behind a link (`~/Music/Albums → /mnt/nas/flac`, a common
+setup), scan the **destination**:
+
+```sh
+maly scan /mnt/nas/flac    # yes
+maly scan ~/Music/Albums   # no: pointing at the link doesn't walk it either
+```
+
+The tracks are indexed under their real path and work the same. `maly doctor`
+reports any linked directories under `music_dir` and tells you each one's
+destination.
+
 ---
 
 ## Usage

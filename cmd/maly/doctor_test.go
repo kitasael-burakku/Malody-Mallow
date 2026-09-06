@@ -98,3 +98,106 @@ func TestCheckKeys(t *testing.T) {
 		t.Fatalf("el detalle no nombra las acciones en conflicto: %+v", c.cont)
 	}
 }
+
+// TestCheckLinkedDirs cubre A-13 (mitad barata): filepath.WalkDir no sigue
+// enlaces simbólicos, así que un directorio enlazado bajo music_dir se salta
+// ENTERO y el escaneo dice "0 nuevas" sin distinguir "no hay música" de "hay
+// música detrás de un enlace que no miro". Organizar la biblioteca así
+// —~/Music/Discos → /mnt/nas/flac— es un patrón habitual en Linux.
+func TestCheckLinkedDirs(t *testing.T) {
+	tmp := t.TempDir()
+	music := filepath.Join(tmp, "music")
+	externo := filepath.Join(tmp, "externo", "album")
+	if err := os.MkdirAll(externo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(music, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{MusicDir: music}
+
+	// Sin enlaces: el chequeo no aparece. Una fila que sale siempre es ruido.
+	if got := checkLinkedDirs(cfg); len(got) != 0 {
+		t.Fatalf("sin enlaces no debía reportar nada, dio %+v", got)
+	}
+
+	// Un ARCHIVO enlazado tampoco: ese sí se indexa, no hay nada que avisar.
+	if err := os.WriteFile(filepath.Join(tmp, "externo", "suelta.mp3"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(tmp, "externo", "suelta.mp3"), filepath.Join(music, "suelta.mp3")); err != nil {
+		t.Fatal(err)
+	}
+	if got := checkLinkedDirs(cfg); len(got) != 0 {
+		t.Fatalf("un archivo enlazado se indexa igual: no debía avisar, dio %+v", got)
+	}
+
+	// Un DIRECTORIO enlazado sí.
+	if err := os.Symlink(externo, filepath.Join(music, "album-enlazado")); err != nil {
+		t.Fatal(err)
+	}
+	got := checkLinkedDirs(cfg)
+	if len(got) != 1 {
+		t.Fatalf("con un directorio enlazado esperaba un chequeo, dio %+v", got)
+	}
+	if got[0].lvl != lvlInfo {
+		t.Errorf("debía ser info y no warn/fail: no seguir enlaces es una decisión, no una falla (lvl=%v)", got[0].lvl)
+	}
+	if len(got[0].cont) != 1 {
+		t.Fatalf("esperaba una línea de remedio por enlace, dio %v", got[0].cont)
+	}
+	// El remedio tiene que apuntar al DESTINO. Escanear el enlace NO sirve:
+	// WalkDir hace lstat de su propia raíz, así que ni siquiera lo recorre
+	// —comprobado en vivo— y sugerirlo mandaría al usuario a un callejón.
+	if !strings.Contains(got[0].cont[0], externo) {
+		t.Errorf("el remedio debía apuntar al destino %q, dice %q", externo, got[0].cont[0])
+	}
+	if strings.Contains(got[0].cont[0], filepath.Join(music, "album-enlazado")) {
+		t.Errorf("el remedio no debe sugerir escanear el ENLACE: %q", got[0].cont[0])
+	}
+}
+
+// TestScanNoSigueDirectorioEnlazado fija el comportamiento que el chequeo
+// anterior existe para explicar, y de paso deja escrito que escanear el
+// ENLACE tampoco funciona (es lo que hace que el remedio bueno sea el
+// destino). Si algún día se implementa la mitad de Phase 3 —seguir enlaces de
+// primer nivel— este test es el que hay que actualizar a propósito.
+func TestScanNoSigueDirectorioEnlazado(t *testing.T) {
+	xdgSandbox(t)
+	tmp := t.TempDir()
+	music := filepath.Join(tmp, "music")
+	externo := filepath.Join(tmp, "externo", "album")
+	if err := os.MkdirAll(externo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(music, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(externo, "uno.mp3"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(externo, filepath.Join(music, "enlazado")); err != nil {
+		t.Fatal(err)
+	}
+
+	lib, err := openLibrary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+
+	res, err := lib.Scan(music, nil)
+	if err != nil || res.Added != 0 {
+		t.Fatalf("escanear music_dir no debía indexar lo del enlace: %+v, %v", res, err)
+	}
+	// Escanear el enlace tampoco: WalkDir hace lstat de su raíz.
+	res, err = lib.Scan(filepath.Join(music, "enlazado"), nil)
+	if err != nil || res.Added != 0 {
+		t.Fatalf("escanear el enlace tampoco indexa: %+v, %v", res, err)
+	}
+	// El destino real sí.
+	res, err = lib.Scan(externo, nil)
+	if err != nil || res.Added != 1 {
+		t.Fatalf("escanear el destino real debía indexar 1: %+v, %v", res, err)
+	}
+}

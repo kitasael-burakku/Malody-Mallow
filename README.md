@@ -484,6 +484,21 @@ maly           # abre la TUI
 `music_dir` se resuelve en este orden: la clave `music_dir` del config →
 `$XDG_MUSIC_DIR` → `XDG_MUSIC_DIR` de `user-dirs.dirs` → `~/Music`.
 
+**Enlaces simbólicos.** Un archivo enlazado se indexa como cualquier otro,
+pero un **directorio** enlazado se salta: el escaneo no sigue enlaces, para no
+tener que lidiar con ciclos ni con la misma pista indexada dos veces por dos
+rutas. Si tu música vive detrás de un enlace (`~/Music/Discos → /mnt/nas/flac`,
+un patrón común), escanea el **destino**:
+
+```sh
+maly scan /mnt/nas/flac    # sí
+maly scan ~/Music/Discos   # no: apuntar al enlace tampoco lo recorre
+```
+
+Las pistas quedan indexadas con su ruta real y funcionan igual. `maly doctor`
+avisa si detecta directorios enlazados bajo `music_dir` y te dice cuál es el
+destino de cada uno.
+
 ---
 
 ## Uso

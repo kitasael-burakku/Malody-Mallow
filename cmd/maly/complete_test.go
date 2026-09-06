@@ -147,7 +147,7 @@ func TestCompleteTracksDuplicados(t *testing.T) {
 			}
 		}
 	}
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestCompleteTracksAndPlaylists(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestCompleteTracksAndPlaylists(t *testing.T) {
 	// playlist remove <nombre> <pos>: cubre el hallazgo C16 de la auditoría
 	// P2 — remove no ofrecía posiciones, a diferencia de jump/move con la
 	// cola. Meter tres pistas a "favoritas" para tener posiciones reales.
-	lib2, err := library.Open(config.DBPath())
+	lib2, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}

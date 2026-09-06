@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"os"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -58,13 +57,10 @@ func RunGetPick(cfg config.Config, query string) (string, error) {
 // ownedLibraryTitles lee la biblioteca para marcar lo que ya se tiene. A
 // diferencia de la TUI —que reusa el árbol ya cargado— acá hay que abrirla, y
 // un fallo NO es fatal: sin biblioteca simplemente no se marca nada, que es
-// exactamente el estado de una instalación recién hecha. Por eso tampoco se
-// usa library.Open a secas, que CREARÍA la base: un comando que descarga no
-// tiene por qué fabricar una biblioteca vacía de paso.
+// exactamente el estado de una instalación recién hecha. Por eso se abre con
+// library.Open y no con library.Create: un comando que descarga no tiene por
+// qué fabricar una biblioteca vacía de paso (A-12).
 func ownedLibraryTitles() map[string]bool {
-	if _, err := os.Stat(config.DBPath()); err != nil {
-		return nil
-	}
 	lib, err := library.Open(config.DBPath())
 	if err != nil {
 		return nil

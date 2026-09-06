@@ -91,7 +91,7 @@ func TestGetSearchDownloadsAndScans(t *testing.T) {
 	}
 
 	// Tras la descarga el re-escaneo deja la pista en la biblioteca.
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestGetPlaylistNamed(t *testing.T) {
 		t.Errorf("subdirectorio esperado en music_dir/Mi Mix: %v", err)
 	}
 
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestGetPlaylistAutoTitle(t *testing.T) {
 		t.Errorf("subdirectorio esperado: %v", err)
 	}
 
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +327,7 @@ func TestGetPlaylistTitleSaneado(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -381,7 +381,7 @@ func TestGetPlaylistRequiresURL(t *testing.T) {
 func TestGetPlaylistNameCollisionDetectedEarly(t *testing.T) {
 	musicDir, argsFile := getPlaylistSandbox(t, "no se usa")
 
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,7 +424,7 @@ func TestGetPlaylistNamedDirNoScoopeaExistente(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -546,7 +546,7 @@ func TestGetPlaylistPartialFailureSurvives(t *testing.T) {
 		t.Errorf("esperaba un aviso de fallo parcial en stderr, salió: %q", stderr)
 	}
 
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}

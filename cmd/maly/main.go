@@ -202,8 +202,12 @@ func langName(code string) string {
 	return "English"
 }
 
-func openLibrary() (*library.Library, error) {
-	return library.Open(config.DBPath())
+// createLibrary abre la biblioteca CREÁNDOLA si hace falta. Solo para los
+// caminos que legítimamente la estrenan: el escaneo directo a la DB y lo que
+// escribe tras una descarga. Consultar usa library.Open, que no fabrica nada
+// (A-12).
+func createLibrary() (*library.Library, error) {
+	return library.Create(config.DBPath())
 }
 
 func runScan(args []string) error {
@@ -287,7 +291,7 @@ func runScan(args []string) error {
 		return nil
 	}
 
-	lib, err := openLibrary()
+	lib, err := createLibrary()
 	if err != nil {
 		return err
 	}
@@ -378,13 +382,13 @@ func runSearch(args []string) error {
 	if q == "" {
 		return fmt.Errorf("%s", i18n.T("cli.usage_search"))
 	}
-	// Sin base todavía, `search` NO la crea: openLibrary la fabricaría vacía
-	// y dejaría en disco una biblioteca que nadie pidió, justo por consultarla
-	// (misma regla que ya respetan info/doctor y las completions). Sin ella la
-	// respuesta correcta es la que ya existe para "no encontré nada", que
-	// además remite a `maly scan` (auditoría de UX post-1.12.0, hallazgo C24).
-	lib, ok := openLibraryIfExists()
-	if !ok {
+	// Sin base todavía, `search` NO la crea: la fabricaría vacía y dejaría en
+	// disco una biblioteca que nadie pidió, justo por consultarla (misma regla
+	// que ya respetan info/doctor y las completions). Sin ella la respuesta
+	// correcta es la que ya existe para "no encontré nada", que además remite
+	// a `maly scan` (auditoría de UX post-1.12.0, hallazgo C24).
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
 		fmt.Fprintln(os.Stderr, i18n.T("cli.search_none"))
 		return nil
 	}

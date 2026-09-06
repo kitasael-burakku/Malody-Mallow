@@ -221,7 +221,7 @@ func TestCtrlXPidenConfirmacion(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(config.DBPath()), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ func TestCtrlXPidenConfirmacion(t *testing.T) {
 	if m.plConfirm != "" {
 		t.Fatalf("cancelar debía limpiar plConfirm, quedó %q", m.plConfirm)
 	}
-	lib, _ = library.Open(config.DBPath())
+	lib, _ = library.Create(config.DBPath())
 	lists, _ := lib.Playlists()
 	lib.Close()
 	if len(lists) != 1 {
@@ -275,7 +275,7 @@ func TestCtrlXPidenConfirmacion(t *testing.T) {
 	if msg, ok := cmd().(plActMsg); !ok || msg.err != nil {
 		t.Fatalf("el borrado confirmado falló: %+v", msg)
 	}
-	lib, _ = library.Open(config.DBPath())
+	lib, _ = library.Create(config.DBPath())
 	lists, _ = lib.Playlists()
 	lib.Close()
 	if len(lists) != 0 {

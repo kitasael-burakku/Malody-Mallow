@@ -10,7 +10,7 @@ import (
 // m3uLib arma una biblioteca con música falsa escaneada, lista para playlists.
 func m3uLib(t *testing.T, nTracks int) (*Library, []Track) {
 	t.Helper()
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

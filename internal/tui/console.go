@@ -489,7 +489,20 @@ func (m *Model) conQuery(req ipc.Request, format func(styles, ipc.Response) []st
 func (m *Model) conLib(reload bool, fn func(*library.Library) ([]string, error)) tea.Cmd {
 	st := m.st
 	return func() tea.Msg {
-		lib, err := library.Open(config.DBPath())
+		// reload ya distingue lo que hace falta acá: es true exactamente para
+		// las operaciones que MUTAN playlists. Esas pueden estrenar la base
+		// (Create); las de solo lectura la abren con Open, que no la fabrica
+		// — un `playlist list` sobre una instalación recién hecha dejaba un
+		// library.db vacío en $XDG_DATA_HOME (A-12). Es el mismo reparto que
+		// hace runPlaylist en la CLI.
+		open := library.Create
+		if !reload {
+			open = library.Open
+		}
+		lib, err := open(config.DBPath())
+		if errors.Is(err, fs.ErrNotExist) {
+			return conMsg{lines: []string{st.errSt.Render(i18n.T("pl.no_library"))}}
+		}
 		if err != nil {
 			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
 		}
@@ -651,17 +664,11 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 func PlanGetPlaylist(cfg config.Config, url, name string) (getter.PlaylistPlan, error) {
 	var existing []string
 	if name != "" {
-		plib, err := library.Open(config.DBPath())
-		if err != nil {
+		// Solo consulta: PlaylistNames abre con Open, que no fabrica la base
+		// (A-12), y tolera que todavía no haya ninguna.
+		var err error
+		if existing, err = library.PlaylistNames(config.DBPath()); err != nil {
 			return getter.PlaylistPlan{}, err
-		}
-		lists, err := plib.Playlists()
-		plib.Close()
-		if err != nil {
-			return getter.PlaylistPlan{}, err
-		}
-		for _, pl := range lists {
-			existing = append(existing, pl.Name)
 		}
 	}
 	return getter.PlanPlaylist(cfg.MusicPath(), url, name, cfg.Ytdlp.CookiesFromBrowser, existing)
@@ -704,7 +711,8 @@ func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.C
 			return errLine(err)
 		}
 
-		lib, err := library.Open(config.DBPath())
+		// Create: acá se ESCRIBE la playlist (A-12).
+		lib, err := library.Create(config.DBPath())
 		if err != nil {
 			return errLine(err)
 		}

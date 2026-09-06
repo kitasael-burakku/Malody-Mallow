@@ -26,7 +26,7 @@ func BenchmarkScan(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
-		lib, err := Open(filepath.Join(b.TempDir(), fmt.Sprintf("bench%d.db", i)))
+		lib, err := Create(filepath.Join(b.TempDir(), fmt.Sprintf("bench%d.db", i)))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -47,7 +47,7 @@ func BenchmarkScan(b *testing.B) {
 func BenchmarkSearchLimit(b *testing.B) {
 	const n = 20000
 	dir := fakeMusicDir(b, n)
-	lib, err := Open(filepath.Join(b.TempDir(), "bench.db"))
+	lib, err := Create(filepath.Join(b.TempDir(), "bench.db"))
 	if err != nil {
 		b.Fatal(err)
 	}

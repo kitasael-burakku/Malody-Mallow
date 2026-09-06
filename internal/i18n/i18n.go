@@ -420,15 +420,18 @@ var table = map[string][2]string{
 	"cli.tbl_header":    {"ID\tARTIST\tALBUM\t#\tTITLE", "ID\tARTISTA\tÁLBUM\t#\tTÍTULO"},
 
 	// ---- CLI: playlists ----
-	"pl.usage":          {"usage:\n  maly playlist list                  list playlists\n  maly playlist show <name>           list the playlist's tracks\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist remove <name> <pos>   remove the track at that position\n  maly playlist play <name>           play the playlist (needs daemon)\n  maly playlist export <name> [file]  write the playlist as M3U\n  maly playlist import <file> [name]  create a playlist from an M3U", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist show <nombre>             lista las pistas de la playlist\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist remove <nombre> <pos>     quita la pista en esa posición\n  maly playlist play <nombre>             reproduce la playlist (requiere el servicio)\n  maly playlist export <nombre> [archivo] escribe la playlist como M3U\n  maly playlist import <archivo> [nombre] crea una playlist desde un M3U"},
-	"pl.usage_play":     {"usage: maly playlist play <name>", "uso: maly playlist play <nombre>"},
-	"pl.usage_create":   {"usage: maly playlist create <name>", "uso: maly playlist create <nombre>"},
-	"pl.usage_delete":   {"usage: maly playlist delete <name>", "uso: maly playlist delete <nombre>"},
-	"pl.usage_add":      {"usage: maly playlist add <name> <query>", "uso: maly playlist add <nombre> <consulta>"},
-	"pl.usage_show":     {"usage: maly playlist show <name>", "uso: maly playlist show <nombre>"},
-	"pl.usage_remove":   {"usage: maly playlist remove <name> <position>  (positions: maly playlist show <name>)", "uso: maly playlist remove <nombre> <posición>  (posiciones: maly playlist show <nombre>)"},
-	"pl.removed":        {"Removed %s from %q", "Quitada %s de %q"},
-	"pl.none":           {"No playlists. Create one with: maly playlist create <name>", "No hay playlists. Crea una con: maly playlist create <nombre>"},
+	"pl.usage":        {"usage:\n  maly playlist list                  list playlists\n  maly playlist show <name>           list the playlist's tracks\n  maly playlist create <name>         create a playlist\n  maly playlist delete <name>         delete a playlist\n  maly playlist add <name> <query>    add search results\n  maly playlist remove <name> <pos>   remove the track at that position\n  maly playlist play <name>           play the playlist (needs daemon)\n  maly playlist export <name> [file]  write the playlist as M3U\n  maly playlist import <file> [name]  create a playlist from an M3U", "uso:\n  maly playlist list                      lista las playlists\n  maly playlist show <nombre>             lista las pistas de la playlist\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist remove <nombre> <pos>     quita la pista en esa posición\n  maly playlist play <nombre>             reproduce la playlist (requiere el servicio)\n  maly playlist export <nombre> [archivo] escribe la playlist como M3U\n  maly playlist import <archivo> [nombre] crea una playlist desde un M3U"},
+	"pl.usage_play":   {"usage: maly playlist play <name>", "uso: maly playlist play <nombre>"},
+	"pl.usage_create": {"usage: maly playlist create <name>", "uso: maly playlist create <nombre>"},
+	"pl.usage_delete": {"usage: maly playlist delete <name>", "uso: maly playlist delete <nombre>"},
+	"pl.usage_add":    {"usage: maly playlist add <name> <query>", "uso: maly playlist add <nombre> <consulta>"},
+	"pl.usage_show":   {"usage: maly playlist show <name>", "uso: maly playlist show <nombre>"},
+	"pl.usage_remove": {"usage: maly playlist remove <name> <position>  (positions: maly playlist show <name>)", "uso: maly playlist remove <nombre> <posición>  (posiciones: maly playlist show <nombre>)"},
+	"pl.removed":      {"Removed %s from %q", "Quitada %s de %q"},
+	"pl.none":         {"No playlists. Create one with: maly playlist create <name>", "No hay playlists. Crea una con: maly playlist create <nombre>"},
+	// Distinta de pl.none: ahí la biblioteca existe y no tiene playlists;
+	// acá no hay biblioteca todavía, y el remedio es escanear (A-12).
+	"pl.no_library":     {"No library yet. Scan it first with: maly scan", "Todavía no hay biblioteca. Escaneala primero con: maly scan"},
 	"pl.tbl_header":     {"PLAYLIST\tTRACKS", "PLAYLIST\tPISTAS"},
 	"pl.created":        {"Playlist %q created", "Playlist %q creada"},
 	"pl.deleted":        {"Playlist %q deleted", "Playlist %q eliminada"},

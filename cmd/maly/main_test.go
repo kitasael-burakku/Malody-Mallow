@@ -132,7 +132,7 @@ func TestRunSearchNoCreaLaBase(t *testing.T) {
 func TestRunSearchConBaseSigueBuscando(t *testing.T) {
 	xdgSandbox(t)
 
-	lib, err := openLibrary() // el camino que SÍ la crea
+	lib, err := createLibrary() // el camino que SÍ la crea
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestRunSearchVacioNoVuelcaLaBiblioteca(t *testing.T) {
 
 	// Una biblioteca con contenido: sin esto, "no imprime nada" se cumpliría
 	// por vacía y el test pasaría con el defecto presente.
-	lib, err := openLibrary()
+	lib, err := createLibrary()
 	if err != nil {
 		t.Fatal(err)
 	}

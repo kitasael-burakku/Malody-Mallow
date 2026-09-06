@@ -34,24 +34,12 @@ import (
 // "label: value" y clip() (ya aplicado por consoleView a cada línea) se
 // encarga del ancho.
 
-// openLibIfExists abre la biblioteca solo si el archivo ya existe — mismo
-// motivo que openLibraryIfExists en cmd/maly/complete.go: library.Open
-// CREARÍA la base, y un diagnóstico no puede fabricar el estado que reporta.
-func openLibIfExists() (*library.Library, bool) {
-	if _, err := os.Stat(config.DBPath()); err != nil {
-		return nil, false
-	}
-	lib, err := library.Open(config.DBPath())
-	if err != nil {
-		return nil, false
-	}
-	return lib, true
-}
-
 // libStatsTUI espeja libraryStats de cmd/maly/info.go.
 func libStatsTUI() (tracks, playlists int, ok bool) {
-	lib, exists := openLibIfExists()
-	if !exists {
+	// library.Open y no library.Create: un diagnóstico no puede fabricar el
+	// estado que reporta (A-12). Espeja a libraryStats de cmd/maly/info.go.
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
 		return 0, 0, false
 	}
 	defer lib.Close()

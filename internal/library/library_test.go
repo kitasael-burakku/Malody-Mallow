@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
@@ -49,7 +50,7 @@ func fakeMusicDir(t testing.TB, n int) string {
 // lotes retienen la única conexión solo milisegundos. n cruza varios límites
 // de lote a propósito.
 func TestScanConcurrentSearch(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +108,7 @@ loop:
 // TestScanProgress: el callback recibe el acumulado creciente de archivos de
 // audio vistos y llega al total; los saltados por mtime también cuentan.
 func TestScanProgress(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func TestScanProgress(t *testing.T) {
 }
 
 func TestScanRescanAccounting(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +183,7 @@ func TestScanRescanAccounting(t *testing.T) {
 // TestSetDurationSurvivesRescan: la duración aprendida se lee de vuelta y
 // un re-escaneo con la pista modificada (el upsert corre) no la pisa.
 func TestSetDurationSurvivesRescan(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func TestSetDurationSurvivesRescan(t *testing.T) {
 // openScanned abre una biblioteca nueva y escanea n pistas dummy.
 func openScanned(t *testing.T, n int) (*Library, string) {
 	t.Helper()
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +313,7 @@ func TestFillDurationsFailuresStayZero(t *testing.T) {
 // TestFillDurationsEmpty: sin candidatos no se prueba nada ni se abre
 // ninguna transacción.
 func TestFillDurationsEmpty(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +416,7 @@ func TestMigratesPre060(t *testing.T) {
 	}
 	old.Close()
 
-	lib, err := Open(path)
+	lib, err := Create(path)
 	if err != nil {
 		t.Fatalf("Open sobre esquema pre-0.6.0: %v", err)
 	}
@@ -433,7 +434,7 @@ func TestMigratesPre060(t *testing.T) {
 }
 
 func TestPlaylistsRoundTrip(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,7 +555,7 @@ func TestReadTagsSaneaControles(t *testing.T) {
 // Scan no vuelve a tocar por el guard de mtime.
 func TestScanTrackClampsTrackNoYear(t *testing.T) {
 	dir := fakeMusicDir(t, 1)
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -588,7 +589,7 @@ func TestScanTrackClampsTrackNoYear(t *testing.T) {
 // la columna pos tras borrados previos.
 func TestRemoveFromPlaylist(t *testing.T) {
 	dir := fakeMusicDir(t, 3)
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -651,7 +652,7 @@ func TestRemoveFromPlaylist(t *testing.T) {
 func TestRemoveFromPlaylistConcurrent(t *testing.T) {
 	const n = 12
 	dir := fakeMusicDir(t, n)
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -718,7 +719,7 @@ func TestRemoveFromPlaylistConcurrent(t *testing.T) {
 // antes el prefijo sin separador dejaba esas entradas huérfanas en la DB
 // para siempre.
 func TestScanPurgeDotDotDir(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -773,7 +774,7 @@ func TestScanPurgeDotDotDir(t *testing.T) {
 // cuando un LIMIT capaba play/add en silencio.
 func TestSearchLimit(t *testing.T) {
 	dir := fakeMusicDir(t, 50)
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -817,7 +818,7 @@ func TestSearchLimit(t *testing.T) {
 
 // TestSearchLikeEscape: % y _ del usuario son texto, no comodines de LIKE.
 func TestSearchLikeEscape(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -847,7 +848,7 @@ func TestSearchLikeEscape(t *testing.T) {
 // añadido entero — nada de playlists a medias.
 func TestAddToPlaylistAtomic(t *testing.T) {
 	dir := fakeMusicDir(t, 2)
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -882,45 +883,61 @@ func TestAddToPlaylistAtomic(t *testing.T) {
 
 // TestOpenDirPrivate: el directorio de la base nace 0700; el db/-wal/-shm
 // de dentro quedan cubiertos por él.
-// TestOpenIfExistsDoesNotCreate cubre el hallazgo UX-N5 de la auditoría
-// técnica: OpenIfExists se extrajo de cmd/maly (donde ya lo usaban info/
-// doctor/completions) a este paquete para que internal/tui/select.go
-// también pudiera usarlo — Open crearía la base vacía, y un comando de
-// solo lectura no debe fabricar el estado que está a punto de reportar
-// como "biblioteca vacía".
-func TestOpenIfExistsDoesNotCreate(t *testing.T) {
+// TestOpenNoFabricaLaBase cubre el invariante que el proyecto descubrió
+// cuatro veces por separado —completions, info/doctor, select, search (C24)—
+// y que hasta A-12 dependía de que cada llamador se acordara: consultar la
+// biblioteca no puede CREARLA. Ahora está en el nombre: Open no crea, Create
+// sí.
+//
+// Antes esto se comprobaba TRES veces, sobre tres envoltorios distintos
+// (OpenIfExists acá, openLibraryIfExists en cmd/maly, openLibIfExists en
+// internal/tui). Los tres eran el mismo test.
+func TestOpenNoFabricaLaBase(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data", "library.db")
 
-	lib, ok := OpenIfExists(dbPath)
-	if ok || lib != nil {
-		t.Fatalf("OpenIfExists() sin DB = ok=%v lib=%v, quería ok=false lib=nil", ok, lib)
+	lib, err := Open(dbPath)
+	if err == nil {
+		lib.Close()
+		t.Fatal("Open() sin base debía fallar")
+	}
+	// El error TIPADO es lo que permite a un llamador distinguir "no hay
+	// biblioteca" (remedio: escanear) de "la hay pero no abre" (base
+	// corrupta, bloqueada, sin permisos), que era justo lo que RunSelect
+	// necesitaba y por lo que llevaba un os.Stat propio.
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Open() sin base debía envolver fs.ErrNotExist; dio %v", err)
 	}
 	if _, err := os.Stat(dbPath); err == nil {
-		t.Fatal("OpenIfExists() dejó creada la base de datos")
+		t.Fatal("Open() dejó creada la base de datos")
+	}
+	// Y ni siquiera el DIRECTORIO: Open no toca el disco.
+	if _, err := os.Stat(filepath.Dir(dbPath)); err == nil {
+		t.Error("Open() creó el directorio de datos")
 	}
 }
 
-// TestOpenIfExistsOpensReal: con la base ya creada, OpenIfExists debe
-// abrirla sin problema (mismo par que TestOpenIfExistsDoesNotCreate).
-func TestOpenIfExistsOpensReal(t *testing.T) {
+// TestCreateLuegoOpen: Create estrena la base y, con ella ya en disco, Open
+// la abre sin problema. Es el par del anterior: sin este, "Open no crea"
+// se cumpliría también con un Open que no abre nada nunca.
+func TestCreateLuegoOpen(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "data", "library.db")
 
-	created, err := Open(dbPath)
+	created, err := Create(dbPath)
 	if err != nil {
-		t.Fatalf("Open() (setup): %v", err)
+		t.Fatalf("Create(): %v", err)
 	}
 	created.Close()
 
-	lib, ok := OpenIfExists(dbPath)
-	if !ok || lib == nil {
-		t.Fatalf("OpenIfExists() con DB existente = ok=%v lib=%v, quería ok=true", ok, lib)
+	lib, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open() con la base ya creada: %v", err)
 	}
 	lib.Close()
 }
 
 func TestOpenDirPrivate(t *testing.T) {
 	dbDir := filepath.Join(t.TempDir(), "data")
-	lib, err := Open(filepath.Join(dbDir, "library.db"))
+	lib, err := Create(filepath.Join(dbDir, "library.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -946,7 +963,7 @@ func TestOpenAprietaPermisosExistentes(t *testing.T) {
 	}
 	dbPath := filepath.Join(dir, "library.db")
 
-	lib, err := Open(dbPath)
+	lib, err := Create(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -997,7 +1014,7 @@ func hasIndex(t *testing.T, dbPath, name string) bool {
 // nueva no debe crearlos nunca.
 func TestFreshDBHasNoDeadIndexes(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "fresh.db")
-	lib, err := Open(dbPath)
+	lib, err := Create(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1039,7 +1056,7 @@ func TestOldDBDropsDeadIndexes(t *testing.T) {
 		}
 	}
 
-	lib, err := Open(dbPath)
+	lib, err := Create(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1064,7 +1081,7 @@ func TestOldDBDropsDeadIndexes(t *testing.T) {
 // pobladas. Comprobar solo Count() dejaría pasar una guarda que devolviera
 // error después de haber purgado.
 func TestScanNoPurgaConRootVacio(t *testing.T) {
-	lib, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

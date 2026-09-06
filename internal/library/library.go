@@ -90,26 +90,71 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 CREATE INDEX IF NOT EXISTS idx_pl_tracks ON playlist_tracks(playlist_id, pos);
 `
 
-// OpenIfExists abre la biblioteca solo si el archivo ya existe: Open la
-// crearía vacía, y un comando de solo lectura (completions, "info"/
-// "doctor", "select") no debe dejar residuos en $XDG_DATA_HOME ni
-// diagnosticarse a sí mismo reportando una biblioteca vacía que él mismo
-// fabricó. Vive acá (no en cmd/maly, donde nació) porque internal/tui
-// también lo necesita (RunSelect, hallazgo UX-N5 de la auditoría) y no
-// puede importar cmd/maly (package main).
-func OpenIfExists(dbPath string) (*Library, bool) {
-	if _, err := os.Stat(dbPath); err != nil {
-		return nil, false
-	}
+// Create abre la base de datos en dbPath, creándola si no existe. Es para los
+// caminos que legítimamente ESTRENAN la biblioteca: el demonio, `maly scan` y
+// lo que escribe tras una descarga.
+func Create(dbPath string) (*Library, error) { return openDB(dbPath, true) }
+
+// Open abre una base de datos que YA existe. Si no está, el error envuelve
+// fs.ErrNotExist y no se toca el disco.
+//
+// Son dos funciones y no una con opción porque el defecto que cierran es de
+// ELECCIÓN, no de configuración: había un solo Open que además creaba, así
+// que CONSULTAR la biblioteca la fabricaba, y el proyecto descubrió que eso
+// estaba mal cuatro veces por separado —completions, info/doctor, select,
+// search (C24)— añadiendo cada vez un envoltorio distinto: OpenIfExists en
+// este paquete, openLibraryIfExists en cmd/maly, openLibIfExists en
+// internal/tui, y dos os.Stat propios en select.go y get_pick.go. Cinco
+// formas de acordarse de lo mismo, y llamadores nuevos que seguían sin
+// acordarse: `maly playlist list` sobre una instalación recién hecha dejaba
+// un library.db vacío en $XDG_DATA_HOME (A-12).
+//
+// Con los dos nombres, elegir mal deja de ser el camino cómodo. Y el error
+// tipado cubre de una vez los dos usos que antes pedían funciones distintas:
+// quien no quiera distinguir hace `if lib, err := Open(p); err == nil`, y
+// quien sí quiera —RunSelect, que necesita separar "no hay biblioteca" de
+// "la hay pero no abre", porque el remedio que le ofrece al usuario es
+// distinto— hace errors.Is(err, fs.ErrNotExist).
+func Open(dbPath string) (*Library, error) { return openDB(dbPath, false) }
+
+// PlaylistNames devuelve los nombres de las playlists de la base en dbPath,
+// abriéndola y cerrándola. Sin base todavía devuelve nil SIN error: no hay
+// biblioteca, luego no hay playlists, y quien pregunta —el planificador de
+// `get playlist`, para saber si el nombre choca— tiene su respuesta.
+//
+// Existe para que los dos espejos de `get playlist` compartan también esta
+// decisión. Tenerla escrita dos veces duró exactamente hasta la primera
+// corrida de la red de paridad de O-03, que cazó que un lado toleraba la
+// biblioteca ausente y el otro no.
+func PlaylistNames(dbPath string) ([]string, error) {
 	lib, err := Open(dbPath)
-	if err != nil {
-		return nil, false
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
 	}
-	return lib, true
+	if err != nil {
+		return nil, err
+	}
+	defer lib.Close()
+	lists, err := lib.Playlists()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(lists))
+	for _, p := range lists {
+		names = append(names, p.Name)
+	}
+	return names, nil
 }
 
-// Open abre (o crea) la base de datos en dbPath.
-func Open(dbPath string) (*Library, error) {
+func openDB(dbPath string, create bool) (*Library, error) {
+	if !create {
+		// Stat antes de nada: sin esto el resto de la función crearía el
+		// directorio y la base. El error de os.Stat ya es un *fs.PathError
+		// que envuelve fs.ErrNotExist, que es justo lo que Open promete.
+		if _, err := os.Stat(dbPath); err != nil {
+			return nil, err
+		}
+	}
 	// 0700: la biblioteca revela hábitos de escucha.
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0o700); err != nil {

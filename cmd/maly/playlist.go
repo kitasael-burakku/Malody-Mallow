@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -45,8 +46,23 @@ func runPlaylist(args []string) error {
 		return nil
 	}
 
-	lib, err := openLibrary()
+	// Los subcomandos que solo LEEN abren con Open, que no fabrica la base:
+	// `maly playlist list` sobre una instalación recién hecha dejaba un
+	// library.db vacío en $XDG_DATA_HOME, igual que hacía `maly search` antes
+	// de C24 (A-12). Los que escriben usan Create, que sí puede crearla: son
+	// los que legítimamente estrenan el estado que van a guardar.
+	open := library.Create
+	switch sub {
+	case "list", "show", "export":
+		open = library.Open
+	}
+	lib, err := open(config.DBPath())
 	if err != nil {
+		// Sin biblioteca no hay playlists que listar ni exportar, y decirlo
+		// es más útil que el error crudo del os.Stat.
+		if errors.Is(err, fs.ErrNotExist) {
+			return errors.New(i18n.T("pl.no_library"))
+		}
 		return err
 	}
 	defer lib.Close()

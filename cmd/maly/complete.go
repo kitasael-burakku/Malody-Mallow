@@ -148,8 +148,8 @@ func completeControls(args []string, cur string) []string {
 // Pide con tope (SearchLimit) porque la parcial vacía haría traer la
 // biblioteca entera para mostrar treinta líneas.
 func completeTracks(args []string, cur string) []string {
-	lib, ok := openLibraryIfExists()
-	if !ok {
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
 		return nil
 	}
 	defer lib.Close()
@@ -233,8 +233,8 @@ func completePlaylist(args []string, cur string) []string {
 }
 
 func completePlaylistNames(cur string) []string {
-	lib, ok := openLibraryIfExists()
-	if !ok {
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
 		return nil
 	}
 	defer lib.Close()
@@ -260,8 +260,8 @@ func completePlaylistNames(cur string) []string {
 // Sin demonio: abre la DB directo, como el resto de las completions de
 // playlist.
 func playlistPositions(name, cur string) []string {
-	lib, ok := openLibraryIfExists()
-	if !ok {
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
 		return nil
 	}
 	defer lib.Close()
@@ -324,10 +324,4 @@ func queuePositions(cur string) []string {
 		}
 	}
 	return out
-}
-
-// openLibraryIfExists abre la biblioteca solo si el archivo ya existe:
-// Open la crearía vacía, y un TAB no debe dejar residuos en $XDG_DATA_HOME.
-func openLibraryIfExists() (*library.Library, bool) {
-	return library.OpenIfExists(config.DBPath())
 }

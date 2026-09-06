@@ -517,3 +517,42 @@ func TestConsoleSearchNoMandaConsultaVacia(t *testing.T) {
 		}
 	}
 }
+
+// TestConsolePlaylistListNoFabricaLaBiblioteca: el espejo del test homónimo de
+// cmd/maly (A-12). conLib usa su flag `reload` —true exactamente para lo que
+// muta playlists— para elegir entre Create y Open, así que la consola respeta
+// el mismo reparto que la CLI: consultar no fabrica, escribir sí puede.
+func TestConsolePlaylistListNoFabricaLaBiblioteca(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+
+	m := newConModel()
+	run := func(args ...string) string {
+		t.Helper()
+		_, cmd := m.conPlaylist(args)
+		if cmd == nil {
+			return ""
+		}
+		msg, ok := cmd().(conMsg)
+		if !ok {
+			return ""
+		}
+		return strings.Join(msg.lines, "\n")
+	}
+
+	if out := run("list"); !strings.Contains(out, i18n.T("pl.no_library")) {
+		t.Errorf("sin biblioteca, `playlist list` debía decir que no la hay; salió %q", out)
+	}
+	if _, err := os.Stat(config.DBPath()); err == nil {
+		t.Fatal("`playlist list` en la consola creó la base de datos")
+	}
+
+	// Control positivo: el que escribe sí puede estrenarla.
+	if out := run("create", "favs"); strings.Contains(out, i18n.T("pl.no_library")) {
+		t.Errorf("`playlist create` debía poder estrenar la base; salió %q", out)
+	}
+	if _, err := os.Stat(config.DBPath()); err != nil {
+		t.Fatal("`playlist create` en la consola no dejó creada la base de datos")
+	}
+}

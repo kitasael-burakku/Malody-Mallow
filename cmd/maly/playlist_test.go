@@ -44,7 +44,7 @@ func TestPlaylistExportNoClobber(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(music, "pista.mp3"), []byte("no es audio"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestPlaylistAddNoExisteSugiereCreate(t *testing.T) {
 
 	// Una pista indexada, para llegar al AddToPlaylist (sin resultados el
 	// comando corta antes con otro error).
-	lib, err := openLibrary()
+	lib, err := createLibrary()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,5 +119,46 @@ func TestPlaylistAddNoExisteSugiereCreate(t *testing.T) {
 	// Una sola línea: el espejo de la consola lo pinta dentro de un panel.
 	if strings.Contains(err.Error(), "\n") {
 		t.Errorf("el error debe caber en una línea, dio: %q", err.Error())
+	}
+}
+
+// TestPlaylistListNoFabricaLaBiblioteca: `maly playlist list` sobre una
+// instalación recién hecha dejaba un library.db vacío en $XDG_DATA_HOME, igual
+// que hacía `maly search` antes de C24 — consultar fabricaba el estado que se
+// estaba consultando (A-12). Los subcomandos de solo lectura abren con
+// library.Open, que no crea nada.
+//
+// El control positivo va en el mismo test a propósito: sin él, un guard
+// demasiado agresivo que rompiera `playlist create` pasaría inadvertido, que es
+// la trampa que documenta docs/development/verificacion.md.
+func TestPlaylistListNoFabricaLaBiblioteca(t *testing.T) {
+	xdgSandbox(t)
+
+	if err := runPlaylist([]string{"list"}); err == nil {
+		t.Error("sin biblioteca, `playlist list` debía decir que no la hay")
+	}
+	if _, err := os.Stat(config.DBPath()); err == nil {
+		t.Fatal("`playlist list` creó la base de datos")
+	}
+	// Lo mismo para los otros dos que solo leen.
+	for _, sub := range [][]string{{"show", "favs"}, {"export", "favs"}} {
+		if err := runPlaylist(sub); err == nil {
+			t.Errorf("sin biblioteca, `playlist %v` debía fallar", sub)
+		}
+		if _, err := os.Stat(config.DBPath()); err == nil {
+			t.Fatalf("`playlist %v` creó la base de datos", sub)
+		}
+	}
+
+	// Control positivo: el que ESCRIBE sí puede estrenarla.
+	if err := runPlaylist([]string{"create", "favs"}); err != nil {
+		t.Fatalf("`playlist create` sobre una instalación nueva debía funcionar: %v", err)
+	}
+	if _, err := os.Stat(config.DBPath()); err != nil {
+		t.Fatal("`playlist create` no dejó creada la base de datos")
+	}
+	// Y ahora que existe, los de lectura funcionan.
+	if err := runPlaylist([]string{"list"}); err != nil {
+		t.Errorf("con biblioteca, `playlist list` debía funcionar: %v", err)
 	}
 }

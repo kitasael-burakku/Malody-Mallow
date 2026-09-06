@@ -53,7 +53,7 @@ func paritySandbox(t *testing.T, playlists []string, files map[string]string) co
 		}
 	}
 	if len(playlists) > 0 {
-		lib, err := openLibrary()
+		lib, err := createLibrary()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -275,7 +275,7 @@ func TestParidadG3ElFiltroEsElMismo(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(destino, "nueva.mp3"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	lib, err := openLibrary()
+	lib, err := createLibrary()
 	if err != nil {
 		t.Fatal(err)
 	}

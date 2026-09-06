@@ -180,7 +180,7 @@ func TestScanNoSigueDirectorioEnlazado(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lib, err := openLibrary()
+	lib, err := createLibrary()
 	if err != nil {
 		t.Fatal(err)
 	}

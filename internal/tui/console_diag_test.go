@@ -29,21 +29,6 @@ func xdgSandboxTUI(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(tmp, "rt"))
 }
 
-// TestOpenLibIfExistsDoesNotCreate: mismo invariante que
-// cmd/maly.openLibraryIfExists — library.Open crearía la base, y un
-// diagnóstico que fabrica lo que diagnostica no sirve de nada.
-func TestOpenLibIfExistsDoesNotCreate(t *testing.T) {
-	xdgSandboxTUI(t)
-
-	lib, ok := openLibIfExists()
-	if ok || lib != nil {
-		t.Fatalf("openLibIfExists() debía devolver ok=false, lib=nil; dio ok=%v lib=%v", ok, lib)
-	}
-	if _, err := os.Stat(config.DBPath()); err == nil {
-		t.Fatal("openLibIfExists() dejó creada la base de datos")
-	}
-}
-
 // TestLibStatsTUINoDB: espejo de TestLibraryStatsNoDB (cmd/maly/info_test.go).
 func TestLibStatsTUINoDB(t *testing.T) {
 	xdgSandboxTUI(t)
@@ -56,7 +41,7 @@ func TestLibStatsTUINoDB(t *testing.T) {
 		t.Fatalf("sin DB los contadores deben quedar en cero, dio tracks=%d playlists=%d", tracks, playlists)
 	}
 	if _, err := os.Stat(config.DBPath()); err == nil {
-		t.Fatal("libStatsTUI() creó la base de datos: debía abrir por openLibIfExists, no por library.Open")
+		t.Fatal("libStatsTUI() creó la base de datos: debía abrir por library.Open, que no crea, y no por library.Create")
 	}
 }
 
@@ -66,7 +51,7 @@ func TestLibStatsTUIConDB(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(config.DBPath()), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -181,7 +181,9 @@ func New(cfg config.Config) (*Daemon, error) {
 		ln.Close()
 	}
 
-	lib, err := library.Open(config.DBPath())
+	// Create: el demonio es el dueño de la biblioteca y la estrena si hace
+	// falta. Los clientes de solo lectura usan Open, que no la fabrica (A-12).
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		closeLn()
 		return failed(err)

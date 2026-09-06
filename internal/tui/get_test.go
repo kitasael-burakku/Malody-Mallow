@@ -784,7 +784,7 @@ func TestConGetPlaylistChoqueDeNombreAntesDeDescargar(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(config.DBPath()), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -858,7 +858,7 @@ func TestConGetPlaylistSoloLoRecienBajado(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(destino, "nueva.mp3"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	lib, err := library.Open(config.DBPath())
+	lib, err := library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -867,7 +867,7 @@ func TestConGetPlaylistSoloLoRecienBajado(t *testing.T) {
 	}
 	lib.Close()
 
-	lib, err = library.Open(config.DBPath())
+	lib, err = library.Create(config.DBPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -906,7 +906,7 @@ func TestConsolePlaylistDeletePideConfirmacion(t *testing.T) {
 	}
 	sigueExistiendo := func(nombre string) bool {
 		t.Helper()
-		lib, err := library.Open(config.DBPath())
+		lib, err := library.Create(config.DBPath())
 		if err != nil {
 			t.Fatal(err)
 		}

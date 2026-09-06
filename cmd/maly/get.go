@@ -10,6 +10,7 @@ import (
 	"maly/internal/config"
 	"maly/internal/getter"
 	"maly/internal/i18n"
+	"maly/internal/library"
 	"maly/internal/tui"
 )
 
@@ -144,7 +145,10 @@ func downloadOne(cfg config.Config, spec, label string) error {
 	// Con más de un archivo nuevo (una búsqueda puede resolver a varios
 	// ítems) no hay UNA pista que nombrar: queda el mensaje genérico.
 	if len(got) == 1 {
-		if lib, err := openLibrary(); err == nil {
+		// Solo LEE, para poder nombrar la pista: el runScan de arriba ya
+		// dejó la base creada, y si por lo que fuera no está, no hay nada que
+		// nombrar y no hay que fabricarla para descubrirlo (A-12).
+		if lib, err := library.Open(config.DBPath()); err == nil {
 			if t, ok := lib.ByPath(filepath.Join(dir, got[0])); ok {
 				fmt.Println(i18n.Tf("cli.get_done", t.String()))
 			}
@@ -221,7 +225,10 @@ func runGetPlaylist(args []string) (retErr error) {
 		return err
 	}
 
-	lib, err := openLibrary()
+	// Create y no Open: acá se ESCRIBE la playlist. El runScan de arriba ya
+	// debería haber dejado la base, pero este es un camino de escritura y no
+	// tiene por qué depender de eso (A-12).
+	lib, err := createLibrary()
 	if err != nil {
 		return err
 	}
@@ -260,17 +267,11 @@ func runGetPlaylist(args []string) (retErr error) {
 func planGetPlaylist(cfg config.Config, url, name string) (getter.PlaylistPlan, error) {
 	var existing []string
 	if name != "" {
-		plib, err := openLibrary()
-		if err != nil {
+		// Solo consulta: PlaylistNames abre con Open, que no fabrica la base
+		// (A-12), y tolera que todavía no haya ninguna.
+		var err error
+		if existing, err = library.PlaylistNames(config.DBPath()); err != nil {
 			return getter.PlaylistPlan{}, err
-		}
-		lists, err := plib.Playlists()
-		plib.Close()
-		if err != nil {
-			return getter.PlaylistPlan{}, err
-		}
-		for _, p := range lists {
-			existing = append(existing, p.Name)
 		}
 	}
 	return getter.PlanPlaylist(cfg.MusicPath(), url, name, cfg.Ytdlp.CookiesFromBrowser, existing)

@@ -202,11 +202,17 @@ func notifyRefresh() {
 	c.Do(ipc.Request{Cmd: "refresh"})
 }
 
+// Los tres comandos que siguen ESCRIBEN playlists, así que abren con
+// library.Create: son los que legítimamente pueden estrenar la base. Los que
+// solo leen (loadPlaylists, plQueueCmd, loadLibrary) usan library.Open, que no
+// la fabrica — mismo reparto que runPlaylist en la CLI y conLib en la consola
+// (A-12).
+
 // plAddCmd agrega pistas a una playlist; con create primero la crea (ctrl+n
 // en modo destino).
 func plAddCmd(name string, ids []int64, create bool) tea.Cmd {
 	return func() tea.Msg {
-		lib, err := library.Open(config.DBPath())
+		lib, err := library.Create(config.DBPath())
 		if err != nil {
 			return plActMsg{err: err}
 		}
@@ -226,7 +232,7 @@ func plAddCmd(name string, ids []int64, create bool) tea.Cmd {
 
 func plCreateCmd(name string) tea.Cmd {
 	return func() tea.Msg {
-		lib, err := library.Open(config.DBPath())
+		lib, err := library.Create(config.DBPath())
 		if err != nil {
 			return plActMsg{err: err}
 		}
@@ -241,7 +247,7 @@ func plCreateCmd(name string) tea.Cmd {
 
 func plDeleteCmd(name string) tea.Cmd {
 	return func() tea.Msg {
-		lib, err := library.Open(config.DBPath())
+		lib, err := library.Create(config.DBPath())
 		if err != nil {
 			return plActMsg{err: err}
 		}

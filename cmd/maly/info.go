@@ -10,17 +10,19 @@ import (
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/library"
 	"maly/internal/version"
 )
 
 // libraryStats devuelve el tamaño de la biblioteca. ok en false = todavía no
 // hay base de datos, que no es un error: es lo que ve quien aún no escaneó.
-// Se abre por openLibraryIfExists a propósito — library.Open CREARÍA la base,
-// y un comando de diagnóstico no puede inventar el estado que está reportando
-// (mismo motivo por el que las completions no la abren a ciegas).
+// Se abre por library.Open y no por library.Create a propósito: Create
+// FABRICARÍA la base, y un comando de diagnóstico no puede inventar el estado
+// que está reportando (mismo motivo por el que las completions no la abren a
+// ciegas).
 func libraryStats() (tracks, playlists int, ok bool) {
-	lib, exists := openLibraryIfExists()
-	if !exists {
+	lib, err := library.Open(config.DBPath())
+	if err != nil {
 		return 0, 0, false
 	}
 	defer lib.Close()

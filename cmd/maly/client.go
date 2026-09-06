@@ -69,66 +69,9 @@ func runClient(cmd string, args []string) error {
 		return runPlaylist(args)
 	}
 
-	req := ipc.Request{Cmd: cmd}
-	switch cmd {
-	case "play":
-		req.Query = resolveQueryPath(strings.Join(args, " "))
-	case "add":
-		if len(args) == 0 {
-			return errors.New(i18n.T("cli.usage_add_cmd"))
-		}
-		req.Query = resolveQueryPath(strings.Join(args, " "))
-	case "jump":
-		// El usuario indica la posición 1-based que muestra `maly queue`;
-		// el servicio usa índices 0-based y valida el rango.
-		if len(args) != 1 {
-			return errors.New(i18n.T("cli.usage_jump_cmd"))
-		}
-		n, convErr := strconv.Atoi(args[0])
-		if convErr != nil || n < 1 {
-			return errors.New(i18n.T("cli.usage_jump_cmd"))
-		}
-		req.Index = n - 1
-	case "remove":
-		// Mismo parseo 1-based que jump — la op IPC ya existía (la TUI la
-		// usa con la tecla "d") pero le faltaba comando de CLI, el único
-		// hueco en la simetría add/jump/move/remove (auditoría 2026-07-31,
-		// hallazgo C10).
-		if len(args) != 1 {
-			return errors.New(i18n.T("cli.usage_remove_cmd"))
-		}
-		n, convErr := strconv.Atoi(args[0])
-		if convErr != nil || n < 1 {
-			return errors.New(i18n.T("cli.usage_remove_cmd"))
-		}
-		req.Index = n - 1
-	case "move":
-		// Igual que jump: posiciones 1-based de `maly queue`, 0-based en el
-		// servicio.
-		if len(args) != 2 {
-			return errors.New(i18n.T("cli.usage_move_cmd"))
-		}
-		from, errF := strconv.Atoi(args[0])
-		to, errT := strconv.Atoi(args[1])
-		if errF != nil || errT != nil || from < 1 || to < 1 {
-			return errors.New(i18n.T("cli.usage_move_cmd"))
-		}
-		req.Index = from - 1
-		req.To = to - 1
-	case "vol":
-		if len(args) != 1 {
-			return errors.New(i18n.T("cli.usage_vol_cmd"))
-		}
-		req.Value = args[0]
-	case "seek":
-		if len(args) != 1 {
-			return errors.New(i18n.T("cli.usage_seek_cmd"))
-		}
-		req.Value = args[0]
-	case "shuffle", "repeat":
-		if len(args) > 0 {
-			req.Value = args[0]
-		}
+	req, err := buildRequest(cmd, args)
+	if err != nil {
+		return err
 	}
 
 	c, err := ipc.Dial(config.SocketPath())
@@ -158,6 +101,79 @@ func runClient(cmd string, args []string) error {
 		}
 	}
 	return nil
+}
+
+// buildRequest arma la petición IPC de un subcomando de reproducción a partir
+// de sus argumentos, validándolos. Es la GRAMÁTICA de la CLI para esos
+// comandos, y está aparte de runClient —que además dial, envía e imprime—
+// para poder fijarla en un test sin socket ni demonio (A-28).
+//
+// La conversión más importante que hace es la de las posiciones: el usuario
+// escribe la posición 1-based que muestra `maly queue`, y el protocolo usa
+// índices 0-based. Eso vivía solo en un comentario.
+func buildRequest(cmd string, args []string) (ipc.Request, error) {
+	req := ipc.Request{Cmd: cmd}
+	switch cmd {
+	case "play":
+		req.Query = resolveQueryPath(strings.Join(args, " "))
+	case "add":
+		if len(args) == 0 {
+			return req, errors.New(i18n.T("cli.usage_add_cmd"))
+		}
+		req.Query = resolveQueryPath(strings.Join(args, " "))
+	case "jump":
+		// El usuario indica la posición 1-based que muestra `maly queue`;
+		// el servicio usa índices 0-based y valida el rango.
+		if len(args) != 1 {
+			return req, errors.New(i18n.T("cli.usage_jump_cmd"))
+		}
+		n, convErr := strconv.Atoi(args[0])
+		if convErr != nil || n < 1 {
+			return req, errors.New(i18n.T("cli.usage_jump_cmd"))
+		}
+		req.Index = n - 1
+	case "remove":
+		// Mismo parseo 1-based que jump — la op IPC ya existía (la TUI la
+		// usa con la tecla "d") pero le faltaba comando de CLI, el único
+		// hueco en la simetría add/jump/move/remove (auditoría 2026-07-31,
+		// hallazgo C10).
+		if len(args) != 1 {
+			return req, errors.New(i18n.T("cli.usage_remove_cmd"))
+		}
+		n, convErr := strconv.Atoi(args[0])
+		if convErr != nil || n < 1 {
+			return req, errors.New(i18n.T("cli.usage_remove_cmd"))
+		}
+		req.Index = n - 1
+	case "move":
+		// Igual que jump: posiciones 1-based de `maly queue`, 0-based en el
+		// servicio.
+		if len(args) != 2 {
+			return req, errors.New(i18n.T("cli.usage_move_cmd"))
+		}
+		from, errF := strconv.Atoi(args[0])
+		to, errT := strconv.Atoi(args[1])
+		if errF != nil || errT != nil || from < 1 || to < 1 {
+			return req, errors.New(i18n.T("cli.usage_move_cmd"))
+		}
+		req.Index = from - 1
+		req.To = to - 1
+	case "vol":
+		if len(args) != 1 {
+			return req, errors.New(i18n.T("cli.usage_vol_cmd"))
+		}
+		req.Value = args[0]
+	case "seek":
+		if len(args) != 1 {
+			return req, errors.New(i18n.T("cli.usage_seek_cmd"))
+		}
+		req.Value = args[0]
+	case "shuffle", "repeat":
+		if len(args) > 0 {
+			req.Value = args[0]
+		}
+	}
+	return req, nil
 }
 
 // resolveQueryPath absolutiza q si —y solo si— existe como ruta relativa al

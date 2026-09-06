@@ -7,6 +7,41 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.17.0 — 2026-09-06
+
+Catorce arreglos de la misma auditoría que dio la 1.16.4, en su mayoría cosas
+que fallaban en silencio.
+
+Lo que más se nota a diario: `maly get` de una canción que ya tienes deja de
+reportarse como un fallo —yt-dlp no la vuelve a bajar, y maly lo tomaba por
+"no encontré nada", que es un problema distinto y con otra solución—; y
+cuando el reproductor salta una pista que no puede sonar, o se detiene porque
+ninguna de la cola se pudo reproducir, ahora lo dice en pantalla en vez de
+dejarlo en el registro del sistema, donde nadie lo mira. Ese segundo caso es
+justo el del disco de música que se desmonta mientras suena algo: antes todo
+se paraba sin ninguna explicación.
+
+Cosas que dejaban de funcionar sin avisar: agregar una carpeta muy grande a
+la cola (a partir de unas quince mil pistas, la orden se perdía entera sin
+mensaje); descargar una playlist entera desde la paleta de comandos, que se
+quedaba en cero pistas si un solo vídeo era privado; los errores dentro de
+"Ahora suena" y del buscador de descargas, que no se veían en ninguna parte y
+hacían parecer que la tecla no había hecho nada; y borrar una playlist desde
+la paleta, que no pedía confirmación como sí hacen los otros dos caminos.
+
+`maly doctor` avisa ahora de los directorios enlazados dentro de tu carpeta
+de música: no se indexan, y ambos README explican por qué y qué hacer (los
+archivos enlazados sí se indexan; para un directorio hay que escanear el
+destino). Además, el volumen ya no se puede poner en un valor imposible desde
+un cliente MPRIS, `maly search ""` deja de volcar la biblioteca entera, y
+salir de `maly get pick` mientras busca ya no deja un proceso corriendo solo
+por detrás.
+
+Por dentro: la detección de condiciones de carrera pasa a correr sobre todo
+el proyecto en cada cambio, y hay tests nuevos sobre la parte que decide qué
+pista se toca al pulsar una tecla — donde un error de una posición borraría
+la canción equivocada sin decir nada.
+
 ## v1.16.4 — 2026-09-05
 
 Un escaneo ya no puede vaciar la biblioteca cuando la música no está. Si

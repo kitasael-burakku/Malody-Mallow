@@ -10,7 +10,7 @@ import (
 )
 
 // Version es la versión del binario (sin la "v").
-const Version = "1.16.4"
+const Version = "1.17.0"
 
 // Channel identifica de dónde vino el binario: "" (default — compilado a
 // mano o vía mallow-install.sh) o el nombre que un PKGBUILD/paquete le

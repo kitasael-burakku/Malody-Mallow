@@ -218,10 +218,11 @@ tomadas.
 
 ## Estado actual
 
-**v1.16.4** (`internal/version/version.go`). Publicadas y tageadas hasta
-**v1.16.3**: la 1.16.4 tiene su commit de release y su entrada de CHANGELOG,
-pero **el tag `v1.16.4` todavía no existe** — comprobar con `git tag` antes de
-asumir que salió.
+**v1.17.0** (`internal/version/version.go`). Ojo con los tags: la **1.16.4
+nunca llegó a tagearse** —tiene su commit de bump y su entrada de CHANGELOG,
+pero no existe `v1.16.4`, así que nunca se distribuyó: los tres canales
+compilan el último tag—, y su contenido va dentro de la 1.17.0. Comprobar con
+`git tag` antes de asumir que una versión salió.
 
 En curso: la **auditoría técnica y arquitectónica del 2026-09** sobre la 1.16.3
 (35 hallazgos: 1 CRITICAL, 5 HIGH, 11 MEDIUM, 11 LOW, 8 oportunidades; informe
@@ -232,17 +233,17 @@ aparte en `~/Audits/MalyAu/`, con una sección KEEP de 48 puntos y una
   biblioteca ni vacía las playlists), A-02 (la TUI espera al demonio que
   arranca en vez de negarse), A-03 (`maly scan` manda la ruta ya resuelta).
   Desarrollo en `docs/history/roadmap-1.14-1.16.md`.
-- **Phase 1** — cinco commits ya en `main`, **sin release ni entrada de
-  roadmap todavía**: A-04 (portar G1/G2/G3 y la confirmación de delete a la
-  consola), A-16 (`mpris.setVolume` rechaza no finitos), A-20 (`maly search ""`
-  es error de uso, no un volcado de la biblioteca), A-19 + O-05.1 (limpieza de
-  i18n y `callsites_test.go` como red persistente), A-17 (corrección del texto
-  sobre el despacho D-Bus, que era un fósil de `godbus/prop`). Sus invariantes
-  ya están reflejados arriba y en las fichas de `docs/architecture/`; el
-  razonamiento completo está en los mensajes de commit hasta que se escriba la
-  entrada de roadmap.
+- **Phase 1** — cerrada COMPLETA (14/14) en la 1.17.0. Desarrollo en
+  `docs/history/roadmap-1.17.md`. Lo que conviene llevarse de ahí, más allá de
+  los arreglos: **cuatro afirmaciones del informe no sobrevivieron al contacto
+  con el código** (A-06, A-25 y A-13 daban por resuelto algo que no lo estaba;
+  A-15 proponía una receta insuficiente), y las cuatro se descubrieron por
+  reproducir la premisa en vez de transcribirla. Un informe se cita, no se
+  obedece.
 - **Phases 2 y 3** — pendientes, en el informe. La mitad estructural de A-03
-  (que el demonio relea el config) es Phase 2.
+  (que el demonio relea el config) es Phase 2, y el orden importa: **O-05.2**
+  (`BenchmarkState` por tamaño de cola) va ANTES de **A-05/O-01**
+  (`Status.QueueGen`).
 
 La lista de candidatos post-1.0 está **cerrada**
 (`docs/history/candidatos-post-1.0.md`): conserva las mediciones que refutaron

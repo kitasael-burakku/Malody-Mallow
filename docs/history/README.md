@@ -1,9 +1,9 @@
 # Roadmap de ingeniería — índice
 
 El roadmap completo vivía dentro de `CLAUDE.md` y pesaba ~126.000 caracteres.
-Está movido aquí **sin cambiar una palabra**, repartido en cuatro archivos por
-rango de versión. Esta tabla existe para que se pueda ir directo al archivo
-correcto sin abrir los cuatro.
+Está movido aquí **sin cambiar una palabra**, repartido por rango de versión.
+Esta tabla existe para poder ir directo al archivo correcto sin abrirlos
+todos; las entradas nuevas se escriben ya aquí, no en `CLAUDE.md`.
 
 Qué es cada cosa:
 
@@ -22,6 +22,7 @@ Qué es cada cosa:
 | [`roadmap-1.8-1.11.md`](roadmap-1.8-1.11.md) | v1.8.0 – v1.11.1 | Auditoría técnica exhaustiva, Matugen revertido, AUR, canal de paquete |
 | [`roadmap-1.12-1.13.md`](roadmap-1.12-1.13.md) | v1.12.0 – v1.13.1 | Auditoría de UX (76 hallazgos), segunda auditoría técnica integral |
 | [`roadmap-1.14-1.16.md`](roadmap-1.14-1.16.md) | v1.14.0 – v1.16.4 | Rediseño de la pantalla, buscador de descargas, promesa obsoleta, Phase 0 |
+| [`roadmap-1.17.md`](roadmap-1.17.md) | v1.17.0 – | Phase 1 de la auditoría del 2026-09 |
 | [`candidatos-post-1.0.md`](candidatos-post-1.0.md) | — | Lista de candidatos (cerrada) y las mediciones que refutaron hipótesis |
 
 ## Versión por versión
@@ -89,3 +90,10 @@ precede.
 | 1.16.2 | `maly -h` saca los atajos de `tui.HelpRows`; C24, G7 y C26 |
 | 1.16.3 | **Carrera de la promesa obsoleta** en `advance()`: `loadGen` viaja hasta el consumidor |
 | 1.16.4 | **Phase 0** de la auditoría del 2026-09: A-01 (scan vacío no purga), A-02, A-03 |
+
+### v1.17.0 – → [`roadmap-1.17.md`](roadmap-1.17.md)
+
+| Versión | Qué trajo |
+| --- | --- |
+| 1.17.0 | **Phase 1** de la auditoría del 2026-09, los 14 ítems: paridad CLI↔consola (A-04), NaN en MPRIS (A-16), `search ""` (A-20), i18n + chequeo estático (A-19/O-05.1), el fósil de godbus/prop (A-17), el yt-dlp huérfano (A-15), `-race` completo en CI (A-14), el flash en las cuatro capas (A-24), la petición grande que se perdía (A-06), `Status.Notice` (A-25), tests del modelo de la TUI (A-27), el contrato de descarga (A-07/O-02), enlaces documentados (A-13) |
+| — | La documentación reorganizada: `CLAUDE.md` como contrato operativo y `docs/` para el resto (commit `842bcdc`) |

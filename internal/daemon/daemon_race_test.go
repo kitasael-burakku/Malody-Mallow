@@ -284,3 +284,41 @@ func TestAdvanceGeneracionVigenteAvanza(t *testing.T) {
 		t.Errorf("la actual es %q, quería %q", cur.Path, b)
 	}
 }
+
+// TestConfigConcurrenteConScan: releer el config le quitó a d.cfg la
+// inmutabilidad de la que dependía leerlo SIN sincronizar (A-03). El scan
+// corre fuera de d.mu a propósito —para que play/status sigan respondiendo
+// durante un escaneo largo— y el comentario que lo justifica decía, palabra
+// por palabra, "solo toca lib (thread-safe) y cfg (inmutable)".
+//
+// Ahora reloadConfig escribe d.cfg bajo d.mu y el escaneo trabaja con una
+// COPIA local. Este test fuerza la intercalación —escaneos releyendo mientras
+// otros clientes preguntan por el config— para que `go test -race` mire ese
+// tramo, que es el único acceso a d.cfg que el resto de la suite no cruza.
+func TestConfigConcurrenteConScan(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	writeWAV(t, filepath.Join(music, "a.wav"), 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 20; i++ {
+			if resp := d.Do(ipc.Request{Cmd: "config"}); !resp.OK || resp.Config == nil {
+				t.Errorf("la op config falló durante un scan: %+v", resp)
+				return
+			}
+			d.Do(ipc.Request{Cmd: "status"})
+		}
+	}()
+	for i := 0; i < 10; i++ {
+		// scan_busy es una respuesta legítima acá: solo se permite uno a la
+		// vez y estos se pisan a propósito.
+		d.Do(ipc.Request{Cmd: "scan", Query: music})
+	}
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("los clientes concurrentes no terminaron")
+	}
+}

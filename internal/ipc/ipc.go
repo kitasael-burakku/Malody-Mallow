@@ -91,6 +91,25 @@ type Status struct {
 	Notice string `json:"notice,omitempty"`
 }
 
+// DaemonConfig es el config que el demonio tiene EN EFECTO. Solo viaja en la
+// respuesta a la op "config" (Response.Config es omitempty), así que no cuesta
+// nada en el push de suscripción.
+//
+// Existe porque desde fuera no había forma de saber con qué config está
+// trabajando el servicio, y ese desconocimiento era el hallazgo: el demonio
+// guardaba una copia de cuando arrancó y no volvía a mirarla, así que editar
+// el config no tenía efecto hasta reiniciar y nada lo decía (A-03). Ahora el
+// demonio lo relee en cada scan, y esto es lo que permite a `maly doctor`
+// confirmarlo en vez de que haya que creérselo.
+type DaemonConfig struct {
+	MusicDir      string `json:"music_dir,omitempty"`
+	ScanDurations bool   `json:"scan_durations,omitempty"`
+	// LoadErr no vacío = la última relectura falló y el demonio sigue con el
+	// config anterior. Es el único caso en que lo que tiene en efecto puede
+	// diferir de verdad del archivo.
+	LoadErr string `json:"load_err,omitempty"`
+}
+
 // Response es la respuesta del demonio.
 type Response struct {
 	OK      bool        `json:"ok"`
@@ -99,6 +118,8 @@ type Response struct {
 	Status  *Status     `json:"status,omitempty"`
 	Queue   []TrackInfo `json:"queue,omitempty"`
 	Version string      `json:"version,omitempty"` // versión del demonio ("" = anterior a 0.5.0)
+	// Config solo viaja en la respuesta a la op "config" (ver DaemonConfig).
+	Config *DaemonConfig `json:"config,omitempty"`
 }
 
 // cleanResp sanea el texto libre de una respuesta recién deserializada. Msg y

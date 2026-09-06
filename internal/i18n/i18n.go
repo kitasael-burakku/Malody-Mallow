@@ -313,6 +313,7 @@ var table = map[string][2]string{
 	// yt-dlp + ffmpeg/mpris se quedan como literales en doctor.go: son
 	// nombres propios de herramientas externas, no conceptos.
 	"doc.lbl_service":     {"service", "servicio"},
+	"doc.lbl_svc_config":  {"service config", "config del servicio"},
 	"doc.lbl_music_dir":   {"music_dir", "music_dir"},
 	"doc.lbl_links":       {"linked dirs", "dirs enlazados"},
 	"doc.links_found":     {"%d linked director(y/ies) under your music folder are NOT indexed", "%d directorio(s) enlazado(s) bajo tu carpeta de música NO se indexan"},
@@ -387,6 +388,10 @@ var table = map[string][2]string{
 	"doc.mpv_missing":        {"not in your PATH — maly cannot play anything", "no está en tu PATH — maly no puede reproducir nada"},
 	"doc.svc_none":           {"not responding — library commands still work; `maly` opens the TUI", "no responde — los comandos de biblioteca funcionan igual; `maly` abre la TUI"},
 	"doc.svc_ok":             {"responding · v%s", "responde · v%s"},
+	"doc.svc_cfg_ok":         {"the service is using this same config", "el servicio usa este mismo config"},
+	"doc.svc_cfg_stale":      {"the config changed since the last scan; it will apply on the next `maly scan`", "el config cambió desde el último escaneo; se aplicará en el próximo `maly scan`"},
+	"doc.svc_cfg_err":        {"the service could not re-read the config: %s", "el servicio no pudo releer el config: %s"},
+	"doc.svc_cfg_using":      {"it keeps scanning %s", "sigue escaneando %s"},
 	"doc.svc_mismatch":       {"runs v%s, this binary is v%s", "corre v%s y este binario es v%s"},
 	"doc.svc_restart":        {"restart the daemon to pick up the new binary", "reinicia el servicio para estrenar el binario nuevo"},
 	"doc.music_missing":      {"%s does not exist (from %s)", "%s no existe (viene de %s)"},

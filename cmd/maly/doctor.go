@@ -8,12 +8,14 @@ import (
 	"sort"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/config"
 	"maly/internal/getter"
 	"maly/internal/i18n"
+	"maly/internal/ipc"
 	"maly/internal/mpris"
 	"maly/internal/probe"
 	"maly/internal/update"
@@ -66,6 +68,7 @@ func runDoctor([]string) error {
 		checkLibrary(),
 		checkKeys(cfg),
 	}
+	checks = append(checks, checkDaemonConfig(cfg)...)
 	checks = append(checks, checkLinkedDirs(cfg)...)
 	checks = append(checks, checkOptionalTools(cfg)...)
 	checks = append(checks, checkUpdate())
@@ -149,6 +152,51 @@ func checkMusicDir(cfg config.Config) check {
 		return check{lvlWarn, label, i18n.Tf("doc.music_notdir", dir), nil}
 	}
 	return check{lvlOK, label, dir, nil}
+}
+
+// checkDaemonConfig compara el config del disco con el que el SERVICIO tiene
+// en efecto. Existe porque hasta A-03 no había forma de saberlo desde fuera: el
+// demonio guardaba una copia de cuando arrancó y no volvía a mirarla nunca, así
+// que editar music_dir y escanear anunciaba una ruta e indexaba otra, sin una
+// sola señal. Con maly.service habilitado el demonio vive semanas, o sea que la
+// ventana no era un caso raro sino el normal.
+//
+// Ahora el demonio relee el config al empezar cada scan, así que lo normal es
+// que coincidan y esto sea un "ok" aburrido. Quedan dos desenlaces que sí
+// merecen decirse, y son distintos:
+//
+//   - la última relectura FALLÓ (un TOML que dejó de parsear): el servicio
+//     sigue trabajando con lo último que funcionó, y eso es un warn — hay algo
+//     que arreglar y el usuario no lo sabría de otra forma.
+//   - el config cambió y todavía no hubo scan: es un info, no un warn. No hay
+//     nada roto; se aplica en el próximo `maly scan` y el mensaje lo dice.
+//
+// Sin servicio no hay nada que comparar y la fila no sale: la ausencia de
+// demonio ya la reporta checkService, y repetirla sería ruido.
+func checkDaemonConfig(cfg config.Config) []check {
+	label := i18n.T("doc.lbl_svc_config")
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		return nil
+	}
+	defer c.Close()
+	c.Timeout = 2 * time.Second
+	resp, err := c.Do(ipc.Request{Cmd: "config"})
+	if err != nil || !resp.OK || resp.Config == nil {
+		// Un demonio anterior a esta versión contesta "comando desconocido".
+		// No es un problema: es que no sabe responderlo.
+		return nil
+	}
+	if resp.Config.LoadErr != "" {
+		return []check{{lvlWarn, label, i18n.Tf("doc.svc_cfg_err", resp.Config.LoadErr),
+			[]string{i18n.Tf("doc.svc_cfg_using", resp.Config.MusicDir)}}}
+	}
+	dir, _ := cfg.MusicDirOrigin()
+	if resp.Config.MusicDir != dir || resp.Config.ScanDurations != cfg.ScanDurations {
+		return []check{{lvlInfo, label, i18n.T("doc.svc_cfg_stale"),
+			[]string{i18n.Tf("doc.svc_cfg_using", resp.Config.MusicDir)}}}
+	}
+	return []check{{lvlOK, label, i18n.T("doc.svc_cfg_ok"), nil}}
 }
 
 // checkLinkedDirs avisa de los directorios ENLAZADOS de primer nivel bajo

@@ -561,11 +561,28 @@ func TestConcurrentClientsStress(t *testing.T) {
 func newTestDaemon(t testing.TB) *Daemon {
 	t.Helper()
 	testEnv(t)
-	cfg := config.Default()
 	// Sin la fase de duraciones: si no, en una máquina con ffprobe los tests
 	// que escanean miles de dummies lanzarían un proceso por archivo, y el
 	// resultado dependería de si ffprobe está instalado.
-	cfg.ScanDurations = false
+	//
+	// Se escribe en el ARCHIVO y no solo en el struct que recibe New: desde
+	// A-03 el demonio relee el config al empezar cada scan, así que el config
+	// del disco es el que manda a partir del primer escaneo. Sin esto, un
+	// sandbox sin config.toml recibe el template —que trae scan_durations
+	// activo, como corresponde— y la guarda no guardaba nada.
+	if err := os.MkdirAll(config.ConfigDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config.ConfigPath(), []byte("scan_durations = false\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ScanDurations {
+		t.Fatal("el arnés no apagó scan_durations")
+	}
 	d, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -1940,5 +1957,126 @@ func TestGenSubeConLaDuracionAprendida(t *testing.T) {
 			t.Fatal("mpv nunca reportó la duración")
 		}
 		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// TestScanReleeElConfig cubre la mitad estructural de A-03: el demonio
+// guardaba el config de cuando arrancó y no volvía a mirarlo nunca, así que
+// editarlo no tenía efecto hasta reiniciar el servicio — y con maly.service
+// habilitado el demonio vive semanas, o sea que la ventana era el caso normal
+// y no el raro.
+//
+// La mitad barata (que el cliente mande la ruta ya resuelta) salió en la
+// 1.16.4 y dejó a scan_durations como el ÚLTIMO efecto observable del config
+// rancio: es la única clave que sigue decidiéndose dentro del demonio. Por eso
+// el test la usa a ella, y no a music_dir.
+func TestScanReleeElConfig(t *testing.T) {
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe no está en PATH")
+	}
+	testEnv(t)
+	// El demonio arranca con scan_durations = false. En esas condiciones un
+	// escaneo NO debe aprender ninguna duración.
+	cfgDir := config.ConfigDir()
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	music := t.TempDir()
+	escribirCfg := func(durations bool) {
+		t.Helper()
+		body := fmt.Sprintf("music_dir = %q\nscan_durations = %v\n", music, durations)
+		if err := os.WriteFile(config.ConfigPath(), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	escribirCfg(false)
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ScanDurations {
+		t.Fatal("el arnés no reproduce el caso: el demonio debía arrancar con scan_durations = false")
+	}
+	d, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+
+	a := filepath.Join(music, "a.wav")
+	writeWAV(t, a, 30)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	if got, ok := d.lib.ByPath(a); !ok || got.Duration > 0 {
+		t.Fatalf("con scan_durations = false no debía aprender la duración; dio %v", got.Duration)
+	}
+
+	// Ahora se ENCIENDE en el archivo, sin reiniciar el demonio. El escaneo
+	// siguiente tiene que verlo.
+	escribirCfg(true)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("re-scan: %s", resp.Error)
+	}
+	got, ok := d.lib.ByPath(a)
+	if !ok || got.Duration < 29 {
+		t.Fatalf("tras encender scan_durations en el config, el escaneo debía aprender la duración sin reiniciar el servicio; dio %v", got.Duration)
+	}
+}
+
+// TestOpConfigReportaLoQueTieneEnEfecto: la op de solo lectura que permite a
+// `maly doctor` decir si el servicio usa el mismo config que el disco. Antes
+// de A-03 no había forma de saberlo desde fuera, y ese desconocimiento era
+// justamente el hallazgo.
+func TestOpConfigReportaLoQueTieneEnEfecto(t *testing.T) {
+	testEnv(t)
+	cfgDir := config.ConfigDir()
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	music := t.TempDir()
+	if err := os.WriteFile(config.ConfigPath(),
+		[]byte(fmt.Sprintf("music_dir = %q\nscan_durations = false\n", music)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+
+	resp := d.Do(ipc.Request{Cmd: "config"})
+	if !resp.OK || resp.Config == nil {
+		t.Fatalf("la op config debía responder; dio %+v", resp)
+	}
+	if resp.Config.MusicDir != music {
+		t.Errorf("music_dir en efecto = %q, quería %q", resp.Config.MusicDir, music)
+	}
+	if resp.Config.ScanDurations {
+		t.Error("scan_durations en efecto debía ser false")
+	}
+	if resp.Config.LoadErr != "" {
+		t.Errorf("sin fallos de lectura, LoadErr debía estar vacío; dijo %q", resp.Config.LoadErr)
+	}
+
+	// Un config que deja de parsear: el demonio CONSERVA el anterior —seguir
+	// con lo último que funcionó es mejor que caerse o volver a los
+	// defaults— pero lo dice, que es lo que A-03 reprocha que no pasara.
+	if err := os.WriteFile(config.ConfigPath(), []byte("music_dir = [no cierra\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("el scan no debía fallar por un config ilegible: %s", resp.Error)
+	}
+	resp = d.Do(ipc.Request{Cmd: "config"})
+	if resp.Config == nil || resp.Config.LoadErr == "" {
+		t.Fatalf("con el config ilegible, LoadErr debía explicar por qué; dio %+v", resp.Config)
+	}
+	if resp.Config.MusicDir != music {
+		t.Errorf("tras fallar la relectura debía conservar el config anterior; dio %q", resp.Config.MusicDir)
 	}
 }

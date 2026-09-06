@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 
+	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
@@ -31,7 +32,19 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 		d.wakeSubs()
 	}()
 
-	dir, origin, explicit := d.cfg.ScanTarget(query)
+	// Releer el config ANTES de resolver nada: la copia del arranque era la
+	// única fuente de verdad del demonio, así que editar music_dir o
+	// scan_durations no tenía efecto hasta reiniciar el servicio —y con
+	// maly.service habilitado el demonio vive semanas (A-03). La mitad barata
+	// del hallazgo (que el cliente mande la ruta ya resuelta) salió en la
+	// 1.16.4 y dejó a scan_durations como el último efecto observable.
+	//
+	// Los valores se copian a locales bajo d.mu y el escaneo sigue corriendo
+	// SIN el lock: releer le quitó a d.cfg la inmutabilidad de la que dependía
+	// leerlo sin sincronizar.
+	cfg := d.reloadConfig()
+	dir, origin, explicit := cfg.ScanTarget(query)
+	scanDurations := cfg.ScanDurations
 	d.scanSeen.Store(0)
 	d.scanTotal.Store(0)
 	// Los suscriptores ven el avance en Status (Scanning/ScanSeen); el dirty
@@ -59,7 +72,7 @@ func (d *Daemon) scan(lang, query string) ipc.Response {
 	// así que un scan concurrente sigue rebotando con d.scan_busy.
 	learned, dfailed := 0, 0
 	var dqerr error
-	if d.cfg.ScanDurations && probe.Available() {
+	if scanDurations && probe.Available() {
 		d.scanSeen.Store(0)
 		learned, dfailed, dqerr = d.lib.FillDurations(dir, probe.Duration, func(done, total int) {
 			d.scanSeen.Store(int64(done))
@@ -158,4 +171,24 @@ func (d *Daemon) refreshQueueDurations(learned int) {
 	}
 	d.mu.Unlock()
 	d.wakeSubs()
+}
+
+// reloadConfig relee el config del disco y devuelve el que queda en efecto.
+//
+// Si la lectura falla —un TOML que dejó de parsear— se CONSERVA el anterior y
+// se anota el error: seguir escaneando con lo último que funcionó es mejor que
+// caerse o que volver a los defaults, pero hacerlo en silencio es exactamente
+// lo que A-03 reprocha, así que el error queda disponible para la op "config"
+// y para `maly doctor`.
+func (d *Daemon) reloadConfig() config.Config {
+	fresh, err := config.Load()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err != nil {
+		d.cfgErr = err.Error()
+		return d.cfg
+	}
+	d.cfgErr = ""
+	d.cfg = fresh
+	return d.cfg
 }

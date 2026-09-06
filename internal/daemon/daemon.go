@@ -31,12 +31,23 @@ import (
 var ErrAlreadyRunning = errors.New("another maly daemon is already running")
 
 type Daemon struct {
-	mu  sync.Mutex
+	mu sync.Mutex
+	// cfg es el config EN EFECTO. Ya no es la foto de cuando arrancó: se
+	// relee al empezar cada scan (ver reloadConfig), que es el único camino
+	// que lo consulta. Vive bajo d.mu desde entonces — antes se leía sin
+	// lock porque era inmutable, y esa propiedad se perdió al hacerlo
+	// releíble (A-03).
 	cfg config.Config
-	lib *library.Library
-	pl  *player.Player
-	q   *queue.Queue
-	ln  net.Listener
+	// cfgErr guarda el error de la ÚLTIMA relectura fallida ("" = la última
+	// salió bien). Un config que dejó de parsear es justo el caso en que el
+	// demonio sigue usando en silencio otra cosa que la que el usuario
+	// escribió, así que se guarda para poder decirlo: lo reporta la op
+	// "config" y lo mira `maly doctor`.
+	cfgErr string
+	lib    *library.Library
+	pl     *player.Player
+	q      *queue.Queue
+	ln     net.Listener
 	// lock es el flock que acredita a este proceso como EL demonio. Hay que
 	// retenerlo vivo: el lock pertenece al descriptor abierto (ver lock.go).
 	lock     *os.File
@@ -134,6 +145,13 @@ type subscriber struct {
 // y lanza mpv. El orden importa y es el que hace seguras las dos operaciones
 // destructivas del arranque (borrar el socket viejo y matar el mpv viejo):
 // hasta tener el lock no se toca nada de nadie.
+//
+// cfg es el config INICIAL, no el definitivo: desde A-03 el demonio lo relee
+// del disco al empezar cada scan, así que a partir del primer escaneo manda el
+// archivo. En producción da igual —los dos llamadores (runDaemon y el demonio
+// embebido de la TUI) pasan justamente lo que devolvió config.Load()— pero un
+// test que quiera fijar una clave tiene que escribirla en el archivo del
+// sandbox, no solo en este struct.
 func New(cfg config.Config) (*Daemon, error) {
 	sock := config.SocketPath()
 	// EnsureRuntimeDir además valida dueño/permisos: los sockets (maly, mpv),
@@ -515,7 +533,7 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 	return recoverResponse(req.Cmd, req.Lang, func() ipc.Response {
 		resp := d.dispatch(req)
 		switch req.Cmd {
-		case "ping", "status", "queue", "search", "scan":
+		case "ping", "status", "queue", "search", "scan", "config":
 			// solo lectura: nada que reflejar
 		case "seek":
 			func() {
@@ -700,6 +718,17 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 
 	case "queue":
 		return ipc.Response{OK: true, Status: d.statusLocked(lang), Queue: toInfos(d.q.Items)}
+
+	case "config":
+		// Solo lectura: qué config tiene EN EFECTO este demonio. Lo pregunta
+		// `maly doctor` para poder decir si coincide con el del disco, que
+		// hasta A-03 no había forma de saber desde fuera. No lleva idioma:
+		// son hechos (una ruta, un booleano), y el error de relectura ya
+		// viene formado del config.Load() que falló.
+		dir, _ := d.cfg.MusicDirOrigin()
+		return ipc.Response{OK: true, Config: &ipc.DaemonConfig{
+			MusicDir: dir, ScanDurations: d.cfg.ScanDurations, LoadErr: d.cfgErr,
+		}}
 
 	case "search":
 		tracks, err := d.lib.Search(req.Query)

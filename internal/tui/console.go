@@ -622,7 +622,7 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 		m.conErr(err.Error())
 		return m, nil
 	}
-	plan, err := m.planGetPlaylist(args[0], strings.TrimSpace(strings.Join(args[1:], " ")))
+	plan, err := PlanGetPlaylist(m.cfg, args[0], strings.TrimSpace(strings.Join(args[1:], " ")))
 	if err != nil {
 		m.conErr(err.Error())
 		return m, nil
@@ -635,12 +635,20 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 	})
 }
 
-// planGetPlaylist es la envoltura de consola sobre getter.PlanPlaylist: lo
+// PlanGetPlaylist es la envoltura de la CONSOLA sobre getter.PlanPlaylist: lo
 // único que aporta es leer de la biblioteca los nombres de playlist que ya
 // existen, que es lo que el plan necesita para rechazar el choque ANTES de
 // tocar la red (G2). La decisión en sí vive en internal/getter, compartida
-// byte a byte con la CLI (A-04).
-func (m *Model) planGetPlaylist(url, name string) (getter.PlaylistPlan, error) {
+// con la CLI (A-04).
+//
+// Exportada por el mismo motivo que ConsoleCommands: para que cmd/maly pueda
+// comparar los dos espejos en un test. Ahí la paridad es de NOMBRES; acá es de
+// COMPORTAMIENTO, que es la clase de divergencia que A-04 demostró peligrosa y
+// que aquella red no podía cazar (O-03, ver cmd/maly/parity_test.go). Sin un
+// punto de entrada visible desde fuera, esa comparación no se puede escribir:
+// internal/tui no puede importar cmd/maly, y lo de acá no se alcanza sin pasar
+// por el runtime de bubbletea.
+func PlanGetPlaylist(cfg config.Config, url, name string) (getter.PlaylistPlan, error) {
 	var existing []string
 	if name != "" {
 		plib, err := library.Open(config.DBPath())
@@ -656,7 +664,7 @@ func (m *Model) planGetPlaylist(url, name string) (getter.PlaylistPlan, error) {
 			existing = append(existing, pl.Name)
 		}
 	}
-	return getter.PlanPlaylist(m.cfg.MusicPath(), url, name, m.cfg.Ytdlp.CookiesFromBrowser, existing)
+	return getter.PlanPlaylist(cfg.MusicPath(), url, name, cfg.Ytdlp.CookiesFromBrowser, existing)
 }
 
 // conGetPlaylistFinish corre tras la descarga: re-escanea, resuelve el

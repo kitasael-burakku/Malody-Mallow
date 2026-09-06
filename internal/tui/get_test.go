@@ -835,12 +835,12 @@ func TestConGetPlaylistSoloLoRecienBajado(t *testing.T) {
 	m := newConModel()
 	m.cfg = config.Config{MusicDir: musicDir}
 
-	// Primera mitad: la decisión. planGetPlaylist tiene que sacar el
+	// Primera mitad: la decisión. PlanGetPlaylist tiene que sacar el
 	// snapshot de dir; sin él filesBefore viaja nil y el filtro de más abajo
 	// no puede excluir nada por mucho que exista.
-	plan, err := m.planGetPlaylist("https://x/lista", "favs")
+	plan, err := PlanGetPlaylist(m.cfg, "https://x/lista", "favs")
 	if err != nil {
-		t.Fatalf("planGetPlaylist: %v", err)
+		t.Fatalf("PlanGetPlaylist: %v", err)
 	}
 	if plan.Opts.Dir != destino {
 		t.Errorf("yt-dlp debía bajar a %q, va a %q", destino, plan.Opts.Dir)

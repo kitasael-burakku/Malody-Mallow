@@ -176,27 +176,7 @@ func runGetPlaylist(args []string) (retErr error) {
 		return err
 	}
 
-	// Las playlists que ya existen, para que el plan pueda rechazar el choque
-	// de nombre ANTES de tocar la red (G2). Solo hace falta con nombre
-	// explícito: sin él, el nombre lo pone yt-dlp y el choque no se puede
-	// saber todavía.
-	var existing []string
-	if name != "" {
-		plib, err := openLibrary()
-		if err != nil {
-			return err
-		}
-		lists, err := plib.Playlists()
-		plib.Close()
-		if err != nil {
-			return err
-		}
-		for _, p := range lists {
-			existing = append(existing, p.Name)
-		}
-	}
-
-	plan, err := getter.PlanPlaylist(cfg.MusicPath(), url, name, cfg.Ytdlp.CookiesFromBrowser, existing)
+	plan, err := planGetPlaylist(cfg, url, name)
 	if err != nil {
 		return err
 	}
@@ -263,4 +243,35 @@ func runGetPlaylist(args []string) (retErr error) {
 	notifyRefresh()
 	fmt.Println(i18n.Tf("cli.get_pl_done", name, len(ids)))
 	return nil
+}
+
+// planGetPlaylist es la envoltura de la CLI sobre getter.PlanPlaylist,
+// gemela de tui.PlanGetPlaylist: lee de la biblioteca los nombres de playlist
+// que ya existen —lo que el plan necesita para rechazar el choque ANTES de
+// tocar la red (G2)— y delega la decisión.
+//
+// Solo hace falta consultar con nombre explícito: sin él, el nombre lo pone
+// yt-dlp con el título real de la playlist y el choque no se puede saber
+// todavía.
+//
+// Está aparte de runGetPlaylist, y no en línea, para que el test de paridad
+// de comportamiento pueda correr los mismos escenarios contra los dos espejos
+// (O-03, parity_test.go).
+func planGetPlaylist(cfg config.Config, url, name string) (getter.PlaylistPlan, error) {
+	var existing []string
+	if name != "" {
+		plib, err := openLibrary()
+		if err != nil {
+			return getter.PlaylistPlan{}, err
+		}
+		lists, err := plib.Playlists()
+		plib.Close()
+		if err != nil {
+			return getter.PlaylistPlan{}, err
+		}
+		for _, p := range lists {
+			existing = append(existing, p.Name)
+		}
+	}
+	return getter.PlanPlaylist(cfg.MusicPath(), url, name, cfg.Ytdlp.CookiesFromBrowser, existing)
 }

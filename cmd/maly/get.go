@@ -5,14 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"maly/internal/config"
 	"maly/internal/getter"
 	"maly/internal/i18n"
-	"maly/internal/library"
-	"maly/internal/safetext"
 	"maly/internal/tui"
 )
 
@@ -178,28 +175,13 @@ func runGetPlaylist(args []string) (retErr error) {
 	if err != nil {
 		return err
 	}
-	musicDir := cfg.MusicPath()
-	if err := os.MkdirAll(musicDir, 0o755); err != nil {
-		return err
-	}
 
-	opts := getter.Opts{Dir: musicDir, Spec: url, Cookies: cfg.Ytdlp.CookiesFromBrowser, Playlist: true}
-	var dir string
-	var before map[string]bool      // diff de music_dir (rama sin nombre): qué subdirectorio es nuevo
-	var filesBefore map[string]bool // diff de dir (rama con nombre): qué archivos NO son de esta descarga
+	// Las playlists que ya existen, para que el plan pueda rechazar el choque
+	// de nombre ANTES de tocar la red (G2). Solo hace falta con nombre
+	// explícito: sin él, el nombre lo pone yt-dlp y el choque no se puede
+	// saber todavía.
+	var existing []string
 	if name != "" {
-		// Nombre explícito: validarlo como componente de ruta ANTES de
-		// tocar el filesystem o la red — es entrada del usuario
-		// volviéndose ruta, y filepath.Join no rechaza "..".
-		if filepath.Base(name) != name || name == "." || name == ".." {
-			return errors.New(i18n.Tf("cli.get_pl_bad_name", name))
-		}
-		// Choque de nombre: antes esto solo lo detectaba CreatePlaylist al
-		// FINAL, tras la descarga completa y el scan — mismo chequeo,
-		// movido antes de tocar filesystem o red (auditoría 2026-07-31,
-		// hallazgo G2). Comparación exacta, igual que la restricción real
-		// de la tabla (Playlists() solo usa COLLATE NOCASE en el ORDER BY,
-		// no en la igualdad).
 		plib, err := openLibrary()
 		if err != nil {
 			return err
@@ -210,53 +192,29 @@ func runGetPlaylist(args []string) (retErr error) {
 			return err
 		}
 		for _, p := range lists {
-			if p.Name == name {
-				return errors.New(i18n.Tf("lib.pl_exists", name))
-			}
-		}
-		dir = filepath.Join(musicDir, name)
-		// El directorio se crea ANTES de invocar a yt-dlp (es su destino), así
-		// que una descarga que no deja nada dejaba un directorio vacío
-		// huérfano en music_dir por cada intento (auditoría de UX post-1.12.0,
-		// hallazgo G7). Solo se limpia el que creamos NOSOTROS en esta
-		// corrida, y con os.Remove, que falla si no está vacío: nunca puede
-		// llevarse música del usuario por delante.
-		_, statErr := os.Stat(dir)
-		createdDir := os.IsNotExist(statErr)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-		if createdDir {
-			defer func() {
-				if retErr != nil {
-					os.Remove(dir)
-				}
-			}()
-		}
-		opts.Dir = dir
-		// Snapshot de lo que YA había en dir antes de descargar: con
-		// nombre explícito, dir puede ser un directorio preexistente con
-		// música ajena a esta descarga — sin esto la playlist se llevaba
-		// TODO lo que hubiera ahí, no solo lo recién bajado (auditoría
-		// 2026-07-31, hallazgo G3).
-		filesBefore, err = getter.Snapshot(dir)
-		if err != nil {
-			return err
-		}
-	} else {
-		// Sin nombre: yt-dlp crea su propio subdirectorio con el título de
-		// la playlist (PlaylistSubdir); se aprende cuál es diffeando el
-		// listado de music_dir antes/después — una lectura de directorio,
-		// determinista, sin parsear nada de la salida de yt-dlp.
-		opts.PlaylistSubdir = true
-		before, err = getter.Snapshot(musicDir)
-		if err != nil {
-			return err
+			existing = append(existing, p.Name)
 		}
 	}
 
-	fmt.Println(i18n.Tf("cli.get_pl_start", url, musicDir))
-	cmd := getter.Command(opts)
+	plan, err := getter.PlanPlaylist(cfg.MusicPath(), url, name, cfg.Ytdlp.CookiesFromBrowser, existing)
+	if err != nil {
+		return err
+	}
+	// El destino se crea ANTES de invocar a yt-dlp (es su destino), así que
+	// una descarga que no deja nada dejaba un directorio vacío huérfano en
+	// music_dir por cada intento (hallazgo G7). Solo se limpia el que creamos
+	// NOSOTROS en esta corrida, y con os.Remove, que falla si no está vacío:
+	// nunca puede llevarse música del usuario por delante.
+	if plan.CreatedDir {
+		defer func() {
+			if retErr != nil {
+				os.Remove(plan.Dir)
+			}
+		}()
+	}
+
+	fmt.Println(i18n.Tf("cli.get_pl_start", url, plan.MusicDir))
+	cmd := getter.Command(plan.Opts)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	partial := false
@@ -266,28 +224,16 @@ func runGetPlaylist(args []string) (retErr error) {
 		// YouTube, no la excepción. Antes esto cortaba acá: los archivos que
 		// SÍ habían bajado quedaban huérfanos en disco y ni runScan ni
 		// CreatePlaylist llegaban a correr — 0 pistas en la biblioteca para
-		// siempre, sin reintento posible (auditoría 2026-07-31, hallazgo G1).
-		// Ahora se avisa y se sigue con lo que haya sobrevivido:
-		// cli.get_pl_empty más abajo ya es el caso terminal de "no
-		// sobrevivió nada", así que absorbe un fallo total sin cambios.
+		// siempre, sin reintento posible (hallazgo G1). Ahora se avisa y se
+		// sigue con lo que haya sobrevivido: cli.get_pl_empty más abajo ya es
+		// el caso terminal de "no sobrevivió nada".
 		fmt.Fprintln(os.Stderr, i18n.Tf("cli.get_pl_partial", err))
 		partial = true
 	}
 
-	if name == "" {
-		found, err := newDirEntry(musicDir, before, partial)
-		if err != nil {
-			return err
-		}
-		// El título de YouTube es texto ajeno volviéndose nombre de
-		// playlist: primer camino donde eso pasa (los demás nombres de
-		// playlist siempre vinieron del teclado del dueño), así que va la
-		// misma frontera de ingesta que ReadTags/ParseLRC.
-		name = safetext.Clean(found)
-		if name == "" {
-			return errors.New(i18n.T("cli.get_pl_no_title"))
-		}
-		dir = filepath.Join(musicDir, found)
+	dir, name, err := plan.Resolve(partial)
+	if err != nil {
+		return err
 	}
 
 	fmt.Println("\n" + i18n.T("cli.get_scan"))
@@ -301,22 +247,9 @@ func runGetPlaylist(args []string) (retErr error) {
 	}
 	defer lib.Close()
 
-	entries, err := os.ReadDir(dir)
+	ids, err := getter.TrackIDs(lib, dir, plan.FilesBefore)
 	if err != nil {
 		return err
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	var ids []int64
-	for _, e := range entries {
-		if e.IsDir() || !library.IsAudio(e.Name()) {
-			continue
-		}
-		if filesBefore != nil && filesBefore[e.Name()] {
-			continue
-		}
-		if t, ok := lib.ByPath(filepath.Join(dir, e.Name())); ok {
-			ids = append(ids, t.ID)
-		}
 	}
 	if len(ids) == 0 {
 		return errors.New(i18n.Tf("cli.get_pl_empty", dir))
@@ -330,23 +263,4 @@ func runGetPlaylist(args []string) (retErr error) {
 	notifyRefresh()
 	fmt.Println(i18n.Tf("cli.get_pl_done", name, len(ids)))
 	return nil
-}
-
-// newDirEntry devuelve el único subdirectorio de parent que no estaba en
-// before: el que yt-dlp acaba de crear con el título de la playlist. Falla
-// si no hay exactamente uno nuevo. Con más de uno el caso sigue siendo
-// genuinamente ambiguo (mejor pedir un nombre explícito que adivinar mal);
-// con CERO y partial=true la causa más probable no es ambigüedad sino que
-// la descarga falló antes de crear ningún directorio — el mensaje lo dice
-// en vez de reciclar el de "ambiguo", que ahí sería engañoso.
-func newDirEntry(parent string, before map[string]bool, partial bool) (string, error) {
-	found, n := getter.NewSubdir(parent, before)
-	switch {
-	case n == 1:
-		return found, nil
-	case n == 0 && partial:
-		return "", errors.New(i18n.T("cli.get_pl_dl_failed"))
-	default:
-		return "", errors.New(i18n.T("cli.get_pl_ambiguous"))
-	}
 }

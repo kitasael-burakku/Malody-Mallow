@@ -443,32 +443,6 @@ func TestGetPlaylistNamedDirNoScoopeaExistente(t *testing.T) {
 	}
 }
 
-// TestGetPlaylistAmbiguous: si el diffing de directorio no encuentra
-// exactamente un subdirectorio nuevo (aquí, ninguno: el yt-dlp falso no
-// llega a correr porque el PATH no lo tiene), el error debe ser claro y
-// pedir un nombre explícito en vez de fallar oscuro más adelante. Con
-// partial=false (no hubo fallo de descarga reportado) el caso de cero
-// sigue siendo el mensaje genérico de "ambiguo", igual que el de dos.
-func TestGetPlaylistAmbiguous(t *testing.T) {
-	musicDir, err := os.MkdirTemp("", "maly-ambiguo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(musicDir)
-	if got, err := newDirEntry(musicDir, map[string]bool{}, false); err == nil {
-		t.Errorf("sin subdirectorios nuevos debía fallar, dio %q", got)
-	}
-	if err := os.Mkdir(filepath.Join(musicDir, "a"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filepath.Join(musicDir, "b"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if got, err := newDirEntry(musicDir, map[string]bool{}, false); err == nil {
-		t.Errorf("con dos subdirectorios nuevos debía fallar, dio %q", got)
-	}
-}
-
 // getPlaylistFailingSandbox es como getPlaylistSandbox, pero el yt-dlp falso
 // sale con código 1 tras "descargar" solo `survivors` de las 2 pistas
 // habituales — simula el caso real más común de una playlist de YouTube: un

@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
-	"maly/internal/safetext"
 	"maly/internal/update"
 	"maly/internal/version"
 )
@@ -64,22 +62,12 @@ type getDoneMsg struct {
 }
 
 // getPlaylistDoneMsg vuelve de yt-dlp para `get playlist` (tea.ExecProcess).
-// musicDir/name/dir/before llevan lo que conGetPlaylist ya decidió antes de
-// lanzar el proceso: ExecProcess solo puede devolver el error, así que el
-// resto del estado tiene que viajar en el mensaje. name == "" significa que
-// no había nombre explícito y dir/before son los datos para el diffing.
-// createdDir dice si dir lo creó ESTA corrida (nombre explícito): solo
-// entonces se limpia el directorio vacío que deja una descarga fallida.
-// filesBefore es el snapshot de dir con nombre explícito (G3): lo que YA
-// estaba ahí y por tanto NO pertenece a esta descarga.
+// Lleva el plan entero porque ExecProcess solo puede devolver el error: todo
+// lo que conGetPlaylist decidió antes de lanzar el proceso tiene que viajar
+// en el mensaje hasta conGetPlaylistFinish.
 type getPlaylistDoneMsg struct {
-	err         error
-	musicDir    string
-	name        string
-	dir         string
-	before      map[string]bool
-	filesBefore map[string]bool
-	createdDir  bool
+	err  error
+	plan getter.PlaylistPlan
 }
 
 // updRunMsg trae el instalador listo para correr (hay release nuevo);
@@ -634,146 +622,41 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 		m.conErr(err.Error())
 		return m, nil
 	}
-	done, opts, err := m.planGetPlaylist(args[0], strings.TrimSpace(strings.Join(args[1:], " ")))
+	plan, err := m.planGetPlaylist(args[0], strings.TrimSpace(strings.Join(args[1:], " ")))
 	if err != nil {
 		m.conErr(err.Error())
 		return m, nil
 	}
 
-	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_pl_start", opts.Spec, done.musicDir)))
-	cmd := getter.Command(opts)
+	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_pl_start", plan.Opts.Spec, plan.MusicDir)))
+	cmd := getter.Command(plan.Opts)
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-		done.err = err
-		return done
+		return getPlaylistDoneMsg{err: err, plan: plan}
 	})
 }
 
-// planGetPlaylist toma TODAS las decisiones previas a la descarga —validar el
-// nombre, rechazar el choque, crear el destino, sacar los snapshots— y
-// devuelve el mensaje ya armado con ellas. Está separada de conGetPlaylist
-// por una razón concreta: tea.ExecProcess solo se resuelve dentro del runtime
-// de bubbletea, así que con todo junto no hay forma de comprobar en un test
-// qué decidió esta mitad. Es el mínimo para que A-04 sea verificable; la
-// extracción de verdad, a funciones puras compartidas con la CLI en
-// internal/getter, es la mitad estructural del hallazgo y va aparte.
-func (m *Model) planGetPlaylist(url, name string) (getPlaylistDoneMsg, getter.Opts, error) {
-	musicDir := m.cfg.MusicPath()
-	if err := os.MkdirAll(musicDir, 0o755); err != nil {
-		return getPlaylistDoneMsg{}, getter.Opts{}, err
-	}
-
-	opts := getter.Opts{Dir: musicDir, Spec: url, Cookies: m.cfg.Ytdlp.CookiesFromBrowser, Playlist: true}
-	var dir string
-	var before map[string]bool      // diff de music_dir (rama sin nombre): qué subdirectorio es nuevo
-	var filesBefore map[string]bool // diff de dir (rama con nombre): qué archivos NO son de esta descarga
-	createdDir := false
+// planGetPlaylist es la envoltura de consola sobre getter.PlanPlaylist: lo
+// único que aporta es leer de la biblioteca los nombres de playlist que ya
+// existen, que es lo que el plan necesita para rechazar el choque ANTES de
+// tocar la red (G2). La decisión en sí vive en internal/getter, compartida
+// byte a byte con la CLI (A-04).
+func (m *Model) planGetPlaylist(url, name string) (getter.PlaylistPlan, error) {
+	var existing []string
 	if name != "" {
-		// Nombre explícito: validarlo como componente de ruta ANTES de
-		// tocar el filesystem o la red — es entrada del usuario
-		// volviéndose ruta.
-		if filepath.Base(name) != name || name == "." || name == ".." {
-			return getPlaylistDoneMsg{}, opts, errors.New(i18n.Tf("cli.get_pl_bad_name", name))
-		}
-		// Choque de nombre ANTES de tocar filesystem o red: sin esto se
-		// descargaba la playlist entera y recién fallaba CreatePlaylist al
-		// final (hallazgo G2, cerrado en la CLI en la 1.12.0 y vivo acá
-		// hasta la auditoría 2026-09-04, A-04). Comparación exacta, igual
-		// que la restricción real de la tabla.
 		plib, err := library.Open(config.DBPath())
 		if err != nil {
-			return getPlaylistDoneMsg{}, opts, err
+			return getter.PlaylistPlan{}, err
 		}
 		lists, err := plib.Playlists()
 		plib.Close()
 		if err != nil {
-			return getPlaylistDoneMsg{}, opts, err
+			return getter.PlaylistPlan{}, err
 		}
 		for _, pl := range lists {
-			if pl.Name == name {
-				return getPlaylistDoneMsg{}, opts, errors.New(i18n.Tf("lib.pl_exists", name))
-			}
-		}
-		dir = filepath.Join(musicDir, name)
-		// Espejo del hallazgo G7 en la CLI: el destino se crea antes de
-		// invocar a yt-dlp, así que un intento fallido dejaba un directorio
-		// vacío en music_dir. Se limpia solo el que creamos acá, y con
-		// os.Remove, que se niega si no está vacío.
-		_, statErr := os.Stat(dir)
-		createdDir = os.IsNotExist(statErr)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return getPlaylistDoneMsg{}, opts, err
-		}
-		opts.Dir = dir
-		// Con nombre explícito, dir puede ser un directorio preexistente con
-		// música ajena: sin este snapshot la playlist se llevaba TODO lo que
-		// hubiera ahí y no solo lo recién bajado (hallazgo G3, misma
-		// historia que G2).
-		if filesBefore, err = getter.Snapshot(dir); err != nil {
-			return getPlaylistDoneMsg{}, opts, err
-		}
-	} else {
-		opts.PlaylistSubdir = true
-		var err error
-		if before, err = getter.Snapshot(musicDir); err != nil {
-			return getPlaylistDoneMsg{}, opts, err
+			existing = append(existing, pl.Name)
 		}
 	}
-
-	return getPlaylistDoneMsg{musicDir: musicDir, name: name, dir: dir,
-		before: before, filesBefore: filesBefore, createdDir: createdDir}, opts, nil
-}
-
-// newDirEntry devuelve el único subdirectorio de parent que no estaba en
-// before: el que yt-dlp acaba de crear con el título de la playlist. Con más
-// de uno el caso es genuinamente ambiguo (mejor pedir un nombre explícito que
-// adivinar mal); con CERO y partial=true la causa probable no es ambigüedad
-// sino que la descarga falló antes de crear ningún directorio, y el mensaje
-// lo dice.
-//
-// Es GEMELA de la de cmd/maly/get.go, byte a byte: hasta A-04 esta versión no
-// conocía `partial` y por eso el comentario decía que eran distintas a
-// propósito. Unificarlas exige moverlas a internal/getter, que es la
-// extracción planificada aparte (A-04, mitad estructural).
-func newDirEntry(parent string, before map[string]bool, partial bool) (string, error) {
-	found, n := getter.NewSubdir(parent, before)
-	switch {
-	case n == 1:
-		return found, nil
-	case n == 0 && partial:
-		return "", errors.New(i18n.T("cli.get_pl_dl_failed"))
-	default:
-		return "", errors.New(i18n.T("cli.get_pl_ambiguous"))
-	}
-}
-
-// newTrackIDs devuelve, en orden de nombre, los ids de biblioteca de las
-// pistas de dir que pertenecen a ESTA descarga. filesBefore (nil = no aplica,
-// que es la rama sin nombre explícito, donde dir lo acaba de crear yt-dlp)
-// lista lo que YA estaba ahí: con nombre explícito dir puede ser un
-// directorio preexistente con música ajena, y sin este filtro la playlist se
-// llevaba todo lo que hubiera dentro (hallazgo G3).
-//
-// Función aparte para poder comprobar el filtro en un test: dentro de
-// conGetPlaylistFinish solo se llega pasando por el demonio.
-func newTrackIDs(lib *library.Library, dir string, filesBefore map[string]bool) ([]int64, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	var ids []int64
-	for _, e := range entries {
-		if e.IsDir() || !library.IsAudio(e.Name()) {
-			continue
-		}
-		if filesBefore != nil && filesBefore[e.Name()] {
-			continue
-		}
-		if t, ok := lib.ByPath(filepath.Join(dir, e.Name())); ok {
-			ids = append(ids, t.ID)
-		}
-	}
-	return ids, nil
+	return getter.PlanPlaylist(m.cfg.MusicPath(), url, name, m.cfg.Ytdlp.CookiesFromBrowser, existing)
 }
 
 // conGetPlaylistFinish corre tras la descarga: re-escanea, resuelve el
@@ -783,14 +666,13 @@ func newTrackIDs(lib *library.Library, dir string, filesBefore map[string]bool) 
 // a medias.
 func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.Cmd {
 	sock, st := m.sock, m.st
-	musicDir, name, dir := msg.musicDir, msg.name, msg.dir
-	before, filesBefore, createdDir := msg.before, msg.filesBefore, msg.createdDir
+	plan := msg.plan
 	return func() tea.Msg {
 		// Cualquier salida por error deja el destino como estaba: si lo
 		// creamos nosotros y quedó vacío, se va con él (hallazgo G7).
 		errLine := func(err error) tea.Msg {
-			if createdDir {
-				os.Remove(dir)
+			if plan.CreatedDir {
+				os.Remove(plan.Dir)
 			}
 			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
 		}
@@ -801,7 +683,7 @@ func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.C
 		}
 		defer c.Close()
 		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
-		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: musicDir})
+		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: plan.MusicDir})
 		if err != nil {
 			return errLine(err)
 		}
@@ -809,18 +691,9 @@ func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.C
 			return errLine(errors.New(resp.Error))
 		}
 
-		if name == "" {
-			found, err := newDirEntry(musicDir, before, partial)
-			if err != nil {
-				return errLine(err)
-			}
-			// El título de YouTube es texto ajeno volviéndose nombre de
-			// playlist: la misma frontera de saneado que ReadTags/ParseLRC.
-			name = safetext.Clean(found)
-			if name == "" {
-				return errLine(errors.New(i18n.T("cli.get_pl_no_title")))
-			}
-			dir = filepath.Join(musicDir, found)
+		dir, name, err := plan.Resolve(partial)
+		if err != nil {
+			return errLine(err)
 		}
 
 		lib, err := library.Open(config.DBPath())
@@ -828,7 +701,7 @@ func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.C
 			return errLine(err)
 		}
 		defer lib.Close()
-		ids, err := newTrackIDs(lib, dir, filesBefore)
+		ids, err := getter.TrackIDs(lib, dir, plan.FilesBefore)
 		if err != nil {
 			return errLine(err)
 		}

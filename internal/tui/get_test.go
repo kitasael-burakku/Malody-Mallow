@@ -753,10 +753,8 @@ func TestConGetPlaylistNoAbortaConDescargaParcial(t *testing.T) {
 	m := newConModel()
 	dir := t.TempDir()
 	msg := getPlaylistDoneMsg{
-		err:      errors.New("exit status 1"),
-		musicDir: dir,
-		name:     "favs",
-		dir:      dir,
+		err:  errors.New("exit status 1"),
+		plan: getter.PlaylistPlan{MusicDir: dir, Name: "favs", Dir: dir},
 	}
 	_, cmd := m.Update(msg)
 	if cmd == nil {
@@ -840,18 +838,18 @@ func TestConGetPlaylistSoloLoRecienBajado(t *testing.T) {
 	// Primera mitad: la decisión. planGetPlaylist tiene que sacar el
 	// snapshot de dir; sin él filesBefore viaja nil y el filtro de más abajo
 	// no puede excluir nada por mucho que exista.
-	msg, opts, err := m.planGetPlaylist("https://x/lista", "favs")
+	plan, err := m.planGetPlaylist("https://x/lista", "favs")
 	if err != nil {
 		t.Fatalf("planGetPlaylist: %v", err)
 	}
-	if opts.Dir != destino {
-		t.Errorf("yt-dlp debía bajar a %q, va a %q", destino, opts.Dir)
+	if plan.Opts.Dir != destino {
+		t.Errorf("yt-dlp debía bajar a %q, va a %q", destino, plan.Opts.Dir)
 	}
-	if msg.filesBefore == nil {
-		t.Fatal("con nombre explícito debía viajar el snapshot de dir (filesBefore)")
+	if plan.FilesBefore == nil {
+		t.Fatal("con nombre explícito debía viajar el snapshot de dir (FilesBefore)")
 	}
-	if !msg.filesBefore["ajena.mp3"] {
-		t.Errorf("el snapshot debía incluir lo que ya estaba, trajo %v", msg.filesBefore)
+	if !plan.FilesBefore["ajena.mp3"] {
+		t.Errorf("el snapshot debía incluir lo que ya estaba, trajo %v", plan.FilesBefore)
 	}
 
 	// Segunda mitad: el filtro. Con la descarga ya hecha (una pista nueva
@@ -874,7 +872,7 @@ func TestConGetPlaylistSoloLoRecienBajado(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer lib.Close()
-	ids, err := newTrackIDs(lib, destino, msg.filesBefore)
+	ids, err := getter.TrackIDs(lib, destino, plan.FilesBefore)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -990,13 +988,13 @@ func TestConGetPlaylistFinishLimpiaElDirectorioQueCreo(t *testing.T) {
 
 	m := newConModel()
 	m.sock = filepath.Join(tmp, "no-hay-demonio.sock")
-	msg := getPlaylistDoneMsg{
-		musicDir:    musicDir,
-		name:        "favs",
-		dir:         destino,
-		filesBefore: map[string]bool{},
-		createdDir:  true,
-	}
+	msg := getPlaylistDoneMsg{plan: getter.PlaylistPlan{
+		MusicDir:    musicDir,
+		Name:        "favs",
+		Dir:         destino,
+		FilesBefore: map[string]bool{},
+		CreatedDir:  true,
+	}}
 	// partial=true: la descarga falló y no dejó nada, el caso que antes
 	// cortaba en el handler y ahora llega hasta acá.
 	out, ok := m.conGetPlaylistFinish(msg, true)().(conMsg)

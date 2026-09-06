@@ -1719,3 +1719,226 @@ func TestNoticeSeTraduceAlIdiomaDelCliente(t *testing.T) {
 		t.Error("los dos idiomas dieron el mismo texto: el aviso no se está traduciendo por cliente")
 	}
 }
+
+// TestPushOmiteLaColaSinCambios: el push de suscripción lleva la cola SOLO
+// cuando la cola cambió (A-05). Antes la mandaba entera con cada tick de
+// posición de mpv —cuatro veces por segundo y por cliente, 3,40 MB por push
+// con 10.000 pistas— para mandar siempre lo mismo.
+//
+// Se comprueban las tres cosas por separado, porque son tres defectos
+// distintos: la foto inicial SIEMPRE lleva la cola (el cliente no tiene
+// nada), un mutador que no toca la lista NO la lleva, y uno que sí la toca
+// la lleva otra vez con la generación subida.
+func TestPushOmiteLaColaSinCambios(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	music := t.TempDir()
+	// 30 s: la pista tiene que seguir sonando durante todo el test, para que
+	// los ticks de posición de mpv —los pushes que este arreglo abarata— sean
+	// parte del arnés y no una condición ausente.
+	writeWAV(t, filepath.Join(music, "a.wav"), 30)
+	writeWAV(t, filepath.Join(music, "b.wav"), 30)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "add", Query: "a"}); !resp.OK {
+		t.Fatalf("add: %s", resp.Error)
+	}
+
+	// Esperar a que learnDuration haya corrido ANTES de suscribirse. `add`
+	// sobre una cola vacía arranca la reproducción, y cuando mpv reporta la
+	// duración el demonio la escribe en la cola y sube la generación — con
+	// razón: la cola cambió de verdad. Sin esta espera ese cambio legítimo
+	// cae en medio de la medición y el test falla sin que nada esté mal.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		q := d.Do(ipc.Request{Cmd: "queue"})
+		if len(q.Queue) == 1 && q.Queue[0].Duration > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("mpv nunca reportó la duración de la pista")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	sub, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	first, err := sub.Subscribe()
+	if err != nil || !first.OK {
+		t.Fatalf("subscribe: %v / %+v", err, first)
+	}
+	if len(first.Queue) != 1 {
+		t.Fatalf("la foto inicial debe traer la cola entera; trajo %d pistas", len(first.Queue))
+	}
+	if first.Status == nil || first.Status.QueueGen == 0 {
+		t.Fatalf("la foto inicial debe traer QueueGen != 0 (0 = demonio sin soporte); trajo %+v", first.Status)
+	}
+	genInicial := first.Status.QueueGen
+
+	// Un mutador que NO toca la lista de pistas: el volumen. Se leen todos
+	// los pushes que produzca (pueden coalescer con ticks de mpv) y ninguno
+	// debe traer la cola.
+	if resp := d.Do(ipc.Request{Cmd: "vol", Value: "37"}); !resp.OK {
+		t.Fatalf("vol: %s", resp.Error)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		got := next(t, sub)
+		if got.Queue != nil {
+			t.Fatalf("un push sin cambios en la cola trajo %d pistas", len(got.Queue))
+		}
+		if got.Status == nil || got.Status.QueueGen != genInicial {
+			t.Fatalf("QueueGen cambió sin tocar la cola: %+v", got.Status)
+		}
+		if got.Status.Volume == 37 {
+			break // el push del vol ya llegó, y no traía cola
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("nunca llegó el push con vol 37")
+		}
+	}
+
+	// Y un mutador que SÍ la toca: la cola vuelve, con la generación subida.
+	if resp := d.Do(ipc.Request{Cmd: "add", Query: "b"}); !resp.OK {
+		t.Fatalf("add b: %s", resp.Error)
+	}
+	deadline = time.Now().Add(5 * time.Second)
+	for {
+		got := next(t, sub)
+		if got.Queue != nil {
+			if len(got.Queue) != 2 {
+				t.Fatalf("tras el add la cola debía traer 2 pistas; trajo %d", len(got.Queue))
+			}
+			if got.Status == nil || got.Status.QueueGen <= genInicial {
+				t.Fatalf("QueueGen no subió con la mutación: %+v", got.Status)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("la mutación de la cola nunca llegó al suscriptor")
+		}
+	}
+}
+
+// TestGenSubeConLasDuracionesDelScan: las duraciones que el relleno del scan
+// escribe EN SITIO sobre d.q.Items no pasan por ningún mutador de
+// internal/queue, así que sin un Touch() explícito la generación no subiría y
+// el push saldría sin Queue — la cola del cliente se quedaría con las
+// duraciones en cero para siempre (A-05).
+//
+// No lo cubre TestScanFillsDurations: aquel lee por el comando `queue`, que
+// manda la cola SIEMPRE y por tanto no puede ver este defecto.
+func TestGenSubeConLasDuracionesDelScan(t *testing.T) {
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe no está en PATH")
+	}
+	testEnv(t)
+	cfg := config.Default() // con la fase de duraciones
+	d, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(d.Close)
+
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	writeWAV(t, a, 30)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "add", Query: "a"}); !resp.OK {
+		t.Fatalf("add: %s", resp.Error)
+	}
+	// PARAR antes de medir, y esperar a que el player quede idle. `add` sobre
+	// una cola vacía arranca la reproducción, y con la pista sonando
+	// learnDuration sube la generación por su cuenta —más aún tras borrar la
+	// duración de la cola, que es justo lo que su guarda mira—, así que el
+	// test pasaría igual sin el arreglo. Medido: sin este stop, quitar el
+	// Touch() del relleno no hace fallar nada.
+	if resp := d.Do(ipc.Request{Cmd: "stop"}); !resp.OK {
+		t.Fatalf("stop: %s", resp.Error)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if st := d.Do(ipc.Request{Cmd: "status"}).Status; st != nil && !st.Playing {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("el player nunca quedó idle tras el stop")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Borrar la duración de la base y de la cola fuerza el relleno.
+	if err := d.lib.SetDuration(a, 0); err != nil {
+		t.Fatal(err)
+	}
+	d.mu.Lock()
+	for i := range d.q.Items {
+		d.q.Items[i].Duration = 0
+	}
+	genAntes := d.q.Gen()
+	d.mu.Unlock()
+
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("re-scan: %s", resp.Error)
+	}
+	d.mu.Lock()
+	genDespues, dur := d.q.Gen(), d.q.Items[0].Duration
+	d.mu.Unlock()
+	if dur < 29 {
+		t.Fatalf("el relleno no escribió la duración en la cola: %v", dur)
+	}
+	if genDespues <= genAntes {
+		t.Fatalf("la generación no subió con el relleno de duraciones (%d → %d): el push saldría sin la cola y el cliente nunca vería las duraciones", genAntes, genDespues)
+	}
+}
+
+// TestGenSubeConLaDuracionAprendida: el gemelo del anterior para el otro
+// camino que escribe d.q.Items EN SITIO. learnDuration corre desde el
+// callback de mpv cada vez que empieza una pista cuyos tags no traían
+// duración —o sea, en uso normal, todo el tiempo— y sin subir la generación
+// esa duración recién aprendida no viajaría en ningún push (A-05).
+func TestGenSubeConLaDuracionAprendida(t *testing.T) {
+	d := newTestDaemon(t)
+
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	writeWAV(t, a, 30)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	// newTestDaemon apaga ScanDurations, así que la pista entra en la cola
+	// con duración 0 y quien la aprende es mpv, que es el caso a cubrir.
+	if resp := d.Do(ipc.Request{Cmd: "add", Query: "a"}); !resp.OK {
+		t.Fatalf("add: %s", resp.Error)
+	}
+	d.mu.Lock()
+	genAntes, durAntes := d.q.Gen(), d.q.Items[0].Duration
+	d.mu.Unlock()
+	if durAntes > 0 {
+		t.Fatalf("la pista entró a la cola ya con duración (%v): el arnés no reproduce el caso", durAntes)
+	}
+
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		d.mu.Lock()
+		dur, gen := d.q.Items[0].Duration, d.q.Gen()
+		d.mu.Unlock()
+		if dur > 0 {
+			if gen <= genAntes {
+				t.Fatalf("la generación no subió al aprender la duración (%d → %d): el push saldría sin la cola", genAntes, gen)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("mpv nunca reportó la duración")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}

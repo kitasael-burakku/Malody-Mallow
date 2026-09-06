@@ -123,6 +123,11 @@ type subscriber struct {
 	// que Status.Notice salga en SU idioma (A-25). Lo demás del Status no
 	// lleva texto traducible.
 	lang string
+	// queueGen es la generación de cola que este suscriptor ya recibió; 0
+	// antes del primer push, y la cola arranca en 1, así que la foto inicial
+	// siempre la lleva. Solo la toca la goroutine de subscribe que atiende a
+	// ESTE suscriptor, y siempre dentro de stateFor (bajo d.mu).
+	queueGen uint64
 }
 
 // New prepara el demonio: reclama la identidad y el socket, abre la biblioteca
@@ -440,7 +445,7 @@ func (d *Daemon) subscribe(conn net.Conn, r *bufio.Reader, lang string) {
 		close(done)
 	}()
 
-	if s.push(d.state(s.lang)) != nil {
+	if s.push(d.stateFor(s)) != nil {
 		return
 	}
 	for {
@@ -448,7 +453,7 @@ func (d *Daemon) subscribe(conn net.Conn, r *bufio.Reader, lang string) {
 		case <-done:
 			return
 		case <-s.dirty:
-			if s.push(d.state(s.lang)) != nil {
+			if s.push(d.stateFor(s)) != nil {
 				return
 			}
 			select {
@@ -472,12 +477,24 @@ func (s *subscriber) push(resp ipc.Response) error {
 	return err
 }
 
-// state arma la foto completa que reciben los suscriptores, con la misma
-// forma que la respuesta del comando queue.
-func (d *Daemon) state(lang string) ipc.Response {
+// stateFor arma la foto que recibe UN suscriptor, con la misma forma que la
+// respuesta del comando queue, pero con la cola solo si cambió desde el push
+// anterior a ESE suscriptor (A-05). Serializar la cola entera en cada tick de
+// posición de mpv costaba 3,40 MB por push con 10.000 pistas, cuatro veces
+// por segundo y por cliente, para mandar siempre lo mismo.
+//
+// Es por suscriptor y no global porque cada uno se suscribió en un momento
+// distinto: la foto inicial de quien acaba de conectarse tiene que llevar la
+// cola aunque nadie la haya tocado desde hace horas.
+func (d *Daemon) stateFor(s *subscriber) ipc.Response {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return ipc.Response{OK: true, Status: d.statusLocked(lang), Queue: toInfos(d.q.Items), Version: version.Version}
+	resp := ipc.Response{OK: true, Status: d.statusLocked(s.lang), Version: version.Version}
+	if gen := d.q.Gen(); gen != s.queueGen {
+		resp.Queue = toInfos(d.q.Items)
+		s.queueGen = gen
+	}
+	return resp
 }
 
 // handle ejecuta la petición y refleja los cambios en MPRIS y suscriptores.
@@ -979,6 +996,7 @@ func (d *Daemon) statusLocked(lang string) *ipc.Status {
 		QueueIndex: d.q.Index,
 		QueueLen:   d.q.Len(),
 		LibGen:     d.libGen.Load(),
+		QueueGen:   d.q.Gen(),
 	}
 	if d.notice != "" {
 		s.Notice = i18n.TLf(lang, d.notice, d.noticeArgs...)

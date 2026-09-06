@@ -63,6 +63,22 @@ type Status struct {
 	// scan, así los clientes detectan en cualquier respuesta o push que la
 	// biblioteca cambió y recargan su copia. 0 = demonio sin soporte (< 0.7).
 	LibGen uint64 `json:"lib_gen,omitempty"`
+	// QueueGen es la generación del CONTENIDO de la cola: sube cada vez que
+	// la lista de pistas cambia (no cuando cambia la pista actual, que ya
+	// viaja en QueueIndex). Existe para que el push de suscripción incluya
+	// Queue SOLO cuando cambió: antes mandaba la cola entera con cada tick de
+	// posición de mpv, o sea cuatro veces por segundo y por cliente —5,3 MB/s
+	// medidos con 5.000 pistas, y 3,40 MB por push con 10.000 (A-05)— sin que
+	// cambiara nada de lo que se ve. Mismo patrón que LibGen, y misma
+	// convención: 0 = demonio sin soporte.
+	//
+	// Un push sin Queue significa "la que ya tenías sigue valiendo", y el
+	// cliente NO debe tirar su copia ni las cachés derivadas de ella. El
+	// vaciado no llega por acá sino por QueueLen == 0: una cola vacía se
+	// serializa como slice vacío y omitempty la borra del JSON, así que
+	// "sin Queue" no puede distinguir por sí solo "no cambió" de "quedó
+	// vacía".
+	QueueGen uint64 `json:"queue_gen,omitempty"`
 	// Notice es el último aviso del demonio que el usuario debería ver: una
 	// pista saltada por irreproducible, o la cola detenida tras una pasada
 	// entera sin nada que suene. Vive acá porque era el ÚNICO evento del

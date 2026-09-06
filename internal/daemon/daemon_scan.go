@@ -142,10 +142,19 @@ func (d *Daemon) refreshQueueDurations(learned int) {
 	}
 
 	d.mu.Lock()
+	touched := false
 	for i := range d.q.Items {
 		if secs, ok := found[d.q.Items[i].Path]; ok && d.q.Items[i].Duration <= 0 {
 			d.q.Items[i].Duration = secs
+			touched = true
 		}
+	}
+	// Igual que learnDuration: escritura en sitio, fuera de los mutadores de
+	// queue. El wakeSubs de abajo existe justamente para que estas duraciones
+	// lleguen a la pantalla, y sin subir la generación el push saldría sin
+	// Queue y no llegarían nunca (A-05).
+	if touched {
+		d.q.Touch()
 	}
 	d.mu.Unlock()
 	d.wakeSubs()

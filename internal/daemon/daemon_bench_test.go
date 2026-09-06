@@ -23,36 +23,43 @@ import (
 // (A-05)— y solo se vio en la auditoría del 2026-09, con un suscriptor
 // externo contando bytes.
 
-// BenchmarkState mide el trabajo que hace UN push: armar la foto (state) y
+// BenchmarkState mide el trabajo que hace UN push: armar la foto (stateFor) y
 // serializarla. Los dos juntos a propósito: es la unidad que el suscriptor
 // paga cada 250 ms, y el marshal es la mitad cara (toInfos copia la cola,
 // json.Marshal la recorre otra vez emitiendo ~250 B por pista).
 //
-// La métrica que importa no es ns/op sino B/push, que es lo que A-05 baja:
-// se reporta aparte para poder comparar antes/después sin depender de la
-// máquina.
+// Lo cronometrado es el push EN RÉGIMEN, que es el que ocurre cuatro veces
+// por segundo: la cola sin cambios. Se reportan dos métricas de tamaño, que
+// son las que A-05 separa y lo que importa mirar, más que los ns/op:
+//
+//   - B/push  — el push en régimen. Antes de A-05 llevaba la cola entera.
+//   - B/full  — el push que SÍ lleva la cola (el inicial, y cada mutación).
+//     Es lo que medía este mismo benchmark antes del arreglo, así que sirve
+//     para comparar contra la línea base del commit anterior.
 func BenchmarkState(b *testing.B) {
 	for _, n := range []int{100, 1000, 10000} {
 		b.Run(fmt.Sprintf("cola=%d", n), func(b *testing.B) {
 			d := newTestDaemon(b)
 			d.q.Add(benchTracks(n)...)
-			// Fuera del cronómetro: mide el push, no la primera vuelta.
-			bytesPerPush := 0
-			if data, err := json.Marshal(d.state("es")); err == nil {
-				bytesPerPush = len(data)
+			s := &subscriber{lang: "es"}
+			// Primer push fuera del cronómetro: es el que lleva la cola y
+			// deja al suscriptor al día. Su tamaño es B/full.
+			full, err := json.Marshal(d.stateFor(s))
+			if err != nil {
+				b.Fatal(err)
 			}
+			steady := 0
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				data, err := json.Marshal(d.state("es"))
+				data, err := json.Marshal(d.stateFor(s))
 				if err != nil {
 					b.Fatal(err)
 				}
-				if len(data) == 0 {
-					b.Fatal("push vacío")
-				}
+				steady = len(data)
 			}
 			b.StopTimer()
-			b.ReportMetric(float64(bytesPerPush), "B/push")
+			b.ReportMetric(float64(steady), "B/push")
+			b.ReportMetric(float64(len(full)), "B/full")
 		})
 	}
 }

@@ -33,11 +33,35 @@ type Queue struct {
 	order   []int // permutación del ciclo shuffle; nil con Shuffle off
 	pos     int   // posición de la actual en order; -1 si nada suena
 	staged  []int // permutación del ciclo siguiente, prometida por PeekNext
+
+	// gen es la generación del CONTENIDO de Items: arranca en 1 y sube cada
+	// vez que la lista de pistas cambia. El demonio la usa para mandar la
+	// cola en un push solo cuando cambió de verdad (A-05), igual que libGen
+	// hace con la biblioteca. Arranca en 1 —y no en 0— para que 0 signifique
+	// "demonio sin soporte" en el protocolo, como LibGen.
+	//
+	// Sube SOLO con lo que altera Items: Add, Replace, Clear, RemoveAt y
+	// Move. NO con JumpTo, Next, Prev, SetShuffle ni CycleRepeat, que mueven
+	// Index/order/pos —estado que ya viaja aparte en Status— y dejan la lista
+	// igual: subirla ahí re-mandaría la cola entera en cada canción, que es
+	// justo lo que este contador existe para evitar.
+	gen uint64
 }
 
 func New() *Queue {
-	return &Queue{Index: -1, Repeat: RepeatOff, pos: -1}
+	return &Queue{Index: -1, Repeat: RepeatOff, pos: -1, gen: 1}
 }
+
+// Gen devuelve la generación actual del contenido de la cola.
+func (q *Queue) Gen() uint64 { return q.gen }
+
+// Touch sube la generación sin pasar por un mutador. Es para el demonio, que
+// escribe Items[i].Duration EN SITIO en dos caminos que no pasan por ningún
+// mutador de este paquete (learnDuration, cuando mpv reporta la duración de
+// la pista que suena, y refreshQueueDurations al final de un scan). Sin esto
+// esos cambios no viajarían nunca en un push y la cola del cliente se
+// quedaría con las duraciones en cero para siempre.
+func (q *Queue) Touch() { q.gen++ }
 
 func (q *Queue) Len() int { return len(q.Items) }
 
@@ -120,6 +144,9 @@ func (q *Queue) orderPos(v int) int {
 func (q *Queue) Add(tracks ...library.Track) {
 	start := len(q.Items)
 	q.Items = append(q.Items, tracks...)
+	if len(tracks) > 0 {
+		q.gen++
+	}
 	if !q.Shuffle {
 		return
 	}
@@ -134,6 +161,7 @@ func (q *Queue) Add(tracks ...library.Track) {
 func (q *Queue) Replace(tracks []library.Track) {
 	q.Items = append([]library.Track(nil), tracks...)
 	q.Index = -1
+	q.gen++
 	if q.Shuffle {
 		q.reshuffle()
 	}
@@ -143,6 +171,7 @@ func (q *Queue) Replace(tracks []library.Track) {
 func (q *Queue) Clear() {
 	q.Items = nil
 	q.Index = -1
+	q.gen++
 	q.order, q.pos, q.staged = nil, -1, nil
 }
 
@@ -155,6 +184,7 @@ func (q *Queue) RemoveAt(i int) (removed, wasCurrent bool) {
 	}
 	wasCurrent = i == q.Index
 	q.Items = append(q.Items[:i], q.Items[i+1:]...)
+	q.gen++
 	if i < q.Index {
 		q.Index--
 	} else if wasCurrent {
@@ -206,6 +236,7 @@ func (q *Queue) Move(from, to int) bool {
 		return true
 	}
 	t := q.Items[from]
+	q.gen++
 	q.Items = append(q.Items[:from], q.Items[from+1:]...)
 	q.Items = append(q.Items[:to], append([]library.Track{t}, q.Items[to:]...)...)
 	switch {

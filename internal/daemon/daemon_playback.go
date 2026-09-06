@@ -235,6 +235,10 @@ func (d *Daemon) learnDuration() {
 				d.q.Items[i].Duration = st.Duration
 			}
 		}
+		// Escritura EN SITIO: no pasa por ningún mutador de queue, así que
+		// hay que subir la generación a mano o el push nunca llevaría la
+		// duración recién aprendida (A-05).
+		d.q.Touch()
 		return t.Path, st.Duration, true
 	}()
 	if !ok {

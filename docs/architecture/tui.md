@@ -71,7 +71,18 @@ propio timeout de 20 s. Por eso la salida usa `stopGetSearch`, que cancela **y
 espera** (con tope, `getKillWait`): en `RunGetPick` tras `p.Run()`, y en
 `tui.Run` tras el suyo, porque `ctrl+c` corta ANTES de todo modal en
 `handleKey` y nunca pasa por `closeGet` (A-15; medido: sin la espera, 5 de 5
-huérfanos). El aviso del demonio (`Status.Notice`: pista saltada, cola detenida por
+huérfanos). En el panel de cola, `m.queueCursor` indexa la lista **VISIBLE** y
+`visibleQueue()` la traduce a la posición REAL: con filtro las dos
+numeraciones no coinciden, y confundirlas borra la pista equivocada en
+silencio — la misma clase de defecto que ya mordió en los pickers y que
+`setItemsKeeping` cerró ahí. El reorden (`move_up`/`move_down`) solo funciona
+con el filtro VACÍO, porque con posiciones no contiguas sería ambiguo. Las dos
+cosas y la aritmética de `keyRepeats` (pulsaciones fusionadas → un `move` de n
+posiciones) las fijan los tests de `queuekeys_test.go`, que hasta A-27 no
+existían: el layout estaba barrido por tabla y la máquina de estados que
+decide qué pista se toca no tenía ninguno.
+
+El aviso del demonio (`Status.Notice`: pista saltada, cola detenida por
 errores) se pinta como flash de error, pero SOLO al cambiar: los pushes llegan
 varias veces por segundo y el aviso persiste hasta la siguiente carga sana, así
 que rearmarlo en cada foto lo dejaría fijo en pantalla sin caducar nunca

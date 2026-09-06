@@ -89,7 +89,7 @@ precede.
 | 1.16.1 | `view_count` en los resultados; `pickerWidthMax`; miniaturas **descartadas** |
 | 1.16.2 | `maly -h` saca los atajos de `tui.HelpRows`; C24, G7 y C26 |
 | 1.16.3 | **Carrera de la promesa obsoleta** en `advance()`: `loadGen` viaja hasta el consumidor |
-| 1.16.4 | **Phase 0** de la auditoría del 2026-09: A-01 (scan vacío no purga), A-02, A-03 |
+| 1.16.4 | **Phase 0** de la auditoría del 2026-09: A-01 (scan vacío no purga), A-02, A-03. **Sin tag a propósito**: puente a la 1.17.0, por donde salió |
 
 ### v1.17.0 – → [`roadmap-1.17.md`](roadmap-1.17.md)
 

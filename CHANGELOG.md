@@ -44,6 +44,10 @@ la canción equivocada sin decir nada.
 
 ## v1.16.4 — 2026-09-05
 
+> **Esta versión no se publicó por separado.** Fue un puente: se quedó sin tag
+> a propósito y todo lo de abajo llegó a los usuarios dentro de la **1.17.0**,
+> al día siguiente. Si buscás un release `v1.16.4`, no existe.
+
 Un escaneo ya no puede vaciar la biblioteca cuando la música no está. Si
 `maly scan` recorre el directorio de música y no encuentra ni un archivo de
 audio —el caso típico es un disco externo sin montar, un directorio de red

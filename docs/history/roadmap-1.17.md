@@ -5,8 +5,10 @@
 ## v1.17.0 (2026-09-06) — Phase 1 de la auditoría del 2026-09
 
 La **1.17.0** cierra la **Phase 1** completa (14 ítems) de la auditoría
-técnica y arquitectónica del 2026-09 sobre la 1.16.3, cuya Phase 0 salió en la
-1.16.4. Se hicieron en el orden de la lista del informe, uno por commit, cada
+técnica y arquitectónica del 2026-09 sobre la 1.16.3, cuya Phase 0 se hizo en
+la 1.16.4 — que **se dejó sin tag a propósito**, como puente: nunca se
+distribuyó por separado (los tres canales compilan el último tag) y su
+contenido, incluida la guarda de A-01, llegó a los usuarios recién acá. Se hicieron en el orden de la lista del informe, uno por commit, cada
 uno con sus tests verificados en ambas direcciones antes de pasar al
 siguiente.
 

@@ -218,11 +218,15 @@ tomadas.
 
 ## Estado actual
 
-**v1.17.0** (`internal/version/version.go`). Ojo con los tags: la **1.16.4
-nunca llegó a tagearse** —tiene su commit de bump y su entrada de CHANGELOG,
-pero no existe `v1.16.4`, así que nunca se distribuyó: los tres canales
-compilan el último tag—, y su contenido va dentro de la 1.17.0. Comprobar con
-`git tag` antes de asumir que una versión salió.
+**v1.17.0** (`internal/version/version.go`). Ojo con los tags: la **1.16.4 se
+dejó sin tag A PROPÓSITO** (decisión del dueño) — fue un puente a la 1.17.0,
+que salió el día siguiente con la Phase 1 entera. Tiene su commit de bump y su
+entrada de CHANGELOG, pero no existe `v1.16.4` y por tanto nunca se
+distribuyó: los tres canales compilan el último tag, así que su contenido
+llegó a los usuarios recién dentro de la 1.17.0. Es el precedente de qué hacer
+cuando una versión se queda por el camino: no se borra su entrada, se anota
+dónde acabó saliendo. Comprobar con `git tag` antes de asumir que una versión
+salió.
 
 En curso: la **auditoría técnica y arquitectónica del 2026-09** sobre la 1.16.3
 (35 hallazgos: 1 CRITICAL, 5 HIGH, 11 MEDIUM, 11 LOW, 8 oportunidades; informe

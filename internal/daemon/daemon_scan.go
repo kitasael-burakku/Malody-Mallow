@@ -180,6 +180,14 @@ func (d *Daemon) refreshQueueDurations(learned int) {
 // caerse o que volver a los defaults, pero hacerlo en silencio es exactamente
 // lo que A-03 reprocha, así que el error queda disponible para la op "config"
 // y para `maly doctor`.
+//
+// Esa rama es HOY casi inalcanzable, y conviene que quede escrito para que
+// nadie la "limpie" creyendo que sobra: todos los clientes que piden un scan
+// cargan antes el config y fallan ellos primero (runScan, conScan, el runScan
+// que dispara `maly get`), así que para llegar acá el archivo tiene que
+// romperse justo entre esa carga y esta. Se sostiene igual porque es la única
+// respuesta correcta a un config ilegible, y porque nada garantiza que el
+// próximo llamador de scan tenga esa precaución.
 func (d *Daemon) reloadConfig() config.Config {
 	fresh, err := config.Load()
 	d.mu.Lock()

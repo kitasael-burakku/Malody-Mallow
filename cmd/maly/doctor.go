@@ -68,7 +68,14 @@ func runDoctor([]string) error {
 		checkLibrary(),
 		checkKeys(cfg),
 	}
-	checks = append(checks, checkDaemonConfig(cfg)...)
+	// Solo si NUESTRA lectura del config salió bien: con cfgErr, cfg son los
+	// defaults, y comparar el music_dir del servicio contra ~/Music diría "el
+	// config cambió" cuando lo que pasa es que no se puede leer. Eso ya lo
+	// reporta la fila de abajo, y decirlo dos veces —una de ellas mal— es
+	// peor que no decirlo. Encontrado probando en vivo.
+	if cfgErr == nil {
+		checks = append(checks, checkDaemonConfig(cfg)...)
+	}
 	checks = append(checks, checkLinkedDirs(cfg)...)
 	checks = append(checks, checkOptionalTools(cfg)...)
 	checks = append(checks, checkUpdate())

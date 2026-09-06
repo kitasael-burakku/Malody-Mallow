@@ -2,6 +2,198 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.18.0 (2026-09-06) — Phase 2 de la auditoría del 2026-09
+
+La **1.18.0** cierra la **Phase 2** completa (8 ítems). Con esto la auditoría
+queda en **21 de 27 hallazgos y 5 de 8 oportunidades** cerrados; Phase 3 (12
+oportunidades, explícitamente no obligatorias) sigue en el informe
+(`~/Audits/MalyAu/`).
+
+Se hicieron en el orden que el informe marcaba como no negociable —el
+benchmark ANTES de la optimización, la extracción antes de la red de
+paridad— y uno por commit, cada uno con sus tests verificados en ambas
+direcciones antes de pasar al siguiente.
+
+### Lo que de verdad deja esta tanda
+
+**La lección de la 1.17.0 se repitió, y con la misma proporción.** De los ocho
+ítems, **cuatro fichas no sobrevivieron intactas al contacto con el código**.
+Las cuatro se descubrieron reproduciendo la premisa en vez de transcribirla, y
+las cuatro habrían producido código peor si se hubieran obedecido:
+
+1. **A-05 daba una lista de mutadores mal por los dos lados.** Proponía subir
+   la generación de la cola en `Add, Replace, Clear, RemoveAt, Move, JumpTo,
+   Next, Prev, SetShuffle`. Cuatro de esos **no tocan `Items`** —mueven
+   `Index`/`order`/`pos`, estado que ya viaja aparte en `Status`— así que
+   habrían re-mandado la cola entera en CADA canción, o sea casi nada de lo
+   que se quería ahorrar. Y faltaban los dos que sí importan: `learnDuration`
+   y `refreshQueueDurations` escriben `Items[i].Duration` **en sitio**, sin
+   pasar por ningún mutador de `internal/queue`. Sin cubrirlos, la cola del
+   cliente se quedaría con las duraciones en cero **para siempre** — y no es
+   una hipótesis: `refreshQueueDurations` ya llamaba a `wakeSubs()` justamente
+   para que esas duraciones llegaran a la pantalla. De ahí `Queue.Touch()`.
+2. **A-10 contaba tres listas de modales; son cuatro.** Además de
+   `npColumnVisible`, que la ficha señala, `logoVisible` (`logo.go:179`)
+   enumeraba las capas a mano **y se olvidaba de `getOpen` igual que la otra**.
+   O sea que con `ctrl+g` abierto la TUI hacía dos trabajos para nada: decodificar
+   la carátula de una columna que no se dibujaba, y animar la onda de un
+   banner invisible — esto último justo contra la línea de la 1.7.2, que bajó
+   el reposo de la TUI de 3,5 % a 0,7 % autocancelando esta clase de relojes.
+3. **A-03 describía un problema que la 1.16.4 ya había cerrado.** La ficha
+   habla de `music_dir`, pero `d.cfg` se usa hoy en EXACTAMENTE dos sitios, los
+   dos en `daemon_scan.go`, y desde que el cliente manda la ruta ya resuelta el
+   único efecto observable del config rancio era **`scan_durations`**. El test
+   se escribió sobre esa clave; sobre `music_dir` no habría reproducido nada.
+4. **A-12 proponía el remedio correcto, y se callaba lo que lo hizo barato.**
+   El reparto lee→`Open` / escribe→`Create` es el mismo criterio en los tres
+   sitios donde aparece, y en uno de ellos ya estaba escrito sin saberlo: el
+   flag `reload` de `conLib` significa literalmente "esto muta playlists".
+
+Y una quinta lección, de proceso y no de código: **la red de paridad de O-03
+pagó dentro de la propia fase en la que se escribió.** Cazó que la CLI toleraba
+la biblioteca ausente al planificar `get playlist` y la consola no — una
+divergencia CLI↔consola que la implementación de A-12 acababa de introducir
+horas antes, en este mismo trabajo. Es exactamente la clase de A-04, y esta vez
+duró minutos en vez de tres releases.
+
+### Los ocho ítems
+
+**1. O-05.2 — `BenchmarkState`, antes que nada (`internal/daemon`).** Línea
+base del push de suscripción por tamaño de cola. Mide `state` + `json.Marshal`
+juntos, porque es la unidad que el suscriptor paga cada 250 ms, y reporta
+**B/push**, que es la métrica que A-05 baja y la única comparable entre
+máquinas. Fuera de CI, como `BenchmarkScan`. Medido en el equipo del dueño:
+
+    cola=100      64,5 µs/push      33,8 kB/push
+    cola=1.000     642 µs/push       338 kB/push
+    cola=10.000   6,00 ms/push     3,40 MB/push
+
+Perfectamente lineal, que es el problema: con 10.000 pistas y cuatro pushes por
+segundo son 13,6 MB/s por cliente sin que cambie nada en pantalla.
+
+**2. A-05 / O-01 — `Status.QueueGen`.** El patrón de `libGen` aplicado a la
+cola, con el contador en `internal/queue` (ver arriba dónde sube y dónde no) y
+el push armado por suscriptor en `stateFor` —que ya era por suscriptor desde
+A-25—. Tras el arreglo, con el mismo benchmark:
+
+    cola=100      1,24 µs/push      201 B/push
+    cola=1.000    0,98 µs/push      202 B/push
+    cola=10.000   0,74 µs/push      203 B/push
+
+El tamaño del push en régimen **deja de depender del tamaño de la cola**. A/B
+en vivo, mismo sandbox, misma cola de 1.000, misma música, suscriptor externo
+contando bytes 10 s: **4,28 MB → 0,11 MB**; CPU del demonio con un suscriptor
+pasivo, **4 ticks/10 s → 0**.
+
+Compatibilidad comprobada en el código y no supuesta: los dos suscriptores que
+existen aguantan un push sin `Queue` —la TUI conserva su copia, y con ella la
+caché `queueFolded` que se destruía cuatro veces por segundo— y el polling sin
+suscripción usa el comando `queue`, que sigue mandando la cola siempre.
+
+**3. A-04 (extraer) — `internal/getter/playlist.go`.** `PlanPlaylist`,
+`PlaylistPlan.Resolve` y `TrackIDs`: las decisiones de `get playlist` en un solo
+sitio. La ficha listaba dos funciones; hicieron falta tres, porque `TrackIDs`
+(el filtro de G3) también estaba escrito dos veces. `newDirEntry` estaba
+duplicada **byte a byte** y se absorbe en `Resolve`. Lo que NO se movió es la
+ejecución: la CLI corre yt-dlp con `cmd.Run()` y la consola con
+`tea.ExecProcess`, que solo devuelve el error — esa diferencia es real.
+
+La reversión que prueba que sirvió: quitar el filtro de G3 de `getter.TrackIDs`
+hace fallar a la vez dos tests de la CLI y uno de la consola. Un cambio, los dos
+espejos; antes había que romper dos copias.
+
+**4. O-03 — paridad de COMPORTAMIENTO (`cmd/maly/parity_test.go`).** Siete
+escenarios corridos contra los dos planificadores, comparando el plan. Dos cosas
+que el informe no anticipaba: cada escenario necesita **dos sandboxes frescos**
+(planificar CREA el destino, así que la segunda pasada vería lo que hizo la
+primera y `CreatedDir` saldría distinto por culpa del arnés); y **comparar los
+dos lados no basta**, porque dos espejos igual de rotos coinciden — de ahí que
+cada caso compruebe además lo que se espera de verdad, verificado rompiendo los
+dos lados a la vez.
+
+**5. A-12 / O-06 — `Create` crea, `Open` no.** Las cinco variantes de "abrir si
+existe" (`library.OpenIfExists`, `openLibraryIfExists`, `openLibIfExists`, y los
+dos `os.Stat` propios de `select.go` y `get_pick.go`) se van a cero. `Open`
+devuelve `fs.ErrNotExist` envuelto, que es lo que permite a `RunSelect`
+distinguir "no hay biblioteca" de "la hay pero no abre" sin envoltorio propio.
+Cierra el caso concreto de la ficha: `maly playlist list` sobre una instalación
+nueva ya no deja un `library.db` vacío.
+
+La reversión vale por sí sola como recordatorio de por qué se corre la suite
+entera: devolverle a `Open` la capacidad de crear hace fallar el test nuevo **y
+tres que ya existían** (`TestCompleteNoDB`, `TestCheckLibraryNoDB`,
+`TestLibraryStatsNoDB`).
+
+**6. A-10 — `activeOverlay()`.** Un enum y una función en vez de siete
+booleanos en cuatro listas, con `showHelp` aparte porque la ayuda se dibuja
+ENCIMA de otra capa. El test va **por tabla sobre el enum**, hasta un `ovCount`
+de cierre: escribir a mano una quinta lista habría sido repetir el error que el
+cambio cierra. Lleva control positivo, porque una implementación que devolviera
+`false` siempre pasaría igual.
+
+**7. A-28 — tests de contrato de `cmd/maly`.** Los tres que pedía el informe más
+dos que salieron con ellos. Para el parseo hizo falta extraer `buildRequest(cmd,
+args)`, como la ficha anticipaba. La gramática de `playlist` (C14) se fija por
+EFECTO sobre la base —qué pista se borra— y no por parseo. Un ajuste de arnés
+que conviene registrar: la primera versión del test de `doctor` exigía además
+que no escribiera el config, y eso estaba MAL — el template se escribe cuando no
+existe, y ese es el mecanismo de migración del proyecto.
+
+**8. A-03 (mitad estructural) — el demonio relee el config.** `reloadConfig()`
+al empezar cada scan; si el TOML dejó de parsear se conserva el anterior y se
+anota el error, porque hacerlo en silencio es lo que el hallazgo reprocha.
+**Releer le quitó a `d.cfg` la inmutabilidad de la que dependía leerlo sin
+sincronizar** —el scan corre fuera de `d.mu` y su comentario decía "solo toca
+lib (thread-safe) y cfg (inmutable)"—, así que `reloadConfig` escribe bajo
+`d.mu` y el escaneo trabaja con una copia local; `TestConfigConcurrenteConScan`
+existe para que `-race` mire ese tramo, y quitarle el lock produce un `DATA
+RACE` de verdad.
+
+Del lado del diagnóstico, una op de solo lectura `config` expone lo que el
+servicio tiene en efecto (`Response.Config` es `omitempty`: no cuesta nada en el
+push) y `checkDaemonConfig` lo compara con el disco. Relectura fallida = `warn`;
+"el config cambió y aún no hubo scan" = `info`, porque no hay nada roto.
+
+### Trampas del arnés que costaron un ciclo
+
+Las tres salieron de esta tanda y están destiladas en
+`docs/development/verificacion.md`:
+
+- **Un `add` sobre una cola vacía arranca la reproducción**, y con la pista
+  sonando `learnDuration` sube la generación de la cola por su cuenta. El test
+  del relleno de duraciones **pasaba sin el arreglo** hasta que se paró el
+  player antes de medir. Variante exacta de "una medición negativa sin verificar
+  su precondición no es una medición".
+- **`TestScanFillsDurations` no podía cazar el defecto** aunque parecía el test
+  natural para hacerlo: lee por el comando `queue`, que manda la cola SIEMPRE.
+- **`newTestDaemon` apagaba `ScanDurations` en el struct**, y desde que el
+  demonio relee el config manda el ARCHIVO: un sandbox sin `config.toml` recibe
+  el template, que la trae activa. La guarda dejaba de guardar sin que nada lo
+  dijera. Es la misma familia que SYSD-1: el arnés dejó de reproducir la
+  condición real cuando la condición real cambió.
+
+Y una de la prueba en vivo: con el config del CLIENTE roto, `maly doctor` cae a
+los defaults, así que comparar su `music_dir` con el del servicio decía "el
+config cambió" cuando lo que pasa es que no se puede leer. La fila se omite en
+ese caso.
+
+### Lo que NO se hizo, a propósito
+
+- **Nada de Phase 3.** Sigue siendo explícitamente no obligatoria.
+- **`QueueGen` no se generalizó** a un mecanismo de generaciones para todo
+  `Status`: la cola es la única parte no acotada del Status (el resto son ~200
+  bytes), así que la abstracción no tendría un segundo usuario.
+- **No se añadió opt-in de protocolo** para la cola omitida. Se comprobó en el
+  código que los dos suscriptores existentes conservan su copia ante un push
+  sin `Queue`, así que un negociado habría sido superficie de protocolo para
+  cubrir un caso que no se rompe.
+- **La rama de relectura fallida de `reloadConfig` es hoy casi inalcanzable**
+  —todos los clientes que piden un scan cargan el config antes y fallan ellos
+  primero— y se conserva igual, anotada en el código para que nadie la borre:
+  es la única respuesta correcta a un config ilegible.
+
+---
+
 ## v1.17.0 (2026-09-06) — Phase 1 de la auditoría del 2026-09
 
 La **1.17.0** cierra la **Phase 1** completa (14 ítems) de la auditoría

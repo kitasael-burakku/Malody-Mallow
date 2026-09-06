@@ -12,7 +12,7 @@ prueba nada; solo documenta una intención.
 Los cambios de solo texto/i18n no llevan test dedicado — pero sí pasan por
 `internal/i18n/callsites_test.go`, que valida los sitios de llamada.
 
-## Las seis trampas del arnés
+## Las siete trampas del arnés
 
 ### 1. No compilar es señal DÉBIL
 
@@ -79,6 +79,20 @@ De la **1.16.2**: un `git checkout` usado para restaurar una reversión se
 llevó por delante el fix que ya estaba en el archivo. Mientras haya cambios
 sin commitear, el arnés de verificación se hace con `cp` de una copia.
 
+### 7. El arnés puede dejar de reproducir la condición cuando el CÓDIGO cambia
+
+No es que el arnés estuviera mal: es que era correcto y dejó de serlo, en
+silencio, porque lo que medía cambió de sitio. De la **1.18.0** (A-03):
+`newTestDaemon` apagaba `ScanDurations` en el struct que le pasa a `New`, y
+eso bastó durante años. Al hacer que el demonio RELEA el config, el que manda
+pasa a ser el ARCHIVO — y un sandbox sin `config.toml` recibe el template, que
+la trae activa. La guarda dejaba de guardar y nada lo decía. Es la misma
+familia que SYSD-1 (trampa 5) con la flecha al revés: allí el arnés nunca
+reprodujo la condición; aquí dejó de reproducirla.
+
+Corolario: al cambiar de dónde sale un dato, hay que revisar los arneses que
+lo fijaban por el camino viejo.
+
 ## Qué NO cazan las herramientas
 
 - **`go test -race` es CIEGO a un valor obsoleto cruzando entre dominios de
@@ -114,6 +128,23 @@ sin commitear, el arnés de verificación se hace con `cp` de una copia.
 - **Verificar en las dos direcciones incluye la variante equivocada.** De la
   **1.16.0**: la clave de comparación del marcador `✓` se verificó también CON
   el artista incluido, que es el error fácil.
+- **Un efecto legítimo del código puede tapar el que se quiere medir.** De la
+  **1.18.0** (A-05): un `add` sobre una cola vacía ARRANCA la reproducción, y
+  con la pista sonando `learnDuration` sube la generación de la cola por su
+  cuenta — con razón, la cola cambió de verdad. El test del relleno de
+  duraciones **pasaba sin el arreglo** hasta que se paró el player antes de
+  medir. Es la trampa 4 con otra ropa: la precondición estaba contaminada por
+  un camino correcto que nadie había mirado.
+- **El test que parece el natural para cazar un defecto puede ser
+  estructuralmente incapaz.** De la misma tanda: `TestScanFillsDurations`
+  comprueba justo las duraciones que A-05 podía perder, y no lo habría cazado
+  nunca — lee por el comando `queue`, que manda la cola SIEMPRE, mientras que
+  el defecto vivía en el push de suscripción. Antes de confiar en un test que
+  ya existe, hay que mirar por qué camino lee.
+- **Un test de PARIDAD pasa con los dos lados rotos por igual.** De **O-03**
+  (1.18.0): comparar la CLI contra la consola no basta; cada escenario tiene
+  que comprobar además lo que se espera de verdad, y eso se verifica rompiendo
+  los DOS lados a la vez y viendo que igual falla.
 - **Medir el alto de un panel no prueba nada: `panel()` trunca.** De **A-24**:
   el test del flash en `npView` medía que el alto no cambiara, y la versión
   ingenua —agregar una fila en vez de reusar la del hint— pasaba igual, porque

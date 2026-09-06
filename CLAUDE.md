@@ -99,15 +99,15 @@ archivo de la última columna, y es la fuente única.**
 | --- | --- | --- |
 | `cmd/maly` | La CLI. `commands.go` es la **tabla de comandos**: fuente única de dispatch, help y completions. `tui.go` decide en `startOrAttach` si embeber el demonio o entrar como cliente (ante `ErrAlreadyRunning` espera hasta 8 s, no se rinde). `runScan` manda la ruta ya RESUELTA. `get.go` es el wrapper de yt-dlp. `info` lista HECHOS y sale 0; `doctor` emite VEREDICTOS y sale 1 solo si algo impide reproducir; ninguno necesita demonio ni red. | `docs/architecture/cli.md` |
 | `internal/ipc` | Protocolo (Request/Response/Status/TrackInfo), cliente, y `display.go` con los helpers de presentación compartidos — no re-armar "Artista — Título" a mano. | `docs/architecture/daemon.md` |
-| `internal/daemon` | El **orden de arranque de `New` no es negociable** (`EnsureRuntimeDir` → `ipc.Ping` → **flock** → socket → biblioteca → player → sesión → MPRIS): solo CON el lock son seguras las dos operaciones destructivas. `serve → handle → dispatch`, dispatch bajo `d.mu`, con **tres excepciones** que resuelven fuera del lock (play/add/playnow, seek, scan). `advance` tiene DOS guardas contra una promesa obsoleta y no se solapan. | `docs/architecture/daemon.md` |
+| `internal/daemon` | El **orden de arranque de `New` no es negociable** (`EnsureRuntimeDir` → `ipc.Ping` → **flock** → socket → biblioteca → player → sesión → MPRIS): solo CON el lock son seguras las dos operaciones destructivas. `serve → handle → dispatch`, dispatch bajo `d.mu`, con **tres excepciones** que resuelven fuera del lock (play/add/playnow, seek, scan). `advance` tiene DOS guardas contra una promesa obsoleta y no se solapan. El push de suscripción se arma **por suscriptor** (`stateFor`) y lleva la cola SOLO si `queue.Gen()` cambió. `d.cfg` ya NO es inmutable: se relee en cada scan bajo `d.mu`. | `docs/architecture/daemon.md` |
 | `internal/player` | Wrapper de mpv. Gapless por ventana de dos entradas con `playlist-clear + append` (**NUNCA podar por índices**). Callbacks **siempre async con `go`** — en línea deadlockean readLoop —, y por eso `loadGen` se valida en DOS puntos. | `docs/architecture/playback.md` |
-| `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. | `docs/architecture/playback.md` |
-| `internal/library` | SQLite (modernc, sin CGo, `SetMaxOpenConns(1)`, WAL). Scan por **LOTES de 500**, nunca una transacción única. La purga tiene una **GUARDA**: un walk sin ni un archivo de audio no borra nada (`*ScanEmpty`) — era la única pérdida de datos irreversible del proyecto. `scanTrack` es el punto único de salida. | `docs/architecture/library.md` |
+| `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. `gen` sube SOLO con lo que altera `Items` (Add/Replace/Clear/RemoveAt/Move) más `Touch()`, que usa el demonio para las duraciones que escribe en sitio. | `docs/architecture/playback.md` |
+| `internal/library` | SQLite (modernc, sin CGo, `SetMaxOpenConns(1)`, WAL). Scan por **LOTES de 500**, nunca una transacción única. La purga tiene una **GUARDA**: un walk sin ni un archivo de audio no borra nada (`*ScanEmpty`) — era la única pérdida de datos irreversible del proyecto. `scanTrack` es el punto único de salida. **`Create` crea, `Open` NO** (devuelve `fs.ErrNotExist` envuelto): consultar la biblioteca no puede fabricarla. | `docs/architecture/library.md` |
 | `internal/probe` | ffprobe para las duraciones. A diferencia de `getter.Tools`, **la ausencia NO es error**: se salta la fase en silencio. Se INYECTA en `FillDurations` (library no lo importa). | `docs/architecture/library.md` |
 | `internal/mpris` | MPRIS2 (godbus). `props.go` es una implementación **PROPIA** de Properties — no volver a `godbus/prop`. Caché de carátulas acotado a 32 MB con evicción FIFO (el runtime dir es tmpfs). | `docs/architecture/mpris-media.md` |
 | `internal/media` | Extracción compartida de lo embebido (carátula, letras USLT, `.lrc`, escalado). Lo consumen mpris y la TUI. | `docs/architecture/mpris-media.md` |
 | `internal/safetext` | `Clean` descarta los caracteres de control del texto que maly NO controla. **Es un requisito de seguridad, no cosmética**: el recorte de la TUI es ANSI-aware y conserva los escapes. Filtra RUNAS, no bytes. | `docs/architecture/mpris-media.md` |
-| `internal/tui` | Bubble Tea, estado por **suscripción push**. **Todo el reparto de pantalla vive en `computeLayout`, función PURA** — innegociable. `panel()` rellena pero **NO acorta**: cada llamador es responsable de su ancho. `case libraryMsg` es el punto único de refresco. Los relojes de animación se autocancelan. | `docs/architecture/tui.md` |
+| `internal/tui` | Bubble Tea, estado por **suscripción push**. **Todo el reparto de pantalla vive en `computeLayout`, función PURA** — innegociable. `panel()` rellena pero **NO acorta**: cada llamador es responsable de su ancho. `case libraryMsg` es el punto único de refresco. El estado modal es **un** enum (`activeOverlay()`), no banderas sueltas; `showHelp` va aparte porque se dibuja ENCIMA. Los relojes de animación se autocancelan. | `docs/architecture/tui.md` |
 | `internal/i18n` | `T/Tf` (idioma global) y `TL/TLf` (por petición). `callsites_test.go` valida los sitios de llamada parseando el árbol con `go/ast`. | `docs/architecture/soporte.md` |
 | `internal/update` | Chequeo de releases con `git ls-remote --tags`, cache 24 h. Nada de HTTP propio. | `docs/architecture/soporte.md` |
 | `internal/config` | Mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del usuario, vía un defer con retorno con nombre — **mantener ese orden**. `ScanTarget`/`ScanNoExistErr` son el punto único de la ruta de scan. | [Invariantes](#invariantes-transversales) |
@@ -116,7 +116,7 @@ archivo de la última columna, y es la fuente única.**
 
 ## Invariantes transversales
 
-Estos siete no se negocian y no viven en ningún otro archivo: esta sección es
+Estos ocho no se negocian y no viven en ningún otro archivo: esta sección es
 su fuente única.
 
 - **maly NUNCA abre una conexión a internet por su cuenta.** Verificado sobre
@@ -174,6 +174,14 @@ su fuente única.
   recortan); se rechazan igual porque la barrera se escribe "no finito".
 - El demonio adjunta `Response.Version` en toda respuesta; CLI y TUI avisan si
   difiere del binario.
+- **El demonio relee el config en cada scan** (`reloadConfig`, A-03), así que
+  `daemon.New(cfg)` recibe el config INICIAL y no el definitivo: a partir del
+  primer escaneo manda el archivo. Un test que quiera fijar una clave tiene que
+  escribirla en el `config.toml` del sandbox, no solo en el struct. Si la
+  relectura falla se conserva el anterior y se anota el error, que expone la op
+  de solo lectura `config` y mira `maly doctor`. Releer le quitó a `d.cfg` la
+  inmutabilidad de la que dependía leerlo sin lock: ahora se escribe bajo
+  `d.mu` y el scan trabaja con una copia local.
 - `config.Load()` mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del
   usuario, vía un defer con retorno con nombre — mantener ese orden si se toca.
   `ScanTarget` resuelve el directorio a escanear (query explícita o music_dir
@@ -218,7 +226,7 @@ tomadas.
 
 ## Estado actual
 
-**v1.17.0** (`internal/version/version.go`). Ojo con los tags: la **1.16.4 se
+**v1.18.0** (`internal/version/version.go`). Ojo con los tags: la **1.16.4 se
 dejó sin tag A PROPÓSITO** (decisión del dueño) — fue un puente a la 1.17.0,
 que salió el día siguiente con la Phase 1 entera. Tiene su commit de bump y su
 entrada de CHANGELOG, pero no existe `v1.16.4` y por tanto nunca se
@@ -228,26 +236,29 @@ cuando una versión se queda por el camino: no se borra su entrada, se anota
 dónde acabó saliendo. Comprobar con `git tag` antes de asumir que una versión
 salió.
 
-En curso: la **auditoría técnica y arquitectónica del 2026-09** sobre la 1.16.3
-(35 hallazgos: 1 CRITICAL, 5 HIGH, 11 MEDIUM, 11 LOW, 8 oportunidades; informe
+La **auditoría técnica y arquitectónica del 2026-09** sobre la 1.16.3 (35
+hallazgos: 1 CRITICAL, 5 HIGH, 11 MEDIUM, 11 LOW, 8 oportunidades; informe
 aparte en `~/Audits/MalyAu/`, con una sección KEEP de 48 puntos y una
-*Explicitly Don't Do* de 18).
+*Explicitly Don't Do* de 18) está aplicada hasta la Phase 2:
 
 - **Phase 0** — cerrada en la 1.16.4: A-01 (un scan vacío ya no purga la
   biblioteca ni vacía las playlists), A-02 (la TUI espera al demonio que
   arranca en vez de negarse), A-03 (`maly scan` manda la ruta ya resuelta).
   Desarrollo en `docs/history/roadmap-1.14-1.16.md`.
-- **Phase 1** — cerrada COMPLETA (14/14) en la 1.17.0. Desarrollo en
-  `docs/history/roadmap-1.17.md`. Lo que conviene llevarse de ahí, más allá de
-  los arreglos: **cuatro afirmaciones del informe no sobrevivieron al contacto
-  con el código** (A-06, A-25 y A-13 daban por resuelto algo que no lo estaba;
-  A-15 proponía una receta insuficiente), y las cuatro se descubrieron por
-  reproducir la premisa en vez de transcribirla. Un informe se cita, no se
-  obedece.
-- **Phases 2 y 3** — pendientes, en el informe. La mitad estructural de A-03
-  (que el demonio relea el config) es Phase 2, y el orden importa: **O-05.2**
-  (`BenchmarkState` por tamaño de cola) va ANTES de **A-05/O-01**
-  (`Status.QueueGen`).
+- **Phase 1** — cerrada COMPLETA (14/14) en la 1.17.0.
+- **Phase 2** — cerrada COMPLETA (8/8) en la 1.18.0. Desarrollo de las dos en
+  `docs/history/roadmap-1.17.md`.
+- **Phase 3** — pendiente y **explícitamente no obligatoria** (12
+  oportunidades, ninguna resuelve un problema que alguien sufra hoy).
+
+Lo que hay que llevarse de las dos fases aplicadas, más allá de los arreglos:
+**ocho afirmaciones del informe no sobrevivieron al contacto con el código**
+—cuatro en cada fase— y las ocho se descubrieron por reproducir la premisa en
+vez de transcribirla. **Un informe se cita, no se obedece.** Ejemplos: A-05
+daba una lista de mutadores mal por los dos lados (sobraban cuatro, faltaban
+dos que habrían dejado las duraciones en cero para siempre); A-10 contaba tres
+listas de modales y son cuatro; A-03 describía un problema de `music_dir` que
+la 1.16.4 ya había cerrado.
 
 La lista de candidatos post-1.0 está **cerrada**
 (`docs/history/candidatos-post-1.0.md`): conserva las mediciones que refutaron

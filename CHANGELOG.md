@@ -7,6 +7,44 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.18.0 — 2026-09-06
+
+Los ocho ítems de la Phase 2 de la misma auditoría. Esta tanda es sobre todo
+estructura: casi nada de lo que cambia se ve, y lo poco que se ve, se nota.
+
+Lo que sí se nota es el consumo. Mientras suena música, maly le manda a cada
+ventana abierta una foto del estado cuatro veces por segundo, y esa foto
+incluía **la cola entera** aunque la cola no hubiera cambiado. Con mil pistas
+encoladas eran cuatro megas cada diez segundos, por ventana, para mandar
+siempre lo mismo. Ahora la cola solo viaja cuando cambia de verdad: medido en
+el mismo equipo y con la misma cola, de 4,28 MB a 0,11 MB en diez segundos. En
+un portátil eso es batería.
+
+El servicio también relee tu configuración al escanear, en vez de quedarse
+para siempre con la que leyó al arrancar — que con el servicio activado
+pueden ser semanas. Cambiar `music_dir` o `scan_durations` ya no exige
+reiniciarlo, y `maly doctor` tiene una fila nueva que te dice si el servicio
+está usando el mismo config que tú.
+
+Un cambio de comportamiento pequeño y a propósito: los comandos que solo
+CONSULTAN la biblioteca ya no la crean. `maly playlist list` sobre una
+instalación recién hecha dejaba un archivo de biblioteca vacío en el disco
+solo por preguntar; ahora te dice que todavía no hay biblioteca y que
+escanees. Los comandos que sí escriben (crear una playlist, importar un m3u)
+la siguen creando cuando hace falta.
+
+Por dentro, tres piezas que existían dos veces pasan a existir una: las
+decisiones de `maly get playlist`, que la CLI y la paleta de comandos
+reimplementaban cada una por su lado y ya habían divergido; las cinco maneras
+distintas de "abrir la biblioteca solo si existe"; y las cuatro listas de
+ventanas modales de la interfaz que había que mantener sincronizadas a mano
+—dos de ellas se olvidaban del buscador de descargas, y por eso con `ctrl+g`
+abierto maly seguía decodificando carátulas y animando un banner que nadie
+estaba viendo—. Y hay una red de tests nueva que compara el COMPORTAMIENTO de
+la CLI contra el de la paleta, no solo sus nombres de comando: es la que
+faltaba para que un arreglo no vuelva a aplicarse en una sola mitad de la
+aplicación.
+
 ## v1.17.0 — 2026-09-06
 
 Catorce arreglos de la misma auditoría que dio la 1.16.4, en su mayoría cosas

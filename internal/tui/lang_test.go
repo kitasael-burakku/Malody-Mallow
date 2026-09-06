@@ -22,12 +22,12 @@ func TestLangEscChoosesActiveLanguage(t *testing.T) {
 	m := &Model{
 		st:          newStyles(config.Theme{}),
 		cfg:         config.Config{Language: ""},
-		langOpen:    true,
+		overlay:     ovLang,
 		filterInput: textinput.New(),
 	}
 
 	_, cmd := m.handleLangKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if m.langOpen {
+	if m.overlay == ovLang {
 		t.Error("esc debía cerrar el selector de idioma")
 	}
 	if m.cfg.Language != "en" {

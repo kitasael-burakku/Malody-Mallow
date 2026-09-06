@@ -54,7 +54,7 @@ func (m *Model) currentTrackPath() string {
 // openNowPlaying abre la capa y dispara la carga si la pista actual no es la
 // que está cacheada (npLoading evita duplicar cargas en vuelo).
 func (m *Model) openNowPlaying() tea.Cmd {
-	m.npOpen = true
+	m.overlay = ovNow
 	m.invalidateArt() // la columna y la capa no comparten render (ni id en kitty)
 	if p := m.currentTrackPath(); p != "" && p != m.npTrack && p != m.npLoading {
 		m.npLoading = p
@@ -74,7 +74,7 @@ func (m *Model) handleNowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	if msg.String() == "esc" || m.is("now_playing", msg) || m.is("quit", msg) {
-		m.npOpen = false
+		m.overlay = ovNone
 		m.invalidateArt()
 		return m, nil
 	}

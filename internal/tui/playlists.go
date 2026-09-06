@@ -44,7 +44,7 @@ type plActMsg struct {
 }
 
 func (m *Model) openPlaylists(mode plMode, pending []int64) tea.Cmd {
-	m.plOpen = true
+	m.overlay = ovPlaylists
 	m.plMode = mode
 	m.plPending = pending
 	m.pl = newPicker(m.st, i18n.T("plsel.ph"))
@@ -108,14 +108,14 @@ func (m *Model) handlePlaylistsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.String() {
 	case "esc", m.keys["playlists"]:
-		m.plOpen = false
+		m.overlay = ovNone
 		return m, nil
 	case "enter":
 		it, ok := m.pl.current()
 		if !ok {
 			return m, nil
 		}
-		m.plOpen = false
+		m.overlay = ovNone
 		if m.plMode == plTarget {
 			return m, plAddCmd(it.value, m.plPending, false)
 		}
@@ -135,7 +135,7 @@ func (m *Model) handlePlaylistsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.plMode == plTarget {
-			m.plOpen = false
+			m.overlay = ovNone
 			return m, plAddCmd(name, m.plPending, true)
 		}
 		m.pl.input.SetValue("")

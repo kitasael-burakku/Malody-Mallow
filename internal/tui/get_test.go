@@ -218,17 +218,17 @@ func key(s string) tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []r
 func TestGetModalAbreYCierra(t *testing.T) {
 	m := newGetModel()
 	m.handleKey(tea.KeyMsg{Type: tea.KeyCtrlG})
-	if !m.getOpen {
+	if m.overlay != ovGet {
 		t.Fatal("ctrl+g debía abrir el buscador de descargas")
 	}
 	m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
-	if m.getOpen {
+	if m.overlay == ovGet {
 		t.Error("esc debía cerrarlo")
 	}
 
 	m.handleKey(tea.KeyMsg{Type: tea.KeyCtrlG})
 	m.handleKey(tea.KeyMsg{Type: tea.KeyCtrlG})
-	if m.getOpen {
+	if m.overlay == ovGet {
 		t.Error("la propia tecla debía cerrarlo estando abierto")
 	}
 }
@@ -240,7 +240,7 @@ func TestGetModalCierraAyuda(t *testing.T) {
 	m := newGetModel()
 	m.showHelp = true
 	m.handleKey(tea.KeyMsg{Type: tea.KeyCtrlG})
-	if !m.getOpen {
+	if m.overlay != ovGet {
 		t.Fatal("ctrl+g debía abrir el buscador")
 	}
 	if m.showHelp {
@@ -360,7 +360,7 @@ func TestGetEnterBuscaCuandoElTextoCambio(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("enter con el texto cambiado debía buscar de nuevo")
 	}
-	if !m.getOpen {
+	if m.overlay != ovGet {
 		t.Error("buscar de nuevo no debe cerrar la pantalla (descargar sí)")
 	}
 	if m.getPhase != getSearching {
@@ -382,7 +382,7 @@ func TestGetDescargaCierraYUsaStartGet(t *testing.T) {
 	if _, cmd := m.handleGetKey(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
 		t.Error("sin herramientas no debía lanzarse ninguna descarga")
 	}
-	if !m.getOpen {
+	if m.overlay != ovGet {
 		t.Error("un fallo de arranque no debe cerrar la pantalla")
 	}
 	if m.getPhase != getFailed || m.getErr == "" {
@@ -399,7 +399,7 @@ func TestGetDescargaCierraYUsaStartGet(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("con herramientas debía devolver el comando de descarga")
 	}
-	if m2.getOpen {
+	if m2.overlay == ovGet {
 		t.Error("descargar debe cerrar la pantalla y ceder el terminal a yt-dlp")
 	}
 }

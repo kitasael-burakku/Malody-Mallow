@@ -81,8 +81,11 @@ func (m *Model) npColumn(w, h int) string {
 // npColumnVisible: la columna se está dibujando ahora mismo. Decide si hace
 // falta cargar carátula y letras aunque la capa ctrl+t esté cerrada.
 func (m *Model) npColumnVisible() bool {
-	return !m.langOpen && !m.showHelp && !m.consoleOpen && !m.songsOpen &&
-		!m.plOpen && !m.npOpen && !m.splashOn() &&
+	// Una sola pregunta en vez de enumerar las capas a mano: esta lista se
+	// olvidaba de getOpen, así que con ctrl+g abierto la TUI seguía cargando y
+	// decodificando carátulas para una columna que no se estaba dibujando
+	// (A-10).
+	return m.activeOverlay() == ovNone && !m.showHelp &&
 		m.width >= minWidth && m.height >= minHeight &&
 		m.layoutOf().mode == layoutFull
 }

@@ -54,28 +54,27 @@ func (m *Model) View() string {
 	if m.width < minWidth || m.height < minHeight {
 		return m.st.dim.Render(i18n.Tf("tui.too_small", minWidth, minHeight))
 	}
-	if m.langOpen {
+	// El selector de idioma va ANTES que la ayuda: es el primer arranque y no
+	// hay nada más que hacer hasta elegir. El resto va después, porque la
+	// ayuda se dibuja ENCIMA de ellas (ver el comentario de handleKey).
+	if m.activeOverlay() == ovLang {
 		return m.langView()
 	}
 	if m.showHelp {
 		return m.helpView()
 	}
-	if m.consoleOpen {
+	switch m.activeOverlay() {
+	case ovConsole:
 		return m.consoleView()
-	}
-	if m.songsOpen {
+	case ovSongs:
 		return m.songsView()
-	}
-	if m.plOpen {
+	case ovPlaylists:
 		return m.plView()
-	}
-	if m.getOpen {
+	case ovGet:
 		return m.getView()
-	}
-	if m.npOpen {
+	case ovNow:
 		return m.npView()
-	}
-	if m.splashOn() {
+	case ovSplash:
 		return m.splashView()
 	}
 

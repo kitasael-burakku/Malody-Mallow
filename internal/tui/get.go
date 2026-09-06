@@ -76,7 +76,7 @@ func getSpinCmd() tea.Cmd {
 }
 
 func (m *Model) openGet() tea.Cmd {
-	m.getOpen = true
+	m.overlay = ovGet
 	m.get = newPicker(m.st, i18n.T("get.ph"))
 	m.get.noFilter = true
 	m.getPhase = getIdle
@@ -145,7 +145,7 @@ func (m *Model) stopGetSearchOnExit() {
 }
 
 func (m *Model) closeGet() {
-	m.getOpen = false
+	m.overlay = ovNone
 	m.abortGetSearch()
 }
 
@@ -203,7 +203,7 @@ func (m *Model) runGetSearch() tea.Cmd {
 // pueden resolver en orden inverso, y sin él la respuesta vieja pisaría a la
 // nueva (mismo patrón que loadGen en internal/player).
 func (m *Model) applyGetResults(msg getResultsMsg) (tea.Model, tea.Cmd) {
-	if !m.getOpen || msg.gen != m.getGen {
+	if m.overlay != ovGet || msg.gen != m.getGen {
 		return m, nil
 	}
 	if msg.err != nil {
@@ -237,7 +237,7 @@ func (m *Model) ownedSet() map[string]bool {
 }
 
 func (m *Model) tickGetSpin() (tea.Model, tea.Cmd) {
-	if !m.getOpen || m.getPhase != getSearching {
+	if m.overlay != ovGet || m.getPhase != getSearching {
 		return m, nil // el reloj muere solo al dejar de buscar
 	}
 	m.getSpin++

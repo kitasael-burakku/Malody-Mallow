@@ -57,7 +57,7 @@ func (m *Model) chooseLang(code string) tea.Cmd {
 	i18n.Set(code)
 	m.cfg.Language = code
 	m.filterInput.Placeholder = i18n.T("tui.filter_ph")
-	m.langOpen = false
+	m.overlay = ovNone
 	if err := config.SaveLanguage(code); err != nil {
 		m.setFlash(err.Error(), true)
 	}

@@ -461,3 +461,52 @@ func TestNpColumnAprovechaElAncho(t *testing.T) {
 		t.Errorf("carátula de %dx%d: dejó de ser cuadrada", m.colArtW, m.colArtH)
 	}
 }
+
+// TestNingunaCapaDejaVivosColumnaNiBanner cubre A-10 por TABLA sobre el enum,
+// y no capa por capa a mano: el defecto que activeOverlay() cierra es
+// justamente que había cuatro listas enumeradas a mano y dos se olvidaban de
+// getOpen — con ctrl+g abierto la TUI seguía cargando y decodificando
+// carátulas para una columna que no se dibujaba, y animando la onda de un
+// banner invisible.
+//
+// Iterar hasta ovCount hace que una capa nueva quede cubierta sola. Escribir
+// aquí una quinta lista a mano habría sido repetir el error.
+func TestNingunaCapaDejaVivosColumnaNiBanner(t *testing.T) {
+	nombre := map[overlay]string{
+		ovLang: "idioma", ovConsole: "consola (ctrl+p)", ovSongs: "canciones (ctrl+o)",
+		ovPlaylists: "playlists (ctrl+l)", ovGet: "descargas (ctrl+g)",
+		ovNow: "ahora suena (ctrl+t)", ovSplash: "splash",
+	}
+	for ov := ovLang; ov < ovCount; ov++ {
+		m := newLayoutTestModel(160, 42)
+		m.cfg.Theme.Banner = config.BannerTitlebar
+		m.overlay = ov
+		if m.npColumnVisible() {
+			t.Errorf("con la capa %s abierta la columna Now Playing no se dibuja: no hay que cargar su carátula", nombre[ov])
+		}
+		// El splash SÍ es banner en pantalla: es la única capa donde la onda
+		// del logo debe seguir animándose.
+		if quiere := ov == ovSplash; m.logoVisible() != quiere {
+			t.Errorf("con la capa %s abierta, logoVisible() = %v, quería %v", nombre[ov], !quiere, quiere)
+		}
+	}
+
+	// Y la ayuda, que no es un valor del enum porque se dibuja ENCIMA.
+	m := newLayoutTestModel(160, 42)
+	m.cfg.Theme.Banner = config.BannerTitlebar
+	m.showHelp = true
+	if m.npColumnVisible() || m.logoVisible() {
+		t.Error("con la ayuda encima no se dibujan ni la columna ni el banner")
+	}
+
+	// Control positivo: sin ninguna capa, las dos cosas SÍ están en pantalla.
+	// Sin esto, una implementación que devolviera false siempre pasaría.
+	limpio := newLayoutTestModel(160, 42)
+	limpio.cfg.Theme.Banner = config.BannerTitlebar
+	if !limpio.npColumnVisible() {
+		t.Error("sin ninguna capa la columna Now Playing se dibuja")
+	}
+	if !limpio.logoVisible() {
+		t.Error("sin ninguna capa el banner de la barra de título se dibuja")
+	}
+}

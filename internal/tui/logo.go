@@ -176,12 +176,16 @@ func (l *logoModel) titleLine(w int) string {
 // logoVisible: hay banner en pantalla (la barra de título o el splash) y su
 // onda debe seguir animándose. Sin banner el reloj no llega ni a armarse.
 func (m *Model) logoVisible() bool {
-	if m.width < minWidth || m.langOpen || m.showHelp || m.consoleOpen ||
-		m.songsOpen || m.plOpen || m.npOpen {
+	// Misma lista enumerada a mano que npColumnVisible, y con el mismo olvido:
+	// sin esto, con ctrl+g abierto seguía animándose la onda de un banner que
+	// no está en pantalla (A-10). La ficha de la auditoría contaba tres
+	// listas; esta era la cuarta.
+	if m.width < minWidth || m.showHelp {
 		return false
 	}
-	if m.splashOn() {
-		return true
+	if ov := m.activeOverlay(); ov != ovNone {
+		// El splash SÍ es banner en pantalla; cualquier otra capa lo tapa.
+		return ov == ovSplash
 	}
 	return m.cfg.Theme.Banner == config.BannerTitlebar &&
 		m.layoutOf().bannerH > 0

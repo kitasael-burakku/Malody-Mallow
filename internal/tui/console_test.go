@@ -410,12 +410,12 @@ func TestConUpdatePackaged(t *testing.T) {
 func TestConsoleSelect(t *testing.T) {
 	m := newConModel()
 	m.tree = buildTree(nil, nil)
-	m.consoleOpen = true
+	m.overlay = ovConsole
 	_, cmd := m.execConsole("select")
-	if m.consoleOpen {
+	if m.overlay == ovConsole {
 		t.Errorf("select debe cerrar la consola")
 	}
-	if !m.songsOpen || cmd == nil {
+	if m.overlay != ovSongs || cmd == nil {
 		t.Errorf("select debe abrir el picker de canciones")
 	}
 }

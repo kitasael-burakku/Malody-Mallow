@@ -127,7 +127,7 @@ func TestLibraryMsgRefreshesPlaylists(t *testing.T) {
 		{name: "ambient", tracks: tracks},
 		{name: "rock", tracks: tracks},
 	}
-	m := &Model{plOpen: true, pl: newPicker(styles{}, "")}
+	m := &Model{overlay: ovPlaylists, pl: newPicker(styles{}, "")}
 	m.pl.setItems(plItems(lists))
 	m.pl.cursor = 1 // rock
 
@@ -190,10 +190,10 @@ func TestHelpNoTapaOtrosModales(t *testing.T) {
 		tecla  string
 		check  func(m *Model) bool
 	}{
-		{"ctrl+p abre consola", "ctrl+p", func(m *Model) bool { return m.consoleOpen }},
-		{"ctrl+o abre songs", "ctrl+o", func(m *Model) bool { return m.songsOpen }},
-		{"ctrl+l abre playlists", "ctrl+l", func(m *Model) bool { return m.plOpen }},
-		{"ctrl+t abre ahora-suena", "ctrl+t", func(m *Model) bool { return m.npOpen }},
+		{"ctrl+p abre consola", "ctrl+p", func(m *Model) bool { return m.overlay == ovConsole }},
+		{"ctrl+o abre songs", "ctrl+o", func(m *Model) bool { return m.overlay == ovSongs }},
+		{"ctrl+l abre playlists", "ctrl+l", func(m *Model) bool { return m.overlay == ovPlaylists }},
+		{"ctrl+t abre ahora-suena", "ctrl+t", func(m *Model) bool { return m.overlay == ovNow }},
 	}
 	for _, c := range casos {
 		t.Run(c.nombre, func(t *testing.T) {
@@ -231,7 +231,7 @@ func TestCtrlXPidenConfirmacion(t *testing.T) {
 	lib.Close()
 
 	newModelConPlaylist := func() *Model {
-		m := &Model{st: newStyles(config.Theme{}), keys: config.DefaultKeys(), plOpen: true, plMode: plBrowse}
+		m := &Model{st: newStyles(config.Theme{}), keys: config.DefaultKeys(), overlay: ovPlaylists, plMode: plBrowse}
 		m.pl = newPicker(m.st, "")
 		m.pl.setItems([]pickerItem{plItem("favs", 0)})
 		return m
@@ -628,14 +628,14 @@ func TestPanelTitleMuestraPosicion(t *testing.T) {
 // tecla siguiente la cierra sin cerrar la capa.
 func TestNowPlayingReenviaHelp(t *testing.T) {
 	m := newHelpTestModel(80, 24)
-	m.npOpen = true
+	m.overlay = ovNow
 
 	mm, _ := m.handleNowKey(keyMsgFor("?"))
 	m = mm.(*Model)
 	if !m.showHelp {
 		t.Fatal("? dentro de Ahora suena debía abrir la ayuda")
 	}
-	if !m.npOpen {
+	if m.overlay != ovNow {
 		t.Fatal("abrir la ayuda no debía cerrar la capa de Ahora suena")
 	}
 
@@ -645,7 +645,7 @@ func TestNowPlayingReenviaHelp(t *testing.T) {
 	if m.showHelp {
 		t.Fatal("esc con la ayuda abierta debía cerrarla")
 	}
-	if !m.npOpen {
+	if m.overlay != ovNow {
 		t.Fatal("cerrar la ayuda con esc no debía cerrar también la capa")
 	}
 }

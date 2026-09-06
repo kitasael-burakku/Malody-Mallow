@@ -87,7 +87,7 @@ const conMaxLines = 200
 const conHistMax = 50
 
 func (m *Model) openConsole() tea.Cmd {
-	m.consoleOpen = true
+	m.overlay = ovConsole
 	m.conInput = textinput.New()
 	m.conInput.Prompt = "❯ "
 	m.conInput.PromptStyle = m.st.accent
@@ -118,7 +118,7 @@ func (m *Model) conErr(text string) {
 func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", m.keys["palette"]:
-		m.consoleOpen = false
+		m.overlay = ovNone
 		return m, nil
 	case "enter":
 		line := strings.TrimSpace(m.conInput.Value())
@@ -348,7 +348,7 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		}
 		return m, m.conQuery(ipc.Request{Cmd: "search", Query: strings.Join(args, " ")}, searchLines)
 	case "select":
-		m.consoleOpen = false
+		m.overlay = ovNone
 		return m, m.openSongs()
 	case "playlist":
 		return m.conPlaylist(args)
@@ -813,8 +813,8 @@ func (m *Model) conLogo(args []string) (tea.Model, tea.Cmd) {
 // código lo fija en caliente (mismos pasos que handleLangKey).
 func (m *Model) conLang(args []string) (tea.Model, tea.Cmd) {
 	if len(args) == 0 {
-		m.consoleOpen = false
-		m.langOpen = true
+		m.overlay = ovNone
+		m.overlay = ovLang
 		return m, nil
 	}
 	code := args[0]

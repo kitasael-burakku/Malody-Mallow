@@ -90,6 +90,21 @@ type Model struct {
 	filterMode  bool
 	filterInput textinput.Model
 
+	// overlay es la capa modal abierta ahora mismo, si hay alguna. Era SIETE
+	// booleanos sueltos (langOpen, consoleOpen, songsOpen, plOpen, getOpen,
+	// npOpen, más el splash), y CUATRO funciones distintas tenían que
+	// enumerarlos todos en el orden correcto sin que nada obligara a que las
+	// cuatro listas coincidieran. Ya habían divergido: npColumnVisible y
+	// logoVisible se olvidaban las dos de getOpen, así que con el buscador de
+	// descargas abierto la TUI seguía cargando y decodificando carátulas para
+	// una columna que no se dibujaba, y animando la onda de un banner
+	// invisible (A-10; la ficha contaba tres listas, son cuatro).
+	//
+	// La ayuda NO es un valor más de este enum: se dibuja ENCIMA de otra capa
+	// (ver el orden de View y el comentario de handleKey), así que sigue
+	// siendo un campo aparte. Es la única que se superpone.
+	overlay overlay
+
 	showHelp   bool
 	helpScroll int // desplazamiento del contenido de la ayuda, clampado en helpView()
 	flash      string
@@ -110,13 +125,11 @@ type Model struct {
 	splash bool
 
 	// Selector inicial de idioma (solo si language = "" en el config).
-	langOpen   bool
 	langCursor int
 
 	// Paleta de comandos (ctrl+p): consola integrada.
-	consoleOpen bool
-	conInput    textinput.Model
-	conLines    []string
+	conInput textinput.Model
+	conLines []string
 	// Historial de comandos (↑/↓, T27 de la auditoría 2026-07-31): conHistIdx
 	// == len(conHistory) significa "línea nueva, no navegando"; conHistDraft
 	// guarda lo que se estaba escribiendo antes de la primera flecha arriba,
@@ -132,13 +145,11 @@ type Model struct {
 	conScroll int
 
 	// Selector de canciones (ctrl+o): picker fuzzy genérico.
-	songsOpen bool
-	songs     *picker
+	songs *picker
 
 	// Buscador de descargas (ctrl+g): picker sobre resultados remotos de
 	// yt-dlp (ver get.go). getGen descarta respuestas pisadas por una
 	// búsqueda posterior o por el cierre; getCancel mata el proceso en vuelo.
-	getOpen    bool
 	get        *picker
 	getPhase   getPhase
 	getResults []getter.Result
@@ -153,7 +164,6 @@ type Model struct {
 	getCancel context.CancelFunc
 
 	// Panel de playlists (ctrl+l): picker fuzzy con dos modos.
-	plOpen    bool
 	pl        *picker
 	plMode    plMode
 	plPending []int64 // ids a agregar en modo destino
@@ -173,7 +183,6 @@ type Model struct {
 	conPlConfirm string
 
 	// Capa "Ahora suena" (ctrl+t): pantalla completa con carátula y letras.
-	npOpen         bool
 	npTrack        string      // pista cuyos datos están cargados
 	npLoading      string      // pista con carga en vuelo ("" = ninguna)
 	npImg          image.Image // carátula decodificada (nil = sin carátula)
@@ -235,7 +244,7 @@ func Run(cfg config.Config, embedded bool) error {
 		tree:        buildTree(nil, nil),
 		filterInput: ti,
 		vizOn:       cfg.Visualizer.Enabled,
-		langOpen:    cfg.Language == "",
+		overlay:     langOverlayIf(cfg.Language == ""),
 		logo:        newLogo(cfg.Theme.Logo, cfg.Theme.LogoArt),
 		splash:      cfg.Theme.Banner == config.BannerSplash,
 		cover:       pickCoverRenderer(),
@@ -547,7 +556,7 @@ func (m *Model) applyStatus(resp ipc.Response) tea.Cmd {
 	// Carátula y letras se recargan al cambiar la pista, tanto para la capa
 	// ctrl+t como para la columna del layout de tres columnas (que muestra
 	// la carátula sin que nadie abra nada).
-	if m.npOpen || m.npColumnVisible() {
+	if m.overlay == ovNow || m.npColumnVisible() {
 		if p := m.currentTrackPath(); p != "" && p != m.npTrack && p != m.npLoading {
 			m.npLoading = p
 			cmds = append(cmds, loadNowMeta(p))
@@ -665,10 +674,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.tree = buildTree(msg.tracks, msg.lists)
 		m.tree.restore(st, m.libPageH())
-		if m.songsOpen {
+		if m.overlay == ovSongs {
 			m.songs.setItemsKeeping(songItems(m.tree.all))
 		}
-		if m.plOpen {
+		if m.overlay == ovPlaylists {
 			m.pl.setItemsKeeping(plItems(msg.lists))
 		}
 		if len(msg.tracks) == 0 {
@@ -809,7 +818,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setFlash(msg.err.Error(), true)
 			return m, nil
 		}
-		if m.plOpen {
+		if m.overlay == ovPlaylists {
 			m.pl.setItems(msg.items)
 		}
 		return m, nil
@@ -964,22 +973,21 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if m.langOpen {
+	// El splash no aparece acá a propósito: no captura teclas, cualquiera lo
+	// descarta (ver más abajo). Por eso se mira m.overlay y no
+	// activeOverlay().
+	switch m.overlay {
+	case ovLang:
 		return m.handleLangKey(msg)
-	}
-	if m.consoleOpen {
+	case ovConsole:
 		return m.handleConsoleKey(msg)
-	}
-	if m.songsOpen {
+	case ovSongs:
 		return m.handleSongsKey(msg)
-	}
-	if m.plOpen {
+	case ovPlaylists:
 		return m.handlePlaylistsKey(msg)
-	}
-	if m.getOpen {
+	case ovGet:
 		return m.handleGetKey(msg)
-	}
-	if m.npOpen {
+	case ovNow:
 		return m.handleNowKey(msg)
 	}
 	// La ayuda no es un modal más de la pila: View() la dibuja por encima de

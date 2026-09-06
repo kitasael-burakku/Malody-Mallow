@@ -29,7 +29,7 @@ func songItems(tracks []library.Track) []pickerItem {
 }
 
 func (m *Model) openSongs() tea.Cmd {
-	m.songsOpen = true
+	m.overlay = ovSongs
 	m.songs = newPicker(m.st, i18n.T("songs.ph"))
 	m.songs.setItems(songItems(m.tree.all))
 	return textinput.Blink
@@ -38,11 +38,11 @@ func (m *Model) openSongs() tea.Cmd {
 func (m *Model) handleSongsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", m.keys["songs"]:
-		m.songsOpen = false
+		m.overlay = ovNone
 		return m, nil
 	case "enter":
 		if it, ok := m.songs.current(); ok {
-			m.songsOpen = false
+			m.overlay = ovNone
 			return m, m.req(ipc.Request{Cmd: "playnow", Paths: []string{it.value}})
 		}
 		return m, nil

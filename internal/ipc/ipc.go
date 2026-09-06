@@ -114,6 +114,51 @@ type Client struct {
 // que motivó el tope: una conexión que nunca manda '\n' y nunca para.
 const maxRespLine = 64 << 20
 
+// MaxReqLine acota las PETICIONES que lee el demonio. Es el hermano de
+// maxRespLine y va aparte porque el tráfico es distinto en los dos sentidos,
+// pero 1 MiB —el valor con el que nació— se quedó corto para lo que el propio
+// protocolo permite: `add`/`playnow` mandan RUTAS EXACTAS en Request.Paths,
+// así que pulsar `a` sobre un nodo grande del árbol o `tab` sobre una playlist
+// grande genera un JSON proporcional al número de pistas, y con rutas de ~68
+// caracteres el techo caía en ~15.000 (A-06). 16 MiB da margen de sobra
+// (~230.000 rutas) sin dejar de acotar el caso que motiva el tope: una
+// conexión que nunca manda '\n' y nunca para.
+const MaxReqLine = 16 << 20
+
+// ErrLineTooLong marca que una línea superó el tope. Va por tipo y no por
+// texto para que el demonio pueda distinguirlo de un EOF y contestar en vez
+// de cerrar mudo (mismo criterio que ErrPlaylistNotFound en library).
+var ErrLineTooLong = errors.New("ipc: line too long")
+
+// ReadLine lee la siguiente línea de r (sin el '\n' final), acotada a max.
+//
+// Compartida por el cliente y por el demonio: los dos leen el mismo framing
+// —JSON por línea— y las dos distinciones que hace importan en ambos lados.
+// La primera es no usar bufio.Scanner (ver Dial). La segunda: un EOF con
+// datos pendientes sin '\n' —el otro extremo murió o cerró a mitad de un
+// Write— es un ERROR y no una línea válida, a diferencia de un Scanner con el
+// split por defecto, que entrega ese resto como token bueno.
+func ReadLine(r *bufio.Reader, max int) ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.ReadSlice('\n')
+		line = append(line, chunk...)
+		if len(line) > max {
+			return nil, fmt.Errorf("%w (%d bytes)", ErrLineTooLong, max)
+		}
+		if err == nil {
+			break
+		}
+		if err == bufio.ErrBufferFull {
+			continue // sigue sin encontrar '\n': seguir acumulando
+		}
+		return nil, err // EOF (con o sin datos pendientes) u otro error real
+	}
+	line = bytes.TrimSuffix(line, []byte("\n"))
+	line = bytes.TrimSuffix(line, []byte("\r"))
+	return line, nil
+}
+
 // Dial conecta con el socket del demonio.
 func Dial(socket string) (*Client, error) {
 	conn, err := net.DialTimeout("unix", socket, time.Second)
@@ -134,32 +179,11 @@ func Dial(socket string) (*Client, error) {
 	return &Client{conn: conn, r: bufio.NewReaderSize(conn, 4096)}, nil
 }
 
-// readLine lee la siguiente línea de la conexión (sin el '\n' final),
-// acotada a maxRespLine. Un EOF con datos pendientes sin '\n' —el demonio
-// murió o el socket se cerró a mitad de un Write— es un error, no una línea
-// válida: mismo criterio que el bufio.Reader.ReadBytes('\n') de antes de
-// SEC-01 (a diferencia de un bufio.Scanner con el split por defecto, que
-// entrega ese resto como token bueno al llegar a EOF). Compartida por Do y
-// Next para no duplicar ninguna de las dos distinciones.
+// readLine lee la siguiente RESPUESTA, acotada a maxRespLine. El cuerpo vive
+// en ReadLine, compartido con el demonio desde A-06; acá queda solo el tope,
+// que es lo único distinto entre los dos sentidos.
 func (c *Client) readLine() ([]byte, error) {
-	var line []byte
-	for {
-		chunk, err := c.r.ReadSlice('\n')
-		line = append(line, chunk...)
-		if len(line) > maxRespLine {
-			return nil, fmt.Errorf("ipc: response line exceeds %d bytes", maxRespLine)
-		}
-		if err == nil {
-			break
-		}
-		if err == bufio.ErrBufferFull {
-			continue // sigue sin encontrar '\n': seguir acumulando
-		}
-		return nil, err // EOF (con o sin datos pendientes) u otro error real
-	}
-	line = bytes.TrimSuffix(line, []byte("\n"))
-	line = bytes.TrimSuffix(line, []byte("\r"))
-	return line, nil
+	return ReadLine(c.r, maxRespLine)
 }
 
 // Ping devuelve true si hay un demonio respondiendo en socket. Timeout
@@ -193,6 +217,21 @@ func (c *Client) Do(req Request) (Response, error) {
 	}
 	c.conn.SetDeadline(time.Now().Add(timeout))
 	if _, err := c.conn.Write(append(data, '\n')); err != nil {
+		// Un fallo de ESCRITURA puede traer respuesta igual, y hay un caso
+		// real: una petición pasada del tope del demonio, que deja de leer,
+		// contesta d.req_too_large y cierra — el cliente ve EPIPE a mitad del
+		// Write. Sin este intento, ese mensaje explicado no lo lee NADIE
+		// desde maly (medido: llegaba al socket y Do volvía antes con el
+		// error de I/O crudo), que es justo el diagnóstico que A-06 quería
+		// dar. Si no hay nada que leer, vale el error de escritura.
+		if r, rerr := c.readLine(); rerr == nil {
+			var late Response
+			if json.Unmarshal(r, &late) == nil && late.Error != "" {
+				late.Error = safetext.Clean(late.Error)
+				late.Msg = safetext.Clean(late.Msg)
+				return late, nil
+			}
+		}
 		return resp, fmt.Errorf("%s: %w", i18n.T("ipc.send"), err)
 	}
 	line, err := c.readLine()

@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
@@ -1482,5 +1484,146 @@ func TestShutdownOp(t *testing.T) {
 	}
 	if _, err := os.Stat(config.SocketPath()); !os.IsNotExist(err) {
 		t.Fatalf("el socket sigue en el runtime dir (err=%v)", err)
+	}
+}
+
+// --- A-06: una petición grande ya no se pierde en silencio -----------------
+
+// bigRequest arma una petición `ping` con relleno en Paths hasta pasar de n
+// bytes. `ping` ignora Paths, así que lo que se ejercita es el FRAMING: el
+// tamaño de la línea, que es lo que rompía.
+func bigRequest(t *testing.T, n int) []byte {
+	t.Helper()
+	req := ipc.Request{Cmd: "ping"}
+	// Rutas del largo típico que menciona el hallazgo (~68 caracteres).
+	ruta := "/home/usuario/Música/Artista/Album (Remastered 2011)/01 - Cancion.mp3"
+	for i := 0; len(req.Paths)*len(ruta) < n; i++ {
+		req.Paths = append(req.Paths, ruta)
+	}
+	line, err := json.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return append(line, '\n')
+}
+
+// TestServeNoPierdePeticionGrande cubre A-06: el bucle de serve usaba un
+// bufio.Scanner con tope de 1 MiB, y una petición más larga hacía que Scan()
+// devolviera false, serve retornara y el defer cerrara la conexión SIN
+// RESPONDER NADA. Es alcanzable desde la UI —`add`/`playnow` mandan rutas
+// exactas, así que un nodo grande del árbol genera un JSON proporcional al
+// número de pistas— así que la acción se perdía sin que nadie se enterara.
+func TestServeNoPierdePeticionGrande(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	conn, err := net.Dial("unix", config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	// Bien por encima del tope viejo (1 MiB) y bien por debajo del nuevo.
+	line := bigRequest(t, 4<<20)
+	if _, err := conn.Write(line); err != nil {
+		t.Fatalf("escribiendo %d bytes: %v", len(line), err)
+	}
+
+	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	resp, err := bufio.NewReaderSize(conn, 4096).ReadBytes('\n')
+	if err != nil {
+		t.Fatalf("una petición de %d bytes se perdió sin respuesta: %v", len(line), err)
+	}
+	var r ipc.Response
+	if err := json.Unmarshal(resp, &r); err != nil {
+		t.Fatal(err)
+	}
+	if !r.OK {
+		t.Errorf("la petición grande debía atenderse, respondió %q", r.Error)
+	}
+}
+
+// TestServeRechazaPeticionEnormeConMensaje: pasado el tope nuevo, el demonio
+// CONTESTA en vez de cerrar mudo. Es la mitad que convierte "no pasó nada" en
+// un diagnóstico.
+func TestServeRechazaPeticionEnormeConMensaje(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	conn, err := net.Dial("unix", config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	// La respuesta se lee en una goroutine porque el Write de una petición
+	// que supera el tope puede bloquearse o fallar con EPIPE: el demonio deja
+	// de leer en cuanto decide rechazarla. Lo que se comprueba es que el
+	// mensaje SALE, no que el cliente logre terminar de escribir.
+	tipo := make(chan ipc.Response, 1)
+	go func() {
+		conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+		resp, err := bufio.NewReaderSize(conn, 4096).ReadBytes('\n')
+		if err != nil {
+			close(tipo)
+			return
+		}
+		var r ipc.Response
+		json.Unmarshal(resp, &r)
+		tipo <- r
+	}()
+
+	line := bigRequest(t, ipc.MaxReqLine+(1<<20))
+	conn.Write(line) // el error se ignora a propósito (ver arriba)
+
+	select {
+	case r, ok := <-tipo:
+		if !ok {
+			t.Fatal("el demonio cerró sin responder: la petición se pierde en silencio")
+		}
+		if r.OK || r.Error == "" {
+			t.Fatalf("esperaba un error explicado, salió %+v", r)
+		}
+		if !strings.Contains(r.Error, i18n.T("d.req_too_large")) {
+			t.Errorf("el error debía ser el de petición demasiado grande, salió %q", r.Error)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("el demonio no respondió nada a una petición fuera de tope")
+	}
+}
+
+// TestClienteVePeticionDemasiadoGrande cierra la mitad que faltaba de A-06:
+// que el mensaje del demonio llegue al USUARIO. El hallazgo daba por hecho
+// que "el cliente ya sabe imprimir Response.Error", y no era así — con una
+// petición pasada de tope el demonio deja de leer, así que el cliente ve
+// EPIPE a mitad de su Write y Do volvía con el error de I/O crudo sin llegar
+// a leer nada, que es exactamente el diagnóstico imposible que el hallazgo
+// describe.
+func TestClienteVePeticionDemasiadoGrande(t *testing.T) {
+	d := newTestDaemon(t)
+	go d.Run()
+
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	c.Timeout = 15 * time.Second
+
+	ruta := "/home/usuario/Música/Artista/Album (Remastered 2011)/01 - Cancion.mp3"
+	req := ipc.Request{Cmd: "ping"}
+	for len(req.Paths)*len(ruta) < ipc.MaxReqLine+(1<<20) {
+		req.Paths = append(req.Paths, ruta)
+	}
+
+	resp, err := c.Do(req)
+	if err != nil {
+		t.Fatalf("el usuario debía ver el error explicado del demonio, no el de I/O: %v", err)
+	}
+	if resp.OK {
+		t.Fatal("una petición fuera de tope no debía reportarse como exitosa")
+	}
+	if !strings.Contains(resp.Error, i18n.T("d.req_too_large")) {
+		t.Errorf("esperaba el mensaje de petición demasiado grande, salió %q", resp.Error)
 	}
 }

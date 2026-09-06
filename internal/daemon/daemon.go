@@ -290,16 +290,32 @@ const serveWriteTimeout = 5 * time.Second
 
 func (d *Daemon) serve(conn net.Conn) {
 	defer conn.Close()
-	sc := bufio.NewScanner(conn)
-	sc.Buffer(make([]byte, 64*1024), 1024*1024)
+	// ipc.ReadLine y no un bufio.Scanner: el Scanner devolvía false ante una
+	// petición más larga que su tope y serve retornaba, cerrando la conexión
+	// SIN RESPONDER NADA. Y es alcanzable desde la UI, no solo por un cliente
+	// hostil —`add`/`playnow` mandan rutas exactas, así que un nodo grande del
+	// árbol o una playlist grande generan un JSON proporcional al número de
+	// pistas—, así que la acción se perdía en silencio (A-06). Ahora el exceso
+	// se distingue por tipo y se contesta.
+	r := bufio.NewReaderSize(conn, 64*1024)
 	for {
 		conn.SetReadDeadline(time.Now().Add(d.idleTimeout))
-		if !sc.Scan() {
+		line, err := ipc.ReadLine(r, ipc.MaxReqLine)
+		if err != nil {
+			if errors.Is(err, ipc.ErrLineTooLong) {
+				// La respuesta SÍ llega: el cliente que manda una línea
+				// pasada de tope se queda bloqueado en su Write con el buffer
+				// del socket lleno, así que sigue vivo para leerla (medido con
+				// una petición de MaxReqLine+1 MiB). Con uno que ya se haya
+				// ido puede perderse, pero eso cuesta un Write y no cambia
+				// nada — lo que no puede pasar es cerrar mudo.
+				writeResponse(conn, ipc.Response{Error: i18n.T("d.req_too_large")})
+			}
 			return
 		}
 		var req ipc.Request
 		var resp ipc.Response
-		if err := json.Unmarshal(sc.Bytes(), &req); err != nil {
+		if err := json.Unmarshal(line, &req); err != nil {
 			resp = ipc.Response{Error: i18n.Tf("d.invalid_req", err.Error())}
 		} else if req.Cmd == "subscribe" {
 			// La conexión pasa a modo push y no vuelve: subscribe escribe
@@ -308,7 +324,7 @@ func (d *Daemon) serve(conn net.Conn) {
 			// propósito minutos sin que el cliente mande nada, y el
 			// deadline puesto arriba para esta vuelta seguiría corriendo.
 			conn.SetReadDeadline(time.Time{})
-			d.subscribe(conn, sc, req.Lang)
+			d.subscribe(conn, r, req.Lang)
 			return
 		} else if req.Cmd == "shutdown" {
 			// Como subscribe, se intercepta antes de handle: la respuesta
@@ -374,7 +390,7 @@ const defaultMaxSubscribers = 64
 // estado inicial, y uno nuevo cada vez que notify marca dirty, con un mínimo
 // de 250 ms entre pushes (los ticks de time-pos de mpv llegan varios por
 // segundo). Vuelve —y serve cierra la conexión— cuando el cliente cuelga.
-func (d *Daemon) subscribe(conn net.Conn, sc *bufio.Scanner, lang string) {
+func (d *Daemon) subscribe(conn net.Conn, r *bufio.Reader, lang string) {
 	s := &subscriber{conn: conn, dirty: make(chan struct{}, 1)}
 	// Registrar antes del primer push: un cambio entre la foto inicial y el
 	// registro se perdería; así a lo sumo genera un push extra inmediato.
@@ -398,10 +414,15 @@ func (d *Daemon) subscribe(conn net.Conn, sc *bufio.Scanner, lang string) {
 		d.subMu.Unlock()
 	}()
 
-	// El cliente ya no habla: cualquier retorno del lector es que colgó.
+	// El cliente ya no habla: cualquier retorno del lector es que colgó. Se
+	// sigue leyendo con tope —como hacía el Scanner— para que una línea sin
+	// fin no mantenga viva la suscripción indefinidamente.
 	done := make(chan struct{})
 	go func() {
-		for sc.Scan() {
+		for {
+			if _, err := ipc.ReadLine(r, ipc.MaxReqLine); err != nil {
+				break
+			}
 		}
 		close(done)
 	}()

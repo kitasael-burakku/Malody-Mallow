@@ -37,6 +37,18 @@ además apilaba goroutines de `notify`. `d.seek` solo parsea y habla con el
 player (mutex propio), así que no toca estado del demonio; a cambio un
 seek concurrente con el next de otro cliente puede caer en la pista nueva
 (daño menor, aceptado como en las otras dos excepciones).
+`serve` lee con `ipc.ReadLine`, el MISMO helper acotado que usa el cliente
+(vive en `internal/ipc` desde A-06). Antes usaba un `bufio.Scanner` con tope
+de 1 MiB, y una petición más larga hacía que `Scan()` devolviera false, `serve`
+retornara y el defer cerrara la conexión **sin responder nada** — alcanzable
+desde la UI, porque `add`/`playnow` mandan RUTAS EXACTAS y un nodo grande del
+árbol genera un JSON proporcional al número de pistas (el techo caía en
+~15.000). El tope es ahora `ipc.MaxReqLine` (16 MiB) y el exceso se distingue
+por tipo (`ipc.ErrLineTooLong`) para contestar `d.req_too_large` en vez de
+cerrar mudo. Y `ipc.Client.Do` intenta LEER aunque su `Write` falle: con una
+petición pasada de tope el demonio deja de leer, así que el cliente ve EPIPE a
+mitad del Write y sin ese intento el mensaje explicado no lo leería nadie
+—medido—, que es justo el diagnóstico que A-06 quería dar.
 `serve` intercepta `subscribe` y `shutdown` ANTES de `handle`: `shutdown`
 (op de `maly kill`) responde primero y luego llama `d.Close()` — dentro de
 `dispatch` deadlockearía con `d.mu`; `Close` es idempotente (`closeOnce`).

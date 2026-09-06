@@ -451,6 +451,7 @@ var table = map[string][2]string{
 	"d.mpris_off":            {"MPRIS disabled: %v", "MPRIS desactivado: %v"},
 	"d.invalid_req":          {"invalid request: %s", "petición inválida: %s"},
 	"d.internal_error":       {"internal error handling the request", "error interno al procesar la petición"},
+	"d.req_too_large":        {"request too large; maly refused it without running it", "petición demasiado grande; maly la rechazó sin ejecutarla"},
 	"d.too_many_subs":        {"too many subscribers, try again later", "demasiados suscriptores, intenta de nuevo más tarde"},
 	"d.panic_recovered":      {"panic recovered in dispatch(%q): %v", "panic recuperado en dispatch(%q): %v"},
 	"player.panic_recovered": {"panic recovered in a player callback: %v", "panic recuperado en un callback del player: %v"},

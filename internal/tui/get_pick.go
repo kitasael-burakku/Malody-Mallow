@@ -33,9 +33,18 @@ func RunGetPick(cfg config.Config, query string) (string, error) {
 	pk.noFilter = true // el input es la CONSULTA ya hecha, no un filtro
 	pk.input.SetValue(query)
 
-	m := &getPickModel{st: st, pk: pk, query: query, owned: ownedLibraryTitles()}
+	// El contexto vive acá y no en el modelo porque lo que hay que cubrir es
+	// la SALIDA: pulsar esc mientras busca cierra el programa y maly se va
+	// enseguida, y sin esto el yt-dlp quedaba corriendo solo hasta su propio
+	// timeout de 20 s, ya sin nadie mirándolo (hallazgo A-15).
+	ctx, cancel := context.WithCancel(context.Background())
+	m := &getPickModel{st: st, pk: pk, query: query, owned: ownedLibraryTitles(),
+		ctx: ctx, searchDone: make(chan struct{})}
 
 	out, err := tea.NewProgram(m).Run()
+	// Después de Run, pase lo que pase: cancelar Y esperar. Esperar es lo que
+	// de verdad lo mata — medido en 20 corridas, ver stopGetSearch.
+	stopGetSearch(cancel, m.searchDone, getKillWait)
 	if err != nil {
 		return "", err
 	}
@@ -69,8 +78,13 @@ func ownedLibraryTitles() map[string]bool {
 }
 
 type getPickModel struct {
-	st            styles
-	pk            *picker
+	st  styles
+	pk  *picker
+	ctx context.Context
+	// searchDone se cierra cuando la goroutine de la búsqueda termina;
+	// RunGetPick lo espera antes de volver. Ojo con el `done` de más abajo,
+	// que es otra cosa: "ya terminamos, no dibujes más".
+	searchDone    chan struct{}
 	query         string
 	owned         map[string]bool
 	results       []getter.Result
@@ -87,7 +101,8 @@ func (m *getPickModel) Init() tea.Cmd {
 	// La consulta ya viene dada: se busca de entrada, sin pedir otro enter.
 	m.phase = getSearching
 	return tea.Batch(getSpinCmd(), func() tea.Msg {
-		res, err := getter.Search(context.Background(), m.query, getResultCount)
+		defer close(m.searchDone) // RunGetPick espera esto antes de volver
+		res, err := getter.Search(m.ctx, m.query, getResultCount)
 		return getResultsMsg{results: res, err: err}
 	})
 }

@@ -140,8 +140,12 @@ type Model struct {
 	getQuery   string // consulta de los resultados que se están mostrando
 	getErr     string
 	getGen     int
-	getSpin    int
-	getCancel  context.CancelFunc
+	// getDone se cierra cuando la goroutine de la búsqueda termina. Solo lo
+	// usa la salida (stopGetSearchOnExit), que necesita ESPERAR a que el
+	// yt-dlp haya muerto y no solo pedirlo.
+	getDone   chan struct{}
+	getSpin   int
+	getCancel context.CancelFunc
 
 	// Panel de playlists (ctrl+l): picker fuzzy con dos modos.
 	plOpen    bool
@@ -260,6 +264,11 @@ func Run(cfg config.Config, embedded bool) error {
 	}()
 
 	_, err := p.Run()
+	// Salir con una búsqueda de ctrl+g en curso dejaba el yt-dlp huérfano:
+	// ctrl+c corta ANTES de cualquier modal (ver handleKey), así que nunca
+	// pasa por closeGet, y aunque pasara, cancelar sin esperar no alcanza
+	// cuando el proceso se va enseguida (ver stopGetSearch).
+	m.stopGetSearchOnExit()
 	return err
 }
 

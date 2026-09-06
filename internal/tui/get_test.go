@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -1006,5 +1008,94 @@ func TestConGetPlaylistFinishLimpiaElDirectorioQueCreo(t *testing.T) {
 	}
 	if _, err := os.Stat(destino); err == nil {
 		t.Error("el directorio que creamos y quedó vacío debía irse con el error (G7)")
+	}
+}
+
+// --- A-15: no dejar el yt-dlp huérfano al salir -----------------------------
+//
+// `maly get pick` buscaba con context.Background(), así que un esc durante la
+// búsqueda cerraba el programa y dejaba el yt-dlp corriendo hasta su propio
+// timeout de 20 s, ya sin nadie mirándolo. Al arreglarlo apareció que la
+// receta obvia —cancelar en el camino de salida, como abortGetSearch— NO
+// alcanza acá, y que la TUI tenía el mismo agujero por otra puerta (ctrl+c
+// sale ANTES de todo modal, así que nunca pasa por closeGet).
+//
+// Que cancelar sin esperar no baste está MEDIDO con un programa aparte que
+// reproduce el final de RunGetPick (cancelar y salir enseguida) contra un
+// yt-dlp falso que duerme: 12 de 20 corridas dejaron el proceso vivo 1,5 s
+// después de que maly ya no estaba; esperando a la goroutine, 0 de 20. cancel()
+// no mata, solo marca el contexto: el kill lo hace la goroutine vigía que
+// os/exec arranca en Start(), y esa se va con el proceso. Lo que estos tests
+// fijan es la parte que sí vive en el repo: que stopGetSearch espera.
+
+// TestStopGetSearchEsperaAQueMuera: cancela y NO vuelve hasta que la búsqueda
+// terminó de verdad. Es la mitad que hace que el arreglo sirva.
+func TestStopGetSearchEsperaAQueMuera(t *testing.T) {
+	_, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	murio := make(chan struct{})
+	go func() {
+		time.Sleep(150 * time.Millisecond) // lo que tarda el kill en llegar
+		close(done)
+		close(murio)
+	}()
+
+	inicio := time.Now()
+	stopGetSearch(cancel, done, 5*time.Second)
+	select {
+	case <-murio:
+	default:
+		t.Fatal("volvió antes de que la búsqueda terminara: el yt-dlp queda huérfano")
+	}
+	if d := time.Since(inicio); d < 150*time.Millisecond {
+		t.Errorf("volvió en %v, sin haber esperado", d)
+	}
+}
+
+// TestStopGetSearchNoCuelgaLaSalida: la otra mitad. Si la goroutine no
+// termina, salir igual — vale más un huérfano que una TUI que no cierra.
+func TestStopGetSearchNoCuelgaLaSalida(t *testing.T) {
+	_, cancel := context.WithCancel(context.Background())
+	nunca := make(chan struct{}) // no se cierra jamás
+
+	inicio := time.Now()
+	stopGetSearch(cancel, nunca, 200*time.Millisecond)
+	d := time.Since(inicio)
+	if d < 200*time.Millisecond {
+		t.Errorf("no respetó el tope, volvió en %v", d)
+	}
+	if d > 3*time.Second {
+		t.Errorf("se quedó colgado %v pese al tope", d)
+	}
+}
+
+// TestStopGetSearchCancelaDeVerdad: cancelar es lo primero que hace, aunque
+// después no haya nada que esperar.
+func TestStopGetSearchCancelaDeVerdad(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cerrado := make(chan struct{})
+	close(cerrado)
+	stopGetSearch(cancel, cerrado, time.Second)
+	if ctx.Err() == nil {
+		t.Error("no canceló el contexto: el yt-dlp ni se entera de que hay que morir")
+	}
+	// Sin búsqueda en vuelo (cancel nil) no debe explotar ni esperar.
+	stopGetSearch(nil, nil, time.Second)
+}
+
+// TestStopGetSearchOnExitLimpiaElModelo: tras salir, el Model no se queda con
+// un cancel ya usado (llamarlo dos veces es inofensivo, pero guardarlo sugiere
+// que hay algo vivo que no lo está).
+func TestStopGetSearchOnExitLimpiaElModelo(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cerrado := make(chan struct{})
+	close(cerrado)
+	m := &Model{getCancel: cancel, getDone: cerrado}
+	m.stopGetSearchOnExit()
+	if ctx.Err() == nil {
+		t.Error("stopGetSearchOnExit no canceló")
+	}
+	if m.getCancel != nil || m.getDone != nil {
+		t.Error("debía dejar el modelo sin búsqueda en vuelo")
 	}
 }

@@ -91,12 +91,57 @@ func (m *Model) openGet() tea.Cmd {
 // abortGetSearch invalida la búsqueda en vuelo, si la hay: sube la generación
 // (la respuesta que llegue tarde se descarta) y cancela el contexto, que mata
 // el yt-dlp de verdad en vez de dejarlo corriendo hasta su propio timeout.
+//
+// Vale para seguir usando la TUI, NO para salir de ella: cancelar solo pide
+// la muerte, y quien la ejecuta es la goroutine que os/exec dejó vigilando el
+// contexto. Si el proceso se va enseguida esa goroutine se va con él y el
+// yt-dlp queda huérfano — para ese caso está stopGetSearch.
 func (m *Model) abortGetSearch() {
 	m.getGen++
 	if m.getCancel != nil {
 		m.getCancel()
 		m.getCancel = nil
 	}
+}
+
+// getKillWait acota lo que se espera a que muera el yt-dlp al salir. En la
+// práctica es inmediato (la búsqueda ya terminó, o el kill desbloquea su
+// cmd.Output() en el acto); el tope existe solo para que maly no se quede
+// colgado al cerrar si algo sale raro — vale más un huérfano que una TUI que
+// no cierra.
+const getKillWait = 2 * time.Second
+
+// stopGetSearch cancela la búsqueda en vuelo y ESPERA a que de verdad haya
+// muerto, para el camino de SALIDA del programa.
+//
+// La espera no es paranoia, está medida: con solo cancelar y salir, el yt-dlp
+// sobrevivió en 12 de 20 corridas (comprobado 1,5 s después de que el proceso
+// ya no estaba, o sea huérfano de verdad); esperando a la goroutine, 0 de 20.
+// El motivo es que cancel() no mata: marca el contexto, y el kill lo hace la
+// goroutine vigía que os/exec arranca en Start(), que muere con el proceso si
+// este se va antes. Dentro de la TUI viva eso no se nota —el vigía sigue ahí
+// y el kill llega— y por eso abortGetSearch alcanza para cerrar la pantalla;
+// al salir, no.
+func stopGetSearch(cancel context.CancelFunc, done <-chan struct{}, wait time.Duration) {
+	if cancel == nil {
+		return
+	}
+	cancel()
+	if done == nil {
+		return
+	}
+	select {
+	case <-done:
+	case <-time.After(wait):
+	}
+}
+
+// stopGetSearchOnExit es stopGetSearch para el Model de la TUI. Hace falta
+// porque ctrl+c sale ANTES de cualquier modal (ver handleKey), así que con el
+// buscador abierto y una búsqueda en curso nunca se llega a closeGet.
+func (m *Model) stopGetSearchOnExit() {
+	stopGetSearch(m.getCancel, m.getDone, getKillWait)
+	m.getCancel, m.getDone = nil, nil
 }
 
 func (m *Model) closeGet() {
@@ -135,7 +180,8 @@ func (m *Model) runGetSearch() tea.Cmd {
 	}
 	m.abortGetSearch()
 	ctx, cancel := context.WithCancel(context.Background())
-	m.getCancel = cancel
+	done := make(chan struct{})
+	m.getCancel, m.getDone = cancel, done
 
 	gen := m.getGen
 	m.getPhase = getSearching
@@ -146,6 +192,7 @@ func (m *Model) runGetSearch() tea.Cmd {
 	m.getSpin = 0
 
 	return tea.Batch(getSpinCmd(), func() tea.Msg {
+		defer close(done) // stopGetSearchOnExit espera esto antes de salir
 		res, err := getter.Search(ctx, q, getResultCount)
 		return getResultsMsg{gen: gen, results: res, err: err}
 	})

@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"time"
-
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -69,12 +67,6 @@ func (m *Model) songsView() string {
 	// El flash de "agregado a la cola" (tab) se armaba y nunca se dibujaba:
 	// era el único picker sin esto — plView() sí lo hace, mismo patrón acá
 	// (auditoría 2026-07-31, hallazgo T13).
-	if m.flash != "" && time.Now().Before(m.flashUntil) {
-		st := m.st.playing
-		if m.flashErr {
-			st = m.st.errSt
-		}
-		box = lipgloss.JoinVertical(lipgloss.Center, box, st.Render(m.flash))
-	}
+	box = m.withFlash(box)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

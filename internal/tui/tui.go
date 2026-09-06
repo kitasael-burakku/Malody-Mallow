@@ -457,6 +457,35 @@ func (m *Model) setFlash(text string, isErr bool) {
 	m.flashUntil = time.Now().Add(4 * time.Second)
 }
 
+// activeFlash devuelve el flash vigente y el estilo que le toca. Es el punto
+// único que decide si hay algo que mostrar: lo usan withFlash (los modales
+// que cuelgan una fila bajo su caja) y npView (que reusa su fila de hint).
+func (m *Model) activeFlash() (string, lipgloss.Style, bool) {
+	if m.flash == "" || !time.Now().Before(m.flashUntil) {
+		return "", m.st.dim, false
+	}
+	if m.flashErr {
+		return m.flash, m.st.errSt, true
+	}
+	return m.flash, m.st.playing, true
+}
+
+// withFlash cuelga el flash vigente bajo una caja ya centrada.
+//
+// Hace falta en CADA modal de pantalla completa porque el flash del pie
+// —único canal de error de la TUI— queda tapado por ellos, y sin él la tecla
+// que falló no dice nada: "no hizo nada" es indistinguible de un bug, y el
+// mismo error SÍ se ve en la vista principal. plView y songsView ya lo
+// dibujaban con este bloque copiado; A-24 lo extrajo acá y lo llevó a los dos
+// que faltaban (getView y, con su propia forma, npView).
+func (m *Model) withFlash(box string) string {
+	flash, st, ok := m.activeFlash()
+	if !ok {
+		return box
+	}
+	return lipgloss.JoinVertical(lipgloss.Center, box, st.Render(flash))
+}
+
 // checkVersion detecta que el demonio corre otro binario (pasa al actualizar
 // maly sin reiniciar el servicio) y también limpia el aviso si lo reinician.
 // El demonio embebido es este mismo binario, así que nunca lo dispara.

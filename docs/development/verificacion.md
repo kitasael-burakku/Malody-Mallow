@@ -114,6 +114,13 @@ sin commitear, el arnés de verificación se hace con `cp` de una copia.
 - **Verificar en las dos direcciones incluye la variante equivocada.** De la
   **1.16.0**: la clave de comparación del marcador `✓` se verificó también CON
   el artista incluido, que es el error fácil.
+- **Medir el alto de un panel no prueba nada: `panel()` trunca.** De **A-24**:
+  el test del flash en `npView` medía que el alto no cambiara, y la versión
+  ingenua —agregar una fila en vez de reusar la del hint— pasaba igual, porque
+  `panel()` recorta a `innerH` en silencio. Comparar la salida entera tampoco
+  lo cazaba: sin audio las filas del viz son idénticas entre sí, así que el
+  desplazamiento no se ve. La aserción buena es POSICIONAL — el flash tiene
+  que caer en el mismo índice de fila donde estaba el hint.
 
 ## Dependencias externas en los tests
 

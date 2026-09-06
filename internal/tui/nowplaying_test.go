@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"maly/internal/config"
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/media"
 )
@@ -393,5 +394,135 @@ func TestNpViewAvisaCaratulaOcultaPorAncho(t *testing.T) {
 	out = m.npView()
 	if strings.Contains(out, "widen the terminal") {
 		t.Errorf("sin carátula embebida no debía avisar nada de ancho: %q", out)
+	}
+}
+
+// --- A-24: el flash llega a las cuatro capas -------------------------------
+//
+// El flash del pie es el ÚNICO canal de error de la TUI y los modales de
+// pantalla completa lo tapan. plView y songsView ya lo dibujaban bajo su caja
+// (con el mismo bloque copiado dos veces); faltaban npView y getView, así que
+// una tecla de reproducción que fallaba dentro de ctrl+t no decía nada — y el
+// mismo error SÍ se ve en la vista principal.
+
+// npFlashModel: la capa con lo mínimo para renderizar.
+func npFlashModel() *Model {
+	return &Model{
+		st:     newStyles(config.Theme{}),
+		width:  80,
+		height: 30,
+		status: &ipc.Status{Track: &ipc.TrackInfo{Path: "/x.mp3", Title: "T"}},
+	}
+}
+
+// TestNpViewMuestraElFlash: con un flash vigente, la capa lo dice en vez del
+// hint. Es el caso que motiva A-24: ctrl+t comparte las teclas de
+// reproducción con la vista principal vía playbackKey.
+func TestNpViewMuestraElFlash(t *testing.T) {
+	m := npFlashModel()
+	sinFlash := m.npView()
+	if strings.Contains(sinFlash, "no hay siguiente") {
+		t.Fatal("el fixture ya traía el texto del flash")
+	}
+	if !strings.Contains(sinFlash, i18n.T("np.hint")) {
+		t.Fatalf("sin flash debía verse el hint normal:\n%s", sinFlash)
+	}
+
+	m.setFlash("no hay siguiente pista", true)
+	conFlash := m.npView()
+	if !strings.Contains(conFlash, "no hay siguiente pista") {
+		t.Errorf("el flash no llegó a la capa: la tecla parece no haber hecho nada\n%s", conFlash)
+	}
+}
+
+// TestNpViewFlashOcupaLaFilaDelHint es el riesgo que anota el propio
+// hallazgo: la capa es pantalla completa con panel propio, así que el flash
+// toma prestada la fila del hint en vez de AGREGAR una — una fila de más
+// empuja la franja del visualizador y panel() se come la última en silencio.
+//
+// La aserción es que el flash aparece en el MISMO índice de fila donde estaba
+// el hint. Medir solo el alto NO sirve: panel() trunca a innerH, así que la
+// versión ingenua (append de una fila) devuelve exactamente el mismo número
+// de filas y pasa igual — comprobado. Y comparar la salida entera tampoco lo
+// caza, porque sin audio las filas del viz son idénticas entre sí y el
+// desplazamiento no se nota.
+func TestNpViewFlashOcupaLaFilaDelHint(t *testing.T) {
+	for _, vizOn := range []bool{false, true} {
+		m := npFlashModel()
+		m.vizOn = vizOn
+
+		sin := strings.Split(m.npView(), "\n")
+		filaHint := -1
+		for i, l := range sin {
+			if strings.Contains(l, i18n.T("np.hint")) {
+				filaHint = i
+			}
+		}
+		if filaHint < 0 {
+			t.Fatalf("vizOn=%v: no se encontró la fila del hint", vizOn)
+		}
+
+		m.setFlash("un error cualquiera", true)
+		con := strings.Split(m.npView(), "\n")
+		if len(con) != len(sin) {
+			t.Errorf("vizOn=%v: el flash cambió el alto de %d a %d filas", vizOn, len(sin), len(con))
+		}
+		if !strings.Contains(con[filaHint], "un error cualquiera") {
+			t.Errorf("vizOn=%v: el flash debía ocupar la fila %d (la del hint), no otra:\n%s",
+				vizOn, filaHint, con[filaHint])
+		}
+		if strings.Contains(con[filaHint], i18n.T("np.hint")) {
+			t.Errorf("vizOn=%v: el hint debía quedar reemplazado, no acompañado", vizOn)
+		}
+	}
+}
+
+// TestNpViewFlashVencidoVuelveAlHint: el flash caduca a los 4 s y la fila
+// tiene que volver a su contenido normal, no quedarse con el error pegado.
+func TestNpViewFlashVencidoVuelveAlHint(t *testing.T) {
+	m := npFlashModel()
+	m.flash, m.flashErr = "error viejo", true
+	m.flashUntil = time.Now().Add(-time.Second) // ya vencido
+	out := m.npView()
+	if strings.Contains(out, "error viejo") {
+		t.Errorf("un flash vencido no debía seguir mostrándose:\n%s", out)
+	}
+	if !strings.Contains(out, i18n.T("np.hint")) {
+		t.Errorf("con el flash vencido debía volver el hint:\n%s", out)
+	}
+}
+
+// TestWithFlashCuelgaUnaFila cubre el helper extraído, que es lo que usan los
+// otros tres modales. Sin flash no toca la caja; con uno, agrega exactamente
+// una fila.
+func TestWithFlashCuelgaUnaFila(t *testing.T) {
+	m := &Model{st: newStyles(config.Theme{})}
+	caja := "linea1\nlinea2"
+
+	if got := m.withFlash(caja); got != caja {
+		t.Errorf("sin flash no debía tocar la caja, dio %q", got)
+	}
+
+	m.setFlash("algo pasó", false)
+	got := m.withFlash(caja)
+	if n := len(strings.Split(got, "\n")); n != 3 {
+		t.Errorf("con flash debía agregar UNA fila (3 en total), dio %d: %q", n, got)
+	}
+	if !strings.Contains(got, "algo pasó") {
+		t.Errorf("el flash no aparece: %q", got)
+	}
+}
+
+// TestGetViewMuestraElFlash: el buscador dibuja los estados de la BÚSQUEDA en
+// el cuerpo del panel, pero un actionMsg de otra procedencia seguía sin canal.
+func TestGetViewMuestraElFlash(t *testing.T) {
+	m := &Model{st: newStyles(config.Theme{}), width: 90, height: 30}
+	m.openGet()
+	if strings.Contains(m.getView(), "algo falló") {
+		t.Fatal("el fixture ya traía el texto del flash")
+	}
+	m.setFlash("algo falló", true)
+	if out := m.getView(); !strings.Contains(out, "algo falló") {
+		t.Errorf("el flash no llegó al buscador:\n%s", out)
 	}
 }

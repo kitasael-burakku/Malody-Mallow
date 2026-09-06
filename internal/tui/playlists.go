@@ -3,7 +3,6 @@ package tui
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -276,12 +275,6 @@ func (m *Model) plView() string {
 	box := m.pl.render(i18n.T("plsel.title"), hint, w, maxRows)
 	// A diferencia de los otros modales, aquí los flashes importan sin cerrar
 	// (creada/borrada/error): se muestran bajo el panel.
-	if m.flash != "" && time.Now().Before(m.flashUntil) {
-		st := m.st.playing
-		if m.flashErr {
-			st = m.st.errSt
-		}
-		box = lipgloss.JoinVertical(lipgloss.Center, box, st.Render(m.flash))
-	}
+	box = m.withFlash(box)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

@@ -71,8 +71,15 @@ propio timeout de 20 s. Por eso la salida usa `stopGetSearch`, que cancela **y
 espera** (con tope, `getKillWait`): en `RunGetPick` tras `p.Run()`, y en
 `tui.Run` tras el suyo, porque `ctrl+c` corta ANTES de todo modal en
 `handleKey` y nunca pasa por `closeGet` (A-15; medido: sin la espera, 5 de 5
-huérfanos). Los modales tapan el footer: los flashes no se ven con un
-modal abierto (el panel de playlists los dibuja bajo el modal por eso).
+huérfanos). Los modales tapan el footer, que es el ÚNICO canal de error de la
+TUI (`setFlash`), así que cada capa de pantalla completa tiene que dibujarlo
+por su cuenta: `m.withFlash(box)` lo cuelga bajo la caja (playlists, songs,
+ctrl+g) y `npView` lo pone en su fila de HINT en vez de agregar una, porque
+una fila de más empuja la franja del viz y `panel()` se come la última en
+silencio. Faltaba en dos de las cuatro (A-24): dentro de ctrl+t, que comparte
+las teclas de reproducción con la vista principal vía `playbackKey`, un next
+que fallaba no decía nada — «la tecla no hizo nada», indistinguible de un
+bug, cuando el mismo error sí se ve en la vista principal.
 El árbol de la biblioteca (`tree.go`) incluye las playlists como raíces
 tras los artistas (`playlistNode`, pistas hijas directas numeradas por
 posición); la indentación y la búsqueda de padre usan el campo `depth`,

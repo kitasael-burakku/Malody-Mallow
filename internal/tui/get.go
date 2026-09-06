@@ -397,5 +397,9 @@ func (m *Model) getView() string {
 	}
 	m.get.emptyText = m.getBody()
 	box := m.get.render(i18n.T("get.title"), m.getHint(), w, maxRows)
+	// El cuerpo del panel ya cuenta los estados de la BÚSQUEDA (getErr), pero
+	// un actionMsg de otra procedencia seguía sin canal con esta pantalla
+	// abierta (A-24).
+	box = m.withFlash(box)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

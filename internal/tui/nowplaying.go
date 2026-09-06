@@ -186,7 +186,19 @@ func (m *Model) npView() string {
 	if len(m.npLyrics) > 0 && !m.npSynced {
 		hint = i18n.T("np.scroll_hint")
 	}
-	lines = append(lines, center(m.st.dim.Render(clip(hint, innerW)), innerW))
+	hintSt := m.st.dim
+	// La capa comparte las teclas de reproducción con la vista principal
+	// (playbackKey), pero tapa el pie: un next que falla, un seek que mpv
+	// rechaza o el demonio muerto llamaban a setFlash y no se veía NADA — la
+	// tecla parecía no hacer nada, que es indistinguible de un bug, y el
+	// mismo error sí se ve en la vista principal (A-24). El flash toma
+	// prestada la fila del hint en vez de agregar una: esto es pantalla
+	// completa con panel propio, y una fila de más correría el alto y
+	// desplazaría la franja del visualizador.
+	if flash, st, ok := m.activeFlash(); ok {
+		hint, hintSt = flash, st
+	}
+	lines = append(lines, center(hintSt.Render(clip(hint, innerW)), innerW))
 
 	if vizH > 0 {
 		lines = append(lines, m.vizLines(innerW, vizH)...)

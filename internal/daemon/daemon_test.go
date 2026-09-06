@@ -23,7 +23,11 @@ import (
 
 // testEnv prepara un entorno XDG aislado para demonios de prueba. Se salta
 // el test si mpv no está instalado.
-func testEnv(t *testing.T) {
+//
+// testing.TB y no *testing.T: los benchmarks del paquete (daemon_bench_test.go)
+// necesitan exactamente el mismo entorno, y todo lo que se usa acá —Helper,
+// Skip, Setenv, TempDir, Fatal— está en la interfaz común.
+func testEnv(t testing.TB) {
 	t.Helper()
 	if _, err := exec.LookPath("mpv"); err != nil {
 		t.Skip("mpv no está en PATH")
@@ -554,7 +558,7 @@ func TestConcurrentClientsStress(t *testing.T) {
 	}
 }
 
-func newTestDaemon(t *testing.T) *Daemon {
+func newTestDaemon(t testing.TB) *Daemon {
 	t.Helper()
 	testEnv(t)
 	cfg := config.Default()

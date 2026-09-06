@@ -993,9 +993,17 @@ func statusLines(st styles, s *ipc.Status) []string {
 	if s == nil {
 		return nil
 	}
+	// Espejo de printStatus (cmd/maly/client.go), aviso incluido: es la
+	// paridad que A-04 dejó como regla.
+	notice := func(lines []string) []string {
+		if s.Notice != "" {
+			lines = append(lines, st.errSt.Render(s.Notice))
+		}
+		return lines
+	}
 	if s.Track == nil {
-		return []string{st.dim.Render(i18n.Tf("st.stopped",
-			s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueLen))}
+		return notice([]string{st.dim.Render(i18n.Tf("st.stopped",
+			s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueLen))})
 	}
 	icon := "▶"
 	if s.Paused {
@@ -1005,11 +1013,11 @@ func statusLines(st styles, s *ipc.Status) []string {
 	if s.Track.Album != "" {
 		name += " [" + s.Track.Album + "]"
 	}
-	return []string{
+	return notice([]string{
 		st.text.Render(icon + " " + name),
 		st.dim.Render(i18n.Tf("st.line2", ipc.FmtTime(s.Position), ipc.FmtTime(s.Duration),
 			s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen)),
-	}
+	})
 }
 
 func queueLines(st styles, resp ipc.Response) []string {

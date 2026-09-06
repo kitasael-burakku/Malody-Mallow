@@ -56,7 +56,16 @@ mitad del Write y sin ese intento el mensaje explicado no lo leería nadie
 bajo `d.mu` pero hace su `SetDuration` FUERA (era la única escritura a
 SQLite bajo el mutex, y se dispara en cada cambio de pista).
 `advance(reason, chained, gen)` es la política de avance y salto de pistas
-irreproducibles (guarda `errStreak`, silencio deliberado `stopped`). Tiene
+irreproducibles (guarda `errStreak`, silencio deliberado `stopped`). Sus dos
+avisos —pista saltada, cola detenida tras una pasada entera sin nada que
+suene— van al stderr (journal, para un postmortem) **y** a `Status.Notice`,
+que es lo que el usuario ve: hasta A-25 existía solo lo primero, así que con
+el disco de música desmontado todo dejaba de sonar y la interfaz no decía
+nada. Se guarda la CLAVE de i18n y sus argumentos, no el texto armado —el
+demonio puede haber arrancado con otro idioma que quien pregunta—, y
+`statusLocked(lang)` lo traduce con el `TL` de cada cliente; por eso el push
+se arma POR SUSCRIPTOR (`subscriber.lang`) y no una vez para todos.
+`loadLocked` lo limpia: una carga sana significa que el problema pasó. Tiene
 DOS guardas contra una promesa obsoleta y no se solapan: `gen !=
 d.pl.LoadGen()` (primer chequeo bajo `d.mu`) detecta que un cliente RECARGÓ
 mpv entre `resolveEnd` y este punto (jump, play, next, stop), y `chained ==

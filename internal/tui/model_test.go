@@ -665,3 +665,44 @@ func keyMsgFor(s string) tea.KeyMsg {
 	}
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }
+
+// TestApplyStatusFlasheaElAvisoUnaVez cubre la mitad de A-25 que vive en la
+// TUI: el aviso del demonio (pista saltada, cola detenida por errores) se
+// muestra como flash de error, pero SOLO al cambiar.
+//
+// Los pushes llegan varias veces por segundo mientras suena algo, y el aviso
+// persiste en Status hasta la siguiente carga sana: rearmar el flash en cada
+// foto lo dejaría fijo en pantalla para siempre, sin caducar nunca. Eso no lo
+// nota un test que solo compruebe "el flash aparece".
+func TestApplyStatusFlasheaElAvisoUnaVez(t *testing.T) {
+	m := &Model{st: newStyles(config.Theme{})}
+	aviso := "ninguna pista de la cola se pudo reproducir"
+
+	m.applyStatus(ipc.Response{Status: &ipc.Status{Notice: aviso}})
+	if m.flash != aviso || !m.flashErr {
+		t.Fatalf("el aviso debía salir como flash de error, quedó flash=%q err=%v", m.flash, m.flashErr)
+	}
+
+	// Segunda foto con el MISMO aviso: no debe rearmar el flash. Se comprueba
+	// sobre flashUntil, que es lo que caduca.
+	m.flashUntil = time.Now().Add(-time.Second) // como si ya hubiera caducado
+	vencido := m.flashUntil
+	m.applyStatus(ipc.Response{Status: &ipc.Status{Notice: aviso}})
+	if !m.flashUntil.Equal(vencido) {
+		t.Error("una foto repetida rearmó el flash: se quedaría fijo en pantalla para siempre")
+	}
+
+	// Un aviso DISTINTO sí vuelve a flashear.
+	m.applyStatus(ipc.Response{Status: &ipc.Status{Notice: "otra cosa"}})
+	if m.flash != "otra cosa" {
+		t.Errorf("un aviso nuevo debía flashear, quedó %q", m.flash)
+	}
+
+	// Y que el demonio lo limpie no deja un flash colgado ni vuelve a armar.
+	m.flashUntil = time.Now().Add(-time.Second)
+	vencido = m.flashUntil
+	m.applyStatus(ipc.Response{Status: &ipc.Status{}})
+	if !m.flashUntil.Equal(vencido) {
+		t.Error("limpiar el aviso no debía armar ningún flash")
+	}
+}

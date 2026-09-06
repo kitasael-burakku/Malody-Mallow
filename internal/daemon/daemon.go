@@ -103,6 +103,15 @@ type Daemon struct {
 	// subscribe). Campo de instancia por el mismo motivo que idleTimeout: un
 	// test lo baja para no tener que abrir decenas de conexiones reales.
 	maxSubscribers int
+
+	// Último aviso para el usuario (pista saltada, cola agotada por errores),
+	// bajo d.mu. Se guarda la CLAVE de i18n y sus argumentos, no el texto ya
+	// armado: el demonio puede haber arrancado con otro idioma que el cliente
+	// que pregunta, así que la traducción se hace al responder, con el TL del
+	// idioma de cada quien (A-25). Lo limpia loadLocked: una carga sana
+	// significa que el problema pasó.
+	notice     string
+	noticeArgs []any
 }
 
 // subscriber es una conexión en modo push. dirty tiene capacidad 1: una
@@ -110,6 +119,10 @@ type Daemon struct {
 type subscriber struct {
 	conn  net.Conn
 	dirty chan struct{}
+	// lang del cliente que se suscribió: el push se arma por suscriptor para
+	// que Status.Notice salga en SU idioma (A-25). Lo demás del Status no
+	// lleva texto traducible.
+	lang string
 }
 
 // New prepara el demonio: reclama la identidad y el socket, abre la biblioteca
@@ -391,7 +404,7 @@ const defaultMaxSubscribers = 64
 // de 250 ms entre pushes (los ticks de time-pos de mpv llegan varios por
 // segundo). Vuelve —y serve cierra la conexión— cuando el cliente cuelga.
 func (d *Daemon) subscribe(conn net.Conn, r *bufio.Reader, lang string) {
-	s := &subscriber{conn: conn, dirty: make(chan struct{}, 1)}
+	s := &subscriber{conn: conn, dirty: make(chan struct{}, 1), lang: lang}
 	// Registrar antes del primer push: un cambio entre la foto inicial y el
 	// registro se perdería; así a lo sumo genera un push extra inmediato.
 	// El chequeo del tope va bajo el mismo lock que el registro para que no
@@ -427,7 +440,7 @@ func (d *Daemon) subscribe(conn net.Conn, r *bufio.Reader, lang string) {
 		close(done)
 	}()
 
-	if s.push(d.state()) != nil {
+	if s.push(d.state(s.lang)) != nil {
 		return
 	}
 	for {
@@ -435,7 +448,7 @@ func (d *Daemon) subscribe(conn net.Conn, r *bufio.Reader, lang string) {
 		case <-done:
 			return
 		case <-s.dirty:
-			if s.push(d.state()) != nil {
+			if s.push(d.state(s.lang)) != nil {
 				return
 			}
 			select {
@@ -461,10 +474,10 @@ func (s *subscriber) push(resp ipc.Response) error {
 
 // state arma la foto completa que reciben los suscriptores, con la misma
 // forma que la respuesta del comando queue.
-func (d *Daemon) state() ipc.Response {
+func (d *Daemon) state(lang string) ipc.Response {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return ipc.Response{OK: true, Status: d.statusLocked(), Queue: toInfos(d.q.Items), Version: version.Version}
+	return ipc.Response{OK: true, Status: d.statusLocked(lang), Queue: toInfos(d.q.Items), Version: version.Version}
 }
 
 // handle ejecuta la petición y refleja los cambios en MPRIS y suscriptores.
@@ -522,7 +535,7 @@ func (d *Daemon) Do(req ipc.Request) ipc.Response { return d.handle(req) }
 func (d *Daemon) Status() *ipc.Status {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.statusLocked()
+	return d.statusLocked(i18n.Code())
 }
 
 // Implementación de mpris.Controller: cada método reusa handle (el mismo
@@ -568,7 +581,7 @@ func (d *Daemon) mprisState() (*mpris.Service, *ipc.Status) {
 	if d.mpris == nil {
 		return nil, nil
 	}
-	return d.mpris, d.statusLocked()
+	return d.mpris, d.statusLocked(i18n.Code())
 }
 
 // notify refleja el estado actual en MPRIS, despierta a los suscriptores
@@ -656,7 +669,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 
 	fail := func(err error) ipc.Response { return ipc.Response{Error: err.Error()} }
 	okStatus := func(msg string) ipc.Response {
-		return ipc.Response{OK: true, Msg: msg, Status: d.statusLocked()}
+		return ipc.Response{OK: true, Msg: msg, Status: d.statusLocked(lang)}
 	}
 
 	switch req.Cmd {
@@ -664,10 +677,10 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		return ipc.Response{OK: true}
 
 	case "status":
-		return ipc.Response{OK: true, Status: d.statusLocked()}
+		return ipc.Response{OK: true, Status: d.statusLocked(lang)}
 
 	case "queue":
-		return ipc.Response{OK: true, Status: d.statusLocked(), Queue: toInfos(d.q.Items)}
+		return ipc.Response{OK: true, Status: d.statusLocked(lang), Queue: toInfos(d.q.Items)}
 
 	case "search":
 		tracks, err := d.lib.Search(req.Query)
@@ -953,7 +966,7 @@ func infoOf(t library.Track) ipc.TrackInfo {
 		Duration: t.Duration}
 }
 
-func (d *Daemon) statusLocked() *ipc.Status {
+func (d *Daemon) statusLocked(lang string) *ipc.Status {
 	st := d.pl.State()
 	s := &ipc.Status{
 		Playing:    !st.Idle,
@@ -966,6 +979,9 @@ func (d *Daemon) statusLocked() *ipc.Status {
 		QueueIndex: d.q.Index,
 		QueueLen:   d.q.Len(),
 		LibGen:     d.libGen.Load(),
+	}
+	if d.notice != "" {
+		s.Notice = i18n.TLf(lang, d.notice, d.noticeArgs...)
 	}
 	if d.scanning.Load() {
 		s.Scanning = true

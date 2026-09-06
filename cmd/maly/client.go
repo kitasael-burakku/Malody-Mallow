@@ -198,6 +198,7 @@ func printStatus(s *ipc.Status) {
 	if s.Track == nil {
 		fmt.Println(i18n.Tf("st.stopped", s.Volume, ipc.OnOff(s.Shuffle), s.Repeat, s.QueueLen))
 		printScanLine(s)
+		printNotice(s)
 		return
 	}
 	icon := "▶"
@@ -212,6 +213,18 @@ func printStatus(s *ipc.Status) {
 	fmt.Println(i18n.Tf("st.line2", ipc.FmtTime(s.Position), ipc.FmtTime(s.Duration), s.Volume,
 		ipc.OnOff(s.Shuffle), s.Repeat, s.QueueIndex+1, s.QueueLen))
 	printScanLine(s)
+	printNotice(s)
+}
+
+// printNotice muestra el aviso del demonio (pista saltada, cola detenida por
+// errores) si lo hay. Va al STDERR: `maly status` es de las salidas que la
+// gente parsea, y el aviso es excepcional — al stdout cambiaría el formato
+// justo cuando algo va mal. Mismo criterio con el que printScanLine solo
+// aparece durante un scan.
+func printNotice(s *ipc.Status) {
+	if s.Notice != "" {
+		fmt.Fprintln(os.Stderr, "maly: "+s.Notice)
+	}
 }
 
 // printScanLine añade una tercera línea SOLO mientras hay un escaneo en

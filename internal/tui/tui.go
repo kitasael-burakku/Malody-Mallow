@@ -65,6 +65,11 @@ type Model struct {
 	status      *ipc.Status
 	connErr     bool
 
+	// lastNotice: el último Status.Notice ya mostrado como flash, para no
+	// rearmarlo en cada push (llegan varias por segundo) y que el flash pueda
+	// caducar (ver applyStatus).
+	lastNotice string
+
 	// Última generación de biblioteca vista (Status.LibGen): si el demonio
 	// reporta otra, algún scan tocó la DB y el árbol se recarga solo.
 	libGen uint64
@@ -517,6 +522,16 @@ func (m *Model) applyStatus(resp ipc.Response) tea.Cmd {
 	}
 	if m.queueCursor < 0 {
 		m.queueCursor = 0
+	}
+	// Aviso del demonio (pista saltada, cola detenida por errores): flash de
+	// error. Solo al CAMBIAR, porque los pushes llegan varias veces por
+	// segundo mientras suena algo y el flash se estaría rearmando sin parar,
+	// sin caducar nunca. lastNotice recuerda el último ya mostrado.
+	if s := resp.Status; s != nil && s.Notice != m.lastNotice {
+		m.lastNotice = s.Notice
+		if s.Notice != "" {
+			m.setFlash(s.Notice, true)
+		}
 	}
 	// Otra generación de biblioteca: un scan (consola, maly scan o maly get,
 	// desde cualquier cliente) tocó la DB. La primera foto solo registra la

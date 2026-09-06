@@ -66,7 +66,12 @@ func (d *Daemon) advance(reason, chained string, gen int64) {
 				return true, false
 			}
 			if t, ok := d.q.Current(); ok {
+				// Al stderr (queda en el journal para un postmortem) Y en
+				// Status, que es lo que de verdad ve el usuario: hasta A-25
+				// solo existía lo primero y la pista se saltaba sola, sin
+				// explicación en pantalla.
 				fmt.Fprintln(os.Stderr, "maly: "+i18n.Tf("d.track_failed", t))
+				d.setNoticeLocked("d.track_failed", t.String())
 			}
 			d.errStreak++
 			if d.errStreak >= d.q.Len() {
@@ -77,6 +82,10 @@ func (d *Daemon) advance(reason, chained string, gen int64) {
 				d.errStreak = 0
 				d.stopped = true
 				d.pl.Stop()
+				// Pisa al aviso de pista saltada: este es el estado terminal
+				// —no suena nada y no va a arrancar solo— y es el que hay que
+				// contar. Es el caso del disco de música desmontado.
+				d.setNoticeLocked("d.queue_failed")
 				return false, true
 			}
 		} else {
@@ -134,7 +143,15 @@ func (d *Daemon) loadLocked(t library.Track) error {
 	}
 	d.errStreak = 0
 	d.stopped = false
+	d.notice, d.noticeArgs = "", nil // una carga sana: el problema pasó
 	return nil
+}
+
+// setNoticeLocked guarda el último aviso para el usuario. Guarda la CLAVE y
+// sus argumentos, no el texto ya armado: quien pregunta puede tener otro
+// idioma que el demonio, y statusLocked lo traduce con el de cada quien.
+func (d *Daemon) setNoticeLocked(key string, args ...any) {
+	d.notice, d.noticeArgs = key, args
 }
 
 // resumeLocked reanuda: quita pausa si hay pista, o arranca la cola si mpv

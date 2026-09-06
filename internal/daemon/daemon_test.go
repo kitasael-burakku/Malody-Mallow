@@ -705,6 +705,22 @@ func TestSubscribe(t *testing.T) {
 	if resp := d.Do(ipc.Request{Cmd: "vol", Value: "70"}); !resp.OK {
 		t.Fatalf("vol tras colgar: %s", resp.Error)
 	}
+	// Esperar a que el volumen se refleje ANTES de resuscribirse. `vol`
+	// vuelve en cuanto mpv acepta el comando, pero statusLocked lee el
+	// ESPEJO del player, que se actualiza con el property-change asíncrono
+	// que llega después: sin esta espera la foto inicial de sub2 podía traer
+	// todavía 60 y el test fallaba sin que nada estuviera mal (medido: 3 de
+	// 40 corridas). waitVolume no sirve acá porque lee de sub, ya cerrado.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if st := d.Do(ipc.Request{Cmd: "status"}).Status; st != nil && st.Volume == 70 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("el volumen nunca se reflejó como 70")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	sub2, err := ipc.Dial(config.SocketPath())
 	if err != nil {
 		t.Fatal(err)
@@ -1625,5 +1641,77 @@ func TestClienteVePeticionDemasiadoGrande(t *testing.T) {
 	}
 	if !strings.Contains(resp.Error, i18n.T("d.req_too_large")) {
 		t.Errorf("esperaba el mensaje de petición demasiado grande, salió %q", resp.Error)
+	}
+}
+
+// --- A-25: los avisos del demonio llegan al usuario ------------------------
+
+// TestNoticeColaAgotadaLlegaAlStatus cubre A-25: cuando una pasada completa
+// de la cola falla, advance se detiene y hasta ahora lo contaba SOLO al
+// stderr del demonio — o sea al journal bajo systemd, que nadie mira. El
+// efecto para el usuario era que todo dejaba de sonar sin ninguna explicación
+// en pantalla; es exactamente lo que pasa cuando el disco de música se
+// desmonta mientras suena algo.
+func TestNoticeColaAgotadaLlegaAlStatus(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	for _, n := range []string{"x.wav", "y.wav", "z.wav"} {
+		writeBadAudio(t, filepath.Join(music, n))
+	}
+	if resp := d.Do(ipc.Request{Cmd: "play", Query: music}); !resp.OK {
+		t.Fatalf("play: %s", resp.Error)
+	}
+
+	// Los pushes son FOTOS: pollear hasta el estado final, nunca leer una vez.
+	quiero := i18n.T("d.queue_failed")
+	deadline := time.Now().Add(20 * time.Second)
+	var got string
+	for time.Now().Before(deadline) {
+		if st := d.Do(ipc.Request{Cmd: "status"}).Status; st != nil {
+			got = st.Notice
+			if got == quiero {
+				break
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if got != quiero {
+		t.Fatalf("Status.Notice = %q, quería %q: el usuario no se entera de que todo se detuvo", got, quiero)
+	}
+
+	// Y una carga sana lo limpia: el aviso es del problema, no permanente.
+	ok := t.TempDir()
+	writeWAV(t, filepath.Join(ok, "buena.wav"), 1)
+	if resp := d.Do(ipc.Request{Cmd: "play", Query: ok}); !resp.OK {
+		t.Fatalf("play buena: %s", resp.Error)
+	}
+	if st := d.Do(ipc.Request{Cmd: "status"}).Status; st != nil && st.Notice != "" {
+		t.Errorf("una carga sana debía limpiar el aviso, quedó %q", st.Notice)
+	}
+}
+
+// TestNoticeSeTraduceAlIdiomaDelCliente: el aviso viaja como CLAVE + args y
+// se traduce al responder, así que dos clientes con idiomas distintos ven
+// cada uno el suyo aunque el demonio arrancara con otro. Es la razón de no
+// guardar el texto ya armado.
+func TestNoticeSeTraduceAlIdiomaDelCliente(t *testing.T) {
+	d := newTestDaemon(t)
+	d.mu.Lock()
+	d.setNoticeLocked("d.queue_failed")
+	d.mu.Unlock()
+
+	es := d.Do(ipc.Request{Cmd: "status", Lang: "es"}).Status
+	en := d.Do(ipc.Request{Cmd: "status", Lang: "en"}).Status
+	if es == nil || en == nil {
+		t.Fatal("sin Status")
+	}
+	if es.Notice != i18n.TL("es", "d.queue_failed") {
+		t.Errorf("en español salió %q", es.Notice)
+	}
+	if en.Notice != i18n.TL("en", "d.queue_failed") {
+		t.Errorf("en inglés salió %q", en.Notice)
+	}
+	if es.Notice == en.Notice {
+		t.Error("los dos idiomas dieron el mismo texto: el aviso no se está traduciendo por cliente")
 	}
 }

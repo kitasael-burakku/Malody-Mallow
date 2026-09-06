@@ -71,7 +71,12 @@ propio timeout de 20 s. Por eso la salida usa `stopGetSearch`, que cancela **y
 espera** (con tope, `getKillWait`): en `RunGetPick` tras `p.Run()`, y en
 `tui.Run` tras el suyo, porque `ctrl+c` corta ANTES de todo modal en
 `handleKey` y nunca pasa por `closeGet` (A-15; medido: sin la espera, 5 de 5
-huérfanos). Los modales tapan el footer, que es el ÚNICO canal de error de la
+huérfanos). El aviso del demonio (`Status.Notice`: pista saltada, cola detenida por
+errores) se pinta como flash de error, pero SOLO al cambiar: los pushes llegan
+varias veces por segundo y el aviso persiste hasta la siguiente carga sana, así
+que rearmarlo en cada foto lo dejaría fijo en pantalla sin caducar nunca
+(`lastNotice`, A-25).
+Los modales tapan el footer, que es el ÚNICO canal de error de la
 TUI (`setFlash`), así que cada capa de pantalla completa tiene que dibujarlo
 por su cuenta: `m.withFlash(box)` lo cuelga bajo la caja (playlists, songs,
 ctrl+g) y `npView` lo pone en su fila de HINT en vez de agregar una, porque

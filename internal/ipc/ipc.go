@@ -63,6 +63,16 @@ type Status struct {
 	// scan, así los clientes detectan en cualquier respuesta o push que la
 	// biblioteca cambió y recargan su copia. 0 = demonio sin soporte (< 0.7).
 	LibGen uint64 `json:"lib_gen,omitempty"`
+	// Notice es el último aviso del demonio que el usuario debería ver: una
+	// pista saltada por irreproducible, o la cola detenida tras una pasada
+	// entera sin nada que suene. Vive acá porque era el ÚNICO evento del
+	// demonio que el usuario necesita conocer y que el protocolo no
+	// transportaba —iba solo al stderr, o sea al journal bajo systemd— así
+	// que con el disco de música desmontado todo dejaba de sonar y la
+	// interfaz no decía nada (A-25). Se limpia con la siguiente carga sana.
+	// omitempty mantiene la compatibilidad con clientes viejos, igual que
+	// LibGen. Llega ya traducido al idioma del cliente que preguntó.
+	Notice string `json:"notice,omitempty"`
 }
 
 // Response es la respuesta del demonio.
@@ -87,6 +97,12 @@ type Response struct {
 func cleanResp(r *Response) {
 	r.Msg = safetext.Clean(r.Msg)
 	r.Error = safetext.Clean(r.Error)
+	// Notice arrastra el nombre de una pista, o sea tags: texto ajeno. Sale
+	// limpio de library.scanTrack/ReadTags, pero se sanea igual acá por ser
+	// la misma clase que Msg/Error y pasar por la misma frontera.
+	if r.Status != nil {
+		r.Status.Notice = safetext.Clean(r.Status.Notice)
+	}
 }
 
 // Client es una conexión al demonio. No es segura para uso concurrente: una

@@ -133,8 +133,10 @@ sin commitear, el arnés de verificación se hace con `cp` de una copia.
   taken» y siguen sin MPRIS. Es inofensivo, pero explica el ruido en la
   salida. Corriendo el binario de test a mano (`go test -c` y ejecutarlo) se
   vio **un** fallo suelto en ~14 corridas que no se pudo reproducir en 10
-  intentos más ni se vio nunca a través de `go test`; queda anotado sin
-  explicación en vez de darlo por inexistente.
+  intentos más ni se vio nunca a través de `go test`. Probablemente fuera la
+  intermitencia de `TestSubscribe` que se midió y arregló en A-25 (3 de 40),
+  pero no quedó registrado qué test falló entonces, así que se anota como
+  probable y no como confirmado.
 - Los tests de `internal/viz` construyen el `Viz` a mano (`newTestViz`):
   `New()` arrancaría un `pw-record`/`parec` REAL.
 - `newTestDaemon` apaga `ScanDurations`, o en una máquina con ffprobe los
@@ -144,6 +146,12 @@ sin commitear, el arnés de verificación se hace con `cp` de una copia.
   el falso no puede depender de `sed`/`mkdir` externos sin agregarlos de
   vuelta detrás del bin falso.
 - Ningún test honra `-short`: pasarlo sería un no-op.
+- **Un comando de reproducción vuelve antes de que el ESPEJO del player se
+  actualice.** `vol`/`seek`/etc. retornan cuando mpv acepta el comando, pero
+  `statusLocked` lee el espejo, que se refresca con el property-change
+  asíncrono posterior. Un test que mande el comando y lea el estado enseguida
+  es intermitente por construcción: hay que pollear. Encontrado en `TestSubscribe`
+  (3 de 40 corridas fallaban, siempre por leer 60 donde ya debía haber 70).
 
 ## CI
 

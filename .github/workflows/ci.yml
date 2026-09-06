@@ -26,10 +26,28 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # Únicos dos paquetes con concurrencia real de goroutines que no
-      # dependen de binarios externos (mpv/ffprobe): TestScanConcurrentSearch/
-      # TestFillDurationsConcurrentSearch/TestFillDurationsProbesInParallel en
-      # library, y TestPropsConcurrent en mpris (el que habría cazado la
-      # race de godbus/prop). El resto de internal/daemon se auto-salta sin
-      # mpv y no tiene sentido correrlo bajo -race aquí.
-      - run: go test -race ./internal/library/ ./internal/mpris/
+      # Todo el árbol, no dos paquetes. La lista corta (library + mpris)
+      # existía porque internal/daemon tenía una race ENTRE TESTS: idleTimeout
+      # era var de paquete y el override de un test corría detrás de las
+      # goroutines de serve() del demonio de otro. Eso se cerró en la 1.11.0
+      # al volverlo campo de instancia (igual que maxSubscribers), así que el
+      # motivo ya no aplica — comprobado antes de tocar esto: no queda ninguna
+      # var de paquete que los tests pisen, y `go test -race ./...` pasa
+      # entero, tres corridas seguidas, ~19 s la más lenta.
+      #
+      # Y son justo los paquetes con la concurrencia más difícil los que se
+      # estaban quedando fuera: daemon (d.mu/notifyMu/subMu + callbacks
+      # async), player (loadGen, pendingEnd, cbWG), viz (tres races reales
+      # encontradas en la 1.13.0) e ipc, cuyo TestConcurrentClientsStress se
+      # escribió explícitamente "para -race" y en CI corría sin él.
+      #
+      # Sin mpv aquí, daemon salta 36 de sus 42 tests y reporta ok igual
+      # (medido con un PATH realmente vacío, no asumido); player y viz se
+      # comportan igual con sus propios binarios ausentes. O sea que el
+      # detector corre sobre lo que SÍ se puede correr, que es lo que se
+      # busca.
+      #
+      # CGO_ENABLED se queda en su valor por defecto (1), a diferencia del job
+      # `test`: -race lo necesita. Que el binario se compile sin cgo lo cubre
+      # aquel job, que es donde importa.
+      - run: go test -race ./...

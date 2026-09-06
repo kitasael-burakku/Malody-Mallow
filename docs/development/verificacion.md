@@ -118,8 +118,16 @@ sin commitear, el arnés de verificación se hace con `cp` de una copia.
 ## Dependencias externas en los tests
 
 - `internal/daemon` y `internal/player` usan **mpv real** y hacen `t.Skip` sin
-  él (23 de 24 tests del paquete se auto-saltan; el paquete igual reporta
+  él (36 de los 42 tests de daemon se auto-saltan; el paquete igual reporta
   `ok` — verificado con un `PATH` realmente sin esos binarios).
+- Los tests de `internal/daemon` compiten por el **nombre de bus de MPRIS**,
+  que es global a la sesión y no depende de las rutas XDG: con el `maly` del
+  dueño corriendo, los demonios de prueba escupen «bus name … is already
+  taken» y siguen sin MPRIS. Es inofensivo, pero explica el ruido en la
+  salida. Corriendo el binario de test a mano (`go test -c` y ejecutarlo) se
+  vio **un** fallo suelto en ~14 corridas que no se pudo reproducir en 10
+  intentos más ni se vio nunca a través de `go test`; queda anotado sin
+  explicación en vez de darlo por inexistente.
 - Los tests de `internal/viz` construyen el `Viz` a mano (`newTestViz`):
   `New()` arrancaría un `pw-record`/`parec` REAL.
 - `newTestDaemon` apaga `ScanDurations`, o en una máquina con ffprobe los
@@ -132,11 +140,22 @@ sin commitear, el arnés de verificación se hace con `cp` de una copia.
 
 ## CI
 
-`.github/workflows/ci.yml`, dos jobs: `test` (build + vet + test) y `race`
-(`-race` solo sobre `internal/library` e `internal/mpris`, los dos paquetes
-con concurrencia real de goroutines que no dependen de mpv/ffprobe).
+`.github/workflows/ci.yml`, dos jobs: `test` (build + vet + test, con
+`CGO_ENABLED=0` porque así se compila el binario que se distribuye) y `race`
+(`go test -race ./...`, con CGO en su valor por defecto porque `-race` lo
+necesita).
 
-`internal/daemon` **no** está en la lista de `-race` a propósito: el
-`idleTimeout` es campo de instancia justamente porque como var de paquete
-disparaba una race entre demonios de tests distintos (1.11.0). Si algún día se
-agrega, eso ya no lo dispara.
+**El job `race` corría solo sobre `library` y `mpris` hasta A-14** (2026-09).
+La lista corta existía por una race ENTRE TESTS de `internal/daemon`:
+`idleTimeout` era var de paquete y el override de un test corría detrás de las
+goroutines de `serve()` del demonio de otro. Se cerró en la 1.11.0 volviéndolo
+campo de instancia, así que el motivo ya no aplicaba — y quedaban fuera justo
+los paquetes con la concurrencia más difícil, incluido `ipc`, cuyo
+`TestConcurrentClientsStress` se escribió explícitamente «para `-race`» y en
+CI corría sin él.
+
+Antes de ampliarlo se comprobó, en vez de darlo por bueno: no queda ninguna
+var de paquete que los tests pisen, `go test -race ./...` pasa entero en tres
+corridas seguidas (~19 s la más lenta), y sin mpv `internal/daemon` salta 36
+de sus 42 tests y reporta `ok` igual — medido con un PATH realmente vacío, que
+es la condición de CI.

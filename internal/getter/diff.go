@@ -21,6 +21,13 @@ package getter
 // obliga a parsear la salida de yt-dlp, que es justo lo que el proyecto
 // evita.
 //
+// Pero el directorio TAMPOCO alcanza solo, y por un caso que la 1.15.0 no
+// consideró: yt-dlp no vuelve a bajar un archivo que ya existe —sale 0, no
+// toca el disco— así que el diff queda vacío igual que cuando no encontró
+// nada, y esos dos tienen remedios opuestos (reformular vs. no hacer nada).
+// Lo separa ReadPaths, con el archivo de --print-to-file (ver Opts.PathsFile
+// y A-07).
+//
 // Importar library desde acá no arrastra nada: IsAudio es el filtro único de
 // extensiones del proyecto (duplicar su lista sería peor), y los dos
 // paquetes que usan getter —cmd/maly e internal/tui— ya importan library.
@@ -139,4 +146,34 @@ func Cleanup(dir string, before map[string]bool) int {
 		}
 	}
 	return n
+}
+
+// ReadPaths lee el archivo de rutas que dejó --print-to-file
+// (Opts.PathsFile): una ruta final por línea, incluidas las de los archivos
+// que yt-dlp SALTÓ por existir ya.
+//
+// Es lo que separa los tres desenlaces que el diff del directorio colapsaba
+// en uno (A-07):
+//
+//	yt-dlp 0 · rutas 1 · diff 1 nuevo  → descargado
+//	yt-dlp 0 · rutas 1 · diff vacío    → ya lo tenías (NO es error)
+//	yt-dlp 0 · rutas 0 · diff vacío    → la búsqueda no encontró nada
+//	yt-dlp ≠0                          → falló (+ Cleanup)
+//
+// Un archivo ausente o ilegible devuelve nil sin error: el llamador vuelve
+// entonces al criterio del diff solo, que es el comportamiento anterior. Así
+// una versión de yt-dlp que no escribiera nada degrada en silencio en vez de
+// romper la descarga.
+func ReadPaths(name string) []string {
+	data, err := os.ReadFile(name)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, l := range strings.Split(string(data), "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
 }

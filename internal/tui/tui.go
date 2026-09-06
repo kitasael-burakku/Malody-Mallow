@@ -707,6 +707,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// El 403 baja la miniatura antes de fallar: sin esto se queda
 			// huérfana en music_dir con cada intento.
 			getter.Cleanup(msg.dir, msg.before)
+			os.Remove(msg.pathsFile)
 			line := i18n.Tf("cli.get_err", msg.err)
 			m.conErr(line)
 			if msg.fromModal {
@@ -719,6 +720,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// en internal/getter/diff.go). Quien decide es el diff.
 		got := getter.NewAudioAll(msg.dir, msg.before)
 		if len(got) == 0 {
+			// …salvo el caso que el directorio no puede ver: yt-dlp NO
+			// rebaja lo que ya existe, así que el diff queda vacío igual que
+			// cuando no encontró nada. Las rutas lo distinguen, y esto no es
+			// un fallo: el archivo está y la biblioteca ya lo tiene (A-07).
+			if ya := getter.ReadPaths(msg.pathsFile); len(ya) > 0 {
+				os.Remove(msg.pathsFile)
+				line := i18n.Tf("cli.get_already", filepath.Base(ya[0]))
+				m.conPrint(m.st.dim.Render(line))
+				if msg.fromModal {
+					m.setFlash(line, false)
+				}
+				return m, nil
+			}
+			os.Remove(msg.pathsFile)
 			getter.Cleanup(msg.dir, msg.before) // la miniatura huérfana
 			line := i18n.T("cli.get_nothing")
 			m.conErr(line)
@@ -727,6 +742,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		os.Remove(msg.pathsFile)
 		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
 		if msg.fromModal {
 			// Con una sola pista se puede nombrar sin esperar al scan: el

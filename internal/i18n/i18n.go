@@ -280,6 +280,7 @@ var table = map[string][2]string{
 	"cli.get_err":           {"yt-dlp failed: %v (see its output above)", "yt-dlp falló: %v (revisa su salida arriba)"},
 	"cli.get_scan":          {"Download finished — updating the library ...", "Descarga lista — actualizando la biblioteca ..."},
 	"cli.get_done":          {"Downloaded: %s", "Descargado: %s"},
+	"cli.get_already":       {"%s was already in your music folder; nothing to download", "%s ya estaba en tu carpeta de música; no hay nada que descargar"},
 	"cli.get_nothing":       {"the download left no track in your music folder — the search may have matched nothing, or yt-dlp reported an error above", "la descarga no dejó ninguna pista en tu carpeta de música — puede que la búsqueda no encontrara nada, o que yt-dlp reportara un error arriba"},
 
 	// ---- espera a un demonio que ya tiene el lock pero aún no contesta ----

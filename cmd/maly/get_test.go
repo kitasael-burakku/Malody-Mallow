@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+
+	"maly/internal/i18n"
 	"strings"
 	"testing"
 
@@ -733,5 +736,118 @@ func TestGetPlaylistFalloRespetaDirectorioPreexistente(t *testing.T) {
 	}
 	if _, err := os.Stat(ajena); err != nil {
 		t.Errorf("la música que ya estaba ahí no se toca: %v", err)
+	}
+}
+
+// fakeYtdlpYaEstaba reemplaza el yt-dlp falso por uno que se comporta como el
+// real cuando el archivo YA EXISTE: sale 0, no toca el disco, y escribe la
+// ruta final en el archivo de --print-to-file. Que el hook dispare también
+// para un archivo saltado está verificado en la fuente de yt-dlp (las dos
+// ramas de report_file_already_downloaded no retornan temprano, así que la
+// ejecución llega a run_all_pps("after_move")), no supuesto.
+func fakeYtdlpYaEstaba(t *testing.T, musicDir string) {
+	t.Helper()
+	bin := filepath.Dir(mustLookPath(t, "yt-dlp"))
+	sh := fmt.Sprintf(`#!/bin/sh
+prev=""
+paths=""
+for a in "$@"; do
+	if [ "$prev" = "--print-to-file" ]; then paths=""; fi
+	if [ "$prev" = "after_move:filepath" ]; then paths=$a; fi
+	prev=$a
+done
+echo "[download] %s/Fake Artist - Fake Song.mp3 has already been downloaded"
+if [ -n "$paths" ]; then
+	echo "%s/Fake Artist - Fake Song.mp3" >> "$paths"
+fi
+exit 0
+`, musicDir, musicDir)
+	if err := os.WriteFile(filepath.Join(bin, "yt-dlp"), []byte(sh), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func mustLookPath(t *testing.T, name string) string {
+	t.Helper()
+	p, err := exec.LookPath(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// TestGetYaLaTeniasNoEsError cubre A-07: desde que el criterio de éxito es el
+// diff del directorio, re-descargar una pista que ya está se reportaba como
+// FALLO con código de salida 1 — yt-dlp no vuelve a bajar lo que ya existe,
+// sale 0, no toca el disco, y el diff queda vacío igual que cuando la
+// búsqueda no encontró nada. Los dos casos tienen remedios opuestos
+// (reformular vs. no hacer nada) y colapsaban en el mismo mensaje.
+//
+// No es un caso raro: ctrl+g marca con ✓ lo que ya tienes justamente porque
+// re-descargar es algo que la gente intenta, y ese enter terminaba en error.
+func TestGetYaLaTeniasNoEsError(t *testing.T) {
+	musicDir, _ := getSandbox(t)
+
+	// Primera descarga: la de siempre.
+	if err := runGet([]string{"aurora", "runaway"}); err != nil {
+		t.Fatalf("primera descarga: %v", err)
+	}
+
+	// Segunda: yt-dlp encuentra el archivo y no hace nada.
+	fakeYtdlpYaEstaba(t, musicDir)
+	out := captureStdout(t, func() {
+		if err := runGet([]string{"aurora", "runaway"}); err != nil {
+			t.Errorf("re-descargar algo que ya está NO es un error: %v", err)
+		}
+	})
+	if !strings.Contains(out, "already in your music folder") {
+		t.Errorf("debía decir que ya la tenías, salió:\n%s", out)
+	}
+	if strings.Contains(out, "left no track") {
+		t.Errorf("no debía reportar el fallo de 'no encontré nada':\n%s", out)
+	}
+}
+
+// TestGetSinResultadosSigueSiendoError es la otra mitad: sin archivo de rutas
+// —yt-dlp salió 0 sin producir nada, o sea una búsqueda que no encontró— el
+// error se mantiene. Sin esta comprobación, "ya lo tenías" podría estar
+// tragándose el caso que la 1.15.0 arregló.
+func TestGetSinResultadosSigueSiendoError(t *testing.T) {
+	getSandbox(t)
+	bin := filepath.Dir(mustLookPath(t, "yt-dlp"))
+	// Sale 0 y no deja NADA: ni archivo de audio ni rutas.
+	if err := os.WriteFile(filepath.Join(bin, "yt-dlp"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := runGet([]string{"consulta", "sin", "resultados"})
+	if err == nil {
+		t.Fatal("una búsqueda sin resultados debía seguir siendo error")
+	}
+	if !strings.Contains(err.Error(), i18n.T("cli.get_nothing")) {
+		t.Errorf("esperaba cli.get_nothing, salió %v", err)
+	}
+}
+
+// TestGetPasaElArchivoDeRutas: la invocación lleva --print-to-file con el
+// template after_move:filepath. Es la interfaz de MÁQUINA de yt-dlp, del
+// mismo tipo que --dump-json; sin ella no hay forma de distinguir los dos
+// casos sin parsear la salida humana, que es justo lo que el proyecto evita.
+func TestGetPasaElArchivoDeRutas(t *testing.T) {
+	_, argsFile := getSandbox(t)
+	if err := runGet([]string{"aurora"}); err != nil {
+		t.Fatal(err)
+	}
+	args := fakeArgs(t, argsFile)
+	idx := -1
+	for i, a := range args {
+		if a == "--print-to-file" {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		t.Fatal("no se pasó --print-to-file")
+	}
+	if idx+1 >= len(args) || args[idx+1] != "after_move:filepath" {
+		t.Errorf("el template debía ser after_move:filepath, args=%v", args)
 	}
 }

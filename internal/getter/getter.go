@@ -61,6 +61,23 @@ type Opts struct {
 	// `maly get playlist <url>` sin nombre explícito, para no tener que
 	// adivinar el nombre antes de descargar.
 	PlaylistSubdir bool
+	// PathsFile, si no está vacío, recibe la ruta final de CADA archivo que
+	// yt-dlp produzca, una por línea (--print-to-file after_move:filepath).
+	// Es otra interfaz de MÁQUINA de yt-dlp, del mismo tipo que --dump-json:
+	// no ensucia el progreso que va al terminal ni obliga a parsear nada
+	// humano.
+	//
+	// Existe porque el diff del directorio no distingue "la búsqueda no
+	// encontró nada" de "ya lo tenías": yt-dlp NO vuelve a bajar un archivo
+	// que ya existe —sale 0, no toca el disco— y el diff queda vacío en los
+	// dos casos, que tienen remedios opuestos (A-07).
+	//
+	// Que el hook dispare también para un archivo SALTADO está verificado en
+	// la fuente de yt-dlp y no supuesto: las dos ramas de
+	// report_file_already_downloaded (YoutubeDL.py) NO retornan temprano, así
+	// que la ejecución sigue hasta run_all_pps("after_move"), que es donde
+	// _forceprint escribe el archivo.
+	PathsFile string
 }
 
 // Command arma el yt-dlp que descarga o.Spec a o.Dir. mp3 a propósito: el
@@ -96,6 +113,9 @@ func Command(o Opts) *exec.Cmd {
 	}
 	if o.Cookies != "" {
 		args = append(args, "--cookies-from-browser", o.Cookies)
+	}
+	if o.PathsFile != "" {
+		args = append(args, "--print-to-file", "after_move:filepath", o.PathsFile)
 	}
 	args = append(args, "--", o.Spec)
 	return exec.Command("yt-dlp", args...)

@@ -56,6 +56,11 @@ type getDoneMsg struct {
 	// directorio — y con él se limpia la miniatura que deja un 403.
 	dir    string
 	before map[string]bool
+	// pathsFile es el temporal donde yt-dlp escribió la ruta de cada archivo
+	// que produjo, incluidos los que SALTÓ por existir ya: es lo único que
+	// separa "ya lo tenías" de "no encontré nada" (A-07). "" = no se pudo
+	// crear, y entonces manda el diff solo, como antes.
+	pathsFile string
 }
 
 // getPlaylistDoneMsg vuelve de yt-dlp para `get playlist` (tea.ExecProcess).
@@ -597,9 +602,18 @@ func (m *Model) startGet(spec string, fromModal bool) (tea.Cmd, error) {
 	// getDoneMsg). Un error de lectura acá no debería impedir descargar: se
 	// degrada a before nil, que hace el diff inservible pero no rompe.
 	before, _ := getter.Snapshot(dir)
-	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec, Cookies: m.cfg.Ytdlp.CookiesFromBrowser})
+	// Archivo de rutas: separa "ya lo tenías" de "no encontré nada", que el
+	// diff colapsa (A-07; espejo de downloadOne en cmd/maly). Si no se puede
+	// crear se sigue sin él, con el diff solo.
+	pathsFile := ""
+	if f, err := os.CreateTemp("", "maly-get-*.txt"); err == nil {
+		pathsFile = f.Name()
+		f.Close()
+	}
+	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec,
+		Cookies: m.cfg.Ytdlp.CookiesFromBrowser, PathsFile: pathsFile})
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return getDoneMsg{err: err, fromModal: fromModal, dir: dir, before: before}
+		return getDoneMsg{err: err, fromModal: fromModal, dir: dir, before: before, pathsFile: pathsFile}
 	}), nil
 }
 

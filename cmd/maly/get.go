@@ -97,7 +97,19 @@ func downloadOne(cfg config.Config, spec, label string) error {
 	if err != nil {
 		return err
 	}
-	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec, Cookies: cfg.Ytdlp.CookiesFromBrowser})
+	// Archivo de rutas: yt-dlp escribe ahí la ruta final de cada archivo que
+	// produce, incluidos los que SALTA por existir ya. Es lo que separa "no
+	// encontré nada" de "ya lo tenías", que el diff del directorio colapsaba
+	// (A-07). Si no se puede crear, se sigue sin él: el diff solo es el
+	// comportamiento de siempre.
+	pathsFile := ""
+	if f, err := os.CreateTemp("", "maly-get-*.txt"); err == nil {
+		pathsFile = f.Name()
+		f.Close()
+		defer os.Remove(pathsFile)
+	}
+	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec,
+		Cookies: cfg.Ytdlp.CookiesFromBrowser, PathsFile: pathsFile})
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -110,9 +122,17 @@ func downloadOne(cfg config.Config, spec, label string) error {
 	// El código de salida no alcanza: una búsqueda que no encuentra nada sale
 	// 0 sin bajar nada (ver la tabla medida en internal/getter/diff.go), y
 	// esto anunciaba "Descarga lista" seguido de "La biblioteca está vacía".
-	// Quien decide es el directorio.
+	// Quien decide es el directorio… salvo en un caso que el directorio no
+	// puede ver: yt-dlp NO vuelve a bajar lo que ya existe, así que el diff
+	// queda vacío igual que cuando no encontró nada. Las rutas lo distinguen.
 	got := getter.NewAudioAll(dir, before)
 	if len(got) == 0 {
+		if yaEstaban := getter.ReadPaths(pathsFile); len(yaEstaban) > 0 {
+			// No es un fallo y no hay nada que limpiar: el archivo está,
+			// la biblioteca ya lo tiene indexado desde la vez anterior.
+			fmt.Println(i18n.Tf("cli.get_already", filepath.Base(yaEstaban[0])))
+			return nil
+		}
 		getter.Cleanup(dir, before) // el .webp de la miniatura, si quedó
 		return errors.New(i18n.T("cli.get_nothing"))
 	}

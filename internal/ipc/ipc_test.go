@@ -328,10 +328,10 @@ func TestDoRecoversAfterTimeoutOnSameClient(t *testing.T) {
 // revisión: el cliente no puede capar las respuestas al mismo tope que el
 // servidor usa para las PETICIONES (1 MiB, tráfico bien distinto) —
 // "search"/"queue" mandan la biblioteca o cola COMPLETA sin tope propio a
-// propósito (ver CLAUDE.md, 1.1.5: capar esas dos rompía play/add en
-// silencio), y con una biblioteca grande esa respuesta ronda varios MB. 5
-// MiB está bien por encima del viejo tope (1 MiB) y bien por debajo del
-// actual (64 MiB).
+// propósito (ver docs/history/roadmap-1.0-1.7.md, 1.1.5: capar esas dos
+// rompía play/add en silencio), y con una biblioteca grande esa respuesta
+// ronda varios MB. 5 MiB está bien por encima del viejo tope (1 MiB) y bien
+// por debajo del actual (64 MiB).
 func TestDoAcceptsLargeLegitimateResponse(t *testing.T) {
 	bigMsg := strings.Repeat("x", 5<<20)
 	sock := serve(t, func(conn net.Conn) {

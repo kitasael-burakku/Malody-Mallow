@@ -8,7 +8,7 @@ import (
 
 // Benchmarks persistentes para Search/Scan (hallazgo TEST-3 de la auditoría
 // técnica): las rondas de rendimiento anteriores (1.7.1, 1.7.3, ver
-// CLAUDE.md) midieron con benchmarks desechables + pprof, borrados tras
+// docs/history/roadmap-1.0-1.7.md) midieron con benchmarks desechables + pprof, borrados tras
 // medir — sin nada commiteado, una regresión futura (p. ej. alguien
 // reintroduce un Search("") sin LIMIT en un camino nuevo, exactamente lo
 // que causó la 1.7.3) solo se detecta en la próxima auditoría manual, no en

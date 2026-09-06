@@ -906,7 +906,9 @@ diagnoses most of the below automatically.
 ├── mallow-install.sh         bilingual interactive installer
 ├── Makefile                   build / vet / test / install / clean
 ├── CHANGELOG.md                release log (Spanish)
-├── CLAUDE.md                    deep engineering doc (Spanish)
+├── CLAUDE.md                    project operating contract (Spanish)
+├── docs/                        deep documentation (architecture, decisions,
+│                              development, roadmap) — see docs/README.md
 └── LICENSE                       GPLv3
 ```
 
@@ -933,14 +935,17 @@ make test       # go test ./...
   above with `-race`).
 - `maly completions <shell>` regenerates the scripts embedded under
   `cmd/maly/completions/` if you change the command table.
-- To debug TUI or daemon startup in an isolated environment, `CLAUDE.md`
+- To debug TUI or daemon startup in an isolated environment,
+  [`docs/development/probar-en-vivo.md`](docs/development/probar-en-vivo.md)
   documents the XDG sandbox used in development (short paths for mpv's
   socket, `ao=null` in `mpv.conf`, how to test under tmux).
 
-`CLAUDE.md` is the project's full engineering document: detailed
-per-package architecture, cross-cutting security/concurrency decisions,
-and the reasoned history of every release. `CHANGELOG.md` is the short
-version, release by release.
+`CLAUDE.md` is the project's operating contract: philosophy, cross-cutting
+security/concurrency invariants, and high-level architecture. The detail
+lives under [`docs/`](docs/README.md) — per-package notes in
+`docs/architecture/`, settled decisions in `docs/decisions/no-hacer.md`, and
+the reasoned history of every release in `docs/history/`. `CHANGELOG.md` is
+the short version, release by release. (All of it is in Spanish.)
 
 ---
 
@@ -951,7 +956,8 @@ Malody Mallow is under active development at a frequent release cadence
 persistent service, the SQLite library, MPRIS, the TUI, the CLI — is
 stable and used daily by the author as their main player. The project has
 gone through several self-driven security, performance, and UX audits,
-documented in `CLAUDE.md`.
+documented release by release under
+[`docs/history/`](docs/history/README.md).
 
 Mouse support in the TUI is deliberately out of scope. The project stays
 focused on coordinating existing tools (mpv, yt-dlp, ffmpeg) rather than

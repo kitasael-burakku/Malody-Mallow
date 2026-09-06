@@ -105,8 +105,8 @@ type Client struct {
 // maxRespLine acota las RESPUESTAS que lee el cliente — no confundir con el
 // tope de 1 MiB que el servidor aplica a las PETICIONES que recibe (mismo
 // framing, tráfico muy distinto): "search"/"queue" mandan la biblioteca o
-// cola COMPLETA sin tope propio (a propósito, ver CLAUDE.md — capar esas dos
-// en 1.1.5 rompió play/add en silencio), y el push de cada "subscribe" manda
+// cola COMPLETA sin tope propio (a propósito, ver docs/history/roadmap-1.0-1.7.md
+// — capar esas dos en 1.1.5 rompió play/add en silencio), y el push de cada "subscribe" manda
 // la cola entera en cada cambio. Con bibliotecas de la escala que este
 // proyecto ya benchmarkeó (documentado hasta 40.000 pistas, ~250 B de JSON
 // cada una), esas respuestas rondan varios MB — 1 MiB las habría cortado.

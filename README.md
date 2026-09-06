@@ -907,7 +907,9 @@ diagnostica la mayoría de lo de abajo automáticamente.
 ├── mallow-install.sh         instalador interactivo bilingüe
 ├── Makefile                   build / vet / test / install / clean
 ├── CHANGELOG.md                registro de releases (español)
-├── CLAUDE.md                    documento de ingeniería a fondo (español)
+├── CLAUDE.md                    contrato operativo del proyecto (español)
+├── docs/                        documentación profunda (arquitectura, decisiones,
+│                              desarrollo, roadmap) — ver docs/README.md
 └── LICENSE                       GPLv3
 ```
 
@@ -935,14 +937,16 @@ make test       # go test ./...
 - `maly completions <shell>` regenera los scripts embebidos en
   `cmd/maly/completions/` si cambias la tabla de comandos.
 - Para depurar el arranque de la TUI o del demonio en un entorno aislado,
-  `CLAUDE.md` documenta el sandbox de XDG usado en desarrollo (rutas
-  cortas para el socket de mpv, `ao=null` en `mpv.conf`, cómo probar bajo
-  tmux).
+  [`docs/development/probar-en-vivo.md`](docs/development/probar-en-vivo.md)
+  documenta el sandbox de XDG usado en desarrollo (rutas cortas para el
+  socket de mpv, `ao=null` en `mpv.conf`, cómo probar bajo tmux).
 
-`CLAUDE.md` es el documento de ingeniería completo del proyecto: arquitectura
-detallada por paquete, decisiones transversales de seguridad/concurrencia y
-el historial razonado de cada release. `CHANGELOG.md` es el resumen corto,
-versión por versión.
+`CLAUDE.md` es el contrato operativo del proyecto: filosofía, invariantes
+transversales de seguridad/concurrencia y arquitectura de alto nivel.
+El detalle vive en [`docs/`](docs/README.md) — ficha por paquete en
+`docs/architecture/`, decisiones ya cerradas en `docs/decisions/no-hacer.md`,
+y el historial razonado de cada release en `docs/history/`. `CHANGELOG.md` es
+el resumen corto, versión por versión.
 
 ---
 
@@ -953,7 +957,8 @@ frecuente (ver [`CHANGELOG.md`](CHANGELOG.md)). El núcleo — reproducción
 gapless, servicio persistente, biblioteca SQLite, MPRIS, TUI, CLI — es
 estable y se usa a diario por el autor como su reproductor principal. El
 proyecto ha pasado por varias auditorías de seguridad, rendimiento y UX
-propias, documentadas en `CLAUDE.md`.
+propias, documentadas release por release en
+[`docs/history/`](docs/history/README.md).
 
 El ratón en la TUI está descartado deliberadamente. El alcance se mantiene
 acotado a coordinar herramientas ya existentes (mpv, yt-dlp, ffmpeg) en vez

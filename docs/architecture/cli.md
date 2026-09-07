@@ -66,3 +66,14 @@ condición para que sirvan de algo — y ninguno duplica detección: reusan
 (en `info.go`, compartido con doctor) abre por `openLibraryIfExists`
 porque `library.Open` crearía la base. Ver el detalle y sus invariantes en
 la 1.7.0 del roadmap.
+
+Dos chequeos de `doctor` le PREGUNTAN al demonio, y son los únicos: lo que
+el servicio tiene en efecto no se puede deducir desde afuera. `checkDaemonConfig`
+compara su config con el del disco (A-03) y `checkPlayer` pregunta si su mpv
+sigue vivo (O-07) — mpv es hijo del demonio y su socket es privado, así que
+antes `doctor` miraba el socket del DEMONIO, lo encontraba sano y daba todo
+en verde mientras nada podía sonar. `checkPlayer` es el único de los dos que
+puede ser `fail`, y con razón: el demonio no relanza mpv, así que el estado
+impide reproducir y no se arregla solo. Los dos toleran un demonio viejo que
+no sepa contestar (la fila simplemente no sale) y ninguno cambia el hecho de
+que `doctor` funcione sin demonio.

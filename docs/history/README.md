@@ -22,7 +22,7 @@ Qué es cada cosa:
 | [`roadmap-1.8-1.11.md`](roadmap-1.8-1.11.md) | v1.8.0 – v1.11.1 | Auditoría técnica exhaustiva, Matugen revertido, AUR, canal de paquete |
 | [`roadmap-1.12-1.13.md`](roadmap-1.12-1.13.md) | v1.12.0 – v1.13.1 | Auditoría de UX (76 hallazgos), segunda auditoría técnica integral |
 | [`roadmap-1.14-1.16.md`](roadmap-1.14-1.16.md) | v1.14.0 – v1.16.4 | Rediseño de la pantalla, buscador de descargas, promesa obsoleta, Phase 0 |
-| [`roadmap-1.17.md`](roadmap-1.17.md) | v1.17.0 – | Phases 1 y 2 de la auditoría del 2026-09 |
+| [`roadmap-1.17.md`](roadmap-1.17.md) | v1.17.0 – | Phases 1, 2 y 3 de la auditoría del 2026-09 |
 | [`candidatos-post-1.0.md`](candidatos-post-1.0.md) | — | Lista de candidatos (cerrada) y las mediciones que refutaron hipótesis |
 
 ## Versión por versión
@@ -97,4 +97,5 @@ precede.
 | --- | --- |
 | 1.17.0 | **Phase 1** de la auditoría del 2026-09, los 14 ítems: paridad CLI↔consola (A-04), NaN en MPRIS (A-16), `search ""` (A-20), i18n + chequeo estático (A-19/O-05.1), el fósil de godbus/prop (A-17), el yt-dlp huérfano (A-15), `-race` completo en CI (A-14), el flash en las cuatro capas (A-24), la petición grande que se perdía (A-06), `Status.Notice` (A-25), tests del modelo de la TUI (A-27), el contrato de descarga (A-07/O-02), enlaces documentados (A-13) |
 | 1.18.0 | **Phase 2** de la auditoría del 2026-09, los 8 ítems: `BenchmarkState` como línea base (O-05.2), `Status.QueueGen` —3,40 MB → 203 B por push con 10.000 pistas— (A-05/O-01), `get playlist` extraído a `internal/getter` (A-04), red de paridad de COMPORTAMIENTO CLI↔consola (O-03), `library.Create` vs `Open` (A-12/O-06), `activeOverlay()` (A-10), tests de contrato de `cmd/maly` (A-28), el demonio relee el config (A-03) |
+| 1.19.0 | **Phase 3** de la auditoría del 2026-09, la fase NO obligatoria: siete hechos —el sesgo de `loadGen` documentado (A-22), colores del tema por tabla con test por reflexión (A-11), `cmd.Wait` en viz (A-18), el scan sin timeout artificial (A-26), la ventana gapless acotada a 1 s con medición delante (A-08), duplicados en `playlist add` (A-23) y «mpv murió» en `Status`/`doctor` (O-07)— y **cinco cerrados como decisiones** (A-09, O-04, O-08, A-13, A-21). Con esto la auditoría queda entera |
 | — | La documentación reorganizada: `CLAUDE.md` como contrato operativo y `docs/` para el resto (commit `842bcdc`) |

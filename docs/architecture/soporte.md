@@ -13,7 +13,12 @@ valida en/es al agregar claves, y `callsites_test.go` valida los SITIOS DE
 LLAMADA parseando el árbol desde `../../` con `go/ast`: que la clave exista,
 que `Tf`/`TLf` pasen tantos argumentos como verbos tiene la clave, que
 ningún `T`/`TL` pida una clave con verbos (el `fmt.Sprintf(i18n.T(k), …)`
-que cerró A-19) y que no queden claves muertas. Hace falta porque **`go vet`
+que cerró A-19), que no queden claves muertas y que las claves con DUEÑO
+ÚNICO solo se usen desde su archivo — esto último es una red de paridad
+CLI↔consola: un mensaje que sale por los tres caminos (CLI, consola ctrl+p y
+TUI) se arma en un helper compartido de `internal/ipc`, y el chequeo impide
+que alguien vuelva a escribirlo a mano en uno solo, que es como A-04 dejó
+divergir tres arreglos ya publicados (A-23). Hace falta porque **`go vet`
 no puede ayudar acá**: reconoce printf-wrappers cuando el formato es un
 PARÁMETRO, y en `Tf` el formato sale de buscar la clave en la tabla. Dos
 detalles que muerden si se tocan: las cadenas literales se recogen de todo

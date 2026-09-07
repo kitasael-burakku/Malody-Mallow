@@ -97,8 +97,8 @@ archivo de la última columna, y es la fuente única.**
 
 | Paquete | Qué es y qué no se toca | Ficha |
 | --- | --- | --- |
-| `cmd/maly` | La CLI. `commands.go` es la **tabla de comandos**: fuente única de dispatch, help y completions. `tui.go` decide en `startOrAttach` si embeber el demonio o entrar como cliente (ante `ErrAlreadyRunning` espera hasta 8 s, no se rinde). `runScan` manda la ruta ya RESUELTA. `get.go` es el wrapper de yt-dlp. `info` lista HECHOS y sale 0; `doctor` emite VEREDICTOS y sale 1 solo si algo impide reproducir; ninguno necesita demonio ni red. | `docs/architecture/cli.md` |
-| `internal/ipc` | Protocolo (Request/Response/Status/TrackInfo), cliente, y `display.go` con los helpers de presentación compartidos — no re-armar "Artista — Título" a mano. | `docs/architecture/daemon.md` |
+| `cmd/maly` | La CLI. `commands.go` es la **tabla de comandos**: fuente única de dispatch, help y completions. `tui.go` decide en `startOrAttach` si embeber el demonio o entrar como cliente (ante `ErrAlreadyRunning` espera hasta 8 s, no se rinde). `runScan` manda la ruta ya RESUELTA. `get.go` es el wrapper de yt-dlp. `info` lista HECHOS y sale 0; `doctor` emite VEREDICTOS y sale 1 solo si algo impide reproducir; ninguno necesita demonio ni red. Dos chequeos de `doctor` le PREGUNTAN al demonio, porque no hay otra forma de saberlo: su config en efecto y si su mpv sigue vivo. | `docs/architecture/cli.md` |
+| `internal/ipc` | Protocolo (Request/Response/Status/TrackInfo), cliente, y `display.go` con los helpers de presentación compartidos — no re-armar "Artista — Título" a mano, ni un mensaje que salga por los tres clientes. El **deadline** de una petición lo decide el protocolo (`reqTimeout`), no el llamador: 30 s por defecto y **ninguno para `scan`**. | `docs/architecture/daemon.md` |
 | `internal/daemon` | El **orden de arranque de `New` no es negociable** (`EnsureRuntimeDir` → `ipc.Ping` → **flock** → socket → biblioteca → player → sesión → MPRIS): solo CON el lock son seguras las dos operaciones destructivas. `serve → handle → dispatch`, dispatch bajo `d.mu`, con **tres excepciones** que resuelven fuera del lock (play/add/playnow, seek, scan). `advance` tiene DOS guardas contra una promesa obsoleta y no se solapan. El push de suscripción se arma **por suscriptor** (`stateFor`) y lleva la cola SOLO si `queue.Gen()` cambió. `d.cfg` ya NO es inmutable: se relee en cada scan bajo `d.mu`. | `docs/architecture/daemon.md` |
 | `internal/player` | Wrapper de mpv. Gapless por ventana de dos entradas con `playlist-clear + append` (**NUNCA podar por índices**). Callbacks **siempre async con `go`** — en línea deadlockean readLoop —, y por eso `loadGen` se valida en DOS puntos. Toda espera a mpv está ACOTADA y con dos topes: 5 s un comando normal, **1 s los de la ventana gapless**, que son best-effort y se pagan bajo `d.mu` en cada mutador. | `docs/architecture/playback.md` |
 | `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. `gen` sube SOLO con lo que altera `Items` (Add/Replace/Clear/RemoveAt/Move) más `Touch()`, que usa el demonio para las duraciones que escribe en sitio. | `docs/architecture/playback.md` |
@@ -110,7 +110,7 @@ archivo de la última columna, y es la fuente única.**
 | `internal/tui` | Bubble Tea, estado por **suscripción push**. **Todo el reparto de pantalla vive en `computeLayout`, función PURA** — innegociable. `panel()` rellena pero **NO acorta**: cada llamador es responsable de su ancho. `case libraryMsg` es el punto único de refresco. El estado modal es **un** enum (`activeOverlay()`), no banderas sueltas; `showHelp` va aparte porque se dibuja ENCIMA. Los relojes de animación se autocancelan. | `docs/architecture/tui.md` |
 | `internal/i18n` | `T/Tf` (idioma global) y `TL/TLf` (por petición). `callsites_test.go` valida los sitios de llamada parseando el árbol con `go/ast`. | `docs/architecture/soporte.md` |
 | `internal/update` | Chequeo de releases con `git ls-remote --tags`, cache 24 h. Nada de HTTP propio. | `docs/architecture/soporte.md` |
-| `internal/config` | Mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del usuario, vía un defer con retorno con nombre — **mantener ese orden**. `ScanTarget`/`ScanNoExistErr` son el punto único de la ruta de scan. | [Invariantes](#invariantes-transversales) |
+| `internal/config` | Mezcla teclas: defaults ← preset (`controls`) ← `[keys]` del usuario, vía un defer con retorno con nombre — **mantener ese orden**. `ScanTarget`/`ScanNoExistErr` son el punto único de la ruta de scan. Los colores se validan por **tabla** (`hexFields`) y un test por reflexión exige que no falte ninguno. | [Invariantes](#invariantes-transversales) |
 | `internal/getter` | Wrapper de yt-dlp: comando, búsqueda (`--dump-json`), diff de directorio y limpieza de intermedios. El CLIENTE lo corre, no el demonio; el éxito de una descarga se mide por diff de directorio, no por el exit code. | `docs/architecture/cli.md` + `docs/decisions/no-hacer.md` |
 | `internal/viz` | Captura de audio del sistema (pw-record/parec) y FFT. Reintenta cada 15 s tras perder la captura, solo si alguna vez la tuvo. | `docs/architecture/tui.md` |
 
@@ -221,6 +221,10 @@ tomadas.
   dentro de `View()`; la barra de progreso no vuelve a la columna.
 - **Temas**: Matugen está revertido entero y no vuelve; sin `#rrggbbaa`; el
   arte del banner no es clave TOML.
+- **Phase 3 de la auditoría del 2026-09**: cinco ítems cerrados con su razón —
+  los clamps de `View()` (A-09), `context` en `Scan`/`doClose` (O-04),
+  `add` por id (O-08), **seguir enlaces de directorio** (A-13, el único que
+  podía perder datos) y la carátula fuera de los mutex de MPRIS (A-21).
 - **Distribución**: sin firma de releases; el PKGBUILD no vive en este repo;
   `--uninstall` no toca `/usr/bin`.
 
@@ -248,8 +252,13 @@ aparte en `~/Audits/MalyAu/`, con una sección KEEP de 48 puntos y una
 - **Phase 1** — cerrada COMPLETA (14/14) en la 1.17.0.
 - **Phase 2** — cerrada COMPLETA (8/8) en la 1.18.0. Desarrollo de las dos en
   `docs/history/roadmap-1.17.md`.
-- **Phase 3** — pendiente y **explícitamente no obligatoria** (12
-  oportunidades, ninguna resuelve un problema que alguien sufra hoy).
+- **Phase 3** — cerrada en la 1.19.0, y no haciéndola entera: era la fase
+  **explícitamente no obligatoria** (12 oportunidades, ninguna resolvía un
+  problema que alguien sufriera). Se hicieron **siete** (A-22, A-11, A-18,
+  A-26, A-08, A-23, O-07) y **cinco se cerraron como decisiones tomadas** en
+  `docs/decisions/no-hacer.md` (A-09, O-04, O-08, A-13, A-21). Con esto la
+  auditoría queda entera: 27/27 hallazgos y 8/8 oportunidades. Desarrollo en
+  `docs/history/roadmap-1.17.md`.
 
 Lo que hay que llevarse de las dos fases aplicadas, más allá de los arreglos:
 **ocho afirmaciones del informe no sobrevivieron al contacto con el código**
@@ -259,6 +268,14 @@ daba una lista de mutadores mal por los dos lados (sobraban cuatro, faltaban
 dos que habrían dejado las duraciones en cero para siempre); A-10 contaba tres
 listas de modales y son cuatro; A-03 describía un problema de `music_dir` que
 la 1.16.4 ya había cerrado.
+
+El triaje volvió a pagar: **cinco de los doce ítems tenían la premisa o la
+justificación movida**, y en dos casos eso decidió no hacerlos. O-07 daba el
+estado por «mudo» y no lo es (cada comando contesta «mpv terminó»; lo mudo
+eran `status` y `doctor`); A-09 hablaba de seis sitios y quedaban dos, con un
+remedio peor que el problema; A-18 decía dos sitios y es uno; O-08 se quedó
+sin justificación al cerrarse A-06; y la medición que A-08 exigía no refutó el
+ítem sino que le retiró el riesgo.
 
 La lista de candidatos post-1.0 está **cerrada**
 (`docs/history/candidatos-post-1.0.md`): conserva las mediciones que refutaron

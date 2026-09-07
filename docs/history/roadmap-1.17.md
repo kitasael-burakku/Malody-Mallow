@@ -2,6 +2,167 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.0 (2026-09-06) — Phase 3 de la auditoría del 2026-09: siete hechos, cinco cerrados
+
+La **1.19.0** cierra la **Phase 3**, que era la fase **explícitamente no
+obligatoria**: doce oportunidades de las que el propio informe dice que
+«ninguna resuelve un problema que alguien esté sufriendo hoy». Con esto la
+auditoría del 2026-09 queda **entera**: 27 de 27 hallazgos y 8 de 8
+oportunidades, o cerrados con código o cerrados como decisión.
+
+**El trabajo de esta tanda fue TRIAR, no implementar.** Se hicieron **siete**
+y **cinco se cerraron como decisiones tomadas** en
+`docs/decisions/no-hacer.md`, con su razón. Implementar los doce porque
+estaban en una lista habría sido el mal resultado.
+
+### Lo que de verdad deja esta tanda
+
+**La lección se repitió por tercera fase seguida, y esta vez el riesgo era
+mayor**: estas fichas son las menos reproducidas del informe (casi todas LOW y
+OPPORTUNITY, la parte que más se razonó y menos se midió) y describen la
+1.16.3, tres releases atrás. De los doce ítems, **cinco tenían la premisa o la
+justificación movida**, y en dos casos eso decidió el triaje:
+
+1. **O-07 daba el estado por MUDO y no lo es.** «El demonio queda vivo y mudo
+   sin reproductor» — pero cuando mpv muere, `command` corta al instante por
+   `p.done` y **cada comando contesta «mpv terminó»**. Lo que estaba mudo era
+   otra cosa: `status`, que responde con normalidad porque el espejo del
+   player conserva la última foto, y `doctor`, que preguntaba por el socket
+   del DEMONIO. El arreglo se escribió sobre eso y no sobre la ficha.
+2. **A-09 hablaba de seis sitios y quedaban dos.** A-10 ya había cambiado la
+   forma de `View()`. Y al mirar los dos que quedan, el remedio resultó PEOR
+   que el problema: `helpScroll` se clampa contra el contenido que arma
+   `helpView` y `npLyricsLines` se llama con DOS alturas distintas, así que
+   moverlos a `Update` significa duplicar cálculos que pueden divergir para
+   arreglar cero fallos observables. Cerrado.
+3. **A-18 decía dos sitios y es uno.** El otro `go cmd.Wait()` viene después
+   de un `Kill()` y ahí nadie lee el pipe: es un reaper correcto.
+4. **O-08 se quedó sin justificación.** «Desactiva A-06 de raíz» dejó de ser
+   cierto cuando la Phase 1 cerró A-06. Rejustificado, lo que quedaba era
+   ahorro de bytes en una petición puntual. Cerrado.
+5. **A-08 pedía medir antes que código, y la medición no lo refutó: le retiró
+   el riesgo.** El temor de la ficha era romper un `SetNext` legítimo en una
+   máquina lenta. Con mpv REAL, 200 `SetNext` alternando ruta dan **29,7 µs de
+   media y 79 µs el peor caso** (el no-op por espejo, 3 ns), así que el tope
+   nuevo de 1 s es ~12.000 veces el peor caso sano. La medición dijo que el
+   arreglo era barato, no que sobrara.
+
+Y una de proceso: **la red de O-03 no cubría dos de los ítems** (A-26 y A-23
+son de paridad CLI↔consola y compara solo `get playlist`), así que en los dos
+casos la paridad se resolvió moviendo la DECISIÓN a un solo sitio —el deadline
+al protocolo, el mensaje a `ipc/display.go`— en vez de arreglar dos espejos a
+mano. Es la lección de A-04 aplicada antes de que divergieran.
+
+### Los siete
+
+**1. A-22 — el sesgo de `loadGen`, documentado.** `Load`/`LoadPaused`/`Stop`
+suben la generación ANTES del `loadfile`, así que un comando fallido la deja
+incrementada sin que mpv haya recargado nada. Se documenta y no se cambia,
+que es lo que la ficha prefería: el error va en la dirección segura (se pierde
+un avance automático en vez de avanzar sobre una premisa falsa, el bug de la
+1.16.3) y moverlo abriría la ventana contraria.
+
+**2. A-11 — los colores del tema, por tabla.** `hexFields()` es ahora la
+fuente única y `Load` la recorre. Pero **la tabla sola no cierra la clase**:
+una fila también se olvida, que es literalmente CFG-1. Quien la cierra es un
+test por REFLEXIÓN que recorre `Theme` y `Visualizer` y exige que todo campo
+string cuyo default sea `#rrggbb` esté en la tabla —así `banner = "splash"` y
+`backend = "auto"` quedan fuera solos— con los derivados exceptuados POR
+NOMBRE. Lleva control positivo por conteo, porque una reflexión que dejara de
+ver los campos pasaría vacua. `TestLoadInvalidColorsClamp` se conserva
+enumerado a mano a propósito: el test nuevo arma su TOML DESDE la tabla, así
+que no puede cazar una fila que falte, y el viejo sí.
+
+**3. A-18 — `cmd.Wait()` después del `readLoop`.** El efecto en maly es
+benigno, como decía la ficha, pero **no es teórico**: reproducido fuera del
+árbol con la precondición puesta (el escritor sale con datos en el buffer del
+pipe y el lector no es instantáneo) da **20 de 20 corridas con pérdida**, y en
+las 20 el lector no llega a ver ni un byte de los 64 KiB que quedaban. En maly
+eso es el último parpadeo del visualizador de un backend que ya murió. El test
+cubre el RIESGO del cambio —el reapeo pasa a depender de que el readLoop
+termine— y se registra que no cubre el orden: eso lo sostiene la medición. El
+reapeo se le pregunta al sistema con señal 0 y no a `cmd.ProcessState`, que lo
+escribe `Wait` desde otra goroutine (`-race` lo caza, y con razón).
+
+**4. A-26 — el scan sin timeout artificial.** Eran 10 min fijados A MANO en
+tres sitios de dos espejos. La decisión se mueve al PROTOCOLO (`reqTimeout` en
+`internal/ipc`): lo que el llamador fije manda, y si no fija nada son 30 s
+salvo `scan`, que no lleva deadline. Comprobado que el lado servidor aguanta:
+`serve` pone su read-deadline ANTES de leer, y el escaneo ocurre después.
+El test del deadline mira el valor REAL que `Do` le pone a la conexión, con
+una conexión que los anota, porque un test cronometrado no puede distinguir
+«sin deadline» de «con el default de 30 s» sin durar 30 s — sería la aserción
+laxa que pasa con el defecto puesto.
+
+**5. A-08 — la ventana gapless deja de esperar como un comando normal.** Ver
+arriba la medición. Dos topes: `cmdTimeout` (5 s) para un comando cuyo fallo
+ve el usuario, `windowTimeout` (1 s) para los de `SetNext`, que son
+best-effort por diseño y son los únicos que se pagan en CADA mutador bajo
+`d.mu`. `dispatch` no se tocó. Va con la mitad documental que el hallazgo
+pedía: la regla no es «estas tres operaciones están fuera del lock» sino
+**«ninguna espera a mpv bajo `d.mu` pasa de su tope»**.
+
+**6. A-23 — `playlist add` dice cuántas ya estaban.** `AddToPlaylist` devuelve
+`(added, dup)` contando dentro de la transacción que ya se abría, y no bloquea
+nada. El mensaje se arma en `ipc.PlaylistAdded` y no en cada llamador: los
+TRES caminos que agregan a una playlist tenían el texto por separado. La red
+que lo mantiene así es nueva y estática: `callsites_test.go` fija que una
+clave con dueño único solo se use desde su archivo.
+
+**7. O-07 — el demonio dice cuándo se quedó sin mpv.** Versión que solo
+REPORTA (decisión del dueño): relanzar pide decidir si la música vuelve sola y
+en qué posición, y eso es producto, no arreglo. `player.Dead()` mira `p.done`
+—que es exactamente lo que hace fallar a `command`, y cubre también el proceso
+vivo con el socket roto—, viaja como `Status.PlayerDead` (omitempty, y a
+diferencia de `Notice` NO caduca: no hay carga siguiente posible) y lo muestran
+el pie de la TUI, el stderr de `maly status` y `maly doctor`, que es `fail`
+porque el criterio del comando es salir 1 solo si algo impide reproducir.
+Probado en vivo en un sandbox aparte, matando SOLO el pid exacto de su mpv:
+`doctor` pasa a fail y sale 1, y las filas siguen alineadas con la etiqueta
+más larga en español.
+
+### Los cinco que se cerraron
+
+A-09 (los clamps de `View()`), O-04 (`context` en `Scan`/`doClose`), O-08
+(`add` por id), **A-13** (seguir enlaces de directorio) y A-21 (la carátula
+fuera de los mutex de MPRIS). El desarrollo de cada uno está en
+`docs/decisions/no-hacer.md`; el más importante es A-13, el único ítem de la
+fase que puede PERDER DATOS: `underRoot` sostiene hoy la purga **y** el conteo
+de la guarda de A-01, y con pistas detrás de un enlace cualquiera de las dos
+identidades posibles rompe una de las dos. La mitad barata ya salió en la
+1.17.0 y el usuario está avisado con un remedio que funciona.
+
+### Trampa de arnés que costó un ciclo
+
+Una, y de las viejas conocidas: **restaurar una reversión con `git checkout`
+se llevó por delante el fix sin commitear** del mismo archivo (el espejo de
+A-23 en la consola). Es exactamente la trampa 6 de
+`docs/development/verificacion.md`, escrita desde la 1.16.2, y volvió a
+morder. El resto de reversiones de la tanda se hicieron con `cp` de una copia.
+
+### Verificación
+
+Cada arreglo con lógica o estado nuevo lleva test verificado en ambas
+direcciones, siempre COMPILANDO y fallando por la razón documentada; A-22 no
+lleva test por ser documental y el de A-18 cubre el riesgo del cambio y no la
+carrera, que se sostiene con la medición. `go build`, `go vet`, `gofmt -l .`,
+`go test ./...` y `go test -race ./...` limpios en todo el árbol.
+
+**Un intermitente observado y NO atribuido**, anotado acá para que exista si
+vuelve: en una de 15 corridas de `go test -race ./...` sobre el árbol entero,
+`TestAdvanceObsoletoTrasJump` falló con «la cola dice a (Index=0) y mpv
+reproduce ""». No se reprodujo en 20 corridas aisladas de ese test —ni sobre
+esta tanda ni sobre la 1.18.0 sacada con `git archive`— ni en las otras 14
+corridas del árbol, así que no hay con qué atribuirlo al cambio de A-08 (el
+único que toca tiempos de mpv, y solo los de `SetNext`: `CurrentPath` sigue
+con sus 5 s). La forma es la de la intermitencia que el proyecto ya tiene
+documentada: las esperas del test miran el ESPEJO del demonio y la aserción
+le pregunta a mpv EN VIVO, así que bajo carga —el árbol entero con `-race`
+en paralelo— pueden desalinearse. Si reaparece, el arreglo es que `checkSync`
+polleé en vez de leer una sola vez, no relajar la aserción.
+
+---
+
 ## v1.18.0 (2026-09-06) — Phase 2 de la auditoría del 2026-09
 
 La **1.18.0** cierra la **Phase 2** completa (8 ítems). Con esto la auditoría

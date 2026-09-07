@@ -171,5 +171,64 @@ entrada: un resultado real trae el separador dentro del propio título.
 - **El CHANGELOG no lleva categorías Added/Changed/Fixed**: la mayoría de
   releases son una o dos piezas acotadas.
 - **Los tests no honran `-short`** y CI no lo pasa: sería un no-op.
-- **`internal/daemon` no está en el job `race` de CI.**
+- **El job `race` de CI corre sobre TODO el árbol** desde A-14 (1.17.0). La
+  lista corta (`library` y `mpris`) existía por una race ENTRE TESTS de
+  `internal/daemon` que la 1.11.0 ya había cerrado; antes de ampliarla se
+  comprobó, en vez de darlo por bueno, que no queda ninguna var de paquete que
+  los tests pisen y que `-race ./...` pasa entero en tres corridas seguidas.
   → `docs/development/verificacion.md`
+
+## Phase 3 de la auditoría del 2026-09 — lo que se descartó
+
+De los doce ítems de la Phase 3 (explícitamente no obligatoria: «ninguna
+resuelve un problema que alguien esté sufriendo hoy») se hicieron siete y
+**estos cinco se cierran**. El desarrollo de cada uno está en su ficha del
+informe (`~/Audits/MalyAu/`); acá queda la razón por la que no se hace.
+
+- **`View()` no se limpia de clamps de navegación (A-09).** La ficha hablaba
+  de seis sitios; medido sobre el código de hoy quedan DOS clamps de
+  navegación —`m.helpScroll` en `view.go` y `m.npScroll` en
+  `nowplaying.go`— porque A-10 ya cambió la forma de `View()`, y las cachés
+  de render se quedan por decisión explícita del propio informe (*Explicitly
+  Don't Do* #17). Moverlos a `Update` sería PEOR: `helpScroll` se clampa
+  contra el largo del contenido que arma `helpView` (habría que duplicar el
+  armado de `HelpRows`), y `npLyricsLines` se llama con DOS alturas distintas
+  —la capa "Ahora suena" y la columna de letras—, así que `Update` tendría
+  que adivinar cuál manda. Se cambiaría una fuente única por dos cálculos que
+  pueden divergir, para arreglar cero fallos observables.
+- **No se mete `context` en `library.Scan`/`FillDurations`/`doClose`
+  (O-04).** La propia ficha lo llama «plumbing amplio para un beneficio
+  modesto», y el beneficio es que un `maly kill` en pleno escaneo deje de
+  esperar hasta 5 s a ciegas. Es plumbing por todo `internal/library` más el
+  demonio para acortar una espera de APAGADO. La espera acotada de `doClose`
+  ya está documentada en su comentario y es deliberada: sin ella las últimas
+  escrituras del scan fallan con "database is closed" y el usuario ve errores
+  espurios al apagar.
+- **`add`/`playnow` no mandan ids (O-08).** Su justificación caducó: la ficha
+  decía que «desactiva A-06 de raíz», y A-06 está cerrado desde la 1.17.0
+  (tope de 16 MiB y respuesta explicada, con `Do` sabiendo leerla tras el
+  EPIPE). Lo que quedaba era ahorro de bytes en una petición PUNTUAL —no en
+  el push, que A-05 ya bajó a 203 B— a cambio de un formato mixto id/ruta en
+  `Request` y de que `trackFromFile` deje de ser el punto único de
+  resolución. Se rejustificó y no sale a cuenta.
+- **`Scan` no sigue los enlaces de directorio de primer nivel (A-13).** Es el
+  único ítem de la fase que puede PERDER DATOS. `underRoot` filtra hoy dos
+  cosas: la purga y el conteo de la guarda de A-01, que es el arreglo
+  CRITICAL de esta auditoría. Con pistas detrás de un enlace, cualquiera de
+  las dos identidades posibles rompe algo: por ruta REAL quedan fuera de la
+  purga para siempre; por la ruta del ENLACE se duplican si el destino
+  también se escanea. La mitad barata ya salió en la 1.17.0 —documentado en
+  los dos README y `checkLinkedDirs` en `maly doctor`, con el remedio que SÍ
+  funciona (escanear el destino; apuntar `maly scan` al enlace no indexa
+  nada, porque `WalkDir` hace `lstat` de su propia raíz)—, así que el usuario
+  ya está avisado y tiene salida. Coherente con *Explicitly Don't Do* #12.
+- **La carátula no sale de los mutex de MPRIS (A-21).** El diagnóstico es
+  correcto —`Update` extrae la carátula con `s.mu` tomado y dentro de
+  `d.notifyMu`, así que un `seek` espera ese IO— pero el daño real es más
+  chico de lo que la ficha supone: se abre EL MISMO ARCHIVO que mpv acaba de
+  abrir y está leyendo, o sea que en el montaje de red lento del que habla la
+  ficha el montaje ya está despierto; y ocurre una vez por pista, memoizada.
+  Hacerlo bien pide darle mutex propio al `artCache` (hoy documentado como
+  "el llamador serializa") más un método nuevo, y el efecto no se puede
+  testear de forma directa. Se deja anotado que si algún día muerde de
+  verdad, el remedio es preparar la carátula ANTES de tomar `notifyMu`.

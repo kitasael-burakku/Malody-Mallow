@@ -6,7 +6,23 @@ Fuente única: esta ficha. `CLAUDE.md` solo lleva el resumen.
 
 protocolo (Request/Response/Status/TrackInfo), cliente, y
 `display.go` con los helpers de presentación compartidos (`TrackInfo.String`,
-`FmtTime`, `OnOff`) — no re-armar "Artista — Título" a mano.
+`FmtTime`, `OnOff`, `PlaylistAdded`) — no re-armar "Artista — Título" a mano.
+Que un mensaje viva ahí no es cosmética: los que salen por la CLI, la consola
+ctrl+p y la TUI a la vez son la clase exacta de A-04, y con el texto detrás de
+un helper compartido un cambio llega a los tres lados o a ninguno.
+`callsites_test.go` lo cuida para las claves que lo piden.
+
+**El deadline de una petición lo decide el PROTOCOLO, no el llamador**
+(`reqTimeout`): lo que el cliente fije manda, y si no fija nada son 30 s —
+salvo `scan`, que no lleva ninguno. El scan es la única op cuya duración es
+proporcional a la BIBLIOTECA DEL USUARIO (7,7 s por cada 1.000 pistas en la
+fase de duraciones), y con el tope viejo de 10 min una biblioteca grande hacía
+que el cliente imprimiera un error de I/O y saliera con 1 mientras el demonio
+seguía escaneando y terminaba bien (A-26). Vive acá y no en cada llamador
+porque eran TRES sitios a mano en dos espejos —la CLI, `conScan` y
+`conGetPlaylistFinish`—; puesta en el protocolo, un cliente nuevo la hereda
+sin saberla. El lado servidor aguanta: `serve` pone su read-deadline ANTES de
+leer cada petición, y el escaneo ocurre después, dentro de `handle`.
 
 ## `internal/daemon`
 
@@ -65,7 +81,14 @@ nada. Se guarda la CLAVE de i18n y sus argumentos, no el texto armado —el
 demonio puede haber arrancado con otro idioma que quien pregunta—, y
 `statusLocked(lang)` lo traduce con el `TL` de cada cliente; por eso el push
 se arma POR SUSCRIPTOR (`subscriber.lang`) y no una vez para todos.
-`loadLocked` lo limpia: una carga sana significa que el problema pasó. Tiene
+`loadLocked` lo limpia: una carga sana significa que el problema pasó.
+`Status.PlayerDead` es su contrario y por eso NO caduca: marca que mpv se fue
+(OOM, un pkill, un crash del driver) y que el demonio se quedó sin reproductor
+hasta que alguien reinicie el servicio, porque no relanza nada. Antes ese
+estado era invisible donde se lo busca —los comandos sí contestaban «mpv
+terminó», pero `status` respondía con normalidad, ya que el espejo del player
+conserva la última foto— y lo exponen el pie de la TUI, el stderr de `maly
+status` y `maly doctor` (O-07). Tiene
 DOS guardas contra una promesa obsoleta y no se solapan: `gen !=
 d.pl.LoadGen()` (primer chequeo bajo `d.mu`) detecta que un cliente RECARGÓ
 mpv entre `resolveEnd` y este punto (jump, play, next, stop), y `chained ==

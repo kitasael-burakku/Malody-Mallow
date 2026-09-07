@@ -7,6 +7,37 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.0 — 2026-09-06
+
+La Phase 3 de la auditoría del 2026-09, que era la parte **no obligatoria**:
+doce ideas con fundamento que no resolvían ningún problema que alguien
+estuviera sufriendo. Se hicieron siete y **cinco se cerraron como decisiones
+tomadas**, con su razón escrita, en vez de dejarlas en una lista para siempre.
+
+Lo que vas a notar:
+
+- **Si mpv se muere, maly te lo dice.** Antes, si el reproductor se caía por
+  su cuenta, el servicio seguía en pie sin poder reproducir nada y no había
+  dónde enterarse: `maly status` contestaba con normalidad y `maly doctor`
+  daba todo en verde. Ahora la interfaz lo muestra en el pie, `maly status` lo
+  avisa y `maly doctor` lo marca como fallo, con el remedio. maly no relanza
+  mpv por su cuenta: eso sería decidir por vos si la música vuelve sola.
+- **Escanear una biblioteca grande ya no "falla" a los diez minutos.** El
+  cliente esperaba como mucho ese rato y después imprimía un error y salía
+  con código 1 — mientras el servicio seguía escaneando y terminaba bien. Con
+  80.000 pistas eso pasaba siempre. Ya no hay tope: el escaneo dura lo que
+  dure tu biblioteca.
+- **`maly playlist add` te dice cuántas pistas ya estaban.** Repetir el mismo
+  comando con una consulta amplia duplicaba decenas de entradas diciendo
+  exactamente lo mismo que la primera vez. Se sigue permitiendo repetir una
+  pista a propósito; lo que cambia es que ahora lo dice.
+
+Y por dentro: los comandos de la ventana gapless dejan de poder retener el
+servicio cinco segundos si mpv se traba (medido: en condiciones normales
+tardan 30 microsegundos), los colores del tema se validan por tabla en vez de
+uno por uno, y el visualizador espera a su capturador como manda la
+documentación de Go.
+
 ## v1.18.0 — 2026-09-06
 
 Los ocho ítems de la Phase 2 de la misma auditoría. Esta tanda es sobre todo

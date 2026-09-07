@@ -18,13 +18,14 @@ import (
 	"maly/internal/i18n"
 )
 
-// Theme: si agregás un campo de color nuevo (string, formato #rrggbb), sumá
-// también su clampHex(...) en Load() — CFG-1 (auditoría técnica) fue
-// exactamente esto: Logo se validaba y los otros 5 colores de entonces no,
-// por la misma razón por la que Error (el más nuevo) casi se queda afuera
-// al agregarlo. La excepción son los DERIVADOS (AccentDim, Surface,
-// Progress*): no llevan clampHex porque ResolveDerived ya los repuebla
-// cuando no son hex válido — vacío e inválido son el mismo caso ahí.
+// Theme: un campo de color nuevo (string, formato #rrggbb) va en la tabla
+// hexFields() para que Load lo valide. Ya no hace falta acordarse: el test
+// que la cierra recorre este struct por reflexión y falla si falta alguno —
+// CFG-1 (auditoría técnica) fue exactamente ese olvido, con Logo validado y
+// los otros 5 colores de entonces no. La excepción son los DERIVADOS
+// (AccentDim, Surface, Progress*): no llevan clampHex porque ResolveDerived
+// ya los repuebla cuando no son hex válido — vacío e inválido son el mismo
+// caso ahí — y por eso están exceptuados POR NOMBRE en ese test.
 type Theme struct {
 	Transparent bool   `toml:"transparent"`
 	Accent      string `toml:"accent"`
@@ -112,8 +113,8 @@ func (t *Theme) ResolveDerived() {
 	}
 }
 
-// ColorLow/ColorHigh: mismo aviso que en Theme — un color nuevo acá necesita
-// su clampHex(...) en Load().
+// ColorLow/ColorHigh: mismo trato que en Theme — un color nuevo acá va en
+// hexFields(), y el test por reflexión que la cierra también mira este struct.
 type Visualizer struct {
 	Enabled     bool    `toml:"enabled"`
 	ColorLow    string  `toml:"color_low"`
@@ -642,18 +643,41 @@ func Load() (cfg Config, retErr error) {
 	// (hallazgo CFG-1 de la auditoría técnica). lipgloss/termenv no
 	// crashean con un color inválido, así que esto es cosmético, no una
 	// guarda de seguridad — pero el usuario no podía predecir qué claves se
-	// autocorregían y cuáles no. UN CAMPO DE COLOR NUEVO EN Theme O
-	// Visualizer NECESITA SU PROPIO clampHex ACÁ (ver el comentario de
-	// ambos structs): no hay ningún mecanismo que lo aplique solo.
-	clampHex(&cfg.Theme.Accent, def.Theme.Accent)
-	clampHex(&cfg.Theme.Border, def.Theme.Border)
-	clampHex(&cfg.Theme.Text, def.Theme.Text)
-	clampHex(&cfg.Theme.Dim, def.Theme.Dim)
-	clampHex(&cfg.Theme.Playing, def.Theme.Playing)
-	clampHex(&cfg.Theme.Error, def.Theme.Error)
-	clampHex(&cfg.Visualizer.ColorLow, def.Visualizer.ColorLow)
-	clampHex(&cfg.Visualizer.ColorHigh, def.Visualizer.ColorHigh)
+	// autocorregían y cuáles no. La lista vive en hexFields() y un test por
+	// reflexión exige que no le falte ninguno: ver su comentario.
+	for _, f := range hexFields(&cfg, &def) {
+		clampHex(f.field, f.def)
+	}
 	return cfg, nil
+}
+
+// hexField aparea un color del config con el default al que se lo clampa.
+type hexField struct {
+	field *string
+	def   string
+}
+
+// hexFields es la FUENTE ÚNICA de qué colores valida Load: los recorre en un
+// for en vez de repetir la llamada campo por campo, que es como CFG-1 dejó
+// cinco afuera y como Error casi se queda afuera al agregarlo (A-11).
+//
+// La tabla sola centraliza pero no cierra la clase —una fila también se puede
+// olvidar—, así que quien la cierra es TestHexFieldsCubreTodosLosColores:
+// recorre Theme y Visualizer por reflexión y exige que todo campo string cuyo
+// DEFAULT sea un #rrggbb esté acá. Los DERIVADOS (AccentDim, Surface,
+// Progress*) están exceptuados por nombre en ese test, y con eso agregar uno
+// nuevo pasa a ser una decisión explícita en vez de un olvido silencioso.
+func hexFields(cfg, def *Config) []hexField {
+	return []hexField{
+		{&cfg.Theme.Accent, def.Theme.Accent},
+		{&cfg.Theme.Border, def.Theme.Border},
+		{&cfg.Theme.Text, def.Theme.Text},
+		{&cfg.Theme.Dim, def.Theme.Dim},
+		{&cfg.Theme.Playing, def.Theme.Playing},
+		{&cfg.Theme.Error, def.Theme.Error},
+		{&cfg.Visualizer.ColorLow, def.Visualizer.ColorLow},
+		{&cfg.Visualizer.ColorHigh, def.Visualizer.ColorHigh},
+	}
 }
 
 // clampHex reemplaza *field por def si no es un color #rrggbb válido.

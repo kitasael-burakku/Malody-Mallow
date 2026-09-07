@@ -854,3 +854,126 @@ func TestTemplateDerivadosComentados(t *testing.T) {
 		}
 	}
 }
+
+// derivadosSinClamp son los colores de Theme que NO van en hexFields a
+// propósito: ResolveDerived los repuebla cuando no son hex válido, así que
+// vacío e inválido son el mismo caso y un clamp ahí borraría la distinción
+// entre "lo escribió el usuario" y "viene del default". Están por NOMBRE y no
+// por heurística para que sumar un derivado nuevo sea una decisión explícita:
+// mientras no se agregue acá, el test de abajo lo reclama.
+var derivadosSinClamp = map[string]bool{
+	"AccentDim":      true,
+	"Surface":        true,
+	"ProgressLow":    true,
+	"ProgressHigh":   true,
+	"ProgressShadow": true,
+}
+
+// colorFields recorre Theme y Visualizer por reflexión y devuelve, por cada
+// campo string cuyo DEFAULT sea un #rrggbb (o sea: los que son de verdad un
+// color — Banner es "splash" y Backend es "auto", y así quedan fuera solos),
+// su nombre de campo, su sección (el nombre del campo de Config, que es
+// también el de la tabla TOML en minúsculas) y su clave TOML, más la
+// dirección que ocupa en cfg.
+func colorFields(cfg *Config) []struct {
+	Name, Section, Key string
+	Addr               uintptr
+} {
+	var out []struct {
+		Name, Section, Key string
+		Addr               uintptr
+	}
+	v := reflect.ValueOf(cfg).Elem()
+	for _, sec := range []string{"Theme", "Visualizer"} {
+		s := v.FieldByName(sec)
+		st := s.Type()
+		for i := 0; i < st.NumField(); i++ {
+			f := st.Field(i)
+			if f.Type.Kind() != reflect.String || !ValidHex(s.Field(i).String()) {
+				continue
+			}
+			out = append(out, struct {
+				Name, Section, Key string
+				Addr               uintptr
+			}{f.Name, sec, f.Tag.Get("toml"), s.Field(i).Addr().Pointer()})
+		}
+	}
+	return out
+}
+
+// TestHexFieldsCubreTodosLosColores es lo que cierra la clase de CFG-1
+// (A-11): la tabla de Load centraliza, pero una fila también se puede
+// olvidar. Acá se recorren Theme y Visualizer por reflexión y se exige que
+// todo campo que sea un color esté cubierto, salvo los derivados, que van
+// exceptuados por nombre.
+func TestHexFieldsCubreTodosLosColores(t *testing.T) {
+	cfg, def := Default(), Default()
+	covered := map[uintptr]bool{}
+	for _, f := range hexFields(&cfg, &def) {
+		covered[reflect.ValueOf(f.field).Pointer()] = true
+	}
+	n := 0
+	for _, c := range colorFields(&cfg) {
+		if derivadosSinClamp[c.Name] {
+			continue
+		}
+		n++
+		if !covered[c.Addr] {
+			t.Errorf("%s.%s (%s) es un color y no está en hexFields(): un config.toml con basura ahí no se autocorrige", strings.ToLower(c.Section), c.Key, c.Name)
+		}
+	}
+	// Control positivo: si la reflexión dejara de ver los campos (un cambio
+	// de forma del struct, un tag perdido), el bucle no compararía nada y el
+	// test pasaría vacuo — la trampa que O-05.1 ya pagó una vez.
+	if n != len(hexFields(&cfg, &def)) {
+		t.Errorf("la reflexión encontró %d colores no derivados y hexFields tiene %d: uno de los dos lados sobra", n, len(hexFields(&cfg, &def)))
+	}
+}
+
+// TestHexFieldsSeClampanTodos es el espejo de comportamiento del anterior: el
+// TOML se ARMA desde la tabla, así que un color nuevo queda cubierto sin que
+// nadie lo agregue acá (a diferencia de TestLoadInvalidColorsClamp, que
+// enumera a mano y se conserva justamente como control independiente).
+func TestHexFieldsSeClampanTodos(t *testing.T) {
+	path := env(t)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	base, tmp := Default(), Default()
+	byAddr := map[uintptr]bool{}
+	for _, f := range hexFields(&tmp, &base) {
+		byAddr[reflect.ValueOf(f.field).Pointer()] = true
+	}
+	secs := map[string][]string{}
+	var want []struct{ Section, Key, Name string }
+	for _, c := range colorFields(&tmp) {
+		if !byAddr[c.Addr] {
+			continue
+		}
+		sec := strings.ToLower(c.Section)
+		secs[sec] = append(secs[sec], c.Key+" = \"rojo\"")
+		want = append(want, struct{ Section, Key, Name string }{c.Section, c.Key, c.Name})
+	}
+	var body strings.Builder
+	for _, sec := range []string{"theme", "visualizer"} {
+		if len(secs[sec]) == 0 {
+			continue
+		}
+		body.WriteString("[" + sec + "]\n" + strings.Join(secs[sec], "\n") + "\n")
+	}
+	writeCfg(t, path, body.String())
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	def := Default()
+	got, exp := reflect.ValueOf(&cfg).Elem(), reflect.ValueOf(&def).Elem()
+	for _, w := range want {
+		g := got.FieldByName(w.Section).FieldByName(w.Name).String()
+		e := exp.FieldByName(w.Section).FieldByName(w.Name).String()
+		if g != e {
+			t.Errorf("%s.%s = %q, quería el clamp al default %q", strings.ToLower(w.Section), w.Key, g, e)
+		}
+	}
+}

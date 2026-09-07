@@ -47,7 +47,7 @@ func TestExportM3UPermisosYSymlink(t *testing.T) {
 	if err := lib.CreatePlaylist("favs"); err != nil {
 		t.Fatal(err)
 	}
-	if err := lib.AddToPlaylist("favs", []int64{tracks[0].ID}); err != nil {
+	if _, _, err := lib.AddToPlaylist("favs", []int64{tracks[0].ID}); err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
@@ -106,7 +106,7 @@ func TestM3URoundTrip(t *testing.T) {
 	for i := len(tracks) - 1; i >= 0; i-- {
 		ids = append(ids, tracks[i].ID)
 	}
-	if err := lib.AddToPlaylist("orig", ids); err != nil {
+	if _, _, err := lib.AddToPlaylist("orig", ids); err != nil {
 		t.Fatal(err)
 	}
 

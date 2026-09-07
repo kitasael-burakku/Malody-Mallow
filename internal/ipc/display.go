@@ -1,6 +1,10 @@
 package ipc
 
-import "fmt"
+import (
+	"fmt"
+
+	"maly/internal/i18n"
+)
 
 // Helpers de presentación de los tipos del protocolo. Viven aquí porque la
 // CLI, la consola ctrl+p y la TUI muestran los mismos datos y cada una tenía
@@ -32,4 +36,23 @@ func OnOff(b bool) string {
 		return "on"
 	}
 	return "off"
+}
+
+// PlaylistAdded arma el mensaje de un `playlist add`: cuántas se agregaron y,
+// solo si las hay, cuántas YA ESTABAN.
+//
+// Vive acá, con los demás helpers de presentación, porque los tres caminos
+// que agregan a una playlist —la CLI, la consola ctrl+p y la tecla de la
+// TUI— tenían el mensaje escrito por separado, y es exactamente la forma en
+// que A-04 dejó divergir tres arreglos ya publicados. Con una función
+// compartida, la señal de duplicados llega a los tres o a ninguno.
+//
+// La frase de los duplicados solo aparece cuando dup > 0: el caso normal es
+// que no haya ninguno y una coletilla fija ("y 0 ya estaban") sería ruido
+// permanente para avisar de algo que no pasó (A-23).
+func PlaylistAdded(added, dup int, name string) string {
+	if dup > 0 {
+		return i18n.Tf("pl.added_dup", added, name, dup)
+	}
+	return i18n.Tf("pl.added", added, name)
 }

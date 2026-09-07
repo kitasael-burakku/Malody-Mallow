@@ -89,20 +89,32 @@ func (l *Library) DeletePlaylist(name string) error {
 // en una transacción: un id inválido a mitad de lista no deja un añadido
 // parcial, y el MAX(pos) leído dentro no puede cruzarse con otro proceso
 // escribiendo la misma playlist (CLI y demonio comparten la DB).
-func (l *Library) AddToPlaylist(name string, trackIDs []int64) error {
+//
+// Devuelve cuántas eran nuevas y cuántas YA ESTABAN. No bloquea las repetidas
+// —una playlist puede querer repetir una pista, y decidir eso no le toca a la
+// biblioteca—, pero sin el conteo el llamador no puede distinguir "agregué 30"
+// de "agregué la misma consulta amplia por segunda vez", que desde la 1.1.5
+// añade TODO lo que matchea sin tope (A-23). La consulta extra va DENTRO de la
+// transacción que ya se abría, así que no cuesta un viaje aparte.
+func (l *Library) AddToPlaylist(name string, trackIDs []int64) (added, dup int, err error) {
 	id, err := l.playlistID(name)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	tx, err := l.db.Begin()
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 	var pos int
 	if err := tx.QueryRow(
 		`SELECT COALESCE(MAX(pos), 0) FROM playlist_tracks WHERE playlist_id = ?`, id).Scan(&pos); err != nil {
 		tx.Rollback()
-		return err
+		return 0, 0, err
+	}
+	have, err := playlistTrackIDs(tx, id)
+	if err != nil {
+		tx.Rollback()
+		return 0, 0, err
 	}
 	for _, tid := range trackIDs {
 		pos++
@@ -110,10 +122,39 @@ func (l *Library) AddToPlaylist(name string, trackIDs []int64) error {
 			`INSERT INTO playlist_tracks (playlist_id, track_id, pos) VALUES (?, ?, ?)`,
 			id, tid, pos); err != nil {
 			tx.Rollback()
-			return err
+			return 0, 0, err
+		}
+		if have[tid] {
+			dup++
+		} else {
+			added++
+			// La misma id repetida DENTRO de esta llamada también deja un
+			// duplicado, así que cuenta como tal a partir de la segunda.
+			have[tid] = true
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+	return added, dup, nil
+}
+
+// playlistTrackIDs lee las pistas que la playlist ya tiene, como conjunto.
+func playlistTrackIDs(tx *sql.Tx, playlistID int64) (map[int64]bool, error) {
+	rows, err := tx.Query(`SELECT track_id FROM playlist_tracks WHERE playlist_id = ?`, playlistID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	have := map[int64]bool{}
+	for rows.Next() {
+		var tid int64
+		if err := rows.Scan(&tid); err != nil {
+			return nil, err
+		}
+		have[tid] = true
+	}
+	return have, rows.Err()
 }
 
 // RemoveFromPlaylist quita la pista en la posición 1-based pos — el orden

@@ -17,6 +17,7 @@ import (
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/library"
 	"maly/internal/version"
 )
 
@@ -554,5 +555,70 @@ func TestConsolePlaylistListNoFabricaLaBiblioteca(t *testing.T) {
 	}
 	if _, err := os.Stat(config.DBPath()); err != nil {
 		t.Fatal("`playlist create` en la consola no dejó creada la base de datos")
+	}
+}
+
+// TestConsolePlaylistAddAvisaDeLasRepetidas es el espejo exacto del test
+// homónimo de cmd/maly (A-23). Los dos existen porque un comando que vive en
+// los dos lados se arregla en los dos —la lección de A-04—, y ninguna de las
+// dos redes de paridad que hay lo cubriría: ConsoleCommands compara NOMBRES y
+// parity_test.go compara comportamiento pero solo el de `get playlist`.
+//
+// Cada lado comprueba además lo que se espera de verdad (el mensaje del
+// helper con 0 nuevas y 2 repetidas), no solo que los dos coincidan: dos
+// espejos igual de rotos también coinciden, que es lo que O-03 dejó anotado.
+func TestConsolePlaylistAddAvisaDeLasRepetidas(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+
+	music := t.TempDir()
+	for _, n := range []string{"Luna llena.mp3", "Luna nueva.mp3"} {
+		if err := os.WriteFile(filepath.Join(music, n), []byte("mp3 falso"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lib, err := library.Create(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.Scan(music, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.CreatePlaylist("favs"); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	m := newConModel()
+	run := func(args ...string) string {
+		t.Helper()
+		_, cmd := m.conPlaylist(args)
+		if cmd == nil {
+			t.Fatal("conPlaylist no devolvió comando")
+		}
+		msg, ok := cmd().(conMsg)
+		if !ok {
+			t.Fatalf("conPlaylist devolvió %T", cmd())
+		}
+		return strings.Join(msg.lines, "\n")
+	}
+
+	primera := run("add", "favs", "Luna")
+	segunda := run("add", "favs", "Luna")
+	if primera == segunda {
+		t.Errorf("las dos pasadas dijeron lo mismo (%q): la segunda duplicó dos pistas en silencio", primera)
+	}
+	if want := ipc.PlaylistAdded(0, 2, "favs"); !strings.Contains(segunda, want) {
+		t.Errorf("la segunda pasada dijo %q, quería %q", segunda, want)
+	}
+
+	lib2, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib2.Close()
+	if tracks, err := lib2.PlaylistTracks("favs"); err != nil || len(tracks) != 4 {
+		t.Fatalf("PlaylistTracks: %d pistas, %v; avisar no debe bloquear", len(tracks), err)
 	}
 }

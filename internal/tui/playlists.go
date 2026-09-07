@@ -222,11 +222,12 @@ func plAddCmd(name string, ids []int64, create bool) tea.Cmd {
 				return plActMsg{err: err}
 			}
 		}
-		if err := lib.AddToPlaylist(name, ids); err != nil {
+		added, dup, err := lib.AddToPlaylist(name, ids)
+		if err != nil {
 			return plActMsg{err: err}
 		}
 		notifyRefresh()
-		return plActMsg{msg: i18n.Tf("pl.added", len(ids), name)}
+		return plActMsg{msg: ipc.PlaylistAdded(added, dup, name)}
 	}
 }
 

@@ -119,7 +119,8 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 			for i, t := range tracks {
 				ids[i] = t.ID
 			}
-			if err := lib.AddToPlaylist(name, ids); err != nil {
+			added, dup, err := lib.AddToPlaylist(name, ids)
+			if err != nil {
 				// Espejo del `playlist add` de la CLI: el remedio va en la
 				// MISMA línea, que acá el error se pinta dentro del panel
 				// (hallazgo C26).
@@ -128,7 +129,7 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 				}
 				return nil, err
 			}
-			return []string{st.playing.Render(i18n.Tf("pl.added", len(tracks), name))}, nil
+			return []string{st.playing.Render(ipc.PlaylistAdded(added, dup, name))}, nil
 		})
 
 	case "remove":

@@ -231,7 +231,7 @@ func TestCompleteTracksAndPlaylists(t *testing.T) {
 		t.Fatalf("All: %d pistas, %v", len(all), err)
 	}
 	ids := []int64{all[0].ID, all[1].ID, all[2].ID}
-	if err := lib2.AddToPlaylist("favoritas", ids); err != nil {
+	if _, _, err := lib2.AddToPlaylist("favoritas", ids); err != nil {
 		t.Fatal(err)
 	}
 	lib2.Close()

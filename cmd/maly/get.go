@@ -244,7 +244,7 @@ func runGetPlaylist(args []string) (retErr error) {
 	if err := lib.CreatePlaylist(name); err != nil {
 		return err
 	}
-	if err := lib.AddToPlaylist(name, ids); err != nil {
+	if _, _, err := lib.AddToPlaylist(name, ids); err != nil {
 		return err
 	}
 	notifyRefresh()

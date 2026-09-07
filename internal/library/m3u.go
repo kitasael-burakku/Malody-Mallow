@@ -112,7 +112,7 @@ func (l *Library) ImportM3U(path, name string) (added int, skipped []string, err
 	if err := l.CreatePlaylist(name); err != nil {
 		return 0, skipped, err
 	}
-	if err := l.AddToPlaylist(name, ids); err != nil {
+	if _, _, err := l.AddToPlaylist(name, ids); err != nil {
 		return 0, skipped, err
 	}
 	return len(ids), skipped, nil

@@ -238,3 +238,43 @@ func TestCallsitesTodaClaveSeUsa(t *testing.T) {
 		}
 	}
 }
+
+// clavesDeUnSoloSitio: claves cuyo mensaje tiene que armarse en UN solo
+// lugar, con el archivo que lo posee. No es purismo: son mensajes que
+// aparecen en la CLI, en la consola ctrl+p y en la TUI, o sea la clase exacta
+// de A-04 —tres copias del mismo texto que divergieron durante tres
+// releases—. Con el mensaje detrás de un helper compartido, un cambio llega a
+// los tres lados o a ninguno, y este chequeo es lo que impide que alguien
+// vuelva a armarlo a mano en uno solo.
+//
+// Se añadió con A-23 (el aviso de duplicados de `playlist add`), que tenía
+// que salir por los tres caminos.
+var clavesDeUnSoloSitio = map[string]string{
+	"pl.added":     "internal/ipc/display.go",
+	"pl.added_dup": "internal/ipc/display.go",
+}
+
+func TestCallsitesClavesDeUnSoloSitio(t *testing.T) {
+	llamadas, _ := recolectar(t, raizDelProyecto)
+	visto := map[string]int{}
+	for _, l := range llamadas {
+		if l.dinam {
+			continue
+		}
+		dueno, ok := clavesDeUnSoloSitio[l.key]
+		if !ok {
+			continue
+		}
+		visto[l.key]++
+		if !strings.Contains(filepath.ToSlash(l.pos), dueno) {
+			t.Errorf("%s: %s(%q) — esa clave se arma en %s y en ningún otro sitio; usá el helper compartido", l.pos, l.fn, l.key, dueno)
+		}
+	}
+	// Sin esto el chequeo pasaría vacuo si la clave se renombrara o el
+	// helper desapareciera: no encontrar ninguna llamada no es "todo bien".
+	for k := range clavesDeUnSoloSitio {
+		if visto[k] == 0 {
+			t.Errorf("%q no se usa en ninguna parte: o sobra de esta lista, o el helper que la usaba desapareció", k)
+		}
+	}
+}

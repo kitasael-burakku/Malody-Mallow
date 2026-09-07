@@ -605,7 +605,7 @@ func TestRemoveFromPlaylist(t *testing.T) {
 		t.Fatal(err)
 	}
 	ids := []int64{all[0].ID, all[1].ID, all[2].ID}
-	if err := lib.AddToPlaylist("mix", ids); err != nil {
+	if _, _, err := lib.AddToPlaylist("mix", ids); err != nil {
 		t.Fatal(err)
 	}
 
@@ -671,7 +671,7 @@ func TestRemoveFromPlaylistConcurrent(t *testing.T) {
 	for i, tr := range all {
 		ids[i] = tr.ID
 	}
-	if err := lib.AddToPlaylist("mix", ids); err != nil {
+	if _, _, err := lib.AddToPlaylist("mix", ids); err != nil {
 		t.Fatal(err)
 	}
 
@@ -865,7 +865,7 @@ func TestAddToPlaylistAtomic(t *testing.T) {
 	}
 
 	// El 999999 viola la foreign key de tracks: todo el lote debe caerse.
-	if err := lib.AddToPlaylist("mix", []int64{all[0].ID, 999999, all[1].ID}); err == nil {
+	if _, _, err := lib.AddToPlaylist("mix", []int64{all[0].ID, 999999, all[1].ID}); err == nil {
 		t.Fatal("un id inexistente debe hacer fallar el añadido")
 	}
 	if tracks, err := lib.PlaylistTracks("mix"); err != nil || len(tracks) != 0 {
@@ -873,11 +873,61 @@ func TestAddToPlaylistAtomic(t *testing.T) {
 	}
 
 	// Y el camino sano sigue funcionando después del rollback.
-	if err := lib.AddToPlaylist("mix", []int64{all[0].ID, all[1].ID}); err != nil {
+	if _, _, err := lib.AddToPlaylist("mix", []int64{all[0].ID, all[1].ID}); err != nil {
 		t.Fatal(err)
 	}
 	if tracks, _ := lib.PlaylistTracks("mix"); len(tracks) != 2 {
 		t.Fatalf("añadido sano tras rollback: %d pistas", len(tracks))
+	}
+}
+
+// TestAddToPlaylistCuentaRepetidas: AddToPlaylist devuelve cuántas eran
+// nuevas y cuántas ya estaban, SIN bloquear las repetidas — una playlist
+// puede querer repetir una pista, y esa decisión no le toca a la biblioteca
+// (A-23). Lo que faltaba era la señal: con `playlist add <lista> <consulta
+// amplia>`, que desde la 1.1.5 agrega todo lo que matchea sin tope, repetir
+// el comando duplicaba decenas de entradas diciendo lo mismo que la primera
+// vez.
+func TestAddToPlaylistCuentaRepetidas(t *testing.T) {
+	dir := fakeMusicDir(t, 3)
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	all, err := lib.All()
+	if err != nil || len(all) != 3 {
+		t.Fatalf("All: %d pistas, %v", len(all), err)
+	}
+	if err := lib.CreatePlaylist("mix"); err != nil {
+		t.Fatal(err)
+	}
+
+	if added, dup, err := lib.AddToPlaylist("mix", []int64{all[0].ID, all[1].ID}); err != nil || added != 2 || dup != 0 {
+		t.Fatalf("primer añadido: added=%d dup=%d err=%v; quería 2/0", added, dup, err)
+	}
+	// Segunda pasada: una repetida y una nueva.
+	if added, dup, err := lib.AddToPlaylist("mix", []int64{all[1].ID, all[2].ID}); err != nil || added != 1 || dup != 1 {
+		t.Fatalf("segundo añadido: added=%d dup=%d err=%v; quería 1/1", added, dup, err)
+	}
+	// La misma id dos veces DENTRO de una llamada también deja un duplicado.
+	if added, dup, err := lib.AddToPlaylist("otra", []int64{all[0].ID, all[0].ID}); err == nil {
+		t.Fatalf("sin la playlist creada debía fallar: added=%d dup=%d", added, dup)
+	}
+	if err := lib.CreatePlaylist("otra"); err != nil {
+		t.Fatal(err)
+	}
+	if added, dup, err := lib.AddToPlaylist("otra", []int64{all[0].ID, all[0].ID}); err != nil || added != 1 || dup != 1 {
+		t.Fatalf("id repetida en la misma llamada: added=%d dup=%d err=%v; quería 1/1", added, dup, err)
+	}
+
+	// Control: contar no puede haber bloqueado nada. Cinco inserciones en
+	// "mix" son cinco filas, repetidas incluidas.
+	if tracks, err := lib.PlaylistTracks("mix"); err != nil || len(tracks) != 4 {
+		t.Fatalf("PlaylistTracks: %d pistas, %v; contar no debe bloquear las repetidas", len(tracks), err)
 	}
 }
 
@@ -1102,7 +1152,7 @@ func TestScanNoPurgaConRootVacio(t *testing.T) {
 	for _, tr := range todas {
 		ids = append(ids, tr.ID)
 	}
-	if err := lib.AddToPlaylist("favs", ids); err != nil {
+	if _, _, err := lib.AddToPlaylist("favs", ids); err != nil {
 		t.Fatal(err)
 	}
 

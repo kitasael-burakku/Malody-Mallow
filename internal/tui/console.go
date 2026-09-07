@@ -724,7 +724,7 @@ func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.C
 		if err := lib.CreatePlaylist(name); err != nil {
 			return errLine(err)
 		}
-		if err := lib.AddToPlaylist(name, ids); err != nil {
+		if _, _, err := lib.AddToPlaylist(name, ids); err != nil {
 			return errLine(err)
 		}
 		notifyRefresh()

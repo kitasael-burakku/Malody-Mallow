@@ -176,7 +176,8 @@ func runPlaylist(args []string) error {
 		for i, t := range tracks {
 			ids[i] = t.ID
 		}
-		if err := lib.AddToPlaylist(name, ids); err != nil {
+		added, dup, err := lib.AddToPlaylist(name, ids)
+		if err != nil {
 			// "no existe" es el fallo esperable acá (a diferencia de
 			// show/remove/delete, que operan sobre algo que ya se listó), y
 			// el remedio no estaba en ninguna parte del mensaje: hay que
@@ -190,7 +191,7 @@ func runPlaylist(args []string) error {
 			}
 			return err
 		}
-		fmt.Println(i18n.Tf("pl.added", len(tracks), name))
+		fmt.Println(ipc.PlaylistAdded(added, dup, name))
 		notifyRefresh()
 		return nil
 

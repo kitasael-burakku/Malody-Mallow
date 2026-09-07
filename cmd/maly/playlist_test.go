@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"maly/internal/config"
+	"maly/internal/ipc"
 	"maly/internal/library"
 )
 
@@ -58,7 +59,7 @@ func TestPlaylistExportNoClobber(t *testing.T) {
 	if err := lib.CreatePlaylist("mix"); err != nil {
 		t.Fatal(err)
 	}
-	if err := lib.AddToPlaylist("mix", []int64{all[0].ID}); err != nil {
+	if _, _, err := lib.AddToPlaylist("mix", []int64{all[0].ID}); err != nil {
 		t.Fatal(err)
 	}
 	lib.Close()
@@ -160,5 +161,65 @@ func TestPlaylistListNoFabricaLaBiblioteca(t *testing.T) {
 	// Y ahora que existe, los de lectura funcionan.
 	if err := runPlaylist([]string{"list"}); err != nil {
 		t.Errorf("con biblioteca, `playlist list` debía funcionar: %v", err)
+	}
+}
+
+// TestPlaylistAddAvisaDeLasRepetidas cubre A-23 de punta a punta por la CLI:
+// `playlist add <lista> <consulta>` dos veces deja la pista dos veces —eso no
+// se bloquea, una playlist puede querer repetirla— pero la segunda vez tiene
+// que DECIRLO. Con una consulta amplia, que desde la 1.1.5 agrega todo lo que
+// matchea sin tope, repetir el comando duplicaba decenas de entradas con el
+// mismo mensaje que la primera vez.
+func TestPlaylistAddAvisaDeLasRepetidas(t *testing.T) {
+	xdgSandbox(t)
+
+	lib, err := createLibrary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	for _, n := range []string{"Luna llena.mp3", "Luna nueva.mp3"} {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("mp3 falso"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.CreatePlaylist("favs"); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	primera := captureStdout(t, func() {
+		if err := runPlaylist([]string{"add", "favs", "Luna"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	segunda := captureStdout(t, func() {
+		if err := runPlaylist([]string{"add", "favs", "Luna"}); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	if primera == segunda {
+		t.Errorf("las dos pasadas dijeron lo mismo (%q): la segunda duplicó dos pistas en silencio", primera)
+	}
+	// La aserción es contra el mensaje que arma el helper compartido, con
+	// los números que corresponden (0 nuevas, 2 ya estaban): así no depende
+	// del idioma ni de la redacción, pero sí exige que la CLI le pase los
+	// conteos de verdad y no len(tracks) como antes.
+	if want := ipc.PlaylistAdded(0, 2, "favs"); !strings.Contains(segunda, want) {
+		t.Errorf("la segunda pasada dijo %q, quería %q", segunda, want)
+	}
+	// Y no se bloqueó nada: las cuatro filas están.
+	lib2, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib2.Close()
+	tracks, err := lib2.PlaylistTracks("favs")
+	if err != nil || len(tracks) != 4 {
+		t.Fatalf("PlaylistTracks: %d pistas, %v; avisar no debe bloquear", len(tracks), err)
 	}
 }

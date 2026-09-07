@@ -184,8 +184,22 @@ func (v *Viz) startCapture(pref string) error {
 		v.fake = false
 		v.retrying = false
 		v.mu.Unlock()
-		go v.readLoop(stdout)
-		go cmd.Wait()
+		// Wait() DESPUÉS del readLoop y en la misma goroutine, no en
+		// paralelo: os/exec documenta que Wait cierra el pipe en cuanto ve
+		// salir al comando, "so it is incorrect to call Wait before all
+		// reads from the pipe have completed". Con el `go cmd.Wait()` que
+		// había, un backend que muere dejando datos en el buffer del pipe
+		// (64 KiB, ~0,7 s de audio) los perdía enteros: medido, 20 de 20
+		// corridas con la precondición puesta —el escritor sale con la
+		// tubería llena y el lector no es instantáneo— y en las 20 el lector
+		// no llegó a ver NI UN byte de lo que quedaba. En maly el daño es
+		// benigno (esas muestras son el último parpadeo del visualizador, y
+		// el readLoop degrada a fake igual), pero era la única desviación de
+		// una API documentada que quedaba en el árbol (A-18).
+		go func() {
+			v.readLoop(stdout)
+			cmd.Wait() // reapea: sin esto el proceso queda zombi
+		}()
 		return nil
 	}
 	return lastErr

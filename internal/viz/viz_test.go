@@ -3,7 +3,10 @@ package viz
 import (
 	"bytes"
 	"math"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -278,4 +281,85 @@ func TestFilterCandidates(t *testing.T) {
 	if len(pulse) != 1 || pulse[0].name != "parec" {
 		t.Fatalf(`filterCandidates("pulse") = %v, quería solo parec`, pulse)
 	}
+}
+
+// fakeCapture instala un "pw-record" de mentira al frente del PATH (mismo
+// patrón que el mpv falso de player_test.go y el yt-dlp de get_test.go). El
+// script escribe PCM y se queda vivo, que es lo que hace un capturador real:
+// sin eso Close() no tendría a quién matar y el test no probaría nada.
+func fakeCapture(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	script := "#!/bin/sh\n/usr/bin/head -c 65536 /dev/urandom\n/usr/bin/sleep 30\n"
+	if err := os.WriteFile(filepath.Join(dir, "pw-record"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+}
+
+// TestCloseReapeaLaCaptura cubre el riesgo del arreglo de A-18: al mover el
+// cmd.Wait() adentro de la goroutine del readLoop, el reaper del proceso pasa
+// a depender de que el readLoop TERMINE. Si Close() matara el proceso sin que
+// el readLoop saliera, el hijo quedaría zombi para el resto de la sesión.
+//
+// Se comprueba por el efecto y no por el retorno: ProcessState solo deja de
+// ser nil cuando alguien esperó de verdad al hijo.
+func TestCloseReapeaLaCaptura(t *testing.T) {
+	fakeCapture(t)
+	v := New(0.9, "pipewire") // solo pw-record: el falso es el único candidato
+	if v.Fake() {
+		t.Fatal("el arnés no arrancó la captura falsa: New cayó en modo fake")
+	}
+	v.mu.Lock()
+	cmd := v.cmd
+	v.mu.Unlock()
+	if cmd == nil || cmd.Process == nil {
+		t.Fatal("no quedó proceso de captura")
+	}
+
+	v.Close()
+	// La pregunta se le hace al SISTEMA y no a cmd.ProcessState: ese campo lo
+	// escribe Wait() desde otra goroutine y leerlo desde acá es una data race
+	// que -race caza (y con razón). Un hijo muerto pero sin esperar sigue
+	// existiendo como zombi, así que la señal 0 le llega igual; solo cuando
+	// alguien lo reapea el pid deja de existir y Signal falla.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("el proceso de captura (pid %d) no se reapeó tras Close(): quedaría zombi", cmd.Process.Pid)
+}
+
+// TestCapturaAlimentaElRing es el control positivo del anterior: si el fake
+// no escribiera nada, o si el readLoop no llegara a leerlo, el test de arriba
+// pasaría igual (un proceso que sale solo también se reapea). El ring nace en
+// ceros, así que ver una muestra distinta de cero prueba que lo que escribió
+// el capturador llegó hasta él.
+func TestCapturaAlimentaElRing(t *testing.T) {
+	fakeCapture(t)
+	v := New(0.9, "pipewire")
+	defer v.Close()
+	if v.Fake() {
+		t.Fatal("el arnés no arrancó la captura falsa: New cayó en modo fake")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		v.mu.Lock()
+		var nonZero bool
+		for _, s := range v.ring {
+			if s != 0 {
+				nonZero = true
+				break
+			}
+		}
+		v.mu.Unlock()
+		if nonZero {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("la captura falsa nunca alimentó el ring")
 }

@@ -335,8 +335,36 @@ func (p *Player) handleEvent(ev mpvEvent) {
 	}
 }
 
-// command envía un comando a mpv y espera su respuesta.
+// cmdTimeout es lo que espera un comando de mpv antes de darlo por perdido.
+// Generoso porque el fallo de un comando normal (cargar, pausar, saltar) es
+// visible para el usuario y no hay a quién delegarle el reintento.
+const cmdTimeout = 5 * time.Second
+
+// windowTimeout acota los comandos de la VENTANA GAPLESS (SetNext), que son
+// best-effort por diseño: si el append falla, el advance siguiente repara. Y
+// son los únicos que se pagan en CADA mutador —todos terminan en
+// syncWindowLocked—, con d.mu en la mano: con mpv vivo pero trabado (un
+// archivo en un montaje de red que no contesta, un --audio-device colgado) un
+// solo `next` congelaba status, TUI, pushes y MPRIS hasta 10 s. Es la última
+// familia de "IO no acotado bajo el lock" que quedaba tras sacar de d.mu el
+// scan, la resolución de pistas y el seek (A-08).
+//
+// El número sale de medir y no de estimar, que es lo que la ficha pedía antes
+// que código: con mpv REAL, 200 SetNext alternando ruta dan 29,7 µs de media
+// y 79 µs el peor caso (el no-op del espejo, 3 ns). Un segundo es ~12.000
+// veces el peor caso medido, así que el riesgo que la ficha temía —romper un
+// SetNext legítimo en una máquina lenta y degradar el gapless a carga manual
+// audible— no está donde se sospechaba.
+const windowTimeout = time.Second
+
+// command envía un comando a mpv y espera su respuesta hasta cmdTimeout.
 func (p *Player) command(args ...any) (json.RawMessage, error) {
+	return p.commandWithin(cmdTimeout, args...)
+}
+
+// commandWithin es command con el tope explícito. Existe para la ventana
+// gapless: ver windowTimeout.
+func (p *Player) commandWithin(timeout time.Duration, args ...any) (json.RawMessage, error) {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
@@ -368,7 +396,7 @@ func (p *Player) command(args ...any) (json.RawMessage, error) {
 			return nil, fmt.Errorf("mpv: %s", r.Err)
 		}
 		return r.Data, nil
-	case <-time.After(5 * time.Second):
+	case <-time.After(timeout):
 		// Retirar la entrada abandonada: un mpv que nunca contesta iría
 		// acumulando canales en pending para siempre. Si la respuesta llega
 		// tarde igual no bloquea a readLoop (canal con capacidad 1).
@@ -454,7 +482,7 @@ func (p *Player) SetNext(path string) error {
 	}
 	p.mu.Unlock()
 
-	if _, err := p.command("playlist-clear"); err != nil {
+	if _, err := p.commandWithin(windowTimeout, "playlist-clear"); err != nil {
 		// mpv no cambió: el espejo sigue siendo válido, no tocarlo.
 		return err
 	}
@@ -464,7 +492,7 @@ func (p *Player) SetNext(path string) error {
 		// Con mpv idle esto deja una entrada huérfana que no suena sola
 		// (append no arranca reproducción) y que cualquier loadfile replace
 		// posterior se lleva; inofensiva.
-		if _, err := p.command("loadfile", path, "append"); err != nil {
+		if _, err := p.commandWithin(windowTimeout, "loadfile", path, "append"); err != nil {
 			// playlist-clear ya tuvo éxito: mpv quedó SIN promesa aunque
 			// este append falle. El espejo tiene que reflejar eso (appended
 			// se queda en "") y no el valor previo a esta llamada — si no,

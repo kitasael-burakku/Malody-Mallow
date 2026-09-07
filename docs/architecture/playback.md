@@ -18,6 +18,27 @@ ventana, `[resolveEnd → el consumidor toma su mutex]`, es la que dejaba
 perder una pista entera (roadmap: carrera de la promesa obsoleta).
 `LoadGen()` es para eso; `LoadCount()`, en cambio, es diagnóstico de gapless.
 
+**Toda espera a mpv está ACOTADA, y con dos topes distintos** (A-08). Un
+comando normal espera `cmdTimeout` (5 s): su fallo lo ve el usuario y no hay
+a quién delegarle el reintento. Los de la ventana gapless (`SetNext`) esperan
+`windowTimeout` (1 s), porque son **best-effort por diseño** —si el append
+falla, el `advance` siguiente repara— y son los únicos que se pagan en CADA
+mutador del demonio: todos terminan en `syncWindowLocked`, y eso corre bajo
+`d.mu`. La regla que hay que leer aquí no es "estas tres operaciones están
+fuera del lock" (scan, resolución de pistas, seek) sino **"ninguna espera a
+mpv bajo `d.mu` pasa de su tope, y el de la ventana es el más corto porque su
+fallo ya está previsto"**. Con mpv vivo pero trabado —un archivo en un
+montaje de red que no contesta, un `--audio-device` colgado— un solo `next`
+retenía `d.mu` hasta 10 s y congelaba status, TUI, pushes y MPRIS.
+
+El 1 s sale de MEDIR, que es lo que el hallazgo pedía antes que código: con
+mpv real, 200 `SetNext` alternando ruta dan **29,7 µs de media y 79 µs el
+peor caso** (el no-op por espejo, 3 ns). O sea que el tope nuevo es ~12.000
+veces el peor caso sano, y el riesgo que se temía —romper un `SetNext`
+legítimo en una máquina lenta y degradar el gapless a una carga manual
+audible— no está donde se sospechaba. `TestSetNextNoSeCuelgaCincoSegundos`
+fija la distinción entre los dos topes.
+
 ## `internal/queue`
 
 cola con shuffle/repeat. El shuffle es por PERMUTACIÓN

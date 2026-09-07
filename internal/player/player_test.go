@@ -390,3 +390,45 @@ func TestCloseWaitsForCallback(t *testing.T) {
 		t.Fatal("Close() no volvió tras liberar el callback")
 	}
 }
+
+// TestSetNextNoSeCuelgaCincoSegundos cubre A-08: los comandos de la ventana
+// gapless son best-effort y no pueden retener d.mu lo que retiene un comando
+// normal. Con un mpv que acepta y nunca contesta, SetNext tiene que volver
+// por windowTimeout (1 s) y no por cmdTimeout (5 s).
+//
+// El margen de la aserción se elige para que distinga los dos topes de verdad
+// —2,5 s está por encima del uno y por debajo del otro—: con un "menos de 5 s"
+// el test pasaría con el defecto puesto.
+func TestSetNextNoSeCuelgaCincoSegundos(t *testing.T) {
+	cli, srv := net.Pipe()
+	defer srv.Close()
+	go func() { // drena lo que se escriba; nunca responde
+		buf := make([]byte, 4096)
+		for {
+			if _, err := srv.Read(buf); err != nil {
+				return
+			}
+		}
+	}()
+	p := &Player{conn: cli, pending: map[int64]chan mpvReply{}, done: make(chan struct{})}
+
+	inicio := time.Now()
+	if err := p.SetNext("/tmp/x.mp3"); err == nil {
+		t.Fatal("SetNext debe fallar contra un mpv que no contesta")
+	}
+	tardo := time.Since(inicio)
+	if tardo > 2500*time.Millisecond {
+		t.Errorf("SetNext tardó %v: se fue al tope de un comando normal en vez del de la ventana gapless", tardo)
+	}
+	// Control positivo: si el tope fuera cero o la escritura fallara al
+	// instante, el test de arriba pasaría sin probar nada.
+	if tardo < windowTimeout {
+		t.Errorf("SetNext tardó %v, menos que windowTimeout (%v): no llegó a esperar a mpv", tardo, windowTimeout)
+	}
+	p.mu.Lock()
+	n := len(p.pending)
+	p.mu.Unlock()
+	if n != 0 {
+		t.Fatalf("pending quedó con %d entradas tras el timeout de la ventana", n)
+	}
+}

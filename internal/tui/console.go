@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -546,7 +545,6 @@ func (m *Model) conScan(query string) tea.Cmd {
 			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
 		}
 		defer c.Close()
-		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
 		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: dir})
 		if err != nil {
 			return conMsg{lines: []string{st.errSt.Render(err.Error())}}
@@ -697,7 +695,6 @@ func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.C
 			return errLine(err)
 		}
 		defer c.Close()
-		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
 		resp, err := c.Do(ipc.Request{Cmd: "scan", Query: plan.MusicDir})
 		if err != nil {
 			return errLine(err)

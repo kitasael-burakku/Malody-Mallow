@@ -357,3 +357,85 @@ func TestDoAcceptsLargeLegitimateResponse(t *testing.T) {
 		t.Fatalf("Msg truncado: %d bytes, quería %d", len(resp.Msg), len(bigMsg))
 	}
 }
+
+// TestReqTimeout fija la política de deadline por op (A-26). Va por tabla
+// sobre la función pura porque el camino de verdad —comprobar en vivo que un
+// scan aguanta más que el default— costaría 30 s de test.
+func TestReqTimeout(t *testing.T) {
+	cases := []struct {
+		name string
+		cmd  string
+		set  time.Duration
+		want time.Duration
+	}{
+		{"el default cuando nadie fija nada", "status", 0, DefaultTimeout},
+		{"el scan no lleva deadline", "scan", 0, NoTimeout},
+		{"lo explícito manda sobre el default", "status", time.Second, time.Second},
+		{"lo explícito manda también en el scan", "scan", time.Second, time.Second},
+		{"un NoTimeout explícito se respeta", "status", NoTimeout, NoTimeout},
+	}
+	for _, c := range cases {
+		if got := reqTimeout(c.cmd, c.set); got != c.want {
+			t.Errorf("%s: reqTimeout(%q, %v) = %v, quería %v", c.name, c.cmd, c.set, got, c.want)
+		}
+	}
+}
+
+// recConn envuelve una conexión y anota los deadlines que le ponen.
+type recConn struct {
+	net.Conn
+	deadlines []time.Time
+}
+
+func (c *recConn) SetDeadline(t time.Time) error {
+	c.deadlines = append(c.deadlines, t)
+	return c.Conn.SetDeadline(t)
+}
+
+// TestDoDeadlineDelScan es el espejo de comportamiento de TestReqTimeout, y
+// mira el deadline REAL que Do le pone a la conexión. Se hace así y no con un
+// demonio lento porque un test cronometrado no puede distinguir "sin
+// deadline" de "con el default de 30 s" sin durar 30 s: sería justo la
+// aserción demasiado laxa que pasa con el defecto puesto.
+func TestDoDeadlineDelScan(t *testing.T) {
+	cases := []struct {
+		cmd      string
+		wantZero bool
+	}{
+		{"scan", true},
+		{"status", false},
+	}
+	for _, tc := range cases {
+		cli, srv := net.Pipe()
+		rc := &recConn{Conn: cli}
+		go func() {
+			defer srv.Close()
+			r := bufio.NewReader(srv)
+			if _, err := ReadLine(r, MaxReqLine); err != nil {
+				return
+			}
+			srv.Write([]byte(`{"ok":true}` + "\n"))
+		}()
+		c := &Client{conn: rc, r: bufio.NewReaderSize(rc, 4096)}
+		resp, err := c.Do(Request{Cmd: tc.cmd})
+		cli.Close()
+		if err != nil {
+			t.Fatalf("%s: %v", tc.cmd, err)
+		}
+		if !resp.OK {
+			t.Fatalf("%s: respuesta inesperada %+v", tc.cmd, resp)
+		}
+		if len(rc.deadlines) == 0 {
+			t.Fatalf("%s: Do no tocó el deadline; el test no está mirando lo que cree", tc.cmd)
+		}
+		got := rc.deadlines[0]
+		if got.IsZero() != tc.wantZero {
+			t.Errorf("%s: deadline = %v (cero: %v), quería cero=%v", tc.cmd, got, got.IsZero(), tc.wantZero)
+		}
+		if !tc.wantZero {
+			if d := time.Until(got); d < DefaultTimeout/2 || d > DefaultTimeout {
+				t.Errorf("%s: el deadline queda a %v, quería ~%v", tc.cmd, d, DefaultTimeout)
+			}
+		}
+	}
+}

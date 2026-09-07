@@ -242,7 +242,6 @@ func runScan(args []string) error {
 	// a la DB.
 	if c, err := ipc.Dial(config.SocketPath()); err == nil {
 		defer c.Close()
-		c.Timeout = 10 * time.Minute // una biblioteca grande no cabe en los 30 s default
 
 		// Progreso: Do lee una sola línea al final, así que el avance llega
 		// por una SEGUNDA conexión suscrita (el demonio empuja Status con

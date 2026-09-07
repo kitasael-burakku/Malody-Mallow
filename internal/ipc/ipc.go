@@ -150,9 +150,43 @@ type Client struct {
 	conn net.Conn
 	r    *bufio.Reader
 
-	// Timeout por petición de Do; 0 usa el default (30 s). El completado de
-	// shell lo baja: un TAB no puede quedarse esperando a un demonio colgado.
+	// Timeout por petición de Do; 0 deja decidir a reqTimeout (DefaultTimeout,
+	// salvo el scan). El completado de shell lo baja: un TAB no puede quedarse
+	// esperando a un demonio colgado. NoTimeout lo quita del todo.
 	Timeout time.Duration
+}
+
+// DefaultTimeout es lo que espera Do cuando el llamador no fija nada.
+const DefaultTimeout = 30 * time.Second
+
+// NoTimeout, puesto en Client.Timeout, deja la petición SIN deadline: el
+// corte lo da el cierre de la conexión (o el ctrl+C del usuario). No sirve
+// Timeout = 0 para esto, que es "usá el default".
+const NoTimeout time.Duration = -1
+
+// reqTimeout decide cuánto espera Do: lo que fije el llamador, y si no fijó
+// nada, el default — salvo el scan, que no lleva deadline.
+//
+// El scan es la única op cuya duración es proporcional a la BIBLIOTECA DEL
+// USUARIO y no al trabajo del demonio: la fase de duraciones está medida en
+// 7,7 s por cada 1.000 pistas, así que una biblioteca de 80.000 pasa de diez
+// minutos ella sola. Con el tope viejo el cliente imprimía un error de I/O y
+// salía con código 1 mientras el demonio seguía escaneando y terminaba bien —
+// un fallo donde no lo hubo, y un `maly scan` de nuevo rebotando con
+// d.scan_busy (A-26).
+//
+// La decisión vive ACÁ y no en cada llamador a propósito: los tres sitios que
+// lo fijaban a mano (la CLI, `conScan` y `conGetPlaylistFinish`) son dos
+// espejos que hay que mantener en paridad, y esta es exactamente la clase de
+// A-04. Puesta en el protocolo, un cliente nuevo la hereda sin saberla.
+func reqTimeout(cmd string, set time.Duration) time.Duration {
+	if set != 0 {
+		return set
+	}
+	if cmd == "scan" {
+		return NoTimeout
+	}
+	return DefaultTimeout
 }
 
 // maxRespLine acota las RESPUESTAS que lee el cliente — no confundir con el
@@ -264,11 +298,13 @@ func (c *Client) Do(req Request) (Response, error) {
 	if err != nil {
 		return resp, err
 	}
-	timeout := c.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
+	if timeout := reqTimeout(req.Cmd, c.Timeout); timeout > 0 {
+		c.conn.SetDeadline(time.Now().Add(timeout))
+	} else {
+		// Sin deadline. Se pone explícitamente (y no se omite) porque la
+		// misma conexión puede haber quedado con uno de una petición previa.
+		c.conn.SetDeadline(time.Time{})
 	}
-	c.conn.SetDeadline(time.Now().Add(timeout))
 	if _, err := c.conn.Write(append(data, '\n')); err != nil {
 		// Un fallo de ESCRITURA puede traer respuesta igual, y hay un caso
 		// real: una petición pasada del tope del demonio, que deja de leer,

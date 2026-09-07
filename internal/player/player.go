@@ -58,7 +58,22 @@ type Player struct {
 	// desenlace ya no es de mpv y el evento pendiente se descarta.
 	pendingEnd string
 	pendingGen int64
-	loadGen    int64
+	// loadGen numera las cargas: "los desenlaces que siguen son de esta
+	// carga". Sube en Load/LoadPaused/Stop ANTES de mandarle nada a mpv, así
+	// que si el loadfile falla (mpv trabado, socket roto) la generación queda
+	// incrementada sin que mpv haya recargado nada, y un advance en vuelo con
+	// la generación anterior se descarta por obsoleto aunque su desenlace
+	// siguiera siendo válido (A-22).
+	//
+	// El sesgo se conserva a propósito porque va en la dirección SEGURA: se
+	// pierde un avance automático en vez de avanzar sobre una premisa falsa,
+	// que era justo el bug de la 1.16.3. Y si el loadfile falló, mpv casi
+	// seguro está en un estado en el que ese avance no iba a funcionar. Mover
+	// el incremento a después del loadfile exitoso abriría la ventana
+	// contraria —un end-file en vuelo resolviéndose contra la generación
+	// vieja—, que es peor. nextKnown = false sí es correcto ponerlo antes:
+	// mpv puede haber cambiado a medias.
+	loadGen int64
 
 	loads int64 // loadfile replace emitidos; diagnóstico de gapless
 

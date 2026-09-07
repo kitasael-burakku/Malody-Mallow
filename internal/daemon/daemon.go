@@ -1028,6 +1028,7 @@ func (d *Daemon) statusLocked(lang string) *ipc.Status {
 		QueueLen:   d.q.Len(),
 		LibGen:     d.libGen.Load(),
 		QueueGen:   d.q.Gen(),
+		PlayerDead: d.pl.Dead(),
 	}
 	if d.notice != "" {
 		s.Notice = i18n.TLf(lang, d.notice, d.noticeArgs...)

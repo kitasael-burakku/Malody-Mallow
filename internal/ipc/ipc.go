@@ -79,6 +79,19 @@ type Status struct {
 	// "sin Queue" no puede distinguir por sí solo "no cambió" de "quedó
 	// vacía".
 	QueueGen uint64 `json:"queue_gen,omitempty"`
+	// PlayerDead marca que mpv ya no está (murió por OOM, un pkill, un crash
+	// del driver de audio) y que el demonio, que NO lo relanza, se quedó sin
+	// reproductor hasta que alguien reinicie el servicio. Sin esto el estado
+	// era invisible: los comandos sí contestaban "mpv terminó", pero `status`
+	// respondía con normalidad —player.State conserva el último espejo
+	// conocido— y `maly doctor` preguntaba por el socket del DEMONIO, no por
+	// el de mpv, así que el diagnóstico decía que todo estaba bien (O-07).
+	//
+	// Es un HECHO, no un aviso: a diferencia de Notice no caduca ni se limpia
+	// con la carga siguiente, porque no hay carga siguiente posible.
+	// omitempty mantiene la compatibilidad con clientes viejos, igual que
+	// LibGen.
+	PlayerDead bool `json:"player_dead,omitempty"`
 	// Notice es el último aviso del demonio que el usuario debería ver: una
 	// pista saltada por irreproducible, o la cola detenida tras una pasada
 	// entera sin nada que suene. Vive acá porque era el ÚNICO evento del

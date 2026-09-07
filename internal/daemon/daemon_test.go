@@ -2080,3 +2080,27 @@ func TestOpConfigReportaLoQueTieneEnEfecto(t *testing.T) {
 		t.Errorf("tras fallar la relectura debía conservar el config anterior; dio %q", resp.Config.MusicDir)
 	}
 }
+
+// TestStatusReportaMpvMuerto es el cableado de O-07: el hecho que el player
+// ya sabe (Dead) tiene que llegar hasta el Status que ven los clientes. Antes
+// no llegaba, y el demonio quedaba vivo sin reproductor sin que ninguna
+// interfaz lo dijera: los comandos contestaban "mpv terminó" uno a uno, pero
+// `status` respondía con normalidad —el espejo del player conserva la última
+// foto— y `maly doctor` preguntaba por el socket del demonio, no por el de
+// mpv.
+func TestStatusReportaMpvMuerto(t *testing.T) {
+	d := newTestDaemon(t)
+	if st := d.statusLocked("es"); st.PlayerDead {
+		t.Fatal("con mpv recién arrancado, PlayerDead no puede ser true")
+	}
+
+	d.pl.Close() // mpv se va
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if d.statusLocked("es").PlayerDead {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("mpv se fue y el Status siguió diciendo que todo bien")
+}

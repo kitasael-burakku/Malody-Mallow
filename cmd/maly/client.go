@@ -238,6 +238,11 @@ func printStatus(s *ipc.Status) {
 // justo cuando algo va mal. Mismo criterio con el que printScanLine solo
 // aparece durante un scan.
 func printNotice(s *ipc.Status) {
+	// Primero lo permanente y después lo pasajero: con mpv muerto, cualquier
+	// aviso de reproducción es una consecuencia y no la causa.
+	if s.PlayerDead {
+		fmt.Fprintln(os.Stderr, "maly: "+i18n.T("st.player_dead"))
+	}
 	if s.Notice != "" {
 		fmt.Fprintln(os.Stderr, "maly: "+s.Notice)
 	}

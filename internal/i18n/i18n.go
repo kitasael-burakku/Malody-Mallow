@@ -182,8 +182,9 @@ var table = map[string][2]string{
 	"plsel.confirm_delete": {"delete %q? there's no undo — y/enter confirms, any other key cancels", "¿borrar %q? no hay deshacer — y/enter confirma, cualquier otra tecla cancela"},
 
 	// ---- Estado (CLI y consola) ----
-	"st.stopped": {"⏹ nothing playing  vol %d%%  shuffle: %s  repeat: %s  queue: %d track(s)", "⏹ nada suena  vol %d%%  shuffle: %s  repeat: %s  cola: %d pista(s)"},
-	"st.line2":   {"  %s / %s  vol %d%%  shuffle: %s  repeat: %s  queue %d/%d", "  %s / %s  vol %d%%  shuffle: %s  repeat: %s  cola %d/%d"},
+	"st.stopped":     {"⏹ nothing playing  vol %d%%  shuffle: %s  repeat: %s  queue: %d track(s)", "⏹ nada suena  vol %d%%  shuffle: %s  repeat: %s  cola: %d pista(s)"},
+	"st.line2":       {"  %s / %s  vol %d%%  shuffle: %s  repeat: %s  queue %d/%d", "  %s / %s  vol %d%%  shuffle: %s  repeat: %s  cola %d/%d"},
+	"st.player_dead": {"mpv is gone: nothing will play until the service restarts", "mpv ya no está: nada va a sonar hasta reiniciar el servicio"},
 
 	// ---- CLI: ayuda ----
 	"cli.tagline":           {"a local music player for your terminal", "reproductor de música local para tu terminal"},
@@ -318,6 +319,10 @@ var table = map[string][2]string{
 	"doc.lbl_links":       {"linked dirs", "dirs enlazados"},
 	"doc.links_found":     {"%d linked director(y/ies) under your music folder are NOT indexed", "%d directorio(s) enlazado(s) bajo tu carpeta de música NO se indexan"},
 	"doc.links_hint":      {"%s → scan the destination: maly scan %s", "%s → escanea el destino: maly scan %s"},
+	"doc.lbl_player":      {"player", "reproductor"},
+	"doc.player_ok":       {"mpv is running", "mpv está corriendo"},
+	"doc.player_dead":     {"the service is up but its mpv is gone: nothing can play", "el servicio está en pie pero su mpv ya no está: nada puede sonar"},
+	"doc.player_dead_fix": {"restart it: systemctl --user restart maly (or maly kill and reopen)", "reinicialo: systemctl --user restart maly (o maly kill y volver a abrir)"},
 	"doc.lbl_library":     {"library", "biblioteca"},
 	"doc.lbl_visualizer":  {"visualizer", "visualizador"},
 	"doc.lbl_update":      {"update", "actualización"},

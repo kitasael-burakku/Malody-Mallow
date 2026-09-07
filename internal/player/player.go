@@ -511,6 +511,25 @@ func (p *Player) SetNext(path string) error {
 	return appendErr
 }
 
+// Dead informa si mpv ya no está: el proceso murió (OOM, un pkill, un crash
+// del driver de audio) o su IPC se rompió. A partir de ahí NINGÚN comando de
+// reproducción va a funcionar —command corta al instante por p.done— y el
+// demonio no relanza nada, así que el estado es permanente hasta que alguien
+// reinicie el servicio.
+//
+// Se mira p.done y no p.exited a propósito: done es exactamente la condición
+// que hace fallar a command, y cubre además el caso del proceso vivo con el
+// socket roto. Close() también lo cierra, pero para entonces el demonio se
+// está apagando y ya no contesta status (O-07).
+func (p *Player) Dead() bool {
+	select {
+	case <-p.done:
+		return true
+	default:
+		return false
+	}
+}
+
 // CurrentPath consulta a mpv la ruta cargada en este instante ("" si está
 // idle o la consulta falla). Es la verdad viva: State().Path puede ir por
 // detrás de los eventos justo después de un cambio de pista.

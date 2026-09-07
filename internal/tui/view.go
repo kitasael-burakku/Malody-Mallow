@@ -405,6 +405,12 @@ func (m *Model) footer() string {
 		line = m.st.errSt.Render(clip(" "+m.flash, hintW))
 	case m.flash != "":
 		line = m.st.playing.Render(clip(" "+m.flash, hintW))
+	case m.status != nil && m.status.PlayerDead:
+		// Va DESPUÉS de los flashes y no antes: el flash es la respuesta a lo
+		// que el usuario acaba de hacer y dura tres segundos; esta línea es
+		// permanente y vuelve sola en cuanto aquel caduca. Antes de connErr
+		// no puede ir: sin demonio no hay Status del que leer esto.
+		line = m.st.errSt.Render(clip(" "+i18n.T("st.player_dead"), hintW))
 	case m.status != nil && m.status.Scanning:
 		// Progreso del scan en vuelo (propio o de otro cliente): llega por
 		// los pushes de suscripción en Status.Scanning/ScanSeen. Con

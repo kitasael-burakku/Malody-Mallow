@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +12,7 @@ import (
 
 	"maly/internal/config"
 	"maly/internal/i18n"
+	"maly/internal/ipc"
 )
 
 // TestDoctorLabelsTraducidas cubre el hallazgo D10.2 de la auditoría: las
@@ -200,4 +204,77 @@ func TestScanNoSigueDirectorioEnlazado(t *testing.T) {
 	if err != nil || res.Added != 1 {
 		t.Fatalf("escanear el destino real debía indexar 1: %+v, %v", res, err)
 	}
+}
+
+// fakeStatusDaemon levanta un demonio de mentira que contesta la op "status"
+// con el Status que se le dé. Es lo que hace falta para probar checkPlayer:
+// mpv es hijo del demonio y su estado no se puede consultar desde afuera, así
+// que el chequeo pregunta y lo que hay que fijar es qué hace con la respuesta.
+func fakeStatusDaemon(t *testing.T, st *ipc.Status) {
+	t.Helper()
+	if _, err := config.EnsureRuntimeDir(); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", config.SocketPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				br := bufio.NewReader(c)
+				for {
+					linea, err := br.ReadBytes('\n')
+					if err != nil {
+						return
+					}
+					var req ipc.Request
+					if json.Unmarshal(linea, &req) != nil || req.Cmd != "status" {
+						return
+					}
+					out, _ := json.Marshal(ipc.Response{OK: true, Status: st})
+					c.Write(append(out, '\n'))
+				}
+			}(c)
+		}
+	}()
+}
+
+// TestCheckPlayer cubre O-07: con el servicio en pie pero sin mpv, `maly
+// doctor` decía que todo estaba bien porque preguntaba por el socket del
+// DEMONIO. Ahora pregunta por el reproductor, y como eso impide reproducir
+// del todo —el demonio no relanza mpv— es lvlFail, que es lo único que
+// cambia el código de salida.
+func TestCheckPlayer(t *testing.T) {
+	t.Run("sin demonio no dice nada", func(t *testing.T) {
+		xdgSandbox(t)
+		if got := checkPlayer(); len(got) != 0 {
+			t.Errorf("sin demonio la fila no debe salir (la ausencia la reporta checkService): %+v", got)
+		}
+	})
+	t.Run("mpv vivo", func(t *testing.T) {
+		xdgSandbox(t)
+		fakeStatusDaemon(t, &ipc.Status{})
+		got := checkPlayer()
+		if len(got) != 1 || got[0].lvl != lvlOK {
+			t.Fatalf("con mpv vivo esperaba una fila ok, salió %+v", got)
+		}
+	})
+	t.Run("mpv muerto", func(t *testing.T) {
+		xdgSandbox(t)
+		fakeStatusDaemon(t, &ipc.Status{PlayerDead: true})
+		got := checkPlayer()
+		if len(got) != 1 || got[0].lvl != lvlFail {
+			t.Fatalf("con mpv muerto esperaba una fila fail, salió %+v", got)
+		}
+		if len(got[0].cont) == 0 {
+			t.Error("la fila tiene que traer el remedio: el usuario no puede deducir que hay que reiniciar el servicio")
+		}
+	})
 }

@@ -76,6 +76,7 @@ func runDoctor([]string) error {
 	if cfgErr == nil {
 		checks = append(checks, checkDaemonConfig(cfg)...)
 	}
+	checks = append(checks, checkPlayer()...)
 	checks = append(checks, checkLinkedDirs(cfg)...)
 	checks = append(checks, checkOptionalTools(cfg)...)
 	checks = append(checks, checkUpdate())
@@ -204,6 +205,40 @@ func checkDaemonConfig(cfg config.Config) []check {
 			[]string{i18n.Tf("doc.svc_cfg_using", resp.Config.MusicDir)}}}
 	}
 	return []check{{lvlOK, label, i18n.T("doc.svc_cfg_ok"), nil}}
+}
+
+// checkPlayer le pregunta al demonio si su mpv sigue vivo. Es la única
+// pregunta de diagnóstico que NO se puede contestar desde afuera: mpv es hijo
+// del demonio y su socket es privado, así que doctor miraba el socket del
+// demonio, lo encontraba sano y decía que todo estaba bien mientras nada
+// podía sonar (O-07). El precedente es checkDaemonConfig: mismo patrón de
+// "doctor le pregunta algo al servicio", misma tolerancia con un demonio
+// viejo que no sepa contestar.
+//
+// Es lvlFail y no warn porque es exactamente el criterio del comando: sale 1
+// solo si algo IMPIDE reproducir, y esto lo impide del todo y para siempre —
+// el demonio no relanza mpv, a propósito (relanzarlo pide decidir si la
+// música vuelve sola, y eso es una decisión de producto, no un arreglo).
+//
+// Sin demonio no hay nada que preguntar y la fila no sale: la ausencia ya la
+// reporta checkService.
+func checkPlayer() []check {
+	c, err := ipc.Dial(config.SocketPath())
+	if err != nil {
+		return nil
+	}
+	defer c.Close()
+	c.Timeout = 2 * time.Second
+	resp, err := c.Do(ipc.Request{Cmd: "status"})
+	if err != nil || !resp.OK || resp.Status == nil {
+		return nil
+	}
+	label := i18n.T("doc.lbl_player")
+	if resp.Status.PlayerDead {
+		return []check{{lvlFail, label, i18n.T("doc.player_dead"),
+			[]string{i18n.T("doc.player_dead_fix")}}}
+	}
+	return []check{{lvlOK, label, i18n.T("doc.player_ok"), nil}}
 }
 
 // checkLinkedDirs avisa de los directorios ENLAZADOS de primer nivel bajo

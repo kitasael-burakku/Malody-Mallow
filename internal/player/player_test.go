@@ -432,3 +432,31 @@ func TestSetNextNoSeCuelgaCincoSegundos(t *testing.T) {
 		t.Fatalf("pending quedó con %d entradas tras el timeout de la ventana", n)
 	}
 }
+
+// TestDeadTrasPerderMpv cubre O-07 del lado del player: cuando mpv se va
+// (OOM, un pkill, un crash del driver de audio), readLoop cierra p.done y a
+// partir de ahí ningún comando puede funcionar. Dead() es lo que deja
+// EXPONER ese hecho, que antes solo se notaba comando a comando: `status`
+// contestaba con normalidad porque State conserva el último espejo conocido.
+func TestDeadTrasPerderMpv(t *testing.T) {
+	cli, srv := net.Pipe()
+	p := &Player{conn: cli, pending: map[int64]chan mpvReply{}, done: make(chan struct{})}
+	if p.Dead() {
+		t.Fatal("con mpv al otro lado, Dead() debe ser false")
+	}
+	go p.readLoop()
+
+	srv.Close() // mpv se fue
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if p.Dead() {
+			// Y el hecho es coherente con lo que ve un comando.
+			if _, err := p.command("get_property", "pause"); err == nil {
+				t.Error("con Dead() = true, un comando no puede tener éxito")
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("mpv se fue y Dead() siguió diciendo que no")
+}

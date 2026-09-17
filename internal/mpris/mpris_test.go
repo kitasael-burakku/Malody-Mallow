@@ -173,6 +173,26 @@ func TestTrackKeyOf(t *testing.T) {
 	}
 }
 
+// TestTrackKeyNoCambiaSiLaLengthPublicadaNo: recién cargada, mpv todavía no
+// reporta la duración y Metadata sale con la de la biblioteca. Cuando mpv la
+// publica con el MISMO valor (ffprobe y mpv leen la de libavformat), el
+// contenido de Metadata no cambió y no hay nada que reemitir: con la clave
+// armada sobre la duración cruda de mpv cada pista salía dos veces.
+func TestTrackKeyNoCambiaSiLaLengthPublicadaNo(t *testing.T) {
+	track := &ipc.TrackInfo{ID: 15, Path: "/m/ticket.mp3", Title: "Ticket", Duration: 189.3}
+	loading := ipc.Status{Track: track}
+	loaded := ipc.Status{Track: track, Duration: 189.3}
+	if trackKeyOf(&loading) != trackKeyOf(&loaded) {
+		t.Errorf("trackKey cambió al llegar de mpv la misma duración que ya se publicaba: %q → %q",
+			trackKeyOf(&loading), trackKeyOf(&loaded))
+	}
+	// …y sí cambia cuando lo publicado cambia de verdad.
+	noLib := ipc.Status{Track: &ipc.TrackInfo{ID: 15, Path: track.Path}}
+	if trackKeyOf(&noLib) == trackKeyOf(&loaded) {
+		t.Error("trackKey no cambió al aparecer mpris:length donde no había ninguna")
+	}
+}
+
 func TestMetadataOfNoTrack(t *testing.T) {
 	m := metadataOf(&ipc.Status{})
 	if len(m) != 1 {

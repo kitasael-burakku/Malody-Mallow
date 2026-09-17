@@ -10,6 +10,7 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/player"
 )
 
 // Reproducción: avance de pista, ventana gapless, carga y seek.
@@ -215,6 +216,27 @@ func (d *Daemon) seek(lang, val string) error {
 	return d.pl.SeekAbs(n)
 }
 
+// clockOf devuelve la posición y la duración del espejo del player si
+// describen el archivo de t, y 0, 0 si todavía describen otro. Justo después
+// de un next la cola ya dice la pista nueva pero mpv no soltó la vieja: contesta
+// al loadfile —y al set pause que Load manda detrás, en la misma vuelta— ANTES
+// de emitir los eventos del cambio de archivo. Medido tras un next: 25 de 30
+// fotos llevaban la posición de la pista anterior y 29 de 30 su duración, con
+// la pista nueva en Track; MPRIS publicaba esa posición justo cuando los
+// clientes la preguntan, y learnDuration escribía esa duración en la fila de
+// la nueva.
+//
+// Comparar path no depende de tiempos: es la ÚLTIMA propiedad que observa
+// player.Start, mpv manda las de un mismo lote en orden de registro, y el path
+// nuevo no puede llegar antes de que el archivo arranque — así que cuando el
+// espejo dice el path de t, los null con que mpv suelta el anterior ya pasaron.
+func clockOf(st player.State, t library.Track) (pos, dur float64) {
+	if st.Path != t.Path {
+		return 0, 0
+	}
+	return st.Position, st.Duration
+}
+
 // learnDuration aprende perezosamente la duración de la pista actual cuando
 // mpv la reporta: los tags no la traen, así que la biblioteca la va
 // completando a medida que suena música. La copia en memoria de la cola
@@ -227,12 +249,18 @@ func (d *Daemon) learnDuration() {
 		defer d.mu.Unlock()
 		st := d.pl.State()
 		t, ok := d.q.Current()
-		if !ok || st.Idle || st.Duration <= 0 || abs(t.Duration-st.Duration) < 0.5 {
+		if !ok || st.Idle {
+			return "", 0, false
+		}
+		// La de mpv solo si es de t (ver clockOf): si no, era la duración de
+		// la pista anterior escrita en la fila de la nueva.
+		_, dur := clockOf(st, t)
+		if dur <= 0 || abs(t.Duration-dur) < 0.5 {
 			return "", 0, false
 		}
 		for i := range d.q.Items {
 			if d.q.Items[i].Path == t.Path {
-				d.q.Items[i].Duration = st.Duration
+				d.q.Items[i].Duration = dur
 			}
 		}
 		// Escritura EN SITIO: no pasa por ningún mutador de queue, así que

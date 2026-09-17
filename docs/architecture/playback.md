@@ -8,7 +8,7 @@ wrapper de mpv. Gapless: `SetNext` mantiene una ventana de
 dos entradas con `playlist-clear + append` (NUNCA podar por índices: van
 rezagados tras end-file). Un end-file queda `pendingEnd` y se resuelve con el
 evento siguiente (start-file = encadenó, idle = no había nada); `loadGen`
-descarta desenlaces pisados por cargas propias. Callbacks (`onEnd`,
+descarta desenlaces pisados por cargas propias. Callbacks (`onEnd`, `onRestart`,
 `onChange`) SIEMPRE async con `go` — en línea deadlockean readLoop. Y
 justamente por ese `go`, `loadGen` se valida en DOS puntos: `resolveEnd`
 cubre la ventana `[end-file → start-file/idle]`, pero el callback sale sin
@@ -17,6 +17,27 @@ consumidor la revalida contra `LoadGen()` antes de actuar — esa segunda
 ventana, `[resolveEnd → el consumidor toma su mutex]`, es la que dejaba
 perder una pista entera (roadmap: carrera de la promesa obsoleta).
 `LoadGen()` es para eso; `LoadCount()`, en cambio, es diagnóstico de gapless.
+
+**`time-pos` y `duration` sin data valen 0**, no «dejar lo que había». mpv las
+manda así en CADA cambio de archivo (`loadfile replace` y encadenado gapless
+por igual), al soltar el viejo. Ignorarlas dejaba en el espejo la posición y la
+duración de la pista anterior hasta que la nueva decodificaba.
+
+**`onRestart` avisa de un salto de posición ya ASENTADO, no del
+`playback-restart` en sí** (lo consume el demonio para emitir `Seeked` en
+MPRIS). mpv emite `playback-restart` tras cada carga y cada seek, pausado o no
+y venga de quien venga, y nunca al pausar o reanudar. Pero con mpv
+reproduciendo, tras un encadenado gapless `time-pos` se queda en 0 mientras
+suena la cola de la pista anterior que seguía en el búfer de audio: **0,247 s
+con pipewire**, siempre igual, y 0,41 s con `ao=null`. Un cliente MPRIS que
+reanclara en el restart iría ese tiempo por delante la canción entera. Por eso
+`restartPending` espera el primer AVANCE de `time-pos` (avanzar, no cambiar:
+un `null` que se cruce baja a 0 y no es la reproducción arrancando). En pausa
+se avisa en el acto, porque la posición no va a avanzar y el `Seeked` de un
+seek hecho en pausa esperaría hasta reanudar. Si se pausa con un salto
+pendiente, también se da por asentado. `TestRestartTrasEncadenadoConMpvReal`
+fija la medición contra mpv de verdad: la variante «avisar en el restart»
+llega con la posición en 0.
 
 **Toda espera a mpv está ACOTADA, y con dos topes distintos** (A-08). Un
 comando normal espera `cmdTimeout` (5 s): su fallo lo ve el usuario y no hay

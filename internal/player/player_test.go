@@ -8,8 +8,10 @@ import (
 	"math"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -32,7 +34,7 @@ func TestStartMpvDiesEarly(t *testing.T) {
 	fakeMpv(t, "echo 'boom: opción inválida' ; exit 1")
 	sock := filepath.Join(t.TempDir(), "mpv.sock")
 
-	_, err := Start(sock, nil, nil)
+	_, err := Start(sock, nil, nil, nil)
 	if err == nil {
 		t.Fatal("se esperaba error cuando mpv muere al arrancar")
 	}
@@ -47,7 +49,7 @@ func TestStartMpvDiesEarly(t *testing.T) {
 // Sin mpv en el PATH, el error es el de "no instalado", no un fallo de socket.
 func TestStartNoMpv(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	if _, err := Start(filepath.Join(t.TempDir(), "mpv.sock"), nil, nil); err == nil {
+	if _, err := Start(filepath.Join(t.TempDir(), "mpv.sock"), nil, nil, nil); err == nil {
 		t.Fatal("se esperaba error sin mpv en el PATH")
 	}
 }
@@ -459,4 +461,226 @@ func TestDeadTrasPerderMpv(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("mpv se fue y Dead() siguió diciendo que no")
+}
+
+// prop arma un property-change como lo manda mpv; data "" = sin data (así
+// llegan time-pos y duration cuando no están disponibles).
+func prop(name, data string) mpvEvent {
+	ev := mpvEvent{Event: "property-change", Name: name}
+	if data != "" {
+		ev.Data = json.RawMessage(data)
+	}
+	return ev
+}
+
+// TestPosicionSinDataValeCero: mpv manda time-pos y duration sin data en cada
+// cambio de archivo, al soltar el viejo. El espejo los ignoraba y se quedaba
+// con los de la pista ANTERIOR mientras la cola ya decía la nueva — de ahí
+// salían la posición vieja en MPRIS, la mpris:length vieja en el primer
+// Metadata y la duración vieja escrita en la fila de la nueva.
+func TestPosicionSinDataValeCero(t *testing.T) {
+	p := &Player{state: State{Position: 154.293, Duration: 163}}
+	changes := 0
+	var mu sync.Mutex
+	p.onChange = func() { mu.Lock(); changes++; mu.Unlock() }
+
+	p.handleEvent(prop("time-pos", ""))     // así llega: sin campo data
+	p.handleEvent(prop("duration", "null")) // y con null explícito, por si acaso
+	p.cbWG.Wait()
+
+	if st := p.State(); st.Position != 0 || st.Duration != 0 {
+		t.Errorf("tras soltar el archivo el espejo dice posición %.3f y duración %.0f; son las de la pista anterior, tenían que quedar en 0",
+			st.Position, st.Duration)
+	}
+	if changes != 2 {
+		t.Errorf("onChange se llamó %d veces, quería 2: el demonio tiene que enterarse de las dos", changes)
+	}
+}
+
+// restartSpy arma un Player sin mpv que registra la posición que ve cada
+// onRestart. Los eventos se inyectan con handleEvent y cbWG.Wait() espera los
+// callbacks en vuelo, así que las aserciones no dependen de sueños.
+func restartSpy(st State) (*Player, func() []float64) {
+	p := &Player{state: st}
+	var mu sync.Mutex
+	var seen []float64
+	p.onRestart = func() {
+		pos := p.State().Position
+		mu.Lock()
+		seen = append(seen, pos)
+		mu.Unlock()
+	}
+	return p, func() []float64 {
+		p.cbWG.Wait()
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]float64(nil), seen...)
+	}
+}
+
+// TestRestartReproduciendoEsperaElAvance fija la secuencia MEDIDA de un
+// encadenado gapless con pipewire: playback-restart con time-pos en 0, y
+// 0,247 s después —lo que tarda en sonar la cola de la pista anterior que
+// quedaba en el búfer— el primer avance. Avisar en el restart deja a los
+// clientes MPRIS ese tiempo por delante la canción entera; el aviso tiene que
+// salir en el avance, una sola vez, y con la posición que ya corre.
+func TestRestartReproduciendoEsperaElAvance(t *testing.T) {
+	p, seen := restartSpy(State{Position: 162.9})
+
+	p.handleEvent(prop("time-pos", "")) // end-file: el viejo se suelta
+	p.handleEvent(mpvEvent{Event: "start-file"})
+	p.handleEvent(prop("time-pos", "0.0"))
+	p.handleEvent(mpvEvent{Event: "playback-restart"})
+	if got := seen(); len(got) != 0 {
+		t.Fatalf("onRestart salió en el playback-restart con mpv reproduciendo (posiciones %v): el búfer todavía suena la pista anterior", got)
+	}
+	p.handleEvent(prop("time-pos", "0.0")) // repetido: no es avance
+	if got := seen(); len(got) != 0 {
+		t.Fatalf("onRestart salió sin que time-pos avanzara: %v", got)
+	}
+	p.handleEvent(prop("time-pos", "0.034212"))
+	if got := seen(); len(got) != 1 || got[0] != 0.034212 {
+		t.Fatalf("onRestart tenía que salir en el primer avance, viendo 0.034212; vio %v", got)
+	}
+	p.handleEvent(prop("time-pos", "0.091078"))
+	if got := seen(); len(got) != 1 {
+		t.Errorf("onRestart salió %d veces (%v), quería 1: en el primer avance y nada más", len(got), got)
+	}
+}
+
+// TestRestartNullNoEsAvance: un cambio de archivo que se cruce con un salto
+// pendiente (un next antes del primer tick) baja time-pos a 0 por el null, y
+// eso no es la reproducción arrancando.
+func TestRestartNullNoEsAvance(t *testing.T) {
+	p, seen := restartSpy(State{})
+	p.handleEvent(prop("time-pos", "20.0")) // seek reproduciendo
+	p.handleEvent(mpvEvent{Event: "playback-restart"})
+	p.handleEvent(prop("time-pos", "")) // next antes del primer tick
+	if got := seen(); len(got) != 0 {
+		t.Fatalf("el null de un cambio de archivo contó como avance: %v", got)
+	}
+}
+
+// TestRestartEnPausaAvisaYa: en pausa time-pos no va a avanzar, así que
+// esperar el avance retrasaría el aviso de un seek hecho en pausa hasta
+// reanudar. Sale en el restart, con el valor pedido — y el tick que mpv
+// manda después en pausa (medido con ao=null: 5,0 → 4,806, que vuelve a 5,0
+// al reanudar) no repite el aviso.
+func TestRestartEnPausaAvisaYa(t *testing.T) {
+	p, seen := restartSpy(State{Paused: true, Position: 21.5})
+	p.handleEvent(mpvEvent{Event: "seek"})
+	p.handleEvent(prop("time-pos", "5.0"))
+	p.handleEvent(mpvEvent{Event: "playback-restart"})
+	if got := seen(); len(got) != 1 || got[0] != 5.0 {
+		t.Fatalf("en pausa onRestart tenía que salir en el restart con 5.0; vio %v", got)
+	}
+	p.handleEvent(prop("time-pos", "4.806014"))
+	if got := seen(); len(got) != 1 {
+		t.Errorf("el tick posterior en pausa repitió el aviso: %v", got)
+	}
+}
+
+// TestRestartPendienteSeAsientaAlPausar: si se pausa antes del primer avance,
+// la posición ya no va a correr y el aviso no puede esperar a reanudar.
+func TestRestartPendienteSeAsientaAlPausar(t *testing.T) {
+	p, seen := restartSpy(State{Position: 12.0})
+	p.handleEvent(mpvEvent{Event: "playback-restart"})
+	p.handleEvent(prop("pause", "true"))
+	if got := seen(); len(got) != 1 || got[0] != 12.0 {
+		t.Fatalf("pausar con un salto pendiente tenía que avisar con 12.0; vio %v", got)
+	}
+}
+
+// writeSilence fabrica un WAV PCM de silencio (8 kHz, mono, 8 bits); es el
+// writeWAV de los tests del demonio, que no se puede importar desde aquí.
+func writeSilence(t *testing.T, path string, seconds int) {
+	t.Helper()
+	const rate = 8000
+	n := rate * seconds
+	le := func(v, size int) []byte {
+		b := make([]byte, size)
+		for i := range b {
+			b[i] = byte(v >> (8 * i))
+		}
+		return b
+	}
+	buf := []byte("RIFF")
+	buf = append(buf, le(36+n, 4)...)
+	buf = append(buf, "WAVEfmt "...)
+	buf = append(buf, le(16, 4)...)
+	buf = append(buf, le(1, 2)...) // PCM
+	buf = append(buf, le(1, 2)...) // mono
+	buf = append(buf, le(rate, 4)...)
+	buf = append(buf, le(rate, 4)...)
+	buf = append(buf, le(1, 2)...) // block align
+	buf = append(buf, le(8, 2)...) // bits por muestra
+	buf = append(buf, "data"...)
+	buf = append(buf, le(n, 4)...)
+	buf = append(buf, []byte(strings.Repeat("\x80", n))...)
+	if err := os.WriteFile(path, buf, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestRestartTrasEncadenadoConMpvReal es la medición que justifica esperar el
+// avance, contra mpv de verdad: tras encadenar a la entrada anexada, el aviso
+// de la pista nueva tiene que llegar con su posición YA corriendo. Disparado
+// en el playback-restart vería 0 — el búfer de audio todavía está sonando la
+// cola de la anterior (0,41 s con ao=null).
+func TestRestartTrasEncadenadoConMpvReal(t *testing.T) {
+	if _, err := exec.LookPath("mpv"); err != nil {
+		t.Skip("mpv no está en PATH")
+	}
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+	if err := os.MkdirAll(filepath.Join(tmp, "cfg", "mpv"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "cfg", "mpv", "mpv.conf"), []byte("ao=null\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a, b := filepath.Join(tmp, "a.wav"), filepath.Join(tmp, "b.wav")
+	writeSilence(t, a, 1)
+	writeSilence(t, b, 3)
+
+	type seen struct {
+		path string
+		pos  float64
+	}
+	ch := make(chan seen, 8)
+	var p *Player
+	ready := make(chan struct{})
+	onRestart := func() {
+		<-ready
+		st := p.State()
+		ch <- seen{st.Path, st.Position}
+	}
+	p, err := Start(filepath.Join(tmp, "mpv.sock"), nil, nil, onRestart)
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(ready)
+	defer p.Close()
+
+	if err := p.Load(a); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.SetNext(b); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case s := <-ch:
+			if s.path != b {
+				continue // el aviso de a, al cargarla
+			}
+			if s.pos <= 0 {
+				t.Fatalf("el aviso de la pista encadenada llegó con la posición en %v: todavía no corría", s.pos)
+			}
+			return
+		case <-deadline:
+			t.Fatal("mpv nunca avisó del arranque de la pista encadenada")
+		}
+	}
 }

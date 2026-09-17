@@ -21,6 +21,20 @@ es seguro por godbus, no por maly: despacha cada llamada entrante con `go
 conn.handleCall(msg)` (v5.2.2, `conn.go:435`), así que un método bloqueante
 no detiene el bucle de lectura de la conexión — si algún día se cambia de
 librería D-Bus, esa garantía hay que volver a comprobarla (A-17).
+**Position no se notifica por PropertiesChanged** (lo dice la spec): un
+cliente la ancla cuando la pregunta (al descubrir el reproductor, al cambiar
+`mpris:trackid`, al cambiar `PlaybackStatus`, según el cliente) y extrapola;
+solo `Seeked` la reancla. Hasta el 2026-09-16 maly no emitía `Seeked` al
+cambiar de pista y publicaba la posición de la anterior justo cuando el
+cliente preguntaba. Medido con un cliente que imita a Quickshell, iba 6,3 s
+por delante tras un `next` y 9 s tras el avance natural, durante toda la
+canción. Ahora `Seeked` sale cuando el player asienta cada salto (ver
+`playback.md`), y la diferencia medida queda en 0,01–0,08 s en los dos
+caminos. `trackKeyOf` se arma sobre la `mpris:length` PUBLICADA (`lengthUS`),
+no sobre la duración cruda de mpv. Así, cuando mpv reporta la misma que ya
+salía de la biblioteca (ffprobe y mpv leen la de libavformat), Metadata no
+se reemite: antes cada pista salía dos veces, y la primera con la duración de
+la anterior.
 `metadataOf` es pura; el wrapper `Service.metadata` añade `artUrl` (carátula
 embebida → cache SHA-1 en runtime dir, `art.go`; la extracción vive en
 `internal/media`). El cache está ACOTADO a `maxArtBytes` (32 MB) con evicción

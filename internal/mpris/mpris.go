@@ -196,7 +196,8 @@ func (s *Service) Update(st *ipc.Status) {
 }
 
 // Seeked emite la señal Seeked (posición en µs) tras un salto no continuo;
-// el demonio la dispara cuando atiende el comando seek.
+// el demonio la dispara cuando se asienta cada salto de mpv (pista que
+// empieza, seek). Es lo único que hace reanclar la posición a un cliente.
 func (s *Service) Seeked(us int64) {
 	s.mu.Lock()
 	s.props.SetMust(playerIface, "Position", us)
@@ -439,17 +440,32 @@ func snapshotOf(st *ipc.Status) snapshot {
 	}
 }
 
-// trackKeyOf identifica el contenido de Metadata. Incluye la duración porque
-// mpv la reporta un instante después de cargar la pista y hay que reemitir
-// Metadata cuando llega mpris:length. NO incluye QueueIndex a propósito:
-// metadataOf tampoco depende de él (ver pathTrackID), así que agregarlo
-// aquí solo dispararía reemisiones espurias de Metadata al reordenar la
-// cola sin cambiar qué archivo suena.
+// trackKeyOf identifica el contenido de Metadata. Incluye la duración
+// PUBLICADA (lengthUS), no la cruda de mpv: mpv la reporta un instante
+// después de cargar la pista y hay que reemitir si mpris:length cambia de
+// verdad, pero con la de la biblioteca ya publicada, la llegada del mismo
+// valor desde mpv no cambia nada — y con la cruda cada pista salía dos veces.
+// NO incluye QueueIndex a propósito: metadataOf tampoco depende de él (ver
+// pathTrackID), así que agregarlo aquí solo dispararía reemisiones espurias
+// de Metadata al reordenar la cola sin cambiar qué archivo suena.
 func trackKeyOf(st *ipc.Status) string {
 	if st.Track == nil {
 		return ""
 	}
-	return fmt.Sprintf("%s|%d", st.Track.Path, int64(st.Duration*1e6))
+	return fmt.Sprintf("%s|%d", st.Track.Path, lengthUS(st))
+}
+
+// lengthUS es la mpris:length que se publica (0 = ninguna): la de mpv, o
+// mientras no la reporta (pista recién cargada), la aprendida por la
+// biblioteca, para que playerctl/Waybar no vean 0.
+func lengthUS(st *ipc.Status) int64 {
+	switch {
+	case st.Duration > 0:
+		return int64(st.Duration * 1e6)
+	case st.Track != nil && st.Track.Duration > 0:
+		return int64(st.Track.Duration * 1e6)
+	}
+	return 0
 }
 
 // metadata arma el Metadata completo: el diccionario puro de metadataOf más
@@ -517,13 +533,8 @@ func metadataOf(st *ipc.Status) map[string]dbus.Variant {
 	if t.TrackNo > 0 {
 		m["xesam:trackNumber"] = dbus.MakeVariant(int32(t.TrackNo))
 	}
-	switch {
-	case st.Duration > 0:
-		m["mpris:length"] = dbus.MakeVariant(int64(st.Duration * 1e6))
-	case t.Duration > 0:
-		// mpv aún no la reporta (pista recién cargada): usar la aprendida
-		// por la biblioteca para que playerctl/Waybar no vean 0.
-		m["mpris:length"] = dbus.MakeVariant(int64(t.Duration * 1e6))
+	if l := lengthUS(st); l > 0 {
+		m["mpris:length"] = dbus.MakeVariant(l)
 	}
 	return m
 }

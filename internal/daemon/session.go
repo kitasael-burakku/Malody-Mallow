@@ -39,13 +39,17 @@ func sessionPath() string { return filepath.Join(config.DataDir(), "session.json
 func (d *Daemon) snapshotLocked() session {
 	st := d.pl.State()
 	s := session{
-		V:        sessionVersion,
-		Index:    d.q.Index,
-		Playing:  !st.Idle,
-		Position: st.Position,
-		Volume:   st.Volume,
-		Shuffle:  d.q.Shuffle,
-		Repeat:   string(d.q.Repeat),
+		V:       sessionVersion,
+		Index:   d.q.Index,
+		Playing: !st.Idle,
+		Volume:  st.Volume,
+		Shuffle: d.q.Shuffle,
+		Repeat:  string(d.q.Repeat),
+	}
+	// La posición se restaura sobre la pista de Index: solo vale si es la suya
+	// (ver clockOf), o un guardado en plena transición la aplicaría a otra.
+	if t, ok := d.q.Current(); ok {
+		s.Position, _ = clockOf(st, t)
 	}
 	for _, t := range d.q.Items {
 		s.Queue = append(s.Queue, t.Path)

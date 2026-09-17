@@ -90,9 +90,10 @@ type Daemon struct {
 	// lectura+empuje, cada llamada que gana el mutex lee el estado más
 	// fresco disponible en ese instante y lo aplica entero antes de que la
 	// siguiente lea nada, así que nunca se aplica algo más viejo después de
-	// algo más nuevo. Deliberadamente un mutex aparte de d.mu: notify() y el
-	// case "seek" de handle() nunca corren con d.mu tomado (ver sus
-	// comentarios), así que no hay riesgo de orden de adquisición cruzado.
+	// algo más nuevo. Deliberadamente un mutex aparte de d.mu: notify(),
+	// restarted() y el case "seek" de handle() nunca corren con d.mu tomado
+	// (ver sus comentarios), así que no hay riesgo de orden de adquisición
+	// cruzado.
 	notifyMu sync.Mutex
 
 	// Persistencia de sesión: notify marca dirty y sessionSaver guarda en
@@ -219,7 +220,7 @@ func New(cfg config.Config) (*Daemon, error) {
 	}
 	d.libGen.Store(1) // 0 queda reservado a demonios sin soporte (omitempty)
 
-	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.advance, d.notify)
+	pl, err := player.Start(filepath.Join(config.RuntimeDir(), "mpv.sock"), d.advance, d.notify, d.restarted)
 	if err != nil {
 		lib.Close()
 		closeLn()
@@ -536,14 +537,15 @@ func (d *Daemon) handle(req ipc.Request) ipc.Response {
 		case "ping", "status", "queue", "search", "scan", "config":
 			// solo lectura: nada que reflejar
 		case "seek":
+			// La señal Seeked NO sale de aquí sino de restarted(), cuando el
+			// salto se asentó en mpv: así hay una sola fuente, y cubre también
+			// los saltos que no pasan por handle (la pista que empieza, la
+			// restauración de sesión).
 			func() {
 				d.notifyMu.Lock()
 				defer d.notifyMu.Unlock()
 				if m, st := d.mprisState(); m != nil {
 					m.Update(st)
-					if resp.OK {
-						m.Seeked(int64(st.Position * 1e6))
-					}
 				}
 			}()
 			d.wakeSubs()
@@ -641,6 +643,24 @@ func (d *Daemon) notify() {
 	}()
 	d.wakeSubs()
 	d.sessDirty.Store(true)
+}
+
+// restarted emite Seeked en MPRIS cuando el player da por asentado un salto
+// de posición (playback-restart de mpv): una pista que empieza a sonar o un
+// seek, venga de quien venga. La spec no notifica Position por
+// PropertiesChanged, así que un cliente ancla la posición al preguntarla (al
+// descubrir el reproductor, al cambiar mpris:trackid) y desde ahí extrapola;
+// solo Seeked la reancla. Sin esta señal al empezar cada pista, un ancla
+// tomada un instante antes de tiempo se quedaba mala la canción entera —
+// medido con un cliente que imita a Quickshell: 6,3 s por delante tras un
+// next y 9 s tras el avance natural.
+func (d *Daemon) restarted() {
+	d.notifyMu.Lock()
+	defer d.notifyMu.Unlock()
+	if m, st := d.mprisState(); m != nil {
+		m.Update(st)
+		m.Seeked(int64(st.Position * 1e6))
+	}
 }
 
 // wakeSubs marca dirty a cada suscriptor; el envío no bloquea (cap 1: si ya
@@ -1041,6 +1061,7 @@ func (d *Daemon) statusLocked(lang string) *ipc.Status {
 	if t, ok := d.q.Current(); ok && !st.Idle {
 		info := infoOf(t)
 		s.Track = &info
+		s.Position, s.Duration = clockOf(st, t)
 	}
 	return s
 }

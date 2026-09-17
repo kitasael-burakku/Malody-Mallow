@@ -31,17 +31,18 @@ type State struct {
 
 // Player es un wrapper sobre un proceso mpv propio.
 type Player struct {
-	mu       sync.Mutex
-	cmd      *exec.Cmd
-	conn     net.Conn
-	reqID    int64
-	pending  map[int64]chan mpvReply
-	state    State
-	onEnd    func(reason, next string, gen int64) // pista terminada; next = entrada anexada que mpv encadena; gen = loadGen del desenlace
-	onChange func()                               // cambio de estado observado (pausa, pista, posición…)
-	closed   bool
-	done     chan struct{}
-	exited   chan struct{} // cerrado cuando el proceso mpv termina
+	mu        sync.Mutex
+	cmd       *exec.Cmd
+	conn      net.Conn
+	reqID     int64
+	pending   map[int64]chan mpvReply
+	state     State
+	onEnd     func(reason, next string, gen int64) // pista terminada; next = entrada anexada que mpv encadena; gen = loadGen del desenlace
+	onChange  func()                               // cambio de estado observado (pausa, pista, posición…)
+	onRestart func()                               // la posición saltó (pista que empieza, seek) y ya se asentó
+	closed    bool
+	done      chan struct{}
+	exited    chan struct{} // cerrado cuando el proceso mpv termina
 
 	// Espejo de la entrada anexada por SetNext (ventana gapless), para no
 	// re-consultar la playlist de mpv cuando no cambió nada. nextKnown se
@@ -77,12 +78,17 @@ type Player struct {
 
 	loads int64 // loadfile replace emitidos; diagnóstico de gapless
 
-	// cbWG cuenta los callbacks onEnd/onChange en vuelo (van por `go`, fire-
-	// and-forget: en línea deadlockearían readLoop). Close los espera antes
-	// de devolver el control — sin esto, uno disparado justo antes del cierre
-	// podía seguir corriendo (y tocar la biblioteca del demonio vía
-	// learnDuration, que escribe fuera de d.mu a propósito) después de que el
-	// demonio ya hubiera cerrado la base.
+	// restartPending marca un salto de posición (playback-restart) cuyo
+	// onRestart todavía no salió porque mpv reproduce y time-pos aún no
+	// avanzó: ver el case "playback-restart" de handleEvent.
+	restartPending bool
+
+	// cbWG cuenta los callbacks onEnd/onChange/onRestart en vuelo (van por
+	// `go`, fire-and-forget: en línea deadlockearían readLoop). Close los
+	// espera antes de devolver el control — sin esto, uno disparado justo
+	// antes del cierre podía seguir corriendo (y tocar la biblioteca del
+	// demonio vía learnDuration, que escribe fuera de d.mu a propósito)
+	// después de que el demonio ya hubiera cerrado la base.
 	cbWG sync.WaitGroup
 }
 
@@ -110,8 +116,10 @@ type mpvEvent struct {
 // viaja por `go` sin ningún lock sostenido, así que para cuando corra puede
 // haberse cruzado un loadfile replace de otro cliente; comparar gen contra
 // LoadGen() es lo que deja detectarlo (ver resolveEnd). onChange se invoca
-// ante cambios de estado observados (lo usa el demonio para MPRIS).
-func Start(socketPath string, onEnd func(reason, next string, gen int64), onChange func()) (*Player, error) {
+// ante cambios de estado observados (lo usa el demonio para MPRIS). onRestart,
+// cuando un salto de posición de mpv (playback-restart) se asentó: ver su
+// case en handleEvent.
+func Start(socketPath string, onEnd func(reason, next string, gen int64), onChange, onRestart func()) (*Player, error) {
 	mpvBin, err := exec.LookPath("mpv")
 	if err != nil {
 		return nil, errors.New(i18n.T("p.no_mpv"))
@@ -166,14 +174,15 @@ func Start(socketPath string, onEnd func(reason, next string, gen int64), onChan
 	}
 
 	p := &Player{
-		cmd:      cmd,
-		conn:     conn,
-		pending:  map[int64]chan mpvReply{},
-		state:    State{Idle: true, Volume: 100},
-		onEnd:    onEnd,
-		onChange: onChange,
-		done:     make(chan struct{}),
-		exited:   exited,
+		cmd:       cmd,
+		conn:      conn,
+		pending:   map[int64]chan mpvReply{},
+		state:     State{Idle: true, Volume: 100},
+		onEnd:     onEnd,
+		onChange:  onChange,
+		onRestart: onRestart,
+		done:      make(chan struct{}),
+		exited:    exited,
 	}
 	go p.readLoop()
 
@@ -230,8 +239,8 @@ func (p *Player) readLoop() {
 	close(p.done)
 }
 
-// safeCall ejecuta fn recuperando cualquier panic. onEnd/onChange (el
-// demonio: d.advance/d.notify) corren en su propia goroutine —ver el
+// safeCall ejecuta fn recuperando cualquier panic. Los callbacks (el demonio:
+// d.advance/d.notify/d.restarted) corren en su propia goroutine —ver el
 // comentario de cbWG— disparados por eventos reales de mpv (fin de pista,
 // cambio de estado) durante la reproducción normal, no solo bajo petición
 // explícita de un cliente; sin este recover, un panic ahí no lo cubre nada
@@ -250,26 +259,37 @@ func (p *Player) handleEvent(ev mpvEvent) {
 	switch ev.Event {
 	case "property-change":
 		p.mu.Lock()
-		changed := false
+		changed, settled := false, false
 		switch ev.Name {
 		case "pause":
 			old := p.state.Paused
 			json.Unmarshal(ev.Data, &p.state.Paused)
 			changed = p.state.Paused != old
+			// En pausa la posición ya no va a moverse: el salto está asentado.
+			settled = p.restartPending && p.state.Paused
+		// time-pos y duration llegan SIN data cuando no están disponibles, y
+		// eso vale 0, no "dejar lo que había": mpv las manda así en CADA cambio
+		// de archivo —loadfile replace y encadenado gapless por igual—, al
+		// soltar el viejo y antes de que el nuevo decodifique. Ignorarlo dejaba
+		// en el espejo la posición y la duración de la pista ANTERIOR mientras
+		// la cola ya decía la nueva, y ese cruce salía por tres lados: MPRIS
+		// publicaba la posición vieja justo cuando los clientes la preguntan
+		// (anclan ahí y extrapolan), el primer Metadata llevaba la
+		// mpris:length de la pista anterior, y learnDuration escribía esa
+		// duración en la fila de la NUEVA —medido: tras un next de una pista
+		// de 9 s a una de 40 s, la fila quedaba en 9,00 hasta que mpv
+		// publicaba la de verdad—.
 		case "time-pos":
-			var v *float64
-			json.Unmarshal(ev.Data, &v)
-			if v != nil {
-				changed = p.state.Position != *v
-				p.state.Position = *v
-			}
+			old := p.state.Position
+			p.state.Position = numOrZero(ev.Data)
+			changed = p.state.Position != old
+			// Avanzar, no solo cambiar: el null de un cambio de archivo que se
+			// cruce (→ 0) no es la reproducción arrancando.
+			settled = p.restartPending && p.state.Position > old
 		case "duration":
-			var v *float64
-			json.Unmarshal(ev.Data, &v)
-			if v != nil {
-				changed = p.state.Duration != *v
-				p.state.Duration = *v
-			}
+			old := p.state.Duration
+			p.state.Duration = numOrZero(ev.Data)
+			changed = p.state.Duration != old
 		case "volume":
 			old := p.state.Volume
 			json.Unmarshal(ev.Data, &p.state.Volume)
@@ -289,6 +309,9 @@ func (p *Player) handleEvent(ev mpvEvent) {
 			}
 			changed = p.state.Path != old
 		}
+		if settled {
+			p.restartPending = false
+		}
 		p.mu.Unlock()
 		// Async como onEnd: en línea bloquearía readLoop, y con él las
 		// respuestas de mpv que el demonio pueda estar esperando. cbWG lo
@@ -299,6 +322,9 @@ func (p *Player) handleEvent(ev mpvEvent) {
 				defer p.cbWG.Done()
 				safeCall(p.onChange)
 			}()
+		}
+		if settled {
+			p.fireRestart()
 		}
 	case "end-file":
 		p.mu.Lock()
@@ -332,7 +358,49 @@ func (p *Player) handleEvent(ev mpvEvent) {
 				safeCall(func() { p.onEnd(reason, "", gen) })
 			}()
 		}
+
+	case "playback-restart":
+		// mpv lo emite tras cargar un archivo o tras un seek —pausado o no, y
+		// venga de quien venga: maly, la restauración de sesión, el mpris.so
+		// del propio mpv— y NUNCA al pausar o reanudar; medido contra mpv real.
+		// Es el salto que MPRIS llama Seeked, pero con mpv reproduciendo NO es
+		// todavía el momento de avisarlo: tras un encadenado gapless time-pos
+		// se queda en 0 mientras suena la cola de la pista anterior que seguía
+		// en el búfer de audio —medido: 0,247 s con pipewire, siempre igual, y
+		// 0,41 s con ao=null—, así que un cliente que reanclara aquí iría ese
+		// tiempo por delante la canción entera. Se avisa en el primer AVANCE de
+		// time-pos (ahí la posición ya corre de verdad), o ya mismo si está en
+		// pausa, porque entonces no va a avanzar y el aviso de un seek hecho
+		// en pausa esperaría hasta reanudar.
+		p.mu.Lock()
+		paused := p.state.Paused
+		p.restartPending = !paused
+		p.mu.Unlock()
+		if paused {
+			p.fireRestart()
+		}
 	}
+}
+
+// fireRestart despacha onRestart como los demás callbacks: async y
+// registrado en cbWG (ver el campo).
+func (p *Player) fireRestart() {
+	if p.onRestart == nil {
+		return
+	}
+	p.cbWG.Add(1)
+	go func() {
+		defer p.cbWG.Done()
+		safeCall(p.onRestart)
+	}()
+}
+
+// numOrZero lee una propiedad numérica observada. mpv la publica sin data
+// cuando no está disponible: null o ausente dejan v en 0 (ver time-pos).
+func numOrZero(data json.RawMessage) float64 {
+	var v float64
+	json.Unmarshal(data, &v)
+	return v
 }
 
 // cmdTimeout es lo que espera un comando de mpv antes de darlo por perdido.
@@ -705,7 +773,7 @@ func (p *Player) Close() {
 		p.cmd.Process.Kill()
 	}
 
-	// Esperar los callbacks onEnd/onChange en vuelo (ver cbWG). p.mu ya está
+	// Esperar los callbacks en vuelo (ver cbWG). p.mu ya está
 	// libre acá —se soltó arriba, antes del select— y tiene que seguir
 	// libre: el callback vuelve a entrar al player (SetVolume, etc.) y
 	// necesita el mismo mutex, así que esperar bajo p.mu deadlockearía.

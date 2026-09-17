@@ -71,6 +71,25 @@ mitad del Write y sin ese intento el mensaje explicado no lo leería nadie
 `learnDuration` aprende la duración desde mpv: muta la cola en memoria
 bajo `d.mu` pero hace su `SetDuration` FUERA (era la única escritura a
 SQLite bajo el mutex, y se dispara en cada cambio de pista).
+**La posición y la duración del espejo del player solo valen para la pista
+cuyo `path` coincide** (`clockOf`), y sus tres consumidores —`statusLocked`,
+`learnDuration` y la foto de sesión— pasan por ahí. Tras un `next` la cola ya
+dice la pista nueva pero mpv contesta al `loadfile` y al `set pause` que `Load`
+manda detrás ANTES de soltar el archivo viejo, así que el espejo sigue con sus
+números: medido, 25 de 30 fotos llevaban la posición de la pista anterior, que
+MPRIS publicaba justo cuando los clientes la preguntan, y `learnDuration`
+escribía la duración vieja en la fila de la nueva. Comparar `path` no depende
+de tiempos: es la última propiedad observada, y el `path` nuevo llega después
+de los `null` con que mpv suelta el anterior. Se descartó reiniciar el espejo
+en `Load` al recibir la respuesta: si esa goroutine se retrasa, pisa la
+`duration` ya publicada de la pista nueva, que mpv no reenvía.
+`TestNextNoArrastraLaPistaAnterior` fija el escenario real, pero la ventana
+dura milisegundos (sin la regla, `learnDuration` caía solo 3 de 30 veces);
+`TestEspejoDeOtroArchivoNoCuenta` la sostiene abierta cargándole otro archivo
+a mpv por su socket, y ahí cada consumidor cae 5 de 5.
+`restarted` emite `Seeked` en MPRIS cuando el player asienta un salto (ver
+`playback.md`); es la única fuente de esa señal: el `case "seek"` de `handle`
+ya no la emite, y así cubre también los saltos que no pasan por `handle`.
 `advance(reason, chained, gen)` es la política de avance y salto de pistas
 irreproducibles (guarda `errStreak`, silencio deliberado `stopped`). Sus dos
 avisos —pista saltada, cola detenida tras una pasada entera sin nada que

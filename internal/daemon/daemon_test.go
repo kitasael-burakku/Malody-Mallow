@@ -1108,6 +1108,130 @@ func TestLearnsDuration(t *testing.T) {
 	}
 }
 
+// TestNextNoArrastraLaPistaAnterior: la foto que sigue a un next —la misma que
+// recibe MPRIS en el notify de handle— no puede llevar la posición ni la
+// duración de la pista anterior. mpv las manda SIN data al soltar el archivo y
+// el espejo del player las ignoraba, así que la cola decía la pista nueva con
+// los números de la vieja: los clientes MPRIS anclaban la posición ahí (y la
+// extrapolaban la canción entera), y learnDuration escribía la duración vieja
+// en la fila de la nueva. Medido antes del arreglo: 8 de 8 corridas dejaban la
+// fila de b (40 s) en 9,00; y con el null ya atendido, 25 de 30 seguían
+// devolviendo la posición de a, porque mpv contesta al loadfile antes de soltar
+// el archivo (ver clockOf).
+func TestNextNoArrastraLaPistaAnterior(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	b := filepath.Join(music, "b.wav")
+	writeWAV(t, a, 9)
+	writeWAV(t, b, 40)
+	// Escanear: SetDuration no toca ninguna fila para una pista suelta por
+	// ruta, así que la escritura solo es observable con la pista indexada.
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	for _, p := range []string{a, b} {
+		if resp := d.Do(ipc.Request{Cmd: "add", Query: p}); !resp.OK {
+			t.Fatalf("add %s: %s", p, resp.Error)
+		}
+	}
+	// Con la duración de a publicada (si no, no hay nada viejo que arrastrar:
+	// la trampa 4 de verificacion.md) y una posición que no se confunda con la
+	// de una pista recién cargada.
+	waitStatus(t, d, "a sonando con duración y posición", func(st *ipc.Status) bool {
+		return st.Track != nil && st.Track.Path == a && st.Duration > 8 && st.Position > 1
+	})
+
+	resp := d.Do(ipc.Request{Cmd: "next"})
+	if !resp.OK || resp.Status == nil || resp.Status.Track == nil || resp.Status.Track.Path != b {
+		t.Fatalf("next: %+v", resp)
+	}
+	near9 := func(v float64) bool { return v > 8.5 && v < 9.5 }
+	if st := resp.Status; st.Position >= 1 || near9(st.Duration) {
+		t.Errorf("tras next el estado dice b con posición %.2f y duración %.2f: son las de a", st.Position, st.Duration)
+	}
+	if q := d.Do(ipc.Request{Cmd: "queue"}).Queue; len(q) != 2 || near9(q[1].Duration) {
+		t.Errorf("la cola quedó con b en %+v: la duración de a", q)
+	}
+	if row, ok := d.lib.ByPath(b); !ok || near9(row.Duration) {
+		t.Errorf("DURACIÓN DE a ESCRITA EN LA FILA DE b: %.2f (ok=%v)", row.Duration, ok)
+	}
+	d.mu.Lock()
+	sess := d.snapshotLocked()
+	d.mu.Unlock()
+	if sess.Index == 1 && sess.Position >= 1 {
+		t.Errorf("la sesión guardaría la posición de a (%.2f) para restaurarla sobre b", sess.Position)
+	}
+}
+
+// TestEspejoDeOtroArchivoNoCuenta sostiene ABIERTO el desajuste que un next
+// abre solo unos milisegundos —la cola dice una pista y el espejo del player
+// describe otro archivo—, para que cada consumidor de clockOf se pruebe de
+// forma determinista: en TestNextNoArrastraLaPistaAnterior la ventana se
+// cierra tan rápido que, sin la regla, learnDuration solo corrompía 3 de 30
+// corridas y la sesión 2 de 10. Se abre cargándole a mpv otro archivo por su
+// propio socket, sin pasar por el demonio (lo mismo que haría cualquiera que
+// controle ese mpv, como su mpris.so): un loadfile replace termina el anterior
+// con reason "stop", que no avanza la cola.
+func TestEspejoDeOtroArchivoNoCuenta(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	a := filepath.Join(music, "a.wav")
+	c := filepath.Join(music, "c.wav")
+	writeWAV(t, a, 9)
+	writeWAV(t, c, 40)
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "add", Query: a}); !resp.OK {
+		t.Fatalf("add: %s", resp.Error)
+	}
+	waitStatus(t, d, "a sonando con su duración aprendida", func(st *ipc.Status) bool {
+		row, _ := d.lib.ByPath(a)
+		return st.Track != nil && st.Track.Path == a && st.Duration > 8 && row.Duration > 8
+	})
+
+	conn, err := net.Dial("unix", filepath.Join(config.RuntimeDir(), "mpv.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	msg, _ := json.Marshal(map[string]any{"command": []any{"loadfile", c, "replace"}})
+	if _, err := conn.Write(append(msg, '\n')); err != nil {
+		t.Fatal(err)
+	}
+	// Precondición (trampa 4): el espejo tiene que describir c de verdad, con
+	// duración y posición corriendo, o no hay nada ajeno que filtrar.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if st := d.pl.State(); st.Path == c && st.Duration > 39 && st.Position > 0.2 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("mpv nunca pasó a c: %+v", d.pl.State())
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	d.notify() // síncrono: learnDuration corre aquí, no en una goroutine en vuelo
+
+	st := d.Do(ipc.Request{Cmd: "status"}).Status
+	if st.Track == nil || st.Track.Path != a {
+		t.Fatalf("la cola tenía que seguir en a: %+v", st.Track)
+	}
+	if st.Position != 0 || st.Duration != 0 {
+		t.Errorf("Status dice a con posición %.2f y duración %.2f: son las de c", st.Position, st.Duration)
+	}
+	if row, _ := d.lib.ByPath(a); row.Duration < 8.5 || row.Duration > 9.5 {
+		t.Errorf("la fila de a quedó en %.2f s: learnDuration le escribió la duración de c", row.Duration)
+	}
+	d.mu.Lock()
+	sess := d.snapshotLocked()
+	d.mu.Unlock()
+	if sess.Position != 0 {
+		t.Errorf("la sesión guardaría la posición de c (%.2f) para restaurarla sobre a", sess.Position)
+	}
+}
+
 // TestScanFillsDurations: con la clave activa, el escaneo aprende las
 // duraciones SIN reproducir nada, y además las refleja en la cola ya
 // cargada (que learnDuration no tocaría hasta que cada pista sonara).

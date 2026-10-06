@@ -7,6 +7,25 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.1 — 2026-10-05
+
+- **Un filtro `/` nuevo.** Antes era una fila que empujaba la lista hacia
+  abajo. Ahora es una caja flotante al pie del panel, y la lista se queda
+  quieta. Puedes moverte por los resultados con `↑`/`↓` sin salir de la caja,
+  ves cuántas pistas pasan de cuántas hay y las coincidencias salen
+  subrayadas. Al confirmar con `enter`, el filtro pasa al borde del panel.
+- **Filtrar es más potente:**
+  - prefijos de campo: `a:` artista, `al:` álbum, `t:` título y `f:` nombre de
+    archivo, para las pistas sin etiquetas;
+  - `-palabra` excluye;
+  - coincidencia difusa (`htsm` → "Hot Summer");
+  - los mejores resultados van primero.
+- **La posición en tu barra de medios ya no se arrastra de la canción
+  anterior.** Con un cliente MPRIS abierto (la tarjeta de medios del
+  escritorio), al pasar de canción el tiempo seguía contando desde la pista
+  anterior durante toda la canción. Quien instaló desde el AUR ya tenía este
+  arreglo desde el paquete 1.19.0-2; ahora llega a todos.
+
 ## v1.19.0 — 2026-09-06
 
 La Phase 3 de la auditoría del 2026-09, que era la parte **no obligatoria**:

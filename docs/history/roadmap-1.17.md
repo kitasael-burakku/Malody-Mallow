@@ -2,6 +2,64 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.1 (2026-10-05) — el filtro `/` flota, y el arreglo de MPRIS llega a todos
+
+Dos piezas. La primera es el **filtro `/` rehecho**: era una fila dentro del
+panel que empujaba la lista hacia abajo. Ahora es una caja flotante al pie del
+panel activo (estilo fzf, decisión del dueño frente a «arriba, estilo yazi» y
+«centrada»). Trae navegación sin salir del input, contador, resaltado y un
+lenguaje de consulta: prefijos `a:`/`al:`/`t:`/`f:`, `-negación`, nombre de
+archivo y coincidencia difusa con orden por puntuación. El diseño y sus
+porqués están en la ficha (`docs/architecture/tui.md`, párrafo del filtro).
+Aquí va solo lo que costó o se midió.
+
+La segunda es `a24a2fc`, la posición MPRIS que se arrastraba de la pista
+anterior. Era posterior al tag v1.19.0 y ya se distribuía por el AUR como
+parche del PKGBUILD (1.19.0-2). Con este tag el parche sale del PKGBUILD,
+como anunciaba su propio comentario.
+
+**El número.** Es una feature y por semver le tocaría 1.20.0. Sale como
+1.19.1 por decisión del dueño: el número lo elige él, y ya hay precedentes de
+numeración elegida a propósito en `docs/development/releases.md`.
+
+### Lo que costó
+
+- **`x/ansi.Truncate` no sirve para componer capas.** Guarda TODOS los escapes
+  de la línea, también los de después del corte. Con la carátula de kitty en
+  la misma fila, la transmisión APC habría salido dos veces por frame. Además,
+  un carácter ancho partido lo descarta (`Truncate`) o lo cuela entero
+  (`TruncateLeft`), y la fila deja de medir el ancho del terminal. Por eso el
+  corte de `compose.go` es propio, sobre `ansi.DecodeSequence`. Lo fijan
+  `TestSpliceLineAnchoExacto` y `TestSpliceLineNoDuplicaEscapes`; con las dos
+  funciones de x/ansi en su lugar fallan los dos, con «mide 31, quería 30» y
+  «aparece 2 veces».
+- **El primer test del resaltado no probaba nada.** Al revertir el plegado
+  runa a runa por un `Fold` de la cadena entera, el test seguía pasando:
+  «Café» en NFC no cambia de longitud al plegarse. Hizo falta un caso NFD
+  (`Cafe\u0301`, lo habitual en archivos venidos de macOS), y con él falla por
+  la razón correcta: las marcas corridas una runa.
+- **El tope de la tercera columna no tiene mutación que lo dispare** con las
+  constantes de hoy. La caja mide `max(panel, 44)`, y en el modo de tres
+  columnas eso nunca pasa de `libW+queueW`. El barrido de
+  `TestFilterBoxRect` lo comprobó subiendo `filterBoxMinW` a 200: con el tope,
+  0 errores; sin él, «la caja llega a 120, el tope es 92». Queda como red para
+  el día en que alguien ensanche la caja.
+- **Dos defectos que solo aparecieron en vivo** (tmux a 160×42, 100×30 y
+  60×20):
+  - Un `…` fijo en el borde derecho del input. `textinput.View()` mide
+    prompt + Width + 1, y al ras `clip()` lo daba por desbordado.
+  - El contador decía `5/6` con el filtro vacío, porque contaba nodos de
+    artista y no pistas.
+
+### Verificación
+
+- Hay test nuevo para cada pieza con estado: parseo, coincidencia, orden,
+  resaltado, composición, `filterBoxRect` barrido con la tabla de layout,
+  navegación mientras se escribe y el borrado correcto con la cola reordenada.
+- Cada uno se vio fallar revirtiendo producción (restaurado con `cp`, nunca
+  con `git checkout`).
+- Pasan `go vet ./...` y `go test ./...` completos.
+
 ## v1.19.0 (2026-09-06) — Phase 3 de la auditoría del 2026-09: siete hechos, cinco cerrados
 
 La **1.19.0** cierra la **Phase 3**, que era la fase **explícitamente no

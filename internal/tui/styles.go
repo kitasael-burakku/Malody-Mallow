@@ -119,6 +119,20 @@ func padTo(s string, w int) string {
 // panel dibuja un panel con borde redondeado y el título incrustado en el
 // borde superior, estilo btop. w y h incluyen los bordes.
 func (s styles) panel(title string, lines []string, w, h int, focused bool) string {
+	return s.frame(frameLabels{title: title}, lines, w, h, focused)
+}
+
+// frameLabels son los textos incrustados en el borde de un panel. Todos
+// opcionales. right va alineado a la derecha del borde superior (el contador
+// de la caja del filtro) y foot a la izquierda del inferior (el filtro ya
+// confirmado de biblioteca y cola, que antes se comía una fila de la lista).
+type frameLabels struct {
+	title, right, foot string
+}
+
+// frame es panel con todas las etiquetas. Las que no caben se recortan: el
+// borde mide w pase lo que pase, y right cede antes que el título.
+func (s styles) frame(lb frameLabels, lines []string, w, h int, focused bool) string {
 	if w < 4 || h < 2 {
 		return ""
 	}
@@ -132,15 +146,27 @@ func (s styles) panel(title string, lines []string, w, h int, focused bool) stri
 	innerH := h - 2
 
 	label := ""
-	if title != "" {
-		label = " " + clip(title, innerW-3) + " "
+	if lb.title != "" {
+		label = " " + clip(lb.title, innerW-3) + " "
 	}
 	rest := innerW - 1 - lipgloss.Width(label)
 	if rest < 0 {
 		rest = 0
 	}
+	right := ""
+	if lb.right != "" {
+		// " N/M " más al menos un ─ de cada lado; si no entra, no va.
+		if r := " " + lb.right + " "; lipgloss.Width(r)+2 <= rest {
+			right = r
+			rest -= lipgloss.Width(r) + 1
+		}
+	}
 	var b strings.Builder
-	b.WriteString(bs.Render("╭─") + ts.Render(label) + bs.Render(strings.Repeat("─", rest)+"╮"))
+	b.WriteString(bs.Render("╭─") + ts.Render(label) + bs.Render(strings.Repeat("─", rest)))
+	if right != "" {
+		b.WriteString(s.dim.Render(right) + bs.Render("─"))
+	}
+	b.WriteString(bs.Render("╮"))
 	b.WriteByte('\n')
 
 	side := bs.Render("│")
@@ -152,6 +178,16 @@ func (s styles) panel(title string, lines []string, w, h int, focused bool) stri
 		b.WriteString(side + padTo(line, innerW) + side)
 		b.WriteByte('\n')
 	}
-	b.WriteString(bs.Render("╰" + strings.Repeat("─", innerW) + "╯"))
+	foot := ""
+	if lb.foot != "" && innerW >= 5 {
+		foot = " " + clip(lb.foot, innerW-3) + " "
+	}
+	b.WriteString(bs.Render("╰"))
+	fill := innerW
+	if foot != "" {
+		b.WriteString(bs.Render("─") + s.accent.Render(foot))
+		fill -= 1 + lipgloss.Width(foot)
+	}
+	b.WriteString(bs.Render(strings.Repeat("─", fill) + "╯"))
 	return b.String()
 }

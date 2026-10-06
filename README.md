@@ -532,6 +532,21 @@ destino de cada uno.
 | `?` | ayuda completa (todas las teclas, incluidas las remapeadas) |
 | `q` | salir |
 
+**El filtro `/`** abre una caja flotante al pie del panel activo y filtra
+mientras escribes; `↑`/`↓` (o `ctrl+k`/`ctrl+j`) recorren los resultados sin
+salir de ella, `enter` deja el filtro puesto (se ve en el borde del panel) y
+`esc` lo quita. Cada palabra tiene que aparecer, y los mejores resultados van
+arriba:
+
+| Escribes | Encuentra |
+|---|---|
+| `hot sum` | pistas con "hot" **y** "sum" en título, artista, álbum o nombre de archivo |
+| `htsm` | coincidencia difusa: "**H**o**t** **S**u**m**mer" (desde 3 letras, dentro de un mismo campo) |
+| `a:drake` · `al:views` · `t:one` · `f:rip` | solo en el artista · álbum · título · nombre de archivo |
+| `-live` · `-a:drake` | excluye las que lo contienen |
+
+Mayúsculas y tildes dan igual (`cafe` encuentra "Café").
+
 `maly controls vim` cambia tres teclas: `remove→x`, `next→>`, `prev→<` — la
 navegación vim de arriba está siempre activa, en cualquier preset.
 

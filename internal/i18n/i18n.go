@@ -92,7 +92,8 @@ var table = map[string][2]string{
 	"tui.pl_no_id":              {"that track is outside the library; scan it first to add it to playlists", "esa pista está fuera de la biblioteca; escanéala primero para meterla en playlists"},
 	"tui.lib_empty_flash":       {"Library is empty: run `maly scan` or check music_dir in the config", "Biblioteca vacía: ejecuta `maly scan` o revisa music_dir en el config"},
 	"tui.lib_empty_flash_tui":   {"Library is empty: press ctrl+p then `scan`, or run `maly scan` from a terminal", "Biblioteca vacía: pulsa ctrl+p y escribe `scan`, o ejecuta `maly scan` desde una terminal"},
-	"tui.filter_ph":             {"filter…", "filtrar…"},
+	"tui.filter_ph":             {"text · a: al: t: f: · -exclude", "texto · a: al: t: f: · -excluir"},
+	"tui.filter_title":          {"Filter", "Filtrar"},
 	"tui.unknown_artist":        {"(unknown)", "(desconocido)"},
 	"tui.no_album":              {"(no album)", "(sin álbum)"},
 
@@ -106,7 +107,7 @@ var table = map[string][2]string{
 	"help.add":            {"add to queue", "agregar a la cola"},
 	"help.remove":         {"remove from queue", "quitar de la cola"},
 	"help.move":           {"move track up / down the queue", "subir / bajar la pista en la cola"},
-	"help.filter":         {"filter current panel", "filtrar panel actual"},
+	"help.filter":         {"filter current panel (a: al: t: f: -word; ↑↓ move)", "filtrar panel actual (a: al: t: f: -palabra; ↑↓ mueve)"},
 	"help.shuffle_repeat": {"shuffle / repeat", "shuffle / repeat"},
 	"help.toggle_viz":     {"toggle visualizer", "alternar visualizador"},
 	"help.now_playing":    {"now playing screen (cover & lyrics)", "pantalla ahora suena (carátula y letras)"},

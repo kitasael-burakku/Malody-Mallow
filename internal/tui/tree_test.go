@@ -156,7 +156,7 @@ func TestFlattenCachesFoldedText(t *testing.T) {
 	// Con t.all sin cambiar, una segunda flatten debe REUSAR el cache, no
 	// recalcularlo: se corrompe a mano y se comprueba que el resultado sigue
 	// el valor corrompido (si se recalculara, volvería a matchear).
-	tr.folded[0] = "manipulado-a-mano"
+	tr.folded[0] = foldedTrack{title: "manipulado-a-mano"}
 	tr.flatten()
 	if len(tr.rows) != 0 {
 		t.Fatalf("flatten recalculó el cache en vez de reusarlo: %d filas", len(tr.rows))
@@ -174,26 +174,5 @@ func TestFlattenCachesFoldedText(t *testing.T) {
 	}
 	if len(tr.folded) != 1 {
 		t.Fatalf("el cache no se repobló al tamaño nuevo de all: %d entradas", len(tr.folded))
-	}
-}
-
-// TestContainsAll cubre la firma con words ya partido (strings.Fields izado
-// por el llamador, ver el comentario de containsAll): multi-palabra, sin
-// match y query vacía (ningún Field, así que matchea cualquier hay).
-func TestContainsAll(t *testing.T) {
-	cases := []struct {
-		hay   string
-		words []string
-		want  bool
-	}{
-		{"ana beta uno", []string{"ana", "uno"}, true},
-		{"ana beta uno", []string{"ana", "gama"}, false},
-		{"ana beta uno", nil, true},
-		{"", []string{"ana"}, false},
-	}
-	for _, c := range cases {
-		if got := containsAll(c.hay, c.words); got != c.want {
-			t.Errorf("containsAll(%q, %v) = %v, quería %v", c.hay, c.words, got, c.want)
-		}
 	}
 }

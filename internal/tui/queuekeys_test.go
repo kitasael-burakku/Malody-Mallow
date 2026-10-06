@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"maly/internal/config"
@@ -224,3 +225,54 @@ func TestApplyStatusClampaYRecarga(t *testing.T) {
 
 // cmdDe descarta el tea.Model del par que devuelven los handlers.
 func cmdDe(_ tea.Model, cmd tea.Cmd) tea.Cmd { return cmd }
+
+// TestFiltroNavegaMientrasEscribe: con la caja abierta, ↓/↑ mueven el cursor
+// del panel SIN salir del input (antes había que confirmar con enter para
+// poder moverse), y escribir vuelve el cursor a la primera fila — que con el
+// orden por puntuación es la mejor coincidencia.
+func TestFiltroNavegaMientrasEscribe(t *testing.T) {
+	m, _ := colaModel(t, "cero", "uno", "dos", "tres", "cuatro")
+	m.filterInput = textinput.New()
+	m.handleKey(key(m.keys["filter"]))
+	if !m.filterMode {
+		t.Fatal("la tecla de filtro no abrió la caja")
+	}
+	m.handleKey(key("o")) // cero, uno, dos, cuatro
+	if got := len(m.visibleQueue()); got != 4 {
+		t.Fatalf("el filtro \"o\" deja %d pistas, quería 4", got)
+	}
+	m.handleKey(tea.KeyMsg{Type: tea.KeyDown})
+	m.handleKey(tea.KeyMsg{Type: tea.KeyDown})
+	if m.queueCursor != 2 || !m.filterMode {
+		t.Fatalf("tras ↓↓: cursor %d, filterMode %v; quería 2 y la caja abierta", m.queueCursor, m.filterMode)
+	}
+	if m.filterInput.Value() != "o" {
+		t.Errorf("↓ llegó al input: %q", m.filterInput.Value())
+	}
+	m.handleKey(tea.KeyMsg{Type: tea.KeyUp})
+	if m.queueCursor != 1 {
+		t.Errorf("tras ↑: cursor %d, quería 1", m.queueCursor)
+	}
+	m.handleKey(key("s")) // "os": dos
+	if m.queueCursor != 0 {
+		t.Errorf("escribir debía volver el cursor a 0, quedó en %d", m.queueCursor)
+	}
+}
+
+// TestColaFiltradaOrdenadaRemueveLaCorrecta: con el orden por puntuación la
+// lista visible ya ni siquiera conserva el orden de la cola, y aun así el
+// cursor tiene que traducirse a la posición REAL (la misma clase de defecto
+// que TestColaFiltradaRemueveLaPistaCorrecta, con el orden dado vuelta).
+func TestColaFiltradaOrdenadaRemueveLaCorrecta(t *testing.T) {
+	m, reqs := colaModel(t, "maestro", "estrofa", "otra")
+	m.queueFilter = "estr" // "estrofa" empieza por ella: va antes que "maestro"
+	m.queueFolded = nil
+	if vis := m.visibleQueue(); len(vis) != 2 || vis[0] != 1 || vis[1] != 0 {
+		t.Fatalf("el orden por puntuación no es el esperado: vis=%v", vis)
+	}
+	m.queueCursor = 0
+	r := esperaReq(t, cmdDe(m.handleQueueKey(key(m.keys["remove"]))), reqs)
+	if r.Cmd != "remove" || r.Index != 1 {
+		t.Errorf("remove = {%q %d}, quería {\"remove\" 1}: se borra la pista equivocada", r.Cmd, r.Index)
+	}
+}

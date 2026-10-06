@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
 	"maly/internal/i18n"
 	"maly/internal/library"
@@ -53,9 +52,10 @@ type libTree struct {
 	rows   []*node
 	cursor int
 	offset int
-	filter string // si no está vacío, rows es una lista plana de pistas
+	filter string      // si no está vacío, rows es una lista plana de pistas
+	query  filterQuery // filter ya parseado (ver flatten); lo usa el resaltado
 	all    []library.Track
-	folded []string // texto normalizado por pista, perezoso (ver flatten)
+	folded []foldedTrack // campos plegados por pista, perezoso (ver flatten)
 }
 
 func buildTree(tracks []library.Track, lists []plList) *libTree {
@@ -207,24 +207,22 @@ func (t *libTree) restore(s treeState, pageH int) {
 // flatten reconstruye rows según expansión y filtro, y reencuadra el cursor.
 func (t *libTree) flatten() {
 	t.rows = t.rows[:0]
+	t.query = parseFilter(t.filter)
 	if t.filter != "" {
-		q := library.Fold(t.filter)
 		// El plegado Unicode por pista se cachea igual que queueFolded
 		// (tui.go): recorrer y replegar t.all entero en cada tecla del
 		// filtro pesa con bibliotecas grandes (40k pistas). La comprobación
 		// de longitud sirve a la vez de detección de cache sin poblar y de
 		// desincronización tras un buildTree nuevo.
 		if len(t.folded) != len(t.all) {
-			t.folded = make([]string, len(t.all))
+			t.folded = make([]foldedTrack, len(t.all))
 			for i, tr := range t.all {
-				t.folded[i] = library.Fold(tr.Title + " " + tr.Artist + " " + tr.Album)
+				t.folded[i] = foldTrack(tr.Title, tr.Artist, tr.Album, tr.Path)
 			}
 		}
-		words := strings.Fields(q)
-		for i, tr := range t.all {
-			if containsAll(t.folded[i], words) {
-				t.rows = append(t.rows, &node{kind: trackNode, label: trackLabel(tr.Artist, tr.Title), track: tr})
-			}
+		for _, i := range filterRank(t.query, t.folded) {
+			tr := t.all[i]
+			t.rows = append(t.rows, &node{kind: trackNode, label: trackLabel(tr.Artist, tr.Title), track: tr})
 		}
 	} else {
 		var walk func(n *node)
@@ -247,20 +245,6 @@ func (t *libTree) flatten() {
 	if t.cursor < 0 {
 		t.cursor = 0
 	}
-}
-
-// containsAll reporta si hay contiene todas las palabras de words. words se
-// pasa ya partido (strings.Fields) porque el llamador lo invoca una vez por
-// fila con la misma query: partirla acá adentro repetiría la asignación del
-// slice en cada pista, y con el visualizador animando a ~16fps eso pesa de
-// verdad en colas/bibliotecas grandes con filtro activo.
-func containsAll(hay string, words []string) bool {
-	for _, w := range words {
-		if !strings.Contains(hay, w) {
-			return false
-		}
-	}
-	return true
 }
 
 func (t *libTree) current() *node {

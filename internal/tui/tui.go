@@ -58,12 +58,19 @@ type Model struct {
 	// 40.000 pistas (auditoría 2026-07-31, hallazgo T15).
 	libLoaded   bool
 	queue       []ipc.TrackInfo
-	queueFolded []string // texto normalizado por pista, perezoso (ver visibleQueue)
-	queueCursor int
-	queueOffset int
-	queueFilter string
-	status      *ipc.Status
-	connErr     bool
+	queueFolded []foldedTrack // campos plegados por pista, perezoso (ver visibleQueue)
+	// queueVis cachea el resultado de visibleQueue para queueVisFilter: con
+	// el orden por puntuación, filtrar cuesta un sort, y visibleQueue corre
+	// en cada frame (el viz anima a ~16 fps). Vale mientras queueFolded no se
+	// reconstruya, que es lo que pasa cada vez que cambia la cola.
+	queueVis       []int
+	queueVisFilter string
+	queueVisQuery  filterQuery
+	queueCursor    int
+	queueOffset    int
+	queueFilter    string
+	status         *ipc.Status
+	connErr        bool
 
 	// lastNotice: el último Status.Notice ya mostrado como flash, para no
 	// rearmarlo en cada push (llegan varias por segundo) y que el flash pueda
@@ -231,7 +238,7 @@ type subDeadMsg struct{}
 // Run abre la TUI. embedded indica que el demonio corre dentro del proceso.
 func Run(cfg config.Config, embedded bool) error {
 	ti := textinput.New()
-	ti.Prompt = "/"
+	ti.Prompt = "❯ "
 	ti.Placeholder = i18n.T("tui.filter_ph")
 	ti.CharLimit = 100
 
@@ -1032,11 +1039,34 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "enter":
 			m.filterMode = false
+			// Al cerrarse la caja el panel recupera sus dos últimas filas:
+			// el cursor sigue visible, pero se reencuadra igual.
+			m.moveCursor(0)
+			return m, nil
+		}
+		// Navegar los resultados SIN salir del input: antes había que
+		// confirmar con enter para poder moverse. Mismo juego de teclas que
+		// el picker (picker.handleKey); ctrl+n/ctrl+p no, porque los
+		// abridores de modales corren antes que esto.
+		switch msg.String() {
+		case "up", "ctrl+k":
+			m.moveCursor(-1)
+			return m, nil
+		case "down", "ctrl+j":
+			m.moveCursor(1)
+			return m, nil
+		case "pgup", "ctrl+u":
+			m.moveCursor(-m.pageH(m.focus))
+			return m, nil
+		case "pgdown", "ctrl+d":
+			m.moveCursor(m.pageH(m.focus))
 			return m, nil
 		}
 		var cmd tea.Cmd
 		m.filterInput, cmd = m.filterInput.Update(msg)
-		m.applyFilter(m.filterInput.Value())
+		if v := m.filterInput.Value(); v != m.currentFilter() {
+			m.applyFilter(v)
+		}
 		return m, cmd
 	}
 
@@ -1144,6 +1174,42 @@ func (m *Model) syncFilterInput() {
 	}
 }
 
+// currentFilter es el filtro del panel enfocado.
+func (m *Model) currentFilter() string {
+	if m.focus == panelLibrary {
+		return m.tree.filter
+	}
+	return m.queueFilter
+}
+
+// moveCursor mueve el cursor del panel enfocado delta filas, con el mismo
+// clamp y scroll que sus teclas de navegación.
+func (m *Model) moveCursor(delta int) {
+	if m.focus == panelLibrary {
+		m.tree.move(delta, m.libPageH())
+		return
+	}
+	m.queueCursor += delta
+	m.clampQueue(len(m.visibleQueue()), m.queuePageH())
+}
+
+// clampQueue encaja el cursor de la cola en las n filas visibles y desplaza
+// la ventana de pageH filas para que se vea.
+func (m *Model) clampQueue(n, pageH int) {
+	if m.queueCursor >= n {
+		m.queueCursor = n - 1
+	}
+	if m.queueCursor < 0 {
+		m.queueCursor = 0
+	}
+	if m.queueCursor < m.queueOffset {
+		m.queueOffset = m.queueCursor
+	}
+	if m.queueCursor >= m.queueOffset+pageH {
+		m.queueOffset = m.queueCursor - pageH + 1
+	}
+}
+
 func (m *Model) applyFilter(val string) {
 	if m.focus == panelLibrary {
 		m.tree.filter = val
@@ -1232,51 +1298,39 @@ func (m *Model) handleLibraryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// visibleQueue devuelve los índices reales de la cola que pasan el filtro.
-// El folded por pista se cachea (queueFolded): esto corre en cada render y,
-// con el visualizador animando a ~16 fps, plegar Unicode por pista por frame
-// pesaba con colas grandes.
+// visibleQueue devuelve los índices reales de la cola que pasan el filtro, en
+// el orden del filtro (por puntuación, ver filterRank). El folded por pista se
+// cachea (queueFolded), y el resultado también (queueVis): esto corre en cada
+// render y, con el visualizador animando a ~16 fps, plegar Unicode por pista
+// por frame pesaba con colas grandes. El slice devuelto es compartido: no se
+// modifica.
 func (m *Model) visibleQueue() []int {
-	idx := make([]int, 0, len(m.queue))
-	q := library.Fold(m.queueFilter)
-	if q == "" {
-		for i := range m.queue {
-			idx = append(idx, i)
+	if m.queueFilter == "" {
+		idx := make([]int, len(m.queue))
+		for i := range idx {
+			idx[i] = i
 		}
 		return idx
 	}
-	if len(m.queueFolded) != len(m.queue) {
-		m.queueFolded = make([]string, len(m.queue))
+	if m.queueFolded == nil || len(m.queueFolded) != len(m.queue) {
+		m.queueFolded = make([]foldedTrack, len(m.queue))
 		for i, t := range m.queue {
-			m.queueFolded[i] = library.Fold(t.Title + " " + t.Artist + " " + t.Album)
+			m.queueFolded[i] = foldTrack(t.Title, t.Artist, t.Album, t.Path)
 		}
+		m.queueVis = nil
 	}
-	words := strings.Fields(q)
-	for i := range m.queue {
-		if containsAll(m.queueFolded[i], words) {
-			idx = append(idx, i)
-		}
+	if m.queueVis == nil || m.queueVisFilter != m.queueFilter {
+		m.queueVisQuery = parseFilter(m.queueFilter)
+		m.queueVis = filterRank(m.queueVisQuery, m.queueFolded)
+		m.queueVisFilter = m.queueFilter
 	}
-	return idx
+	return m.queueVis
 }
 
 func (m *Model) handleQueueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	vis := m.visibleQueue()
 	pageH := m.queuePageH()
-	clamp := func() {
-		if m.queueCursor >= len(vis) {
-			m.queueCursor = len(vis) - 1
-		}
-		if m.queueCursor < 0 {
-			m.queueCursor = 0
-		}
-		if m.queueCursor < m.queueOffset {
-			m.queueOffset = m.queueCursor
-		}
-		if m.queueCursor >= m.queueOffset+pageH {
-			m.queueOffset = m.queueCursor - pageH + 1
-		}
-	}
+	clamp := func() { m.clampQueue(len(vis), pageH) }
 	switch msg.String() {
 	case "up", "k":
 		m.queueCursor--

@@ -12,8 +12,13 @@ package tui
 //
 // La AYUDA no está acá a propósito. Se dibuja encima de otra capa —abrirla
 // desde "Ahora suena" no cierra "Ahora suena"— así que es un booleano aparte
-// (Model.showHelp) y no un valor de este enum. Es la única que se superpone;
-// el día que haya una segunda, esto pasará a ser una pila de verdad.
+// (Model.showHelp) y no un valor de este enum. Es la única que se superpone
+// a OTRA CAPA; el día que haya una segunda, esto pasará a ser una pila de
+// verdad.
+//
+// La caja del filtro `/` tampoco está, por el mismo motivo visto desde el
+// otro lado: no reemplaza la vista principal, flota ENCIMA de ella (compose.go)
+// y lo que filtra es justo lo que tiene debajo. Sigue siendo Model.filterMode.
 type overlay int
 
 const (

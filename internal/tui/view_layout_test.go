@@ -8,10 +8,12 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
+	"maly/internal/library"
 	"maly/internal/media"
 )
 
@@ -233,16 +235,41 @@ func TestPanelesVaciosNoDesbordan(t *testing.T) {
 // hace scroll horizontal — emite el valor entero— así que un filtro largo
 // rompía el borde mientras se escribe, igual que le pasaba a la consola antes
 // de la 1.12.1.
+//
+// Desde que la caja FLOTA sobre la vista (compose.go) el barrido cubre
+// también los tres modos y filas con caracteres anchos bajo la caja: el
+// corte de la composición cae justo encima de ellos.
 func TestFiltroNoRompeElBorde(t *testing.T) {
-	for _, focus := range []panelID{panelLibrary, panelQueue} {
-		m := newLayoutTestModel(160, 42)
-		m.focus = focus
-		m.filterMode = true
-		m.filterInput = textinput.New()
-		m.filterInput.SetValue(strings.Repeat("kaisoyeon colchón vacío ", 5))
-		for i, l := range strings.Split(m.View(), "\n") {
-			if n := lipgloss.Width(l); n != 160 {
-				t.Fatalf("foco %d: fila %d mide %d con un filtro largo, quería 160", focus, i, n)
+	ancho := strings.Repeat("夜に駆ける", 12)
+	for _, size := range [][2]int{{160, 42}, {121, 30}, {100, 30}, {60, 20}, {minWidth, minHeight}} {
+		for _, focus := range []panelID{panelLibrary, panelQueue} {
+			for _, mode := range []bool{true, false} { // escribiendo / confirmado
+				m := newLayoutTestModel(size[0], size[1])
+				m.focus = focus
+				var tracks []library.Track
+				for i := 0; i < 40; i++ {
+					tr := library.Track{ID: int64(i + 1), Artist: "kaisoyeon", Album: "x", Title: ancho, Path: "/m/a.mp3"}
+					tracks = append(tracks, tr)
+					m.queue = append(m.queue, ipc.TrackInfo{Title: tr.Title, Artist: tr.Artist})
+				}
+				m.tree = buildTree(tracks, nil)
+				m.tree.toggle() // el artista expandido: filas anchas en todo el panel
+				m.filterInput = textinput.New()
+				m.filterMode = mode
+				// Largo, con anchos, y que matchee: así el pie del borde y el
+				// resaltado (que parte las filas en tramos) también se miden.
+				q := strings.Repeat("夜に kaisoyeon ", 6)
+				m.filterInput.SetValue(q)
+				m.applyFilter(q)
+				if len(m.tree.rows) == 0 || len(m.visibleQueue()) == 0 {
+					t.Fatalf("%v: el filtro de prueba no matchea nada", size)
+				}
+				for i, l := range strings.Split(m.View(), "\n") {
+					if n := lipgloss.Width(l); n != size[0] {
+						t.Fatalf("%v foco %d escribiendo=%v: fila %d mide %d con un filtro largo, quería %d",
+							size, focus, mode, i, n, size[0])
+					}
+				}
 			}
 		}
 	}
@@ -508,5 +535,64 @@ func TestNingunaCapaDejaVivosColumnaNiBanner(t *testing.T) {
 	}
 	if !limpio.logoVisible() {
 		t.Error("sin ninguna capa el banner de la barra de título se dibuja")
+	}
+}
+
+// TestFiltroCajaAbajoSinDesplazar: la caja del filtro flota sobre el FINAL
+// del panel enfocado y la lista no se mueve — la primera fila de resultados
+// sigue en la primera fila del panel, mientras se escribe y después. Al
+// confirmar, la caja desaparece, el panel recupera sus filas y el filtro
+// queda en el borde inferior en vez de comerse una fila de la lista (que era
+// lo que hacía antes: el "espacio hacia arriba").
+func TestFiltroCajaAbajoSinDesplazar(t *testing.T) {
+	old := i18n.Code()
+	i18n.Set("es")
+	defer i18n.Set(old)
+
+	var tracks []library.Track
+	for _, s := range []string{"alfa", "beta", "gama", "delta"} {
+		tracks = append(tracks, library.Track{ID: int64(len(tracks) + 1), Artist: "Ana", Album: "Uno", Title: s, Path: "/m/" + s + ".mp3"})
+	}
+	for _, size := range [][2]int{{160, 42}, {100, 30}, {60, 20}} {
+		m := newLayoutTestModel(size[0], size[1])
+		m.tree = buildTree(tracks, nil)
+		m.focus = panelLibrary
+		m.filterInput = textinput.New()
+		lay := m.layoutOf()
+		full := lay.topH - 2
+
+		m.handleKey(key(m.keys["filter"]))
+		for _, r := range "lta" { // solo "delta" la contiene
+			m.handleKey(key(string(r)))
+		}
+		if len(m.tree.rows) != 1 || m.tree.rows[0].track.Title != "delta" {
+			t.Fatalf("%v: el filtro no dejó solo \"delta\": %d filas", size, len(m.tree.rows))
+		}
+		if got := m.libPageH(); got != full-(filterBoxH-1) {
+			t.Errorf("%v: escribiendo, libPageH = %d, quería %d", size, got, full-(filterBoxH-1))
+		}
+		rows := strings.Split(m.View(), "\n")
+		b := filterBoxRect(lay, panelLibrary, m.width)
+		if !strings.Contains(ansi.Strip(rows[lay.bannerH+1]), "delta") {
+			t.Errorf("%v: la primera fila del panel no es el resultado: %q", size, ansi.Strip(rows[lay.bannerH+1]))
+		}
+		if !strings.Contains(ansi.Strip(rows[b.y]), "Filtrar") || !strings.Contains(ansi.Strip(rows[b.y]), "1/4") {
+			t.Errorf("%v: la fila %d no es el borde de la caja: %q", size, b.y, ansi.Strip(rows[b.y]))
+		}
+
+		m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+		if m.filterMode || m.tree.filter != "lta" {
+			t.Fatalf("%v: enter debía confirmar el filtro (mode=%v filtro=%q)", size, m.filterMode, m.tree.filter)
+		}
+		if got := m.libPageH(); got != full {
+			t.Errorf("%v: confirmado, libPageH = %d, quería %d (sin fila reservada)", size, got, full)
+		}
+		rows = strings.Split(m.View(), "\n")
+		if !strings.Contains(ansi.Strip(rows[lay.bannerH+1]), "delta") {
+			t.Errorf("%v: confirmado, la lista se desplazó: %q", size, ansi.Strip(rows[lay.bannerH+1]))
+		}
+		if bottom := ansi.Strip(rows[lay.bannerH+lay.topH-1]); !strings.Contains(bottom, "/lta") {
+			t.Errorf("%v: el borde inferior no muestra el filtro: %q", size, bottom)
+		}
 	}
 }

@@ -529,6 +529,20 @@ destination.
 | `?` | full help (every key, including remapped ones) |
 | `q` | quit |
 
+**The `/` filter** opens a floating box at the bottom of the active panel and
+filters as you type; `↑`/`↓` (or `ctrl+k`/`ctrl+j`) walk the results without
+leaving it, `enter` keeps the filter on (shown on the panel border) and `esc`
+clears it. Every word must appear, and the best matches go first:
+
+| You type | It finds |
+|---|---|
+| `hot sum` | tracks with "hot" **and** "sum" in title, artist, album or file name |
+| `htsm` | fuzzy match: "**H**o**t** **S**u**m**mer" (3+ letters, within one field) |
+| `a:drake` · `al:views` · `t:one` · `f:rip` | only in the artist · album · title · file name |
+| `-live` · `-a:drake` | excludes tracks containing it |
+
+Case and accents don't matter (`cafe` finds "Café").
+
 `maly controls vim` changes three keys: `remove→x`, `next→>`, `prev→<` —
 the vim navigation above is always active, under any preset.
 

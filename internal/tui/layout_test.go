@@ -180,3 +180,49 @@ func TestComputeLayoutDegenerado(t *testing.T) {
 		}
 	}
 }
+
+// TestFilterBoxRect barre la misma tabla: la caja del filtro cabe en la
+// pantalla, su borde inferior cae sobre el de la fila de paneles (va ABAJO y
+// no tapa el principio de la lista), arranca en la columna enfocada y nunca
+// entra en la tercera columna, donde la carátula de kitty lleva escapes que no
+// se pueden partir.
+func TestFilterBoxRect(t *testing.T) {
+	for _, opts := range allOpts() {
+		for _, w := range layoutWidths {
+			for _, h := range layoutHeights {
+				l := computeLayout(w, h, opts)
+				for _, focus := range []panelID{panelLibrary, panelQueue} {
+					b := filterBoxRect(l, focus, w)
+					name := fmt.Sprintf("%dx%d viz=%t banner=%s foco=%d", w, h, opts.viz, opts.banner, focus)
+					if b.w == 0 {
+						t.Errorf("%s: sin caja (topH=%d)", name, l.topH)
+						continue
+					}
+					if got := b.y + filterBoxH; got != l.bannerH+l.topH {
+						t.Errorf("%s: la caja acaba en la fila %d, el panel en %d", name, got, l.bannerH+l.topH)
+					}
+					if b.y <= l.bannerH {
+						t.Errorf("%s: la caja (y=%d) pisa el borde superior del panel", name, b.y)
+					}
+					wantX := 0
+					if focus == panelQueue && l.mode != layoutSingle {
+						wantX = l.libW
+					}
+					if b.x != wantX {
+						t.Errorf("%s: x = %d, quería %d", name, b.x, wantX)
+					}
+					right := w
+					if l.mode == layoutFull {
+						right = l.libW + l.queueW
+					}
+					if b.x+b.w > right {
+						t.Errorf("%s: la caja llega a %d, el tope es %d", name, b.x+b.w, right)
+					}
+					if pw := map[panelID]int{panelLibrary: l.libW, panelQueue: l.queueW}[focus]; b.w < min(pw, right-b.x) {
+						t.Errorf("%s: la caja (%d) es más angosta que su panel (%d)", name, b.w, pw)
+					}
+				}
+			}
+		}
+	}
+}

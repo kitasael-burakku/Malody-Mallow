@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
 
@@ -17,29 +18,19 @@ const (
 	minHeight = 12
 )
 
-func (m *Model) libFilterVisible() bool {
-	return (m.filterMode && m.focus == panelLibrary) || m.tree.filter != ""
-}
+// libPageH y queuePageH son las filas de lista visibles del panel. El
+// filtro ya no se come ninguna: confirmado, va en el borde inferior; mientras
+// se escribe, la caja flotante tapa las dos últimas filas por dentro (ver
+// filterBoxRect) y se descuentan para que el cursor nunca quede debajo.
+func (m *Model) libPageH() int { return m.pageH(panelLibrary) }
 
-func (m *Model) queueFilterVisible() bool {
-	return (m.filterMode && m.focus == panelQueue) || m.queueFilter != ""
-}
+func (m *Model) queuePageH() int { return m.pageH(panelQueue) }
 
-func (m *Model) libPageH() int {
-	h := m.layoutOf().topH - 2
-	if m.libFilterVisible() {
-		h--
-	}
-	if h < 1 {
-		h = 1
-	}
-	return h
-}
-
-func (m *Model) queuePageH() int {
-	h := m.layoutOf().topH - 2
-	if m.queueFilterVisible() {
-		h--
+func (m *Model) pageH(p panelID) int {
+	lay := m.layoutOf()
+	h := lay.topH - 2
+	if m.filterMode && m.focus == p && filterBoxRect(lay, p, m.width).w > 0 {
+		h -= filterBoxH - 1
 	}
 	if h < 1 {
 		h = 1
@@ -117,26 +108,93 @@ func (m *Model) View() string {
 		parts = append(parts, m.nowPanel(m.width, lay.nowH))
 	}
 	parts = append(parts, m.footer())
-	return lipgloss.JoinVertical(lipgloss.Left, parts...)
+	out := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	if m.filterMode {
+		if b := filterBoxRect(lay, m.focus, m.width); b.w > 0 {
+			out = overlayAt(out, m.filterBoxView(b.w), b.x, b.y)
+		}
+	}
+	return out
+}
+
+// filterBoxView dibuja la caja flotante del filtro `/`: el input, y en el
+// borde cuántas pistas pasan de cuántas hay.
+func (m *Model) filterBoxView(w int) string {
+	innerW := w - 2
+	// Ancho fijado EN CADA RENDER, como el input de la consola y el del
+	// picker desde la 1.12.1: textinput sin Width (o con uno mayor que su
+	// caja) emite el valor completo y rompe el borde mientras se escribe.
+	// View() mide prompt + Width + 1 (la celda del cursor), y el -2 deja una
+	// de aire: con el input justo al ras, clip() lo trataba como desbordado y
+	// pintaba un "…" fijo en el borde derecho de la caja (visto en vivo).
+	m.filterInput.Width = innerW - lipgloss.Width(m.filterInput.Prompt) - 2
+	if m.filterInput.Width < 1 {
+		m.filterInput.Width = 1
+	}
+	// Pistas que pasan de cuántas hay. Sin filtro, las filas del árbol son
+	// artistas y álbumes, no pistas: pasan todas.
+	shown, total := len(m.tree.rows), len(m.tree.all)
+	if m.tree.filter == "" {
+		shown = total
+	}
+	if m.focus == panelQueue {
+		shown, total = len(m.visibleQueue()), len(m.queue)
+	}
+	lb := frameLabels{title: i18n.T("tui.filter_title"), right: fmt.Sprintf("%d/%d", shown, total)}
+	return m.st.frame(lb, []string{clip(m.filterInput.View(), innerW)}, w, filterBoxH, true)
+}
+
+// hlRow pinta una fila ya recortada: las runas marcadas (ver
+// filterQuery.highlight) con hl y el resto con base, rellenando con base
+// hasta w. Se arma por tramos con el estilo de la fila y no anidando Render:
+// un Render dentro de otro corta el fondo de la fila seleccionada en el
+// primer reset.
+func hlRow(text string, marks []bool, base, hl lipgloss.Style, w int) string {
+	var b strings.Builder
+	var seg []rune
+	segHL := false
+	flush := func() {
+		if len(seg) == 0 {
+			return
+		}
+		if segHL {
+			b.WriteString(hl.Render(string(seg)))
+		} else {
+			b.WriteString(base.Render(string(seg)))
+		}
+		seg = seg[:0]
+	}
+	for i, r := range []rune(text) {
+		on := i < len(marks) && marks[i]
+		if on != segHL {
+			flush()
+			segHL = on
+		}
+		seg = append(seg, r)
+	}
+	flush()
+	out := b.String()
+	if gap := w - lipgloss.Width(out); gap > 0 {
+		out += base.Render(strings.Repeat(" ", gap))
+	}
+	return out
+}
+
+// hlStyle es el estilo de una coincidencia sobre una fila con estilo base:
+// subrayada siempre y, sobre una fila normal, además en accent. En la
+// seleccionada y en la que suena se conserva el color: allí el color ya
+// significa algo.
+func (m *Model) hlStyle(base lipgloss.Style, plain bool) lipgloss.Style {
+	if plain {
+		return base.Foreground(lipgloss.Color(m.st.theme.Accent)).Underline(true)
+	}
+	return base.Underline(true)
 }
 
 func (m *Model) libraryPanel(w, h int) string {
 	innerW := w - 2
 	focused := m.focus == panelLibrary
 	var lines []string
-	if m.libFilterVisible() {
-		if m.filterMode && focused {
-			// Ancho fijado EN CADA RENDER, como el input de la consola y el
-			// del picker desde la 1.12.1: el panel de biblioteca ya no es
-			// media pantalla sino ~30 celdas fijas, y textinput sin Width
-			// (o con uno mayor que su caja) emite el valor completo y rompe
-			// el borde mientras se escribe.
-			m.filterInput.Width = innerW - 2
-			lines = append(lines, clip(m.filterInput.View(), innerW))
-		} else {
-			lines = append(lines, m.st.accent.Render(clip("/"+m.tree.filter, innerW)))
-		}
-	}
 	pageH := m.libPageH()
 	rows := m.tree.rows
 	if len(rows) == 0 {
@@ -180,13 +238,21 @@ func (m *Model) libraryPanel(w, h int) string {
 				style = m.st.accent
 			}
 		}
-		if n.kind == trackNode && n.track.Path == playingPath {
+		playing := n.kind == trackNode && n.track.Path == playingPath
+		if playing {
 			style = m.st.playing
 		}
 		line := clip(text, innerW)
-		if i == m.tree.cursor && focused {
-			line = m.st.selected.Render(padTo(line, innerW))
-		} else {
+		var marks []bool
+		if m.tree.filter != "" {
+			marks = m.tree.query.highlight(text) // text es la etiqueta tal cual
+		}
+		switch {
+		case i == m.tree.cursor && focused:
+			line = hlRow(line, marks, m.st.selected, m.hlStyle(m.st.selected, false), innerW)
+		case marks != nil:
+			line = hlRow(line, marks, style, m.hlStyle(style, !playing), innerW)
+		default:
 			line = style.Render(line)
 		}
 		lines = append(lines, line)
@@ -199,7 +265,7 @@ func (m *Model) libraryPanel(w, h int) string {
 	if focused && len(rows) > 0 {
 		title = i18n.Tf("tui.lib_title_pos", len(m.tree.all), m.tree.cursor+1, len(rows))
 	}
-	return m.st.panel(title, lines, w, h, focused)
+	return m.st.frame(frameLabels{title: title, foot: filterFoot(m.tree.filter)}, lines, w, h, focused)
 }
 
 func marker(expanded bool) string {
@@ -213,14 +279,6 @@ func (m *Model) queuePanel(w, h int) string {
 	innerW := w - 2
 	focused := m.focus == panelQueue
 	var lines []string
-	if m.queueFilterVisible() {
-		if m.filterMode && focused {
-			m.filterInput.Width = innerW - 2
-			lines = append(lines, clip(m.filterInput.View(), innerW))
-		} else {
-			lines = append(lines, m.st.accent.Render(clip("/"+m.queueFilter, innerW)))
-		}
-	}
 	vis := m.visibleQueue()
 	if len(vis) == 0 {
 		// Mismo motivo que en libraryPanel: el mensaje es más ancho que un
@@ -246,7 +304,14 @@ func (m *Model) queuePanel(w, h int) string {
 			mark = "▶ "
 			style = m.st.playing.Bold(true)
 		}
-		line := fmt.Sprintf("%s%3d. %s", mark, real+1, name)
+		prefix := fmt.Sprintf("%s%3d. ", mark, real+1)
+		line := prefix + name
+		var marks []bool
+		if m.queueFilter != "" {
+			if nm := m.queueVisQuery.highlight(name); nm != nil {
+				marks = append(make([]bool, utf8.RuneCountInString(prefix)), nm...)
+			}
+		}
 		if dur := ipc.FmtTime(t.Duration); t.Duration > 0 && innerW > len(dur)+12 {
 			// Duración aprendida, alineada a la derecha. El hueco se mide
 			// sobre la izquierda YA recortada (una sola fuente de ancho:
@@ -258,12 +323,20 @@ func (m *Model) queuePanel(w, h int) string {
 				gap = 1
 			}
 			line = left + strings.Repeat(" ", gap) + dur
+			// Las marcas cubren el nombre COMPLETO; recortado, lo que sigue
+			// es el hueco y la duración, que no se resaltan.
+			if n := utf8.RuneCountInString(left); len(marks) > n {
+				marks = marks[:n]
+			}
 		} else {
 			line = clip(line, innerW)
 		}
-		if v == m.queueCursor && focused {
-			line = m.st.selected.Render(padTo(line, innerW))
-		} else {
+		switch {
+		case v == m.queueCursor && focused:
+			line = hlRow(line, marks, m.st.selected, m.hlStyle(m.st.selected, false), innerW)
+		case marks != nil:
+			line = hlRow(line, marks, style, m.hlStyle(style, real != curIdx), innerW)
+		default:
 			line = style.Render(line)
 		}
 		lines = append(lines, line)
@@ -272,7 +345,15 @@ func (m *Model) queuePanel(w, h int) string {
 	if focused && len(vis) > 0 {
 		title = i18n.Tf("tui.queue_title_pos", len(m.queue), m.queueCursor+1, len(vis))
 	}
-	return m.st.panel(title, lines, w, h, focused)
+	return m.st.frame(frameLabels{title: title, foot: filterFoot(m.queueFilter)}, lines, w, h, focused)
+}
+
+// filterFoot es la etiqueta del borde inferior con el filtro confirmado.
+func filterFoot(f string) string {
+	if f == "" {
+		return ""
+	}
+	return "/" + f
 }
 
 var vizBlocks = []rune(" ▁▂▃▄▅▆▇█")

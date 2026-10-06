@@ -192,3 +192,53 @@ func (m *Model) layoutOf() layout {
 		banner: m.cfg.Theme.Banner,
 	})
 }
+
+// filterBox es dónde flota la caja del filtro `/`: x/y de su esquina superior
+// izquierda en la pantalla y su ancho. Alto fijo: filterBoxH. w == 0 = no
+// hay sitio para dibujarla.
+type filterBox struct{ x, y, w int }
+
+const (
+	// filterBoxH: borde, input y borde.
+	filterBoxH = 3
+	// filterBoxMinW: la biblioteca mide 26-34, y ahí la consulta apenas se
+	// lee. La caja se ensancha hasta esto aunque invada la columna vecina,
+	// que no tiene el foco.
+	filterBoxMinW = 44
+)
+
+// filterBoxRect ubica la caja del filtro para el panel enfocado. Es parte del
+// reparto de la pantalla y por eso vive acá, pura, junto a computeLayout.
+//
+// Va ABAJO, estilo fzf (decisión del dueño): su borde inferior cae sobre el de
+// la fila de paneles, así que tapa las dos últimas filas de la lista y no la
+// primera — los resultados, que crecen desde arriba, se quedan donde estaban
+// y la lista no se desplaza al abrir el filtro. Las dos filas tapadas las
+// descuentan libPageH/queuePageH mientras se escribe, para que el cursor
+// nunca quede debajo.
+//
+// NUNCA entra en la tercera columna: ahí viven la carátula y las letras, y la
+// carátula de kitty lleva escapes que no se pueden partir (ver compose.go).
+func filterBoxRect(l layout, focus panelID, w int) filterBox {
+	if l.topH < filterBoxH+1 { // sin sitio bajo el borde superior del panel
+		return filterBox{}
+	}
+	var b filterBox
+	b.y = l.bannerH + l.topH - filterBoxH
+	pw := l.libW
+	if focus == panelQueue {
+		pw = l.queueW
+		if l.mode != layoutSingle {
+			b.x = l.libW
+		}
+	}
+	right := w // hasta dónde puede llegar la caja
+	if l.mode == layoutFull {
+		right = l.libW + l.queueW
+	}
+	b.w = min(max(pw, filterBoxMinW), right-b.x)
+	if b.w < 4 {
+		return filterBox{}
+	}
+	return b
+}

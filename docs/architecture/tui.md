@@ -82,6 +82,48 @@ posiciones) las fijan los tests de `queuekeys_test.go`, que hasta A-27 no
 existían: el layout estaba barrido por tabla y la máquina de estados que
 decide qué pista se toca no tenía ninguno.
 
+El **filtro `/`** (2026-10-05) es una caja que FLOTA sobre la vista principal,
+no un modal: lo que filtra es justo lo que tiene debajo, así que no entra en
+el enum `overlay` y sigue siendo `filterMode`. Antes era una fila dentro del
+panel que empujaba la lista hacia abajo, y se quedaba ahí mientras durara el
+filtro. Va ABAJO, estilo fzf (decisión del dueño): `filterBoxRect` (`layout.go`,
+pura, barrida con la tabla de layout) apoya su borde inferior sobre el de la
+fila de paneles, así que tapa las dos últimas filas de la lista y no la
+primera. `libPageH`/`queuePageH` las descuentan solo mientras se escribe;
+confirmado con enter, el filtro pasa al borde inferior del panel
+(`frameLabels.foot`) y no se come ninguna fila. Se ensancha hasta 44 celdas
+aunque invada la columna vecina (la biblioteca mide 26-34), pero **nunca entra
+en la tercera columna**: ahí está la carátula de kitty. Superponer es
+`overlayAt` (`compose.go`), con un corte PROPIO y no `x/ansi.Truncate`, por
+dos motivos. Truncate conserva también los escapes posteriores al corte, y
+con la carátula en la fila eso transmitiría la imagen dos veces. Y un carácter
+ancho partido lo descarta o lo cuela entero, así que la fila deja de medir el
+ancho del terminal. El corte propio rellena con espacios y, del tramo tapado,
+solo rescata los SGR.
+
+El lenguaje vive en `filter.go`, que también es puro:
+
+- Las palabras van con AND, sobre título, artista, álbum y **nombre de
+  archivo** (sin carpeta ni extensión; solo se busca en él, nunca se pinta, así
+  que `Path` sigue sin pasar por safetext).
+- Hay prefijos `a:`/`al:`/`t:`/`f:` y `-negación`.
+- Una subcadena puntúa por encima de cualquier coincidencia difusa, y el
+  resultado se ordena por puntuación (estable).
+- Lo difuso tiene dos límites, y los dos existen para que el filtro siga
+  filtrando: necesita 3 runas o más, y va siempre dentro de UN campo. Sobre la
+  concatenación de los cuatro, tres letras sueltas aparecen en casi cualquier
+  pista.
+- La negación es solo por subcadena: un `-xyz` difuso excluiría casi todo.
+
+El orden por puntuación no rompe la cola: `queueCursor` ya indexaba la lista
+VISIBLE y `visibleQueue()` devuelve índices reales (lo fija
+`TestColaFiltradaOrdenadaRemueveLaCorrecta`). Como ahora filtrar cuesta un
+sort, el resultado se cachea en `queueVis` y se invalida cuando se reconstruye
+`queueFolded`, es decir, con cada cambio de la cola. El resaltado
+(`filterQuery.highlight`) pliega RUNA A RUNA: `Fold` sobre la cadena entera
+se come las marcas combinantes de un texto NFD (habitual en archivos venidos
+de macOS) y corre todas las posiciones.
+
 El aviso del demonio (`Status.Notice`: pista saltada, cola detenida por
 errores) se pinta como flash de error, pero SOLO al cambiar: los pushes llegan
 varias veces por segundo y el aviso persiste hasta la siguiente carga sana, así

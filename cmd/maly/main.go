@@ -102,8 +102,8 @@ func runControls(args []string) error {
 		if !config.ValidPreset(active) {
 			active = "default"
 		}
-		accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
-		dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+		accent := lipgloss.NewStyle().Foreground(clrAccent).Bold(true)
+		dim := lipgloss.NewStyle().Foreground(clrDim)
 		fmt.Println(accent.Render(i18n.T("cli.controls_head")))
 		for _, name := range config.PresetNames() {
 			mark := "  "
@@ -137,8 +137,8 @@ func runLogo(args []string) error {
 		if err != nil {
 			return err
 		}
-		accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
-		dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+		accent := lipgloss.NewStyle().Foreground(clrAccent).Bold(true)
+		dim := lipgloss.NewStyle().Foreground(clrDim)
 		fmt.Println(accent.Render(i18n.T("cli.logo_current")) + " " + strings.Join(cfg.Theme.Logo, " "))
 		fmt.Println(dim.Render(i18n.T("cli.logo_usage")))
 		return nil

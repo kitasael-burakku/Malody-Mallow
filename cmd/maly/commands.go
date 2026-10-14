@@ -170,9 +170,9 @@ var helpSections = []struct {
 // secciones coloreadas, ejemplos y atajos de la TUI. lipgloss quita los
 // colores si stdout no es un terminal.
 func helpText() string {
-	accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
-	cmdSt := lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1"))
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+	accent := lipgloss.NewStyle().Foreground(clrAccent).Bold(true)
+	cmdSt := lipgloss.NewStyle().Foreground(clrCmd)
+	dim := lipgloss.NewStyle().Foreground(clrDim)
 	bold := lipgloss.NewStyle().Bold(true)
 
 	var b strings.Builder

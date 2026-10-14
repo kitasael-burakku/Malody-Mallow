@@ -23,8 +23,8 @@ import (
 func runConfig([]string) error {
 	cfg, cfgErr := config.Load()
 
-	accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+	accent := lipgloss.NewStyle().Foreground(clrAccent).Bold(true)
+	dim := lipgloss.NewStyle().Foreground(clrDim)
 	unset := dim.Render(i18n.T("info.unset"))
 
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)

@@ -84,12 +84,12 @@ func runDoctor([]string) error {
 		checks = append(checks, check{lvlWarn, i18n.T("doc.lbl_config"), i18n.Tf("info.config_err", cfgErr), nil})
 	}
 
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+	dim := lipgloss.NewStyle().Foreground(clrDim)
 	marks := map[level]string{
-		lvlOK:   lipgloss.NewStyle().Foreground(lipgloss.Color("#a6e3a1")).Render("ok"),
+		lvlOK:   lipgloss.NewStyle().Foreground(clrCmd).Render("ok"),
 		lvlInfo: dim.Render("info"),
-		lvlWarn: lipgloss.NewStyle().Foreground(lipgloss.Color("#f9e2af")).Render("warn"),
-		lvlFail: lipgloss.NewStyle().Foreground(lipgloss.Color("#f38ba8")).Bold(true).Render("fail"),
+		lvlWarn: lipgloss.NewStyle().Foreground(clrWarn).Render("warn"),
+		lvlFail: lipgloss.NewStyle().Foreground(clrFail).Bold(true).Render("fail"),
 	}
 
 	// La etiqueta (columna del medio) va sin color: tabwriter mide las celdas

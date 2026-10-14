@@ -51,8 +51,8 @@ func runInfo([]string) error {
 	// un config ilegible es justo lo que este comando debe ayudar a ver.
 	cfg, cfgErr := config.Load()
 
-	accent := lipgloss.NewStyle().Foreground(lipgloss.Color("#89b4fa")).Bold(true)
-	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("#6c7086"))
+	accent := lipgloss.NewStyle().Foreground(clrAccent).Bold(true)
+	dim := lipgloss.NewStyle().Foreground(clrDim)
 
 	w := tabwriter.NewWriter(os.Stdout, 2, 4, 2, ' ', 0)
 	// Las etiquetas (primera columna) van SIN color: tabwriter mide las celdas

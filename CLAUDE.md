@@ -230,8 +230,9 @@ tomadas.
 
 ## Estado actual
 
-**v1.19.1** (`internal/version/version.go`): el filtro `/` flotante y el
-arreglo de la posición MPRIS. Es una feature con número de parche por
+**v1.19.2** (`internal/version/version.go`): la salida de la CLI legible en
+terminales de fondo claro. La 1.19.1 trajo el filtro `/` flotante y el
+arreglo de la posición MPRIS, y es una feature con número de parche por
 decisión del dueño. Ojo con los tags: la **1.16.4 se
 dejó sin tag A PROPÓSITO** (decisión del dueño) — fue un puente a la 1.17.0,
 que salió el día siguiente con la Phase 1 entera. Tiene su commit de bump y su

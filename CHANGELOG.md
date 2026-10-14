@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.2 — 2026-10-14
+
+- **La salida de la CLI se lee en terminales de fondo claro.** En `maly help`
+  el verde de los comandos y el gris de las notas apenas se veían sobre un
+  fondo claro. Ahora maly le pregunta al terminal de qué color es el fondo y
+  usa colores oscuros cuando es claro. Lo mismo vale para `info`, `config`,
+  `doctor`, `controls` y `logo`. Si el terminal no contesta (dentro de tmux,
+  por ejemplo), se queda con los colores de siempre.
+
 ## v1.19.1 — 2026-10-05
 
 - **Un filtro `/` nuevo.** Antes era una fila que empujaba la lista hacia

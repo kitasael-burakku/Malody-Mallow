@@ -2,6 +2,28 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.2 (2026-10-14) — la CLI legible en fondo claro
+
+Un solo arreglo, señalado por el dueño con una captura de `maly help` en un
+terminal claro: el verde de los comandos (`#a6e3a1`) y el gris de las notas
+(`#6c7086`) casi no se distinguían del fondo. La CLI fijaba colores de
+Catppuccin Mocha, pensados solo para fondo oscuro, y los repetía en seis
+sitios (help, info, config, doctor, controls y logo).
+
+La paleta pasa a `cmd/maly/style.go` como `lipgloss.AdaptiveColor`: Mocha
+para fondo oscuro y Latte para claro. lipgloss resuelve el lado con una
+consulta OSC 11, y solo si stdout es un terminal. Bajo tmux termenv ni
+siquiera pregunta y asume oscuro, que es el comportamiento anterior, así que
+nadie pierde nada.
+
+La TUI no cambia: sus colores salen del tema del config (`[theme]`), que el
+usuario ya controla. Esto solo afectaba a la salida de la CLI.
+
+Sin test dedicado: es un cambio de presentación, como los de solo texto. Se
+comprobó forzando `SetHasDarkBackground` en las dos direcciones (dan
+`38;2;166;227;161` y `38;2;64;160;43` respectivamente) y en vivo, en el
+terminal del dueño.
+
 ## v1.19.1 (2026-10-05) — el filtro `/` flota, y el arreglo de MPRIS llega a todos
 
 Dos piezas. La primera es el **filtro `/` rehecho**: era una fila dentro del

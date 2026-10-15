@@ -36,3 +36,37 @@ func TestPlaylistAdded(t *testing.T) {
 		t.Errorf("el mensaje no salió de la tabla de i18n: %q en los dos idiomas", en)
 	}
 }
+
+// TestNoMatchUnaLinea: los saltados de un lote se nombran entre comillas y en
+// UNA línea (la consola pinta el mensaje dentro de un panel), y la coletilla
+// solo aparece si hubo alguno.
+func TestNoMatchUnaLinea(t *testing.T) {
+	got := WithNoMatch("es", "2 pista(s) agregadas a la cola", []string{"nada", "Otra cosa"})
+	want := `2 pista(s) agregadas a la cola; ` + i18n.TLf("es", "batch.no_match", `"nada", "Otra cosa"`)
+	if got != want {
+		t.Errorf("WithNoMatch = %q\nquería        %q", got, want)
+	}
+	if strings.Contains(got, "\n") {
+		t.Errorf("debe caber en una línea: %q", got)
+	}
+	if got := WithNoMatch("es", "hecho", nil); got != "hecho" {
+		t.Errorf("sin saltados no hay coletilla, dio %q", got)
+	}
+}
+
+// TestPlaylistNoTracks: con una consulta, el error de siempre; con varias,
+// todas nombradas; sin ninguna (todas en blanco), el uso.
+func TestPlaylistNoTracks(t *testing.T) {
+	prev := i18n.Code()
+	t.Cleanup(func() { i18n.Set(prev) })
+	i18n.Set("es")
+	if got, want := PlaylistNoTracks([]string{"luna"}).Error(), i18n.Tf("pl.no_results", "luna"); got != want {
+		t.Errorf("una consulta: %q, quería %q", got, want)
+	}
+	if got, want := PlaylistNoTracks([]string{"a", "b"}).Error(), NoMatch("", []string{"a", "b"}); got != want {
+		t.Errorf("varias: %q, quería %q", got, want)
+	}
+	if got, want := PlaylistNoTracks(nil).Error(), i18n.T("pl.usage_add"); got != want {
+		t.Errorf("ninguna: %q, quería %q", got, want)
+	}
+}

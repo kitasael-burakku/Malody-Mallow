@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"maly/internal/i18n"
@@ -17,13 +18,42 @@ import (
 
 // Request es una petición del cliente al demonio.
 type Request struct {
-	Cmd   string   `json:"cmd"`
-	Query string   `json:"query,omitempty"` // play/add/search: consulta o ruta
-	Value string   `json:"value,omitempty"` // vol/seek/repeat/shuffle: argumento
-	Index int      `json:"index,omitempty"` // remove/jump/move: posición en la cola
-	To    int      `json:"to,omitempty"`    // move: posición destino
-	Paths []string `json:"paths,omitempty"` // add/playnow: rutas exactas (TUI)
-	Lang  string   `json:"lang,omitempty"`  // idioma del cliente; el demonio responde en él
+	Cmd     string   `json:"cmd"`
+	Query   string   `json:"query,omitempty"`   // play/add/search: consulta o ruta
+	Queries []string `json:"queries,omitempty"` // play/add: varias consultas o rutas (ver SetQueries)
+	Value   string   `json:"value,omitempty"`   // vol/seek/repeat/shuffle: argumento
+	Index   int      `json:"index,omitempty"`   // remove/jump/move: posición en la cola
+	To      int      `json:"to,omitempty"`      // move: posición destino
+	Paths   []string `json:"paths,omitempty"`   // add/playnow: rutas exactas (TUI)
+	Lang    string   `json:"lang,omitempty"`    // idioma del cliente; el demonio responde en él
+}
+
+// SetQueries carga en la petición las consultas de un play/add, una por
+// argumento (`maly add Secreto "Otra dimension"`). Con UNA sola viaja en
+// Query, como siempre: así el caso de toda la vida sigue funcionando contra
+// un demonio anterior a Queries. Con varias van en Queries, que un demonio
+// viejo ignora — y la CLI ya avisa del binario distinto.
+func (r *Request) SetQueries(qs []string) {
+	r.Query, r.Queries = "", nil
+	switch len(qs) {
+	case 0:
+	case 1:
+		r.Query = qs[0]
+	default:
+		r.Queries = qs
+	}
+}
+
+// QueryList es el inverso de SetQueries, para el demonio: Queries si viene,
+// si no Query sola, y nada si Query está en blanco.
+func (r Request) QueryList() []string {
+	if len(r.Queries) > 0 {
+		return r.Queries
+	}
+	if strings.TrimSpace(r.Query) != "" {
+		return []string{r.Query}
+	}
+	return nil
 }
 
 // TrackInfo es la vista serializable de una pista.

@@ -1,7 +1,10 @@
 package ipc
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"maly/internal/i18n"
 )
@@ -55,4 +58,41 @@ func PlaylistAdded(added, dup int, name string) string {
 		return i18n.Tf("pl.added_dup", added, name, dup)
 	}
 	return i18n.Tf("pl.added", added, name)
+}
+
+// NoMatch nombra las consultas de un lote (play/add/playlist add con varios
+// argumentos) que no encontraron nada, en una sola línea: la consola pinta
+// el mensaje dentro de un panel y un salto de línea le parte la caja. Es el
+// mismo texto para el demonio y para las playlists, y por eso vive aquí.
+// lang "" es el idioma del proceso.
+func NoMatch(lang string, qs []string) string {
+	quoted := make([]string, len(qs))
+	for i, q := range qs {
+		quoted[i] = strconv.Quote(q)
+	}
+	return i18n.TLf(lang, "batch.no_match", strings.Join(quoted, ", "))
+}
+
+// WithNoMatch le anexa a msg las consultas de un lote que se saltaron, si
+// las hay: el comando tuvo éxito, pero no entero. Es la coletilla común de
+// add/play en el demonio y de `playlist add` en la CLI y la consola.
+func WithNoMatch(lang, msg string, missed []string) string {
+	if len(missed) == 0 {
+		return msg
+	}
+	return msg + "; " + NoMatch(lang, missed)
+}
+
+// PlaylistNoTracks es el error de un `playlist add` cuyas consultas no
+// juntaron ni una pista (missed, de library.SearchEach). Con una sola
+// consulta es el mensaje de siempre; sin ninguna, todas venían en blanco y
+// lo que falta es la consulta misma.
+func PlaylistNoTracks(missed []string) error {
+	switch len(missed) {
+	case 0:
+		return errors.New(i18n.T("pl.usage_add"))
+	case 1:
+		return errors.New(i18n.Tf("pl.no_results", missed[0]))
+	}
+	return errors.New(NoMatch("", missed))
 }

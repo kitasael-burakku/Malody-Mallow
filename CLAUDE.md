@@ -216,7 +216,9 @@ tomadas.
   `safetext` en `x/ansi.Strip`; `gonum` se queda (65 KB reales en el binario).
 - **CLI**: sin parser de flags (todo es subcomando), sin salida JSON, sin
   `maly report`, sin `status --verbose`, sin escape para la guarda de scan
-  vacío, sin `playlist move`.
+  vacío, sin `playlist move`. Varios argumentos solo en `play`/`add`/
+  `playlist add` (una consulta por argumento); sin `remove` en lote y sin
+  heurística que adivine frase o lista.
 - **TUI**: sin ratón; sin marquesina en las letras; `computeLayout` no vuelve
   dentro de `View()`; la barra de progreso no vuelve a la columna.
 - **Temas**: Matugen está revertido entero y no vuelve; sin `#rrggbbaa`; el
@@ -230,8 +232,9 @@ tomadas.
 
 ## Estado actual
 
-**v1.19.2** (`internal/version/version.go`): la salida de la CLI legible en
-terminales de fondo claro. La 1.19.1 trajo el filtro `/` flotante y el
+**v1.19.3** (`internal/version/version.go`): consultas en lote en `play`,
+`add` y `playlist add`, también en la consola ctrl+p. La 1.19.2 hizo legible
+la CLI en terminales de fondo claro. La 1.19.1 trajo el filtro `/` flotante y el
 arreglo de la posición MPRIS, y es una feature con número de parche por
 decisión del dueño. Ojo con los tags: la **1.16.4 se
 dejó sin tag A PROPÓSITO** (decisión del dueño) — fue un puente a la 1.17.0,

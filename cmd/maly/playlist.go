@@ -163,14 +163,16 @@ func runPlaylist(args []string) error {
 		if len(args) < 2 {
 			return errors.New(i18n.T("pl.usage_add"))
 		}
+		// Como en add: una consulta por argumento (`playlist add favs
+		// Secreto "Otra dimension"`); las que no encuentran nada se nombran
+		// y no cancelan las demás.
 		name := args[0]
-		query := strings.Join(args[1:], " ")
-		tracks, err := lib.Search(query)
+		tracks, missed, err := lib.SearchEach(args[1:])
 		if err != nil {
 			return err
 		}
 		if len(tracks) == 0 {
-			return errors.New(i18n.Tf("pl.no_results", query))
+			return ipc.PlaylistNoTracks(missed)
 		}
 		ids := make([]int64, len(tracks))
 		for i, t := range tracks {
@@ -191,7 +193,7 @@ func runPlaylist(args []string) error {
 			}
 			return err
 		}
-		fmt.Println(ipc.PlaylistAdded(added, dup, name))
+		fmt.Println(ipc.WithNoMatch("", ipc.PlaylistAdded(added, dup, name), missed))
 		notifyRefresh()
 		return nil
 

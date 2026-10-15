@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -437,5 +438,44 @@ func TestDoDeadlineDelScan(t *testing.T) {
 				t.Errorf("%s: el deadline queda a %v, quería ~%v", tc.cmd, d, DefaultTimeout)
 			}
 		}
+	}
+}
+
+// TestSetQueriesCompatible: una sola consulta viaja en Query, como antes de
+// los lotes, para que el caso de siempre siga funcionando contra un demonio
+// anterior a Queries; varias viajan en Queries. QueryList es el inverso que
+// usa el demonio, y una Query en blanco no es ninguna consulta (play sin
+// argumentos = reanudar).
+func TestSetQueriesCompatible(t *testing.T) {
+	casos := []struct {
+		in      []string
+		query   string
+		queries []string
+		json    string
+	}{
+		{nil, "", nil, `{"cmd":"add"}`},
+		{[]string{"luna"}, "luna", nil, `{"cmd":"add","query":"luna"}`},
+		{[]string{"Secreto", "Otra dimension"}, "", []string{"Secreto", "Otra dimension"},
+			`{"cmd":"add","queries":["Secreto","Otra dimension"]}`},
+	}
+	for _, c := range casos {
+		r := Request{Cmd: "add", Query: "sobra", Queries: []string{"sobra"}}
+		r.SetQueries(c.in)
+		if r.Query != c.query || !reflect.DeepEqual(r.Queries, c.queries) {
+			t.Errorf("SetQueries(%q) = Query %q, Queries %q", c.in, r.Query, r.Queries)
+		}
+		b, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(b) != c.json {
+			t.Errorf("SetQueries(%q) viaja como %s, quería %s", c.in, b, c.json)
+		}
+		if got := r.QueryList(); !reflect.DeepEqual(got, c.in) {
+			t.Errorf("QueryList tras SetQueries(%q) = %q", c.in, got)
+		}
+	}
+	if got := (Request{Query: "  "}).QueryList(); got != nil {
+		t.Errorf("una Query en blanco no es una consulta: %q", got)
 	}
 }

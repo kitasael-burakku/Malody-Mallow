@@ -16,7 +16,33 @@ resolverla él anunciaba una ruta y escaneaba otra. Al agregar un subcomando de 
 fija de `TestCompletePlaylistSubs`. El completado de pistas pide con TOPE
 (`library.SearchLimit`, `completeFetch` filas) y no con `Search`: la palabra
 parcial vacía es la consulta que recorre la biblioteca entera, y un TAB no
-puede materializarla para mostrar treinta líneas — ver la 1.7.3. `get.go` es el wrapper de yt-dlp
+puede materializarla para mostrar treinta líneas — ver la 1.7.3.
+
+**Consultas en lote.** `play`, `add` y `playlist add` toman UNA consulta por
+argumento (`maly add Secreto "Otra dimension"`): la shell ya respetó las
+comillas, y una frase de varias palabras es un solo argumento. Antes se
+unían todos en una frase, así que `maly add daft punk` pasó de «las pistas
+con daft Y punk» a «las de daft más las de punk» — ruptura aceptada por el
+dueño, porque la shell oculta las comillas y no hay forma de tener las dos
+lecturas (ver `docs/decisions/no-hacer.md`, «CLI y consola»). Las reglas:
+`resolveQueryPath` se aplica POR ARGUMENTO (unida a otra, una ruta dejaría de
+existir), los argumentos en blanco no cuentan (`Search("")` es la biblioteca
+entera), y en el cable `ipc.Request.SetQueries` manda una sola consulta en
+`Query` —el caso de siempre funciona contra un demonio anterior— y varias en
+`Queries`. Una consulta que no encuentra nada se SALTA y se nombra en la
+misma línea (`ipc.WithNoMatch`): son independientes y cancelar todo por una
+errata obligaría a reescribir las buenas. Si no queda ninguna pista hay
+error (y salida 1); con alguna, éxito y salida 0. Un fallo real de la
+biblioteca cancela el lote con su error original, antes de mutar la cola o
+playlist; no se presenta como una consulta sin coincidencias. El orden es el
+de los argumentos, y una pista que ya trajo un argumento anterior no se repite
+dentro del lote; contra la cola o la playlist existentes se trata como
+siempre (la cola admite repetidas; `playlist add` las cuenta, A-23).
+`playlist add` resuelve con `library.SearchEach` y el mensaje sin pistas es
+`ipc.PlaylistNoTracks`, compartidos con la consola. El completado de pistas
+busca SOLO la palabra parcial: los argumentos anteriores son otras canciones.
+
+`get.go` es el wrapper de yt-dlp
 (filosofía "como lazygit usa git": maly coordina herramientas externas, no
 las reimplementa): descarga MP3 con metadata/carátula embebidas a `music_dir`
 y re-escanea (vía IPC si el demonio responde, directo a la DB si no);

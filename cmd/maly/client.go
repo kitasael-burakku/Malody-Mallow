@@ -115,12 +115,16 @@ func buildRequest(cmd string, args []string) (ipc.Request, error) {
 	req := ipc.Request{Cmd: cmd}
 	switch cmd {
 	case "play":
-		req.Query = resolveQueryPath(strings.Join(args, " "))
+		// Cada argumento es una consulta o ruta independiente: la shell ya
+		// respetó las comillas, así que `maly add Secreto "Otra dimension"`
+		// llega como dos. Una frase de varias palabras va entre comillas.
+		req.SetQueries(queryItems(args))
 	case "add":
-		if len(args) == 0 {
+		items := queryItems(args)
+		if len(items) == 0 {
 			return req, errors.New(i18n.T("cli.usage_add_cmd"))
 		}
-		req.Query = resolveQueryPath(strings.Join(args, " "))
+		req.SetQueries(items)
 	case "jump":
 		// El usuario indica la posición 1-based que muestra `maly queue`;
 		// el servicio usa índices 0-based y valida el rango.
@@ -174,6 +178,19 @@ func buildRequest(cmd string, args []string) (ipc.Request, error) {
 		}
 	}
 	return req, nil
+}
+
+// queryItems convierte los argumentos de play/add en consultas: uno por
+// argumento, cada uno con su ruta resuelta y sin los que estén en blanco
+// (`maly add x ""`).
+func queryItems(args []string) []string {
+	var out []string
+	for _, a := range args {
+		if q := resolveQueryPath(a); q != "" {
+			out = append(out, q)
+		}
+	}
+	return out
 }
 
 // resolveQueryPath absolutiza q si —y solo si— existe como ruta relativa al

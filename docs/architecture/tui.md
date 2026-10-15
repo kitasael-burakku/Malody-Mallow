@@ -41,7 +41,12 @@ mantiene a `maly search` encontrando por el título original, y por eso
 tampoco vive en `internal/safetext` (que es una frontera de SEGURIDAD, no
 cosmética). Paneles biblioteca/
 cola + consola ctrl+p (tabla propia de comandos en `console.go`, con paridad
-CLI completa: `playlist` en `console_playlist.go`, `get` vía
+CLI completa; la línea se parte con `splitArgs`, que hace de shell —comillas
+simples o dobles agrupan, para que `add Secreto 'Otra dimension'` sea el
+espejo de la CLI—, con tres diferencias deliberadas: una comilla solo abre al
+EMPEZAR un argumento, así que el apóstrofo de `Don't Stop` es texto, y una
+comilla sin cerrar es error porque no hay prompt de continuación, y la barra
+invertida es texto literal, no un escape; `playlist` en `console_playlist.go`, `get` vía
 `tea.ExecProcess` + `internal/getter` compartido con la CLI, `controls`
 aplica el preset en vivo recargando `m.keys`; `playlist delete` NO borra:
 arma `conPlConfirm` y lo resuelve la línea SIGUIENTE, que se consume pase

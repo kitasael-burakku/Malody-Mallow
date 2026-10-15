@@ -143,17 +143,19 @@ func completeControls(args []string, cur string) []string {
 }
 
 // completeTracks completa títulos desde la biblioteca (SQLite directo, sin
-// demonio). La consulta son TODAS las palabras ya escritas más la parcial:
-// play/add las unen igual, y Search es fold-aware — "lu" encuentra "La Luna".
-// Pide con tope (SearchLimit) porque la parcial vacía haría traer la
-// biblioteca entera para mostrar treinta líneas.
-func completeTracks(args []string, cur string) []string {
+// demonio). La consulta es SOLO la palabra parcial: play/add/playlist add
+// toman una consulta por argumento, así que los anteriores son otras
+// canciones y no deben filtrar esta. Search es fold-aware — "lu" encuentra
+// "La Luna" —, y el título elegido se inserta escapado como un único
+// argumento. Pide con tope (SearchLimit) porque la parcial vacía haría traer
+// la biblioteca entera para mostrar treinta líneas.
+func completeTracks(_ []string, cur string) []string {
 	lib, err := library.Open(config.DBPath())
 	if err != nil {
 		return nil
 	}
 	defer lib.Close()
-	tracks, err := lib.SearchLimit(strings.TrimSpace(strings.Join(args, " ")+" "+cur), completeFetch)
+	tracks, err := lib.SearchLimit(strings.TrimSpace(cur), completeFetch)
 	if err != nil {
 		return nil
 	}

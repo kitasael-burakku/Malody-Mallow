@@ -816,6 +816,40 @@ func (l *Library) SearchLimit(q string, limit int) ([]Track, error) {
 	return l.collect(query, args...)
 }
 
+// SearchEach busca cada consulta POR SEPARADO —`playlist add favs Secreto
+// "Otra dimension"`, una canción por argumento— y une los resultados en el
+// orden de las consultas, sin repetir una pista que ya trajo una consulta
+// anterior. missed son las que no encontraron nada, para nombrarlas: el
+// llamador decide si eso es un error (todas) o un aviso (algunas). Un fallo
+// de la base sí corta, porque no es «sin resultados».
+//
+// Una consulta en blanco (`""`) se ignora: para Search es la biblioteca
+// ENTERA, y un argumento vacío no puede volcarla en una playlist. Si todas
+// lo son, no hay ni pistas ni missed.
+func (l *Library) SearchEach(qs []string) (tracks []Track, missed []string, err error) {
+	seen := make(map[int64]bool)
+	for _, q := range qs {
+		if strings.TrimSpace(q) == "" {
+			continue
+		}
+		ts, err := l.Search(q)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(ts) == 0 {
+			missed = append(missed, q)
+			continue
+		}
+		for _, t := range ts {
+			if !seen[t.ID] {
+				seen[t.ID] = true
+				tracks = append(tracks, t)
+			}
+		}
+	}
+	return tracks, missed, nil
+}
+
 // All devuelve toda la biblioteca ordenada Artista > Álbum > pista.
 func (l *Library) All() ([]Track, error) {
 	return l.collect(`SELECT ` + trackCols + ` FROM tracks` + trackOrder)

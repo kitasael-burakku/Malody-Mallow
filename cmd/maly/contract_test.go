@@ -66,13 +66,19 @@ func TestRunClientParseo(t *testing.T) {
 		{cmd: "shuffle", args: []string{"on"}, quiere: ipc.Request{Cmd: "shuffle", Value: "on"}},
 		{cmd: "repeat", args: []string{"one"}, quiere: ipc.Request{Cmd: "repeat", Value: "one"}},
 
-		// play/add: la consulta son TODAS las palabras unidas por espacios,
-		// no solo la primera. add exige al menos una; play sin nada es
-		// "reanudar".
-		{cmd: "play", args: []string{"pink", "floyd"}, quiere: ipc.Request{Cmd: "play", Query: "pink floyd"}},
+		// play/add: UNA consulta por argumento — la shell ya agrupó las
+		// comillas —, y una frase de varias palabras es un solo argumento.
+		// Con una sola consulta viaja en Query (compatible con un demonio
+		// anterior); con varias, en Queries. Los argumentos en blanco no
+		// cuentan. add exige al menos uno; play sin nada es "reanudar".
+		{cmd: "play", args: []string{"pink floyd"}, quiere: ipc.Request{Cmd: "play", Query: "pink floyd"}},
+		{cmd: "play", args: []string{"pink", "floyd"}, quiere: ipc.Request{Cmd: "play", Queries: []string{"pink", "floyd"}}},
 		{cmd: "play", args: nil, quiere: ipc.Request{Cmd: "play"}},
-		{cmd: "add", args: []string{"dark", "side"}, quiere: ipc.Request{Cmd: "add", Query: "dark side"}},
+		{cmd: "add", args: []string{"dark side"}, quiere: ipc.Request{Cmd: "add", Query: "dark side"}},
+		{cmd: "add", args: []string{"Secreto", "Otra dimension"}, quiere: ipc.Request{Cmd: "add", Queries: []string{"Secreto", "Otra dimension"}}},
+		{cmd: "add", args: []string{"Secreto", "  "}, quiere: ipc.Request{Cmd: "add", Query: "Secreto"}},
 		{cmd: "add", args: nil, malo: true},
+		{cmd: "add", args: []string{""}, malo: true},
 
 		// Los que no llevan argumentos.
 		{cmd: "status", args: nil, quiere: ipc.Request{Cmd: "status"}},
@@ -128,6 +134,16 @@ func TestRunClientResuelveRutas(t *testing.T) {
 	}
 	if got.Query != "beatles" {
 		t.Errorf("una búsqueda de texto debía viajar tal cual; viajó %q", got.Query)
+	}
+
+	// En un lote, la ruta se resuelve POR ARGUMENTO: unida a los demás
+	// («<ruta> beatles») ya no existiría como ruta y viajaría sin resolver.
+	got, err = buildRequest("add", []string{filepath.Join(dir, "album"), "beatles"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{filepath.Join(dir, "album"), "beatles"}; !reflect.DeepEqual(got.Queries, want) {
+		t.Errorf("lote ruta + búsqueda: viajó %q, quería %q", got.Queries, want)
 	}
 }
 

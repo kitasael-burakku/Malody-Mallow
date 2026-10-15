@@ -101,3 +101,4 @@ precede.
 | — | La documentación reorganizada: `CLAUDE.md` como contrato operativo y `docs/` para el resto (commit `842bcdc`) |
 | 1.19.1 | El filtro `/` como caja flotante abajo (estilo fzf) con prefijos de campo, `-negación`, nombre de archivo, fuzzy con orden por puntuación y resaltado; composición de capas propia (`compose.go`) porque `x/ansi.Truncate` duplicaba escapes; y el arreglo de la posición MPRIS (`a24a2fc`) sale del parche del PKGBUILD |
 | 1.19.2 | La salida de la CLI legible en fondo claro: la paleta pasa a `cmd/maly/style.go` como `AdaptiveColor` (Mocha oscuro / Latte claro) en vez de seis copias de hex fijos de Mocha |
+| 1.19.3 | Consultas en lote en `play`/`add`/`playlist add`, comillas en ctrl+p, completado por argumento y separación entre consultas sin resultados y errores reales de la biblioteca |

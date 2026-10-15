@@ -2,6 +2,46 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.3 (2026-10-15) — consultas en lote
+
+`play`, `add` y `playlist add` pasan de unir los argumentos a resolverlos por
+separado. La regla, el orden, los duplicados, los mensajes y la compatibilidad
+de una sola consulta viven en `docs/architecture/cli.md`; la decisión de no
+adivinar entre frase y lista, en `docs/decisions/no-hacer.md`. Las comillas de
+ctrl+p y sus diferencias con la shell se describen en la ficha de la TUI.
+El número 1.19.3 continúa la serie actual por elección del dueño.
+
+**Lo que encontró la revisión previa a publicar.** `resolveAll` confundía
+cualquier error de `resolveTracks` con una consulta sin resultados. Con una
+base cerrada y una ruta válida, el lote devolvía éxito parcial y ocultaba
+`sql: database is closed`; con dos búsquedas, reemplazaba ese error por «sin
+resultados». `noTracksError` permite saltar solo las búsquedas sin
+coincidencias y los directorios sin audio, conservando los errores reales y
+cancelando antes de tocar la cola. `SearchEach`, usado por las playlists, ya
+conservaba los errores de SQLite.
+
+La ayuda de ctrl+p también conservaba la sintaxis de un solo argumento; ahora
+anuncia los lotes. Los README en ambos idiomas y el changelog explican la
+ruptura visible: una frase de varias palabras requiere comillas. El bump
+permite distinguir el cliente nuevo de un demonio anterior, que no entiende
+`Queries`; actualizar exige reiniciar el servicio.
+
+### Verificación
+
+`TestResolveAllPreservaErrorBiblioteca` reproduce el error con SQLite real
+cerrado, una ruta válida y ambos órdenes del lote, además del caso en que
+fallan todas las búsquedas. Se vio fallar compilando antes de la corrección
+y al restaurar temporalmente el código anterior; el arreglo se recuperó con
+`cp` de una copia.
+`TestResolveAllSaltaSoloSinResultados` comprueba el éxito parcial legítimo,
+los directorios vacíos, el fallo sin ninguna pista y los mensajes individuales
+en inglés y español.
+
+Pasan la suite completa con `CGO_ENABLED=0` y `go test -race -count=1 ./...`,
+ambas con mpv real y un bus D-Bus privado (`dbus-run-session`); también
+`go vet ./...` y `git diff --check`. El binario local se compiló sin CGo y
+`./maly help` confirma la versión 1.19.3 y la sintaxis de consultas en lote.
+
 ## v1.19.2 (2026-10-14) — la CLI legible en fondo claro
 
 Un solo arreglo, señalado por el dueño con una captura de `maly help` en un

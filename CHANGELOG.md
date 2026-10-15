@@ -7,6 +7,21 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.3 — 2026-10-15
+
+- **Varias canciones en un comando.** `play`, `add` y `playlist add` aceptan
+  una consulta por argumento: `maly add Secreto "Otra dimension"`. Las
+  coincidencias se agregan en el orden indicado, sin repetir una pista dentro
+  del lote; las consultas sin resultados se nombran sin cancelar las demás.
+  Si ninguna encuentra pistas, el comando falla. Los errores reales de la
+  biblioteca cancelan el lote antes de modificar la cola o la playlist.
+- **Las frases ahora requieren comillas:** `maly add daft punk` busca «daft»
+  y «punk» por separado; `maly add "daft punk"` conserva la búsqueda de la
+  frase. `search`, `select` y `get` mantienen su comportamiento anterior.
+- La consola ctrl+p respeta comillas simples o dobles y avisa si quedan sin
+  cerrar. La ayuda y el completado acompañan las consultas en lote. Tras
+  actualizar, reinicia el servicio para que también entienda los lotes.
+
 ## v1.19.2 — 2026-10-14
 
 - **La salida de la CLI se lee en terminales de fondo claro.** En `maly help`

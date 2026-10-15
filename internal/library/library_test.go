@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1204,5 +1205,56 @@ func TestScanNoPurgaConRootVacio(t *testing.T) {
 	otro := t.TempDir()
 	if res, err := lib.Scan(otro, nil); err != nil || res.Added != 0 {
 		t.Fatalf("escaneo de un root vacío sin pistas indexadas: %+v, %v", res, err)
+	}
+}
+
+// TestSearchEach fija el lote de `playlist add favs a "b c"`: una búsqueda
+// por consulta, unidas en el orden de las consultas, sin repetir una pista
+// que ya trajo otra anterior, con las que no encontraron nada aparte — y una
+// consulta en blanco ignorada, porque para Search es la biblioteca ENTERA.
+func TestSearchEach(t *testing.T) {
+	lib, err := Create(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib.Close()
+	dir := t.TempDir()
+	for _, name := range []string{"Secreto.mp3", "Otra dimension.mp3", "Luna.mp3", "Luna llena.mp3", "Sol.mp3"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("no es audio"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	got, missed, err := lib.SearchEach([]string{"Otra dimension", "nada", "  ", "Secreto", "luna", "Luna llena"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	luna, err := lib.Search("luna")
+	if err != nil || len(luna) != 2 {
+		t.Fatalf("Search(luna) = %d pistas, %v", len(luna), err)
+	}
+	want := []string{
+		filepath.Join(dir, "Otra dimension.mp3"),
+		filepath.Join(dir, "Secreto.mp3"),
+		luna[0].Path, luna[1].Path, // "Luna llena" ya vino con "luna": no se repite
+	}
+	var paths []string
+	for _, tr := range got {
+		paths = append(paths, tr.Path)
+	}
+	if !reflect.DeepEqual(paths, want) {
+		t.Errorf("SearchEach = %q\nquería      %q", paths, want)
+	}
+	if !reflect.DeepEqual(missed, []string{"nada"}) {
+		t.Errorf("missed = %q, quería [nada] (la consulta en blanco no cuenta)", missed)
+	}
+
+	// Solo blancos: ni pistas ni missed — nunca la biblioteca entera.
+	got, missed, err = lib.SearchEach([]string{"", " "})
+	if err != nil || len(got) != 0 || len(missed) != 0 {
+		t.Errorf("solo blancos = %d pistas, missed %q, %v; quería nada", len(got), missed, err)
 	}
 }

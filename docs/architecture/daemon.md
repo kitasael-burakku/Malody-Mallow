@@ -53,6 +53,14 @@ además apilaba goroutines de `notify`. `d.seek` solo parsea y habla con el
 player (mutex propio), así que no toca estado del demonio; a cambio un
 seek concurrente con el next de otro cliente puede caer en la pista nueva
 (daño menor, aceptado como en las otras dos excepciones).
+Con varias consultas (`Request.Queries`, ver `SetQueries`/`QueryList`)
+play/add pasan por `resolveAll`: cada una se resuelve por separado, también
+fuera del lock, las que no encuentran nada se saltan y se nombran en la
+respuesta. `noTracksError` identifica esos casos (búsqueda sin coincidencias
+o directorio sin audio) sin comparar mensajes traducidos. Cualquier otro
+error cancela el lote y se conserva; también falla si no queda ninguna pista.
+En ambos casos la cola queda intacta, porque nada la tocó todavía. Con una
+sola es `resolveTracks` tal cual, mensaje de error incluido.
 `serve` lee con `ipc.ReadLine`, el MISMO helper acotado que usa el cliente
 (vive en `internal/ipc` desde A-06). Antes usaba un `bufio.Scanner` con tope
 de 1 MiB, y una petición más larga hacía que `Scan()` devolviera false, `serve`

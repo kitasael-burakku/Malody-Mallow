@@ -552,14 +552,14 @@ the vim navigation above is always active, under any preset.
 
 | Command | Does |
 |---|---|
-| `maly play [<query>]` | resume, or search the library and play |
+| `maly play [<query>...]` | resume, or search the library and play |
 | `maly select` | pick a track with fuzzy search and play it |
 | `maly pause` / `toggle` / `stop` | pause / toggle play-pause / stop |
 | `maly next` / `prev` | next / previous track |
 | `maly jump <pos>` | jump to a queue position |
 | `maly move <from> <to>` | move a queue track to another position |
 | `maly remove <pos>` | remove a track from the queue |
-| `maly add <query\|path>` | add query results or a path to the queue |
+| `maly add <query\|path>...` | add query results or paths to the queue |
 | `maly queue` | show the queue |
 | `maly clear` | clear the queue |
 | `maly status` | show current status |
@@ -567,6 +567,17 @@ the vim navigation above is always active, under any preset.
 | `maly seek <+N\|-N\|mm:ss>` | seek within the track |
 | `maly shuffle [on\|off]` | toggle or set shuffle |
 | `maly repeat [off\|all\|one]` | cycle or set repeat mode |
+
+`play`, `add` and `playlist add` take **one query per argument**, so you can
+queue several songs at once: `maly add Secreto "Otra dimension"` adds both. A
+multi-word phrase goes in quotes: without them, `maly add daft punk` searches
+for "daft" and "punk" separately. Whatever finds nothing is named at the end
+and doesn't cancel the rest; the others are added in the order you typed them,
+without repeating a song another query already brought in. If none finds a
+track, the command fails; a library error cancels the batch before changing
+the queue or playlist. `search`, `select`
+and `get` still take a single phrase. The TUI's ctrl+p console works the same
+way, with single or double quotes.
 
 **Library** — work without the daemon (except `playlist play`):
 
@@ -587,7 +598,7 @@ the vim navigation above is always active, under any preset.
 | `show <name>` | name | no |
 | `create <name>` | name | no |
 | `delete <name>` | name (asks for confirmation in an interactive terminal) | no |
-| `add <name> <query>` | name, query | no |
+| `add <name> <query>...` | name, one query per argument | no |
 | `remove <name> <pos>` | name, position | no |
 | `export <name> [file]` | name, optional file (defaults to `<name>.m3u`) | no |
 | `import <file> [name]` | file, optional name | no |
@@ -611,6 +622,7 @@ the vim navigation above is always active, under any preset.
 
 ```sh
 maly play luna
+maly add Secreto "Otra dimension"
 maly jump 3
 maly move 3 1
 maly vol +10

@@ -116,6 +116,21 @@ entrada: un resultado real trae el separador dentro del propio título.
   borra `library.db`, y el mensaje se lo dice.
   → `docs/history/roadmap-1.14-1.16.md` (1.16.4, A-01)
 - **Sin `playlist move`**: asimetría consciente con la cola (C25).
+- **Varios argumentos SOLO en los comandos que meten canciones** (`play`,
+  `add`, `playlist add`: una consulta por argumento, decisión del dueño). Los
+  que BUSCAN (`search`, `select`, `get`) siguen tomando una frase: su
+  argumento es una búsqueda, no una lista, y partirla cambiaría qué
+  encuentran. `jump`/`move`/`vol`/`seek`/`shuffle`/`repeat` tienen un valor
+  por naturaleza. **`remove` en lote no se hizo**: tras quitar la primera
+  posición las demás se corren, y `remove 2 5` tendría que elegir entre
+  posiciones originales o desplazadas — ambigüedad real para un ahorro
+  pequeño, que la tecla de la cola ya cubre.
+- **Sin heurística para distinguir frase de lista.** La shell no deja ver
+  las comillas, así que `maly add daft punk` y `maly add daft "punk"` llegan
+  idénticos; cualquier regla del tipo «si algún argumento tiene espacios, es
+  un lote» falla con `maly add Secreto Luna`. Se eligió la regla fija y se
+  aceptó la ruptura: una frase va entre comillas.
+  → `docs/architecture/cli.md` (consultas en lote)
 - **La consola ctrl+p nunca fue espejo estricto de la CLI.** Tiene `cls`,
   `viz`, `logo` y `quit`, y le faltan `select` y `completions`. Lo que sí es
   obligatorio es la **paridad de los comandos que existen en ambos lados**, que

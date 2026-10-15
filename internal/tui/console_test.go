@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -620,5 +621,141 @@ func TestConsolePlaylistAddAvisaDeLasRepetidas(t *testing.T) {
 	defer lib2.Close()
 	if tracks, err := lib2.PlaylistTracks("favs"); err != nil || len(tracks) != 4 {
 		t.Fatalf("PlaylistTracks: %d pistas, %v; avisar no debe bloquear", len(tracks), err)
+	}
+}
+
+// TestSplitArgs: la consola parte la línea como la shell parte la de la CLI,
+// para que `add Secreto 'Otra dimension'` sea el espejo exacto de `maly add
+// Secreto 'Otra dimension'`. Una comilla en medio de una palabra es un
+// apóstrofo de título, no un delimitador.
+func TestSplitArgs(t *testing.T) {
+	casos := []struct {
+		in   string
+		want []string
+	}{
+		{"add Secreto 'Otra dimension'", []string{"add", "Secreto", "Otra dimension"}},
+		{`add "Otra dimension"  luna`, []string{"add", "Otra dimension", "luna"}},
+		{"  next  ", []string{"next"}},
+		{"add Don't Stop", []string{"add", "Don't", "Stop"}},
+		{`add "Don't Stop Me Now"`, []string{"add", "Don't Stop Me Now"}},
+		{`add 'dice "hola"'`, []string{"add", `dice "hola"`}},
+		{"add x ''", []string{"add", "x", ""}},
+		{"add\tx", []string{"add", "x"}},
+	}
+	for _, c := range casos {
+		got, err := splitArgs(c.in)
+		if err != nil || !reflect.DeepEqual(got, c.want) {
+			t.Errorf("splitArgs(%q) = %q, %v; quería %q", c.in, got, err, c.want)
+		}
+	}
+	for _, malo := range []string{"add 'Otra dimension", `add "x`} {
+		if got, err := splitArgs(malo); err == nil {
+			t.Errorf("splitArgs(%q) = %q; una comilla sin cerrar debía ser error", malo, got)
+		}
+	}
+}
+
+// TestConsoleAddPlayEnLote: la consola manda una consulta por argumento,
+// igual que buildRequest en la CLI — se mira el ipc.Request REAL que le
+// llega al demonio.
+func TestConsoleAddPlayEnLote(t *testing.T) {
+	sock, reqs := capturaReq(t)
+	m := newConModel()
+	m.sock = sock
+	casos := []struct {
+		linea string
+		want  ipc.Request
+	}{
+		{"add Secreto 'Otra dimension'", ipc.Request{Cmd: "add", Queries: []string{"Secreto", "Otra dimension"}}},
+		{`maly add "Otra dimension" ''`, ipc.Request{Cmd: "add", Query: "Otra dimension"}},
+		{`play "pink floyd"`, ipc.Request{Cmd: "play", Query: "pink floyd"}},
+		{"play pink floyd", ipc.Request{Cmd: "play", Queries: []string{"pink", "floyd"}}},
+		{"play", ipc.Request{Cmd: "play"}},
+	}
+	for _, c := range casos {
+		_, cmd := m.execConsole(c.linea)
+		if cmd == nil {
+			t.Fatalf("%q no mandó nada", c.linea)
+		}
+		cmd()
+		select {
+		case got := <-reqs:
+			got.Lang = "" // lo pone ipc.Do; aquí importa la gramática
+			if !reflect.DeepEqual(got, c.want) {
+				t.Errorf("%q mandó %+v, quería %+v", c.linea, got, c.want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%q: el demonio falso no recibió nada", c.linea)
+		}
+	}
+
+	// Comilla sin cerrar o add sin nada: error en la consola, nada al demonio.
+	for _, linea := range []string{"add 'Otra dimension", "add ''"} {
+		if _, cmd := m.execConsole(linea); cmd != nil {
+			t.Errorf("%q no debía mandar nada", linea)
+		}
+	}
+}
+
+// TestConsolePlaylistAddEnLote es el espejo de TestPlaylistAddEnLote de
+// cmd/maly: una consulta por argumento, en su orden, sin repetir, y las que
+// no encuentran nada nombradas en la misma línea sin cancelar las demás.
+func TestConsolePlaylistAddEnLote(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, "cfg"))
+	prev := i18n.Code()
+	t.Cleanup(func() { i18n.Set(prev) })
+	i18n.Set("es")
+
+	music := t.TempDir()
+	for _, n := range []string{"Secreto.mp3", "Otra dimension.mp3"} {
+		if err := os.WriteFile(filepath.Join(music, n), []byte("mp3 falso"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lib, err := library.Create(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lib.Scan(music, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.CreatePlaylist("favs"); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	m := newConModel()
+	args, err := splitArgs("add favs 'Otra dimension' nada Secreto secreto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, cmd := m.conPlaylist(args)
+	msg, ok := cmd().(conMsg)
+	if !ok {
+		t.Fatalf("conPlaylist devolvió %T", cmd())
+	}
+	got := strings.Join(msg.lines, "\n")
+	want := ipc.WithNoMatch("", ipc.PlaylistAdded(2, 0, "favs"), []string{"nada"})
+	if !strings.Contains(got, want) {
+		t.Errorf("la consola dijo %q, quería %q", got, want)
+	}
+
+	lib2, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib2.Close()
+	tracks, err := lib2.PlaylistTracks("favs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, tr := range tracks {
+		names = append(names, filepath.Base(tr.Path))
+	}
+	if want := []string{"Otra dimension.mp3", "Secreto.mp3"}; !reflect.DeepEqual(names, want) {
+		t.Errorf("playlist = %q, quería %q (orden de los argumentos, sin repetir)", names, want)
 	}
 }

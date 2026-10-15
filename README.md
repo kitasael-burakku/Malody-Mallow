@@ -556,14 +556,14 @@ navegación vim de arriba está siempre activa, en cualquier preset.
 
 | Comando | Hace |
 |---|---|
-| `maly play [<consulta>]` | reanuda; con consulta busca y reproduce |
+| `maly play [<consulta>...]` | reanuda; con consultas busca y reproduce |
 | `maly select` | elige una canción con búsqueda difusa y reprodúcela |
 | `maly pause` / `toggle` / `stop` | pausa / alterna play-pausa / detiene |
 | `maly next` / `prev` | pista siguiente / anterior |
 | `maly jump <pos>` | salta a una posición de la cola |
 | `maly move <de> <a>` | mueve una pista de la cola a otra posición |
 | `maly remove <pos>` | quita una pista de la cola |
-| `maly add <consulta\|ruta>` | agrega a la cola (consulta o ruta) |
+| `maly add <consulta\|ruta>...` | agrega a la cola (consultas o rutas) |
 | `maly queue` | muestra la cola |
 | `maly clear` | vacía la cola |
 | `maly status` | muestra el estado actual |
@@ -571,6 +571,17 @@ navegación vim de arriba está siempre activa, en cualquier preset.
 | `maly seek <+N\|-N\|mm:ss>` | cambia la posición |
 | `maly shuffle [on\|off]` | alterna o fija shuffle |
 | `maly repeat [off\|all\|one]` | alterna o fija el modo repeat |
+
+`play`, `add` y `playlist add` toman **una consulta por argumento**, así que
+puedes meter varias canciones de una vez: `maly add Secreto "Otra dimension"`
+agrega las dos. Una frase de varias palabras va entre comillas: sin ellas,
+`maly add daft punk` busca «daft» y «punk» por separado. Lo que no encuentre
+nada se nombra al final y no cancela el resto; las demás se agregan en el
+orden en que las escribiste y sin repetir una canción que ya trajo otra
+consulta. Si ninguna encuentra pistas, el comando falla; un error de la
+biblioteca cancela el lote antes de modificar la cola o la playlist.
+`search`, `select` y `get` siguen tomando una sola frase. En la
+consola ctrl+p de la TUI funciona igual, con comillas simples o dobles.
 
 **Biblioteca** — funcionan sin el servicio (salvo `playlist play`):
 
@@ -591,7 +602,7 @@ Subcomandos de `maly playlist`:
 | `show <nombre>` | nombre | no |
 | `create <nombre>` | nombre | no |
 | `delete <nombre>` | nombre (pide confirmación en terminal interactiva) | no |
-| `add <nombre> <consulta>` | nombre, consulta | no |
+| `add <nombre> <consulta>...` | nombre, una consulta por argumento | no |
 | `remove <nombre> <pos>` | nombre, posición | no |
 | `export <nombre> [archivo]` | nombre, archivo opcional (default `<nombre>.m3u`) | no |
 | `import <archivo> [nombre]` | archivo, nombre opcional | no |
@@ -615,6 +626,7 @@ Subcomandos de `maly playlist`:
 
 ```sh
 maly play luna
+maly add Secreto "Otra dimension"
 maly jump 3
 maly move 3 1
 maly vol +10

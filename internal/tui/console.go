@@ -210,11 +210,72 @@ var ConsoleCommands = []string{
 	"scan", "rescan",
 }
 
+// splitArgs parte una línea de la consola en argumentos como lo haría la
+// shell con la CLI: por espacios, salvo dentro de comillas simples o
+// dobles, que agrupan y no forman parte del argumento. Sin esto `add
+// Secreto 'Otra dimension'` no podía ser el espejo de la CLI, y un
+// `playlist create "mi lista"` creaba la playlist con las comillas puestas.
+//
+// A diferencia de la shell, una comilla solo abre si EMPIEZA un argumento:
+// en medio de una palabra es un apóstrofo de título (`Don't Stop`) y la
+// consola no tiene un prompt de continuación que deje cerrarla. Tampoco hay
+// barra invertida de escape: los títulos no la necesitan. Una comilla que
+// abre y no cierra es un error, no una adivinanza.
+func splitArgs(line string) ([]string, error) {
+	var out []string
+	var cur strings.Builder
+	inArg := false // hay un argumento en curso (puede ser "" entre comillas)
+	var quote rune // comilla abierta; 0 = ninguna
+	for _, r := range line {
+		switch {
+		case quote != 0:
+			if r == quote {
+				quote = 0
+			} else {
+				cur.WriteRune(r)
+			}
+		case r == ' ' || r == '\t':
+			if inArg {
+				out = append(out, cur.String())
+				cur.Reset()
+				inArg = false
+			}
+		case (r == '\'' || r == '"') && !inArg:
+			quote, inArg = r, true
+		default:
+			cur.WriteRune(r)
+			inArg = true
+		}
+	}
+	if quote != 0 {
+		return nil, errors.New(i18n.T("con.bad_quote"))
+	}
+	if inArg {
+		out = append(out, cur.String())
+	}
+	return out, nil
+}
+
+// nonBlank descarta los argumentos en blanco (`add x ""`).
+func nonBlank(args []string) []string {
+	var out []string
+	for _, a := range args {
+		if strings.TrimSpace(a) != "" {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
 // execConsole interpreta una línea como si fuera la CLI de maly. El prefijo
 // "maly" es opcional.
 func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
-	fields := strings.Fields(line)
-	if fields[0] == "maly" {
+	fields, err := splitArgs(line)
+	if err != nil {
+		m.conErr(err.Error())
+		return m, nil
+	}
+	if len(fields) > 0 && fields[0] == "maly" {
 		fields = fields[1:]
 	}
 	if len(fields) == 0 {
@@ -273,15 +334,21 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		}
 		return m, m.armVizTick()
 	case "play":
-		return m, m.conReq(ipc.Request{Cmd: "play", Query: strings.Join(args, " ")})
+		// Una consulta por argumento, como la CLI (ver buildRequest).
+		req := ipc.Request{Cmd: "play"}
+		req.SetQueries(nonBlank(args))
+		return m, m.conReq(req)
 	case "pause", "toggle", "stop", "next", "prev", "clear":
 		return m, m.conReq(ipc.Request{Cmd: cmd})
 	case "add":
-		if len(args) == 0 {
+		items := nonBlank(args)
+		if len(items) == 0 {
 			m.conErr(i18n.T("con.usage_add"))
 			return m, nil
 		}
-		return m, m.conReq(ipc.Request{Cmd: "add", Query: strings.Join(args, " ")})
+		req := ipc.Request{Cmd: "add"}
+		req.SetQueries(items)
+		return m, m.conReq(req)
 	case "jump":
 		if len(args) != 1 {
 			m.conErr(i18n.T("con.usage_jump"))
@@ -382,14 +449,14 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 func (m *Model) conHelp() {
 	m.conPrint(m.st.accent.Render(i18n.T("con.help_head")))
 	rows := [][2]string{
-		{"play [q]", i18n.T("cli.play")},
+		{"play [q...]", i18n.T("cli.play")},
 		{"select", i18n.T("cli.select")},
 		{"pause / toggle / stop", i18n.T("cli.toggle")},
 		{"next / prev", i18n.T("cli.next") + " · " + i18n.T("cli.prev")},
 		{"jump <pos>", i18n.T("cli.jump")},
 		{"move <from> <to>", i18n.T("cli.move")},
 		{"remove <pos>", i18n.T("cli.remove")},
-		{"add <q>", i18n.T("cli.add")},
+		{"add <q>...", i18n.T("cli.add")},
 		{"queue / status", i18n.T("cli.queue") + " · " + i18n.T("cli.status")},
 		{"vol <0-100|+N|-N>", i18n.T("cli.vol")},
 		{"seek <+N|-N|mm:ss>", i18n.T("cli.seek")},

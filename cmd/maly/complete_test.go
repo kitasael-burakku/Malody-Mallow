@@ -202,9 +202,10 @@ func TestCompleteTracksAndPlaylists(t *testing.T) {
 	if got := values(completeArgs([]string{"play", "pista07"})); len(got) != 1 || got[0] != "pista07" {
 		t.Errorf("consulta exacta: %v", got)
 	}
-	// palabras previas + parcial forman una sola consulta
-	if got := completeArgs([]string{"add", "pista", "07"}); len(got) != 1 {
-		t.Errorf("consulta multi-palabra: %v", got)
+	// cada argumento es otra canción: los anteriores NO filtran la parcial
+	// (`maly add pista07 <TAB>` ofrece toda la biblioteca, no solo pista07)
+	if got := completeArgs([]string{"add", "pista07", ""}); len(got) != maxCandidates {
+		t.Errorf("los argumentos previos no deben filtrar: %d candidatos, quería %d", len(got), maxCandidates)
 	}
 
 	// nombres de playlist con cuenta de pistas

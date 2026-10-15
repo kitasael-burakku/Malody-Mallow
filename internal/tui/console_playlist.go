@@ -105,15 +105,17 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 			m.conErr(i18n.T("pl.usage_add"))
 			return m, nil
 		}
+		// Una consulta por argumento, como la CLI (las comillas las respeta
+		// splitArgs, que hace aquí de shell).
 		name := args[0]
-		query := strings.Join(args[1:], " ")
+		queries := args[1:]
 		return m, m.conLib(true, func(lib *library.Library) ([]string, error) {
-			tracks, err := lib.Search(query)
+			tracks, missed, err := lib.SearchEach(queries)
 			if err != nil {
 				return nil, err
 			}
 			if len(tracks) == 0 {
-				return nil, errors.New(i18n.Tf("pl.no_results", query))
+				return nil, ipc.PlaylistNoTracks(missed)
 			}
 			ids := make([]int64, len(tracks))
 			for i, t := range tracks {
@@ -129,7 +131,7 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 				}
 				return nil, err
 			}
-			return []string{st.playing.Render(ipc.PlaylistAdded(added, dup, name))}, nil
+			return []string{st.playing.Render(ipc.WithNoMatch("", ipc.PlaylistAdded(added, dup, name), missed))}, nil
 		})
 
 	case "remove":

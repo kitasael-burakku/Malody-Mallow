@@ -706,11 +706,12 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	// de rutas fuera de la biblioteca — bajo el lock congelarían status, TUI
 	// y MPRIS, la misma lección que sacó a scan de aquí. lib es thread-safe.
 	var resolved []library.Track
+	var missed []string // consultas de un lote que no encontraron nada
 	var resolveErr error
 	switch {
-	case req.Cmd == "play" && strings.TrimSpace(req.Query) != "",
+	case req.Cmd == "play" && len(req.QueryList()) > 0,
 		req.Cmd == "add" && len(req.Paths) == 0:
-		resolved, resolveErr = d.resolveTracks(req.Lang, req.Query)
+		resolved, missed, resolveErr = d.resolveAll(req.Lang, req.QueryList())
 	case (req.Cmd == "add" || req.Cmd == "playnow") && len(req.Paths) > 0:
 		for _, p := range req.Paths {
 			resolved = append(resolved, trackFromFile(d.lib, p))
@@ -758,7 +759,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		return ipc.Response{OK: true, Queue: toInfos(tracks)}
 
 	case "play":
-		if strings.TrimSpace(req.Query) != "" {
+		if len(req.QueryList()) > 0 {
 			if resolveErr != nil {
 				return fail(resolveErr)
 			}
@@ -767,7 +768,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 			if err := d.loadLocked(t); err != nil {
 				return fail(err)
 			}
-			return okStatus(i18n.TLf(lang, "d.playing_n", t, len(resolved)))
+			return okStatus(ipc.WithNoMatch(lang, i18n.TLf(lang, "d.playing_n", t, len(resolved)), missed))
 		}
 		return d.resumeLocked(lang, fail, okStatus)
 
@@ -843,7 +844,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 				msg += i18n.TLf(lang, "d.also_playing", t)
 			}
 		}
-		return okStatus(msg)
+		return okStatus(ipc.WithNoMatch(lang, msg, missed))
 
 	case "jump":
 		t, ok := d.q.JumpTo(req.Index)

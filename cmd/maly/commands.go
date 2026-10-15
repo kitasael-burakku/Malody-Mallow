@@ -42,7 +42,7 @@ var commands = []command{
 	// daemon no se lista por sección: aparece en la cabecera de uso.
 	{name: "daemon", run: func([]string) error { return runDaemon() }},
 
-	{name: "play", usage: "play [<query>]", descKey: "cli.play", section: "playback", run: client("play"), complete: completeTracks},
+	{name: "play", usage: "play [<query>...]", descKey: "cli.play", section: "playback", run: client("play"), complete: completeTracks},
 	{name: "select", usage: "select", descKey: "cli.select", section: "playback", run: func([]string) error { return runSelect() }},
 	{name: "pause", usage: "pause", descKey: "cli.pause", section: "playback", run: client("pause")},
 	{name: "toggle", usage: "toggle", descKey: "cli.toggle", section: "playback", run: client("toggle")},
@@ -52,7 +52,7 @@ var commands = []command{
 	{name: "jump", usage: "jump <pos>", descKey: "cli.jump", section: "playback", run: client("jump"), complete: completeJump},
 	{name: "move", usage: "move <from> <to>", descKey: "cli.move", section: "playback", run: client("move"), complete: completeMove},
 	{name: "remove", usage: "remove <pos>", descKey: "cli.remove", section: "playback", run: client("remove"), complete: completeJump},
-	{name: "add", usage: "add <query|path>", descKey: "cli.add", section: "playback", run: client("add"), complete: completeTracks},
+	{name: "add", usage: "add <query|path>...", descKey: "cli.add", section: "playback", run: client("add"), complete: completeTracks},
 	{name: "queue", usage: "queue", descKey: "cli.queue", section: "playback", run: client("queue")},
 	{name: "clear", usage: "clear", descKey: "cli.clear", section: "playback", run: client("clear")},
 	{name: "status", usage: "status", descKey: "cli.status", section: "playback", run: client("status")},
@@ -228,6 +228,7 @@ func helpText() string {
 	example("maly move 3 1")
 	example("maly remove 2")
 	example("maly add ~/Music/album")
+	example("maly add luna \"dark side\"")
 	example("maly vol +10")
 	example("maly seek 1:23")
 	example("maly shuffle on")

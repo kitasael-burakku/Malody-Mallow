@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -2227,4 +2228,62 @@ func TestStatusReportaMpvMuerto(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("mpv se fue y el Status siguió diciendo que todo bien")
+}
+
+// TestAddPlayEnLote: `maly add Secreto "Otra dimension"` — una consulta por
+// argumento. Se resuelven por separado y se encolan en el orden de los
+// argumentos; una pista que ya trajo un argumento anterior no se repite; las
+// que no encuentran nada se SALTAN y se nombran en la respuesta, sin cancelar
+// las demás; y solo si no queda ninguna el comando falla, sin tocar la cola.
+func TestAddPlayEnLote(t *testing.T) {
+	d := newTestDaemon(t)
+	music := t.TempDir()
+	for _, n := range []string{"secreto.wav", "otra dimension.wav", "luna.wav"} {
+		writeWAV(t, filepath.Join(music, n), 1)
+	}
+	if resp := d.Do(ipc.Request{Cmd: "scan", Query: music}); !resp.OK {
+		t.Fatalf("scan: %s", resp.Error)
+	}
+	cola := func() []string {
+		t.Helper()
+		var out []string
+		for _, ti := range d.Do(ipc.Request{Cmd: "queue"}).Queue {
+			out = append(out, filepath.Base(ti.Path))
+		}
+		return out
+	}
+
+	resp := d.Do(ipc.Request{Cmd: "add", Lang: "es",
+		Queries: []string{"otra dimension", "nada-zzz", "secreto", "secreto"}})
+	if !resp.OK {
+		t.Fatalf("un lote con una consulta fallida debía seguir con las demás: %s", resp.Error)
+	}
+	if got, want := cola(), []string{"otra dimension.wav", "secreto.wav"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("cola = %q, quería %q (orden de los argumentos, sin repetir)", got, want)
+	}
+	if want := ipc.NoMatch("es", []string{"nada-zzz"}); !strings.Contains(resp.Msg, want) {
+		t.Errorf("la respuesta debía nombrar la saltada (%q); dijo %q", want, resp.Msg)
+	}
+
+	// Todas fallan: error que las nombra, y la cola intacta.
+	resp = d.Do(ipc.Request{Cmd: "add", Lang: "es", Queries: []string{"nada1", "nada2"}})
+	if resp.OK || resp.Error != ipc.NoMatch("es", []string{"nada1", "nada2"}) {
+		t.Errorf("un lote sin ninguna pista debía fallar nombrándolas; dio %+v", resp)
+	}
+	if got := cola(); len(got) != 2 {
+		t.Errorf("un lote fallido tocó la cola: %q", got)
+	}
+
+	// play en lote reemplaza la cola por las del lote, en su orden, y una
+	// ruta convive con una búsqueda.
+	resp = d.Do(ipc.Request{Cmd: "play", Queries: []string{"luna", filepath.Join(music, "secreto.wav")}})
+	if !resp.OK {
+		t.Fatalf("play en lote: %s", resp.Error)
+	}
+	if got, want := cola(), []string{"luna.wav", "secreto.wav"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("play en lote: cola = %q, quería %q", got, want)
+	}
+	if st := resp.Status; st == nil || st.Track == nil || filepath.Base(st.Track.Path) != "luna.wav" {
+		t.Errorf("play en lote debía empezar por el primer argumento; status %+v", st)
+	}
 }

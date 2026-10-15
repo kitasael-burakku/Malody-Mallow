@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -221,5 +222,62 @@ func TestPlaylistAddAvisaDeLasRepetidas(t *testing.T) {
 	tracks, err := lib2.PlaylistTracks("favs")
 	if err != nil || len(tracks) != 4 {
 		t.Fatalf("PlaylistTracks: %d pistas, %v; avisar no debe bloquear", len(tracks), err)
+	}
+}
+
+// TestPlaylistAddEnLote: `maly playlist add favs 'Otra dimension' nada
+// Secreto secreto` — una consulta por argumento, en su orden, sin repetir la
+// pista que ya trajo otra; la que no encuentra nada se nombra en la misma
+// línea y no cancela las demás. Si no queda ninguna, error que las nombra.
+// Espejo: TestConsolePlaylistAddEnLote en internal/tui.
+func TestPlaylistAddEnLote(t *testing.T) {
+	xdgSandbox(t)
+	lib, err := createLibrary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	for _, n := range []string{"Secreto.mp3", "Otra dimension.mp3"} {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("mp3 falso"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := lib.Scan(dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.CreatePlaylist("favs"); err != nil {
+		t.Fatal(err)
+	}
+	lib.Close()
+
+	out := captureStdout(t, func() {
+		if err := runPlaylist([]string{"add", "favs", "Otra dimension", "nada", "Secreto", "secreto"}); err != nil {
+			t.Fatalf("un lote con una consulta fallida debía seguir con las demás: %v", err)
+		}
+	})
+	if want := ipc.WithNoMatch("", ipc.PlaylistAdded(2, 0, "favs"), []string{"nada"}); !strings.Contains(out, want) {
+		t.Errorf("dijo %q, quería %q", out, want)
+	}
+
+	err = runPlaylist([]string{"add", "favs", "nada1", "nada2"})
+	if err == nil || err.Error() != ipc.NoMatch("", []string{"nada1", "nada2"}) {
+		t.Errorf("sin ninguna pista debía fallar nombrándolas; dio %v", err)
+	}
+
+	lib2, err := library.Open(config.DBPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lib2.Close()
+	tracks, err := lib2.PlaylistTracks("favs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, tr := range tracks {
+		names = append(names, filepath.Base(tr.Path))
+	}
+	if want := []string{"Otra dimension.mp3", "Secreto.mp3"}; !reflect.DeepEqual(names, want) {
+		t.Errorf("playlist = %q, quería %q", names, want)
 	}
 }

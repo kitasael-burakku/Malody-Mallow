@@ -7,6 +7,14 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.4 — 2026-10-17
+
+- **Bordes alineados al mostrar símbolos con presentación de texto.** Nombres
+  como `Kareto☕︎` desplazaban los paneles y la carátula una celda en Kitty.
+  La TUI y los selectores `select`/`get pick` omiten el selector invisible
+  VS15 solo al dibujar: se conserva el símbolo con su presentación
+  predeterminada, y los metadatos, rutas y consultas mantienen el original.
+
 ## v1.19.3 — 2026-10-15
 
 - **Varias canciones en un comando.** `play`, `add` y `playlist add` aceptan

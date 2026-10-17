@@ -4,6 +4,18 @@ Fuente única: esta ficha. `CLAUDE.md` solo lleva el resumen.
 
 ## `internal/tui`
 
+Las tres entradas `View()` de Bubble Tea (`Model`, `selectModel` y
+`getPickModel`) pasan su resultado por `terminalPresentation`. Omite solo
+**VS15/U+FE0E**, el selector de presentación texto, después de componer,
+recortar y resaltar. Con las dependencias actuales, `☕︎` reserva dos celdas
+pero Kitty 0.49.2 lo dibuja en una; sin VS15 ocupa las dos reservadas. La
+normalización conserva el símbolo con su presentación predeterminada. Es
+una concesión tipográfica de salida: no modifica metadatos, rutas, consultas
+ni índices de coincidencias. No pertenece a `safetext`, y no se extiende a
+VS16, ZWJ, acentos o diacríticos del arte Kitty. Tampoco promete resolver
+todas las diferencias Unicode entre terminales. Evidencia y alternativas
+en la [entrada de v1.19.4](../history/roadmap-1.17.md#v1194-2026-10-17--bordes-y-presentación-unicode).
+
 Bubble Tea. Recibe estado por **suscripción push**
 (`subscribe`; fallback a polling de 500 ms con reintento). **Todo el
 reparto de la pantalla vive en `computeLayout` (`layout.go`), función

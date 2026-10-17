@@ -95,6 +95,13 @@ lo fijaban por el camino viejo.
 
 ## Qué NO cazan las herramientas
 
+- **Medir con la misma biblioteca que dibuja no valida el ancho del terminal.**
+  En la **1.19.4**, `lipgloss.Width` aprobaba una fila de 270 celdas con
+  `Kareto☕︎`, pero `Screen.draw` de Kitty ocupaba 269. La regresión usa
+  anchos independientes para esas fixtures (VS15: una celda; símbolo sin
+  selector o con VS16: dos), y se contrastó el frame completo con Kitty.
+  Comprobar también el borde interior: compensar al final de la fila no
+  arregla el desplazamiento entre paneles.
 - **`go test -race` es CIEGO a un valor obsoleto cruzando entre dominios de
   lock.** En la carrera de la **1.16.3** no había ni un acceso a memoria sin
   sincronizar (la cola siempre bajo `d.mu`, el espejo siempre bajo `p.mu`); lo

@@ -156,6 +156,10 @@ func (m *getPickModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *getPickModel) View() string {
+	return terminalPresentation(m.view())
+}
+
+func (m *getPickModel) view() string {
 	if m.done || m.width == 0 {
 		return ""
 	}

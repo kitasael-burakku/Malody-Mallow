@@ -2,6 +2,90 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.4 (2026-10-17) — bordes y presentación Unicode
+
+**Estado:** implementada, verificada y compilada para la entrega local
+`v1.19.4`. La publicación remota queda a cargo del dueño. Durante el arreglo
+no se sustituyó el binario instalado.
+
+**Problema reproducido.** La captura del dueño mostraba una fila desplazada
+desde `Kareto☕︎`, incluidos los bordes de cola y carátula. La lectura de la
+biblioteca confirmó `U+2615 U+FE0E` (café + selector de presentación texto),
+sin cambiar sus datos. Las dependencias actuales de la TUI cuentan ese
+nombre como ocho celdas; `Screen.draw` de Kitty 0.49.2 ocupa siete. En una
+fila de 270 columnas con una aparición, la TUI medía 270 y Kitty dibujaba
+269. Quitar solamente VS15 devolvió las 270. El arte no era la causa.
+
+**Cambio:** las tres entradas de render de Bubble Tea normalizan su salida
+final. El contrato y el costo tipográfico están en la
+[ficha de TUI](../architecture/tui.md): no se altera la biblioteca, los
+valores de selección ni las consultas. Abarca los overlays de la TUI y los
+selectores independientes `select` y `get pick`.
+
+**Por qué esta solución:** al quitar VS15 solo al final se conserva el
+ancho ya reservado sin alterar índices de resaltado. No se agrega un espacio
+al final de la fila (dejaría desplazados los bordes interiores), no se cambia
+el layout ni el render de carátulas (medían lo esperado), y no se modifica
+`safetext` ni se reescriben etiquetas. Cambiar únicamente `padTo` para contar
+VS15 de otra forma dejaría otras mediciones divergentes dentro de Lip Gloss,
+recortes y selectores. Un protocolo de ancho exclusivo de Kitty o reemplazar
+las bibliotecas de medición tendría un alcance mayor que este arreglo.
+Se acepta perder la preferencia de presentación texto en pantalla.
+
+**Justificación de versión:** `1.19.3` → `1.19.4`, cambio pequeño: corrige la
+presentación de un símbolo sin cambiar interacción, IPC, persistencia ni
+reproducción. El hotfix pasa a ser UX-00; los números de UX-01–UX-09 se
+recalculan desde esta base en el [plan](../planning/roadmap-ui-ux.md).
+
+**Verificación:**
+
+- Regresión portable sobre la vista completa a 40, 100, 140 y 270 columnas:
+  ancho total y posición del borde interior, uno/dos VS15 y controles sin
+  selector/con VS16. El ancho de estas fixtures se fija con una fuente
+  independiente del cálculo defectuoso; también se cubren ambos selectores.
+- Se conserva byte por byte el arte Kitty generado, los escapes ANSI, VS16,
+  ZWJ, acentos combinantes y una variante CJK; los datos originales no mutan.
+- Al neutralizar la normalización, las tres pruebas nuevas fallaron
+  **compilando**, por ancho o salida incorrectos; al restaurarla con `cp`
+  pasaron. El primer intento del arnés desechable tenía un campo mal nombrado
+  y no compilaba: se corrigió antes de aceptar la comprobación roja.
+- Contraste con `Screen.draw` de Kitty 0.49.2, sin ventana: frames exportados
+  a 40×12, 100×30, 140×42 y 270×58, con/sin renderer gráfico (visible donde
+  cabe la tercera columna). Se quitaron los escapes ANSI para medir el
+  avance del cursor, conservando los placeholders Unicode. Antes: filas
+  cortas por una o dos celdas; después: **cero desajustes** en los ocho
+  frames. No se presenta esto como captura de la sesión gráfica del dueño.
+- Suite completa con `CGO_ENABLED=0`, suite completa con `-race`, ambas bajo
+  `dbus-run-session` con mpv real; `go vet ./...`; compilación sin CGo a
+  `./maly`, que informa `v1.19.4`. Los bloqueos iniciales del sandbox eran
+  de sockets/caché; las comprobaciones se ejecutaron fuera de él.
+
+## Sobre v1.19.3, sin bump (2026-10-17) — revisión y plan UI/UX
+
+Codex revisó el código y controló una TUI compilada desde `16bed5c`, con 14
+pistas sintéticas en un sandbox XDG, audio nulo y tamaños entre 140×42 y
+40×12. Se registraron estados vacíos incorrectos, instrucciones recortadas y
+diferencias de consulta entre `/` y Ctrl+O. El inventario completo, las
+capturas y los límites viven en la
+[evidencia](../planning/evidence/ui-ux-2026-10-17/README.md).
+
+El [roadmap](../planning/roadmap-ui-ux.md) separa arreglos acotados de nuevas
+capacidades; la [guía de implementación](../development/implementacion-ui-ux.md)
+define cómo reproducir, verificar y cerrar cada entrega. El dueño fijó la
+regla de numeración por alcance, documentada en
+[releases.md](../development/releases.md): cada entrega justifica su número.
+
+**Justificación de versión:** se conserva `1.19.3` porque este trabajo solo
+documenta evidencia y preparación. Ninguna propuesta está implementada; no
+cambia el comportamiento del binario ni se crea tag o entrada pública de
+release. La validación de este cambio es documental; compilar y recorrer la
+TUI durante la revisión no equivale a probar futuras implementaciones.
+Se comprobaron los enlaces locales de los nueve Markdown afectados, los hashes
+de los veinte archivos de evidencia y las nueve transiciones previstas de
+versión. `git diff --check` y el chequeo de whitespace de los Markdown nuevos
+no encontraron problemas. La const de versión y `CHANGELOG.md` no cambiaron;
+`AGENTS.md` y `CLAUDE.md` conservan el mismo contrato operativo.
+
 ## v1.19.3 (2026-10-15) — consultas en lote
 
 `play`, `add` y `playlist add` pasan de unir los argumentos a resolverlos por

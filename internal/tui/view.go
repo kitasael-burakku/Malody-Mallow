@@ -39,6 +39,10 @@ func (m *Model) pageH(p panelID) int {
 }
 
 func (m *Model) View() string {
+	return terminalPresentation(m.view())
+}
+
+func (m *Model) view() string {
 	if m.width == 0 || m.height == 0 {
 		return ""
 	}

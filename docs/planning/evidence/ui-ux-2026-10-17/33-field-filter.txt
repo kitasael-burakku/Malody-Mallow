@@ -1,0 +1,42 @@
+╭─ Biblioteca (14) · 1/4 ──╮╭─ Cola (1) ───────────────────────────────────────────────────────────────────────╮╭─ Ahora suena ────────────╮
+│Áurea — Una canción con u…││▶   1. Áurea — Una canción con un título muy largo que necesita respirar — … 03:00││                          │
+│Áurea — Luz de octubre    ││                                                                                  ││                          │
+│Áurea — Luz de octubre (E…││                                                                                  ││                          │
+│Áurea — Volver al princip…││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││ Una canción con un títu… │
+│                          ││                                                                                  ││ Áurea                    │
+│                          ││                                                                                  ││ Horizontes               │
+│                          ││                                                                                  ││ pista 1                  │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  │╰──────────────────────────╯
+│                          ││                                                                                  │╭─ Letras ─────────────────╮
+│                          ││                                                                                  ││   Una línea de prueba    │
+│                          ││                                                                                  ││   para leer con calma    │
+│                          ││                                                                                  ││  La letra siguiente ac…  │
+│                          ││                                                                                  ││  Una frase más larga q…  │
+│                          ││                                                                                  ││  Volvemos al principio   │
+│                          ││                                                                                  ││                          │
+│                          ││                                                                                  ││                          │
+╭─ Filtrar ───────────────────────── 4/14 ─╮                                                                   ││                          │
+│❯ a:Áurea                                 │                                                                   ││                          │
+╰──────────────────────────────────────────╯───────────────────────────────────────────────────────────────────╯╰──────────────────────────╯
+╭─ Ahora suena ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ⏸ Áurea — Una canción con un título muy largo que necesita respirar — versión acústica [Horizontes]           00:01/03:00  vol 100%  ⇄ ⟲ │
+│█▓▒░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ ? ayuda · q salir · tab paneles · enter reproduce · a agrega · espacio pausa · / filtra · ctrl+p paleta · ctrl+o canciones (servicio integ…

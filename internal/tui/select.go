@@ -158,6 +158,10 @@ func (m *selectModel) send(r ipc.Request, quit bool) tea.Cmd {
 }
 
 func (m *selectModel) View() string {
+	return terminalPresentation(m.view())
+}
+
+func (m *selectModel) view() string {
 	if m.done || m.width == 0 {
 		return ""
 	}

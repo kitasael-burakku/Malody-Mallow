@@ -43,7 +43,22 @@ no).
   test prueba lo que dice: las seis trampas del arnés, qué no cazan `-race` ni
   `go vet`, y las dependencias externas de los tests.
 - [`releases.md`](development/releases.md) — qué toca un bump, los tres
-  canales de distribución, la unit de systemd y las trampas del instalador.
+  canales de distribución, la unit de systemd y las trampas del instalador;
+  fuente única de la numeración por alcance y su justificación.
+- [`implementacion-ui-ux.md`](development/implementacion-ui-ux.md) — guía para
+  ejecutar las entregas del plan UI/UX: matriz de aceptación, pruebas y cierre.
+
+## `planning/` — trabajo futuro
+
+- [`roadmap-ui-ux.md`](planning/roadmap-ui-ux.md) — plan de Codex a partir de
+  la revisión del 2026-10-17 sobre v1.19.3: alcance, orden, estado, versiones
+  previstas y aceptación. **No es una lista de funciones implementadas.**
+- [Evidencia UI/UX](planning/evidence/ui-ux-2026-10-17/README.md) — selección
+  estable de capturas de la TUI, pasos de reproducción y límites de la prueba.
+
+Las propuestas viven aquí; al entregarlas, el razonamiento de cierre va a
+`history/` y el plan enlaza esa entrada. No se duplica el historial ni se
+anticipan releases en el changelog.
 
 ## `history/`
 

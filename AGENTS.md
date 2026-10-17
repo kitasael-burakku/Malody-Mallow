@@ -21,6 +21,8 @@ escriben en español. Todo texto visible para el usuario sale de `internal/i18n`
 Versión actual: la const en `internal/version/version.go`. Los git tags empiezan
 en v1.0.0; cada release nueva lleva bump + tag anotado. La meta sigue siendo
 código limpio y entendible, no acumular features.
+Cada entrega justifica su número; la regla de incremento por alcance vive en
+`docs/development/releases.md` (cambio grande conserva el último componente).
 
 ## Mapa de la documentación
 
@@ -29,6 +31,8 @@ código limpio y entendible, no acumular features.
 | Ficha completa de un paquete | `docs/architecture/*.md` (tabla en [Arquitectura](#arquitectura)) |
 | Lo que ya se evaluó y se descartó, con su razón | `docs/decisions/no-hacer.md` |
 | Por qué una release hizo lo que hizo, qué se midió | `docs/history/README.md` → `docs/history/roadmap-*.md` |
+| Próximas mejoras UI/UX y aceptación por entrega | `docs/planning/roadmap-ui-ux.md` |
+| Ejecutar y cerrar esas entregas con evidencia | `docs/development/implementacion-ui-ux.md` |
 | Montar un sandbox o probar la TUI en vivo | `docs/development/probar-en-vivo.md` |
 | Cómo se verifica un arreglo (y las trampas del arnés) | `docs/development/verificacion.md` |
 | Publicar, empaquetar, tocar la unit de systemd | `docs/development/releases.md` |
@@ -232,7 +236,9 @@ tomadas.
 
 ## Estado actual
 
-**v1.19.3** (`internal/version/version.go`): consultas en lote en `play`,
+**v1.19.4** (`internal/version/version.go`): corrige los bordes desplazados
+por VS15 en la TUI y los selectores; normaliza solo la salida de pantalla
+(ver la ficha de TUI y el roadmap de ingeniería). La 1.19.3 añadió consultas en lote en `play`,
 `add` y `playlist add`, también en la consola ctrl+p. La 1.19.2 hizo legible
 la CLI en terminales de fondo claro. La 1.19.1 trajo el filtro `/` flotante y el
 arreglo de la posición MPRIS, y es una feature con número de parche por

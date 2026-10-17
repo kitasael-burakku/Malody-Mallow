@@ -1,0 +1,3 @@
+# Las filas vacías finales forman parte de la altura capturada de la TUI.
+*.txt whitespace=-blank-at-eof
+*.ansi whitespace=-blank-at-eof

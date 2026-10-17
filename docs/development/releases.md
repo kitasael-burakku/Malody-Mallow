@@ -3,6 +3,42 @@
 Fuente única: esta ficha. `CLAUDE.md` solo dice que una release es «bump +
 tag + entrada de CHANGELOG + entrada de roadmap» y remite aquí.
 
+## Cómo se elige la versión
+
+Regla del dueño fijada el **2026-10-17**, aplicable a las próximas entregas.
+Para una versión `1.M.P`:
+
+| Alcance entregado | Siguiente versión | Ejemplo |
+| --- | --- | --- |
+| Cambio pequeño y acotado | `1.M.(P+1)` | `1.19.3` → `1.19.4` → `1.19.5` |
+| Cambio grande | `1.(M+1).P` | `1.19.3` → `1.20.3`; desde `1.19.4`, → `1.20.4` |
+| Solo documentación, sin cambio del binario | Se conserva | Sobre `1.19.3`, sin bump |
+
+**Al subir el número central se conserva el último componente; no se reinicia
+a cero ni se incrementan ambos a la vez.** Es la convención del proyecto,
+no una aplicación automática de SemVer. No se renumeran releases históricas.
+Esta regla no define saltos del primer componente: un futuro `2.x.y` requiere
+una decisión propia.
+
+Se considera pequeño un arreglo o una capacidad acotada que conserva el
+modelo de interacción y los contratos principales. Una función nueva puede
+ser pequeña. Se considera grande un nuevo flujo de interacción de alcance
+amplio, un cambio del modelo de reproducción o nuevo estado compartido que
+exija coordinar clientes y demonio. El número de archivos o líneas cambiadas
+no decide la categoría.
+
+**Toda entrega justifica su versión** en la entrada de ingeniería: versión
+base → destino, problema concreto, comportamiento antes/después, por qué el
+alcance es pequeño o grande y qué pruebas sostienen esa clasificación. Un
+hotfix también lo hace. Para trabajo documental se justifica expresamente
+por qué no hay bump.
+
+Los números de un plan son provisionales. Antes del bump se comprueban la
+const `Version`, los tags y el alcance final. Si entra otra release, se
+recalcula la secuencia desde la base real; si crece o se divide una entrega,
+se revisa su justificación. No se reservan tags ni se anuncian propuestas en
+el changelog como si estuvieran publicadas.
+
 ## Qué toca un bump
 
 1. `internal/version/version.go` — la const `Version` (sin la «v»).
@@ -26,6 +62,7 @@ bump de versión…», que es la convención ya establecida.
 Se han saltado números a propósito cuando la tanda era grande y guiada a
 seguridad, para que el número lo diga: 1.1.5 (se saltaron 1.1.1–1.1.4) y
 1.6.0 (se saltó 1.5.2). También se brincó la 0.7.0 antes del 1.0.0.
+Son antecedentes históricos, no excepciones automáticas a la regla vigente.
 
 ## Canales de distribución
 

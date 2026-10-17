@@ -13,6 +13,8 @@ Qué es cada cosa:
   quien solo quiere saber qué cambió. No lo reemplaza: son dos audiencias.
 - **`CLAUDE.md`** (raíz) — el contrato operativo: filosofía, invariantes y
   arquitectura de alto nivel. Es lo único que se carga siempre.
+- **[Plan UI/UX](../planning/roadmap-ui-ux.md)** — entregas futuras de la revisión
+  del 2026-10-17. Sus versiones son provisionales; no son releases históricas.
 
 ## Archivos
 
@@ -102,3 +104,5 @@ precede.
 | 1.19.1 | El filtro `/` como caja flotante abajo (estilo fzf) con prefijos de campo, `-negación`, nombre de archivo, fuzzy con orden por puntuación y resaltado; composición de capas propia (`compose.go`) porque `x/ansi.Truncate` duplicaba escapes; y el arreglo de la posición MPRIS (`a24a2fc`) sale del parche del PKGBUILD |
 | 1.19.2 | La salida de la CLI legible en fondo claro: la paleta pasa a `cmd/maly/style.go` como `AdaptiveColor` (Mocha oscuro / Latte claro) en vez de seis copias de hex fijos de Mocha |
 | 1.19.3 | Consultas en lote en `play`/`add`/`playlist add`, comillas en ctrl+p, completado por argumento y separación entre consultas sin resultados y errores reales de la biblioteca |
+| — | Sobre 1.19.3, sin bump: revisión UI/UX de Codex, evidencia y plan de implementación; regla de numeración por alcance del 2026-10-17 |
+| 1.19.4 | Corrige los bordes desplazados por VS15 en la TUI, `select` y `get pick`; verificado con el motor de Kitty |

@@ -1,8 +1,8 @@
 # UX-04 — consultas locales coherentes (2026-10-18)
 
 Base: `2363318`, const `1.19.7`, último tag local `v1.19.5`. Destino:
-`1.19.8`. Implementación y verificación; commit/tag de UX-04, publicación,
-PKGBUILD y despliegue pendientes. El remoto no se consultó.
+`1.19.8`, commit `fb0db1b`. Implementación y verificación terminadas; tag,
+publicación, PKGBUILD y despliegue pendientes. El remoto no se consultó.
 
 ## Reproducción y aceptación
 

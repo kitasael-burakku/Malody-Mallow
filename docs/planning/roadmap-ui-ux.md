@@ -3,7 +3,8 @@
 **Estado: UX-00 verificada y publicada en GitHub como `1.19.4`;
 UX-01 con release local `1.19.5`; UX-02 verificada en el commit `9135bcd`
 (`1.19.6`, sin tag); UX-03 verificada en el commit `2363318` (`1.19.7`, sin tag);
-UX-04 implementada y verificada en `1.19.8`, pendiente de commit/tag.
+UX-04 verificada en el commit `fb0db1b` (`1.19.8`, sin tag).
+Trabajo pausado por el dueño al cerrar la sesión del 2026-10-18.
 UX-05–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
@@ -37,7 +38,7 @@ condicionadas son candidatas, no compromisos de publicación.
 | UX-01 | `1.19.4` → `1.19.5` | Estados vacíos veraces | Pequeño: corrige la interpretación visual de datos existentes, sin nuevos comandos ni estado persistente | Verificada; release local v1.19.5, publicación pendiente |
 | UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Verificada; commit 9135bcd, tag pendiente |
 | UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Verificada; commit 2363318, tag pendiente |
-| UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia búsqueda SQL ni red | Implementada y verificada; commit/tag pendientes |
+| UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia búsqueda SQL ni red | Verificada; commit fb0db1b, tag pendiente |
 | UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Pendiente |
 | UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño si se mantiene acotado: compone una foto de la cola con la persistencia de playlists existente | Condicionada a diseño acotado |
 | UX-07 | `1.20.9` → `1.20.10` | Continuidad después de descargar | Pequeño si se mantiene acotado: ofrece acciones existentes sobre los archivos obtenidos, sin gestor de trabajos nuevo | Condicionada a verificar el flujo |
@@ -195,7 +196,7 @@ de la CLI y la consulta remota de yt-dlp.
 - [x] Describir el cambio de semántica en la documentación de uso en ambos
   idiomas, sin presentarlo como una nueva búsqueda online.
 
-**Cierre:** [ingeniería de 1.19.8](../history/roadmap-1.17.md#v1198-2026-10-18--ux-04-consultas-locales-coherentes) y [evidencia](evidence/ux-04-1.19.8/README.md). Campos reales y selección por ruta; benchmark de 40.000 pistas y matriz tmux es/en. Pendientes commit/tag, publicación y despliegue.
+**Cierre:** [ingeniería de 1.19.8](../history/roadmap-1.17.md#v1198-2026-10-18--ux-04-consultas-locales-coherentes) y [evidencia](evidence/ux-04-1.19.8/README.md). Campos reales y selección por ruta; benchmark de 40.000 pistas y matriz tmux es/en. Commit `fb0db1b`; pendientes tag, publicación y despliegue.
 
 ## UX-05 — paleta con sugerencias seleccionables
 
@@ -363,10 +364,17 @@ Cierre local autorizado con commit y tag anotado `v1.19.5`; publicación y
 despliegue pendientes. El PKGBUILD se aplaza hasta terminar de probar las
 próximas subidas, por instrucción del dueño.
 
-Siguiente entrega tras UX-01: UX-02. El [prompt de continuidad](PROMPT-CONTINUIDAD-UI-UX.md)
-se conserva como el encargo histórico de UX-01; el estado vigente es este
-roadmap. El historial técnico permanece en `docs/history/`.
+Siguiente entrega tras UX-01 en ese momento: UX-02. El historial técnico
+permanece en `docs/history/`; el [prompt de continuidad](PROMPT-CONTINUIDAD-UI-UX.md)
+se actualiza con el punto de reanudación vigente.
 
 2026-10-18: UX-02 quedó en el commit `9135bcd` (`1.19.6`, sin tag). UX-03
 implementada y verificada en `1.19.7`; cuatro entregas UI/UX realizadas,
 publicación y despliegue de las últimas pendientes. Siguiente entrega: UX-04.
+
+
+2026-10-18, pausa de cierre solicitada por el dueño: UX-03 commiteada en
+`2363318` y UX-04 en `fb0db1b` (`1.19.8`), **cinco entregas implementadas y
+verificadas contando UX-00**. Sin tags nuevos, push, PKGBUILD ni despliegue.
+UX-05 no iniciada; será la siguiente entrega al reanudar. Resumen de sesión y
+límites en el [cierre histórico](../history/roadmap-1.17.md#sobre-1198-2026-10-18--cierre-de-sesión-y-pausa).

@@ -236,9 +236,10 @@ tomadas.
 
 ## Estado actual
 
-**v1.19.8 — implementada y verificada; pendiente de commit, tag y publicación**
+**v1.19.8 — implementada y verificada en `fb0db1b`; pendiente de tag y publicación**
 (`internal/version/version.go`): UX-04 unifica las consultas locales de canciones;
-aceptación y límites en el roadmap UI/UX y la historia de ingeniería. La
+aceptación y límites en el roadmap UI/UX y la historia de ingeniería. Trabajo
+pausado al cerrar el 2026-10-18; siguiente entrega UX-05, aún no iniciada. La
 1.19.7 (commit `2363318`, sin tag) mejoró títulos, contraste y selección. La
 1.19.6 (commit `9135bcd`, sin tag) presentó ayudas contextuales y teclas resueltas. La 1.19.5
 distinguió carga, error, vacío y filtro sin coincidencias (UX-01). La 1.19.4 corrigió los bordes

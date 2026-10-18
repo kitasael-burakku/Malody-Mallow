@@ -2,10 +2,48 @@
 
 Índice: [`README.md`](README.md).
 
+## Sobre 1.19.8 (2026-10-18) — cierre de sesión y pausa
+
+El dueño autoriza commitear UX-04 y **pausa el trabajo por hoy**. Queda en
+`fb0db1b` (`fix(tui): unificar consultas locales en la v1.19.8`). Este cierre
+posterior solo actualiza documentación y continuidad: **sin bump**, porque
+no cambia el binario ni añade una entrega. No se inició UX-05.
+
+La sesión avanzó desde UX-01 hasta UX-04, siguiendo la aceptación del roadmap:
+
+| Entrega | Resultado | Commit / versión local |
+| --- | --- | --- |
+| UX-01 | Distingue carga, errores, colección vacía y filtros sin coincidencias; guía correcta para crear playlists | `b8ebe5a` / 1.19.5, tag anotado `v1.19.5` |
+| UX-02 | Ayudas contextuales con teclas resueltas, mensajes envueltos y ayuda por tareas | `9135bcd` / 1.19.6, sin tag |
+| UX-03 | Título de hasta dos filas, selección visible sin color y contraste medido; conserva configs existentes | `2363318` / 1.19.7, sin tag |
+| UX-04 | Lenguaje local común para `/`, Ctrl+O y `select`, campos reales, negación y selección por ruta | `fb0db1b` / 1.19.8, sin tag |
+
+Los cierres de cada versión más abajo conservan reproducción, decisiones,
+regresiones en ambas direcciones, matriz y límites. La verificación final de
+UX-04 pasó build sin CGo, vet, suite completa y race: 17 paquetes, 749
+casos/subcasos, sin fallos ni saltos; mpv disponible y bus privado. El cierre
+documental comprueba enlaces, hashes y `git diff --check`; no repite suites
+correctas ni atribuye la evidencia gráfica de UX-03 a una prueba nueva.
+
+**Publicación y despliegue:** último tag local `v1.19.5`; no existen todavía
+`v1.19.6`, `v1.19.7` ni `v1.19.8`. No se hizo push ni se consultó el remoto
+para afirmar la publicación de estas entregas. El PKGBUILD sigue aplazado
+por instrucción del dueño hasta terminar de probar las subidas. No se sustituyó
+`~/.local/bin/maly` ni se reinició el servicio real: el despliegue local sigue
+pendiente. No se debe interpretar un commit o un binario de prueba como release
+publicada o instalación actualizada.
+
+**Reanudación:** UX-05, paleta con sugerencias seleccionables. Su alcance y
+aceptación siguen teniendo una sola fuente en el
+[roadmap UI/UX](../planning/roadmap-ui-ux.md#ux-05--paleta-con-sugerencias-seleccionables).
+Destino previsto desde esta base: **1.20.8**, cambio grande que conserva el
+último componente. El [prompt de continuidad](../planning/PROMPT-CONTINUIDAD-UI-UX.md)
+recoge el encargo para otra sesión, sin autorizar avanzar durante esta pausa.
+
 ## v1.19.8 (2026-10-18) — UX-04: consultas locales coherentes
 
-**Estado:** implementada y verificada; pendiente de commit, tag, publicación y
-despliegue local. UX-03 quedó en `2363318` por autorización del dueño, sin tag
+**Estado:** implementada y verificada en el commit `fb0db1b`; pendiente de tag,
+publicación y despliegue local. UX-03 quedó en `2363318` por autorización del dueño, sin tag
 ni push. PKGBUILD aplazado. Siguiente entrega: UX-05.
 [Aceptación](../planning/roadmap-ui-ux.md#ux-04--consultas-locales-coherentes) y
 [evidencia reproducible](../planning/evidence/ux-04-1.19.8/README.md).
@@ -61,8 +99,8 @@ No se mide aquí el coste de abrir/refrescar, que incluye plegar los campos.
 
 **Vuelta atrás y límites.** Revertir esta entrega o recuperar picker/songs de
 las copias previas; no hay migración de datos. No se modificaron binario instalado,
-servicio de música, configuración real ni PKGBUILD. Falta autorizar el commit/tag
-de UX-04; publicar y comprobar el tag antes de empaquetar. Despliegue local
+servicio de música, configuración real ni PKGBUILD. El commit de UX-04 fue autorizado y creado; queda pendiente el tag.
+Publicar y comprobar el tag antes de empaquetar. Despliegue local
 pendiente de copiar el binario y reiniciar el servicio por decisión del dueño.
 
 ## v1.19.7 (2026-10-18) — UX-03: títulos, contraste y selección

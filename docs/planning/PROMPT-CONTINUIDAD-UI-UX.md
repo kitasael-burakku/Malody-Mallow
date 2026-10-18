@@ -1,127 +1,112 @@
-# Prompt de continuidad — implementar UX-01
+# Prompt de continuidad — implementar UX-05
 
-Guardado el 2026-10-17. Puedes pegar este contenido en otra sesión o pedirle
-al agente que lea este archivo y ejecute el encargo. Es una foto de continuidad;
-el disco y las fuentes enlazadas mandan si el proyecto avanzó.
+Actualizado al cierre del 2026-10-18. El trabajo quedó pausado por el dueño.
+Este encargo se ejecuta al retomarlo en otra sesión; no inicia UX-05 durante
+la pausa. Es una foto de continuidad: el disco manda si el proyecto avanzó.
 
 ---
 
-Trabaja en `/home/kitasa-elburakku/Projects/maly`, en español. Quiero que
-retomes el roadmap UI/UX acordado y **implementes UX-01 — estados vacíos
-veraces**, con pruebas y documentación. No te quedes en una propuesta ni
-vuelvas a hacer la auditoría completa. Investiga lo necesario, toma las
-decisiones rutinarias y termina esta entrega verificable.
+Trabaja en `/home/kitasa-elburakku/Projects/maly`, en español. Retoma el
+roadmap acordado e **implementa UX-05 — paleta con sugerencias seleccionables**,
+con pruebas, documentación y evidencia. No te quedes en una propuesta ni
+repitas la auditoría completa. Investiga lo necesario y toma las decisiones
+rutinarias; pregunta solo si falta una decisión del dueño.
 
-## Estado de partida registrado
+## Base registrada y límites
 
-- Código: `2031b730b2c9575fe678a60fc76dbcdeb9f03ab1`, rama `main`, versión
-  `1.19.4`, tag anotado `v1.19.4`. En la sesión anterior se verificó por HTTPS
-  que `main` y el tag públicos de GitHub resolvían a ese mismo commit.
-- UX-00 está terminada: los bordes se desplazaban por el selector invisible
-  VS15 de `Kareto☕︎`. `terminalPresentation` normaliza únicamente la salida
-  final de las tres vistas de Bubble Tea. No reescribir metadatos ni quitar
-  indiscriminadamente caracteres de ancho cero: rompería, entre otras cosas,
-  los diacríticos de las carátulas Kitty. Su contrato está en la ficha de TUI.
-- El arreglo pasó regresión en ambas direcciones, contraste con el motor de
-  Kitty en cuatro tamaños, suite completa sin CGo y con `-race`, vet y build.
-  Esa evidencia prueba UX-00, no la implementación pendiente de UX-01.
-- Paquete: `/home/kitasa-elburakku/Projects/PKGBUILDS/maly`, commit local
-  `769eef9`, versión `1.19.4-1`. Se verificó el archivo público contra las
-  228 entradas del tag, se regeneró `.SRCINFO` y pasó `makepkg` completo.
-  El usuario informó que ya hizo el push al AUR; no se comprobó ese remoto
-  después de su confirmación. Si necesitas afirmar su publicación, verifícala.
-- UX-01–UX-09 siguen pendientes. No confundir las versiones previstas con
-  releases publicadas. Este prompt y su actualización documental no llevan bump.
-- La instalación local es independiente: compilar o empaquetar no acredita
-  que `~/.local/bin/maly` ni el servicio del usuario estén actualizados.
+- Rama `main`, const `1.19.8`; commit de implementación UX-04:
+  `fb0db1b4fa8e77a63b16472e3e2f84550bdb257e`. Después se añadió el cierre documental de
+  la sesión, sin cambiar código ni versión. Comprueba el HEAD real.
+- UX-01: `b8ebe5a`, 1.19.5, tag anotado `v1.19.5`.
+  UX-02: `9135bcd`, 1.19.6. UX-03: `2363318`, 1.19.7.
+  UX-04: `fb0db1b`, 1.19.8. UX-00–UX-04 implementadas y verificadas.
+- Último tag local comprobado: `v1.19.5`. No se crearon tags 1.19.6–1.19.8
+  ni se hizo push. No se verificó la publicación remota de estas entregas.
+- UX-05–UX-09 siguen pendientes; las candidatas no son compromisos de publicación.
+- PKGBUILD aplazado por el dueño hasta terminar de probar las subidas. No
+  tocarlo ahora: empaquetar sigue a publicar y comprobar el tag correspondiente.
+- No se sustituyó `~/.local/bin/maly` ni se reinició el servicio real.
+  Compilar en `/tmp` no acredita despliegue local.
+- UX-04 pasó build sin CGo, vet, suite completa sin CGo y race: 17 paquetes,
+  749 casos/subcasos, cero fallos y cero saltos con mpv y bus privado.
+  Matriz tmux es/en y cuatro tamaños; regresiones en ambas direcciones.
+  Esa evidencia no verifica UX-05, todavía pendiente.
 
-## Primero, leer el estado real y las reglas
+## Antes de implementar
 
-1. Lee `AGENTS.md` y comprueba `git status --short`, `git diff`, últimos
-   commits/tags y `internal/version/version.go`. Conserva cambios existentes;
-   no asumas que el árbol sigue limpio o que la base sigue siendo `1.19.4`.
-2. Lee las fuentes de trabajo, sin crear otro roadmap paralelo:
-   - [Roadmap y aceptación de UX-01](roadmap-ui-ux.md).
+1. Lee `AGENTS.md`, `git status --short`, `git diff`, últimos commits/tags y
+   `internal/version/version.go`; conserva los cambios existentes.
+2. Consulta las fuentes únicas:
+   - [Alcance y aceptación UX-05](roadmap-ui-ux.md#ux-05--paleta-con-sugerencias-seleccionables).
+   - [Cierre de sesión e ingeniería](../history/roadmap-1.17.md).
    - [Guía de implementación](../development/implementacion-ui-ux.md).
-   - [Arquitectura de la TUI](../architecture/tui.md).
-   - [Decisiones que no se reabren](../decisions/no-hacer.md).
-   - [Verificación](../development/verificacion.md).
-   - [Pruebas en vivo](../development/probar-en-vivo.md).
-   - [Versionado y releases](../development/releases.md).
-   - [Evidencia inicial E01–E03](evidence/ui-ux-2026-10-17/README.md).
-3. Reproduce UX-01 sobre el código actual con controles positivos. Si alguna
-   premisa ya no se cumple, documenta la evidencia y ajusta únicamente el
-   alcance correspondiente; no implementes un remedio para un fallo inexistente.
+   - [Arquitectura TUI](../architecture/tui.md) y [CLI](../architecture/cli.md).
+   - [Decisiones cerradas](../decisions/no-hacer.md).
+   - [Verificación](../development/verificacion.md),
+     [pruebas en vivo](../development/probar-en-vivo.md) y
+     [releases](../development/releases.md).
+   - [Evidencia inicial E10](evidence/ui-ux-2026-10-17/README.md) y
+     [cierre UX-04](evidence/ux-04-1.19.8/README.md).
+3. Reproduce la premisa de UX-05 sobre el código actual con controles positivos.
+   Ctrl+P ya ofrece entrada directa, historial y salida; al escribir `pl` no
+   ofrece sugerencias seleccionables. Si algo cambió, ajusta solo ese alcance.
 
-## Encargo: UX-01
+## Encargo
 
-Corrige la distinción entre carga pendiente, error de lectura, colección
-realmente vacía y filtro sin coincidencias. El alcance y aceptación completos
-pertenecen al roadmap; como casos de entrada:
+Implementa selección por teclado de comandos existentes, descripción localizada
+y argumentos esperados. Permite encontrar una acción por nombre o descripción,
+completar sus argumentos y ejecutarla. Conserva entrada directa, historial,
+borrador, comillas, salida con scroll y confirmación de borrado de playlists.
 
-- Biblioteca poblada + filtro sin coincidencias: no anunciar «biblioteca vacía».
-- Cola poblada + filtro sin coincidencias: no anunciar «cola vacía».
-- Biblioteca con canciones + ninguna playlist: explicar cómo crear una
-  playlist, no pedir escanear canciones que ya existen.
-- Mantener los vacíos legítimos, los errores persistentes de lectura y el
-  flash de primer arranque; no convertir errores en consejos falsos.
-- Textos en inglés y español mediante `internal/i18n`, con una salida útil
-  para limpiar/editar filtros usando acciones existentes.
+Empieza por `internal/tui/console.go`, `cmd/maly/commands.go`, completado y
+claves de ayuda. La TUI no puede importar `package main`: extrae únicamente
+los metadatos compartidos necesarios. No añadas una tercera lista manual ni
+reestructures el dispatch del demonio. Valida metadatos contra expectativas
+reales, además de comparar listas entre sí.
 
-Empieza por `libraryPanel`/`queuePanel` en `internal/tui/view.go`,
-`picker.render` en `internal/tui/picker.go`, `openPlaylists`/`plView` en
-`internal/tui/playlists.go` y la tabla de i18n. Comprueba todos los consumidores
-de un picker compartido antes de cambiar sus estados vacíos.
+Define y explica las teclas de selección, edición, historial y Escape antes
+de codificar. Toma una decisión coherente con los controles existentes, sin
+pedir autorización genérica para la implementación. Seleccionar una sugerencia
+no debe ejecutar un borrado; una plantilla incompleta necesita argumentos
+válidos y debe respetar las confirmaciones existentes.
 
-No añadas un asistente, escaneos automáticos ni comandos nuevos. No adelantes
-UX-02, UX-03 o las candidatas funcionales en esta misma entrega. Se mantienen
-las decisiones del proyecto: sin ratón, Matugen ni red propia; `computeLayout`
-sigue siendo puro y la paridad CLI/consola se conserva donde corresponda.
+No adelantes UX-06 ni otras candidatas. Sin ratón, Matugen o red propia.
+`computeLayout` sigue puro. Conserva la paridad CLI/consola donde corresponda
+y los textos en `internal/i18n` en inglés y español. Preserva UX-00–UX-04:
+normalización final VS15 sin alterar metadatos/carátulas, estados vacíos veraces,
+ayudas contextuales, marcadores de selección y lenguaje local de canciones.
 
-## Forma de trabajar y comprobaciones
+## Pruebas y cierre
 
-- Expón brevemente reproducción, alcance, riesgo, vuelta atrás y versión
-  prevista. No pidas otra autorización genérica para implementar UX-01:
-  este encargo la concede. Pregunta solo si falta una decisión del dueño.
-- Prueba con XDG aislado, audio nulo y updates desactivados. Sigue la guía
-  de pruebas en vivo; no conectes las pruebas al demonio, biblioteca o bus
-  MPRIS reales. Usa un bus privado para la suite. Mata solo PIDs exactos.
-- Puedes controlar la TUI y guardar capturas. Distingue captura real del
-  escritorio, texto/ANSI de tmux e imagen renderizada desde ese buffer.
-  No dependas de los directorios temporales de la sesión anterior.
-- Comprueba los estados afectados en es/en, tamaños 140×42, 100×28, 80×24
-  y 40×12, y las combinaciones pertinentes de la matriz de la guía.
-- Si cambia lógica de estados, añade regresiones que comprueben mensaje
-  correcto y ausencia del incorrecto. Verifícalas en ambas direcciones:
-  sin arreglo deben fallar compilando y por el defecto real; restaura la
-  producción desde una copia con `cp`, nunca con `git checkout`/`reset`.
-- Ejecuta gofmt, build, vet, suite completa y `-race` según la guía. Confirma
-  disponibilidad de mpv y registra saltos o límites. Un bloqueo del sandbox
-  requiere el mecanismo de permisos correspondiente; no demuestra un bug.
-- No repitas comprobaciones ya correctas salvo que haya cambios, fallos o
-  dudas concretas que lo justifiquen.
+- Expón reproducción, alcance, riesgo, vuelta atrás y versión prevista.
+- Usa XDG nuevo y runtime corto, `ao=null`, updates y visualizador apagados;
+  bus privado para la suite y las pruebas en vivo. No conectes al demonio,
+  biblioteca ni MPRIS reales. Mata solo procesos propios por PID exacto.
+- Comprueba es/en y 140×42, 100×28, 80×24 y 40×12, incluyendo redimensionado,
+  teclas default/vim/override y combinaciones pertinentes de la guía.
+  Sugerencias y salida deben ser legibles a 80×24 y permitir salir a 40×12.
+- Prueba la acción efectivamente enviada y las confirmaciones, no solo el
+  texto del flash. Conserva historial, borrador, comillas y scroll.
+- Regresiones en ambas direcciones: sin arreglo deben compilar y fallar por
+  el defecto real; restaura producción con `cp`, nunca checkout/reset.
+- Ejecuta gofmt, build sin CGo, vet, suite completa sin CGo y `-race` bajo
+  bus privado. Confirma mpv y registra saltos o límites. Usa el mecanismo de
+  permisos si el sandbox bloquea sockets/caché; no lo llames bug del producto.
+- Distingue capturas de escritorio, buffer texto/ANSI de tmux y renders de
+  ese buffer. No dependas de temporales de esta sesión. No repitas checks
+  correctos salvo cambios, fallos o dudas concretas.
 
-## Versión, documentación y entrega
+Si la base y el alcance se mantienen, UX-05 va de **1.19.8 a 1.20.8**: cambio
+grande por el nuevo recorrido que coordina selección, texto, historial y
+confirmaciones. Al subir el central se conserva el último componente; no
+reinicies a cero. Recalcula si cambia la base y justifica el salto en ingeniería.
 
-Si la base sigue siendo `1.19.4` y el alcance se mantiene, el destino de UX-01
-es **`1.19.5`**: cambio pequeño de presentación de estados existentes, sin
-nuevos contratos de reproducción, IPC ni persistencia. Justifica expresamente
-el salto en el cierre de ingeniería. Si la base cambió, recalcula desde ella.
+Actualiza aceptación/estado en el roadmap, entrada en `docs/history`, changelog,
+const de versión y documentación de uso/arquitectura afectada. No crees un
+roadmap paralelo ni anuncies como implementado lo que solo esté propuesto.
 
-La regla acordada vive en `releases.md`: pequeño incrementa el último número;
-grande incrementa el central conservando el último (`1.19.5` → `1.20.5`).
-No reiniciar el parche a cero. Solo documentación no cambia la versión.
-
-Al terminar, actualiza el estado/aceptación de UX-01 en el roadmap, la entrada
-de ingeniería, el changelog, la const de versión y la documentación de uso o
-arquitectura que realmente haya cambiado. Respeta las fuentes únicas. No
-anuncies como implementado nada que solo esté propuesto.
-
-Entrega el cambio, cómo se verificó, sus límites, la versión justificada y
-el siguiente paso (UX-02). Distingue implementación, verificación, release
-local y publicación. Deja el commit/tag para la autorización de cierre del
-usuario; el push lo hace él. No solicites claves SSH. No actualices aún el
-PKGBUILD: eso sigue a la publicación y comprobación del nuevo tag.
-
-No sustituyas el binario instalado ni reinicies la sesión real de música al
-probar. Indica al cerrar si queda pendiente el despliegue local.
+Entrega el resultado verificable, sus límites y el siguiente paso. Deja
+commit/tag para autorización de cierre; el push lo hace el dueño. No pidas
+claves SSH, no actualices PKGBUILD y no reemplaces el binario instalado ni
+reinicies la música real. Distingue implementación, verificación, release
+local, publicación y despliegue.

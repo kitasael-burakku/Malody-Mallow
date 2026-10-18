@@ -1,0 +1,9 @@
+goos: linux
+goarch: amd64
+pkg: maly/internal/tui
+cpu: AMD Ryzen 7 8700F 8-Core Processor             
+BenchmarkUX04Picker/render-16         	   13404	     26822 ns/op	   21040 B/op	     211 allocs/op
+BenchmarkUX04Picker/render-16         	   13398	     26948 ns/op	   21040 B/op	     211 allocs/op
+BenchmarkUX04Picker/render-16         	   13326	     27320 ns/op	   21040 B/op	     211 allocs/op
+PASS
+ok  	maly/internal/tui	3.225s

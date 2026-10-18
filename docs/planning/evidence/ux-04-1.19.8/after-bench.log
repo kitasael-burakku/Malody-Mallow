@@ -1,0 +1,24 @@
+goos: linux
+goarch: amd64
+pkg: maly/internal/tui
+cpu: AMD Ryzen 7 8700F 8-Core Processor             
+BenchmarkUX04Picker/horizonte-16         	     190	   1843443 ns/op	  976064 B/op	      11 allocs/op
+BenchmarkUX04Picker/horizonte-16         	     192	   1854868 ns/op	  976057 B/op	      11 allocs/op
+BenchmarkUX04Picker/horizonte-16         	     190	   1853023 ns/op	  976118 B/op	      11 allocs/op
+BenchmarkUX04Picker/a:aurea_-live-16     	     265	   1315316 ns/op	  976146 B/op	      13 allocs/op
+BenchmarkUX04Picker/a:aurea_-live-16     	     270	   1326184 ns/op	  976146 B/op	      13 allocs/op
+BenchmarkUX04Picker/a:aurea_-live-16     	     267	   1333330 ns/op	  976142 B/op	      13 allocs/op
+BenchmarkUX04Picker/t:cncn-16            	     247	   1445991 ns/op	  976050 B/op	      11 allocs/op
+BenchmarkUX04Picker/t:cncn-16            	     248	   1450607 ns/op	  976014 B/op	      11 allocs/op
+BenchmarkUX04Picker/t:cncn-16            	     247	   1446033 ns/op	  976041 B/op	      11 allocs/op
+BenchmarkUX04Picker/f:123-16             	     519	    678869 ns/op	  653664 B/op	      11 allocs/op
+BenchmarkUX04Picker/f:123-16             	     524	    690756 ns/op	  653631 B/op	      11 allocs/op
+BenchmarkUX04Picker/f:123-16             	     520	    673902 ns/op	  653586 B/op	      11 allocs/op
+BenchmarkUX04Picker/render-16            	   13137	     27991 ns/op	   21040 B/op	     211 allocs/op
+BenchmarkUX04Picker/render-16            	   13138	     27260 ns/op	   21040 B/op	     211 allocs/op
+BenchmarkUX04Picker/render-16            	   13066	     27929 ns/op	   21040 B/op	     211 allocs/op
+BenchmarkUX04Picker/move-input-16        	  610992	       592.7 ns/op	      56 B/op	       7 allocs/op
+BenchmarkUX04Picker/move-input-16        	  630972	       582.1 ns/op	      56 B/op	       7 allocs/op
+BenchmarkUX04Picker/move-input-16        	  617319	       572.7 ns/op	      56 B/op	       7 allocs/op
+PASS
+ok  	maly/internal/tui	14.782s

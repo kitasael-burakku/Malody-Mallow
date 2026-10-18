@@ -10,7 +10,7 @@ import (
 	"maly/internal/library"
 )
 
-// El selector de canciones (ctrl+o) es un picker fuzzy sobre toda la
+// El selector de canciones (ctrl+o) usa el filtro local sobre toda la
 // biblioteca; su única responsabilidad es elegir canciones (enter reproduce,
 // tab agrega). `maly select` reutiliza estas mismas entradas.
 
@@ -23,7 +23,8 @@ func songItems(tracks []library.Track) []pickerItem {
 		if t.Album != "" {
 			label += "  [" + t.Album + "]"
 		}
-		items = append(items, newPickerItem(label, t.Path))
+		fields := foldTrack(t.Title, t.Artist, t.Album, t.Path)
+		items = append(items, pickerItem{label: label, value: t.Path, track: &fields})
 	}
 	return items
 }

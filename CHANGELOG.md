@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.8 — 2026-10-18 (pendiente de publicación)
+
+- **Consultas locales coherentes.** Ctrl+O y `maly select` comparten con `/`
+  los campos `a:`, `al:`, `t:`, `f:` y la negación `-live`, con ejemplos en
+  la entrada y la ayuda. Buscan sobre los campos reales de la pista, incluido
+  el nombre de archivo; las coincidencias difusas ya no cruzan campos y su
+  orden puede cambiar. Enter y Tab conservan sus acciones. Playlists,
+  búsqueda SQL de la CLI y consultas remotas mantienen su comportamiento.
+
 ## v1.19.7 — 2026-10-18 (pendiente de publicación)
 
 - **Títulos, contraste y selección.** La ficha de la pista muestra hasta dos

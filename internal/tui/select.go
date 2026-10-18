@@ -14,7 +14,7 @@ import (
 	"maly/internal/library"
 )
 
-// RunSelect implementa `maly select`: el mismo picker fuzzy de ctrl+o pero
+// RunSelect implementa `maly select`: el mismo filtro local de ctrl+o pero
 // como mini modal inline en el terminal, sin abrir la TUI completa. enter
 // reproduce, tab agrega a la cola, esc/ctrl+c cancela. Requiere el servicio
 // corriendo (como cualquier comando de reproducción).

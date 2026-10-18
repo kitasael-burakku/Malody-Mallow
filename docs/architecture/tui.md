@@ -122,7 +122,7 @@ estaba en el destino: van separadas de sus consumidores porque
 resto solo se llega pasando por el demonio, así que sin partirlas no hay
 forma de comprobar en un test qué decidió esta mitad — que es exactamente
 cómo A-04 pudo pasar desapercibido) + picker
-fuzzy genérico (`picker.go`, usado por ctrl+o canciones, ctrl+l playlists y
+compartido (`picker.go`, usado por ctrl+o canciones, ctrl+l playlists y
 `maly select`; sus estados locales y los knobs `noFilter`/`emptyText` se describen arriba) +
 buscador de descargas ctrl+g (`get.go`: picker sobre resultados REMOTOS de
 yt-dlp, de dos fases porque cada consulta cuesta ~1 s de red — elige una
@@ -168,7 +168,17 @@ ancho partido lo descarta o lo cuela entero, así que la fila deja de medir el
 ancho del terminal. El corte propio rellena con espacios y, del tramo tapado,
 solo rescata los SGR.
 
-El lenguaje vive en `filter.go`, que también es puro:
+El lenguaje de `/`, Ctrl+O y `maly select` vive en `filter.go`, que también
+es puro. `songItems` adjunta los campos originales plegados, separados de la
+etiqueta visible. `picker.setItems` reconstruye su caché de campos al recibir
+una colección de canciones; las otras colecciones conservan fuzzy por etiqueta
+y `noFilter` conserva todos los resultados remotos. El picker calcula el ranking
+al cambiar el texto o reemplazar los ítems, nunca desde `render` ni al mover
+el cursor dentro de la entrada. `setItemsKeeping` restaura la selección por
+ruta después de aplicar el filtro al refresco. `maly select` conserva su foto
+de biblioteca de apertura; no incorpora una suscripción nueva.
+
+Semántica compartida:
 
 - Las palabras van con AND, sobre título, artista, álbum y **nombre de
   archivo** (sin carpeta ni extensión; solo se busca en él, nunca se pinta, así

@@ -1,0 +1,12 @@
+╭─ Select Track ───────────────────╮
+│❯ a:Áurea                        …│
+│──────────────────────────────────│
+│> Auréa — hsm  [Horizontes]       │
+│  Áurea — Live                    │
+│  Áurea — 夜に Café               │
+│  Áurea — Has Mo  [Horizontes]    │
+│esc closes · enter plays · tab    │
+│adds · 4 result(s)                │
+╰──────────────────────────────────╯
+
+

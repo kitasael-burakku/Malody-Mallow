@@ -136,7 +136,7 @@ var table = map[string][2]string{
 	"np.scroll_hint":      {"esc closes · j/k scroll", "esc cierra · j/k desplazan"},
 	"np.track_no":         {"track %d", "pista %d"},
 	"help.palette":        {"command palette", "paleta de comandos"},
-	"help.songs":          {"song selector", "selector de canciones"},
+	"help.songs":          {"songs: a:artist al:album t:title f:file -live", "canciones: a:artista al:álbum t:título f:archivo -live"},
 	"help.playlists":      {"playlist panel", "panel de playlists"},
 	"help.get":            {"search and download music", "buscar y descargar música"},
 	"help.playlist_add":   {"add selection to a playlist", "agregar selección a una playlist"},
@@ -175,7 +175,7 @@ var table = map[string][2]string{
 
 	// ---- TUI: selector de canciones y picker genérico ----
 	"songs.title":     {"Songs", "Canciones"},
-	"songs.ph":        {"search song…", "buscar canción…"},
+	"songs.ph":        {"a: · al: · t: · f: · -live", "a: · al: · t: · f: · -live"},
 	"songs.hint":      {"esc closes · enter plays · tab adds · %d result(s)", "esc cierra · enter reproduce · tab agrega · %d resultado(s)"},
 	"songs.added":     {"added: %s", "agregada: %s"},
 	"sel.title":       {"Select Track", "Elegir canción"},

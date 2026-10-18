@@ -1,0 +1,43 @@
+--- FAIL: TestUX04SongQueries (0.00s)
+    --- FAIL: TestUX04SongQueries/a:Áurea (0.00s)
+        songfilter_test.go:58: ctrl+o "a:Áurea" = []; esperado [0 1 2 3]
+        songfilter_test.go:58: select "a:Áurea" = []; esperado [0 1 2 3]
+    --- FAIL: TestUX04SongQueries/a:Auréa_-live (0.00s)
+        songfilter_test.go:58: ctrl+o "a:Auréa -live" = []; esperado [0 1 3]
+        songfilter_test.go:58: select "a:Auréa -live" = []; esperado [0 1 3]
+    --- FAIL: TestUX04SongQueries/al:horizontes (0.00s)
+        songfilter_test.go:58: ctrl+o "al:horizontes" = []; esperado [0 1]
+        songfilter_test.go:58: select "al:horizontes" = []; esperado [0 1]
+    --- FAIL: TestUX04SongQueries/t:hsm (0.00s)
+        songfilter_test.go:58: select "t:hsm" = []; esperado [1 0]
+        songfilter_test.go:58: ctrl+o "t:hsm" = []; esperado [1 0]
+    --- FAIL: TestUX04SongQueries/t:夜に (0.00s)
+        songfilter_test.go:58: ctrl+o "t:夜に" = []; esperado [3]
+        songfilter_test.go:58: select "t:夜に" = []; esperado [3]
+    --- FAIL: TestUX04SongQueries/f:cancion (0.00s)
+        songfilter_test.go:58: ctrl+o "f:cancion" = []; esperado [5]
+        songfilter_test.go:58: select "f:cancion" = []; esperado [5]
+    --- FAIL: TestUX04SongQueries/f:東京 (0.00s)
+        songfilter_test.go:58: ctrl+o "f:東京" = []; esperado [5]
+        songfilter_test.go:58: select "f:東京" = []; esperado [5]
+    --- FAIL: TestUX04SongQueries/a:otra_t:aurea (0.00s)
+        songfilter_test.go:58: ctrl+o "a:otra t:aurea" = []; esperado [4]
+        songfilter_test.go:58: select "a:otra t:aurea" = []; esperado [4]
+    --- FAIL: TestUX04SongQueries/-a:aurea (0.00s)
+        songfilter_test.go:58: ctrl+o "-a:aurea" = []; esperado [4 5]
+        songfilter_test.go:58: select "-a:aurea" = []; esperado [4 5]
+    --- FAIL: TestUX04SongQueries/-hsm (0.00s)
+        songfilter_test.go:58: ctrl+o "-hsm" = []; esperado [0 2 3 4 5]
+        songfilter_test.go:58: select "-hsm" = []; esperado [0 2 3 4 5]
+    --- FAIL: TestUX04SongQueries/hm (0.00s)
+        songfilter_test.go:58: ctrl+o "hm" = [0 1]; esperado []
+        songfilter_test.go:58: select "hm" = [0 1]; esperado []
+    --- FAIL: TestUX04SongQueries/aurhsm (0.00s)
+        songfilter_test.go:58: ctrl+o "aurhsm" = [1 0]; esperado []
+        songfilter_test.go:58: select "aurhsm" = [1 0]; esperado []
+    --- FAIL: TestUX04SongQueries/a:_- (0.00s)
+        songfilter_test.go:58: ctrl+o "a: -" = []; esperado [0 1 2 3 4 5]
+        songfilter_test.go:58: select "a: -" = []; esperado [0 1 2 3 4 5]
+FAIL
+FAIL	maly/internal/tui	0.004s
+FAIL

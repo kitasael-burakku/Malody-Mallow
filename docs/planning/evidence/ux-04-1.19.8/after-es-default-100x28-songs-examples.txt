@@ -1,0 +1,28 @@
+
+
+
+
+
+
+
+
+                 ╭─ Canciones ────────────────────────────────────────────────────╮
+                 │❯ a: · al: · t: · f: · -live                                    │
+                 │────────────────────────────────────────────────────────────────│
+                 │> Canción 東京                                                  │
+                 │  Auréa — hsm  [Horizontes]                                     │
+                 │  Otra — Áurea  [Live]                                          │
+                 │  Áurea — Live                                                  │
+                 │  Áurea — 夜に Café                                             │
+                 │  Áurea — Has Mo  [Horizontes]                                  │
+                 │esc cierra · enter reproduce · tab agrega · 6 resultado(s)      │
+                 ╰────────────────────────────────────────────────────────────────╯
+     Biblioteca vacía: pulsa ctrl+p y escribe `scan`, o ejecuta `maly scan` desde una terminal
+
+
+
+
+
+
+
+

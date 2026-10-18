@@ -236,9 +236,10 @@ tomadas.
 
 ## Estado actual
 
-**v1.19.7 — implementada y verificada, commit autorizado; pendiente de tag y publicación**
-(`internal/version/version.go`): UX-03 mejora títulos, contraste y selección;
+**v1.19.8 — implementada y verificada; pendiente de commit, tag y publicación**
+(`internal/version/version.go`): UX-04 unifica las consultas locales de canciones;
 aceptación y límites en el roadmap UI/UX y la historia de ingeniería. La
+1.19.7 (commit `2363318`, sin tag) mejoró títulos, contraste y selección. La
 1.19.6 (commit `9135bcd`, sin tag) presentó ayudas contextuales y teclas resueltas. La 1.19.5
 distinguió carga, error, vacío y filtro sin coincidencias (UX-01). La 1.19.4 corrigió los bordes
 por VS15 normalizando solo la salida de pantalla (ver la ficha de TUI). La 1.19.3 añadió consultas en lote en `play`,

@@ -1,0 +1,332 @@
+[
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "songs",
+    "size": [
+      100,
+      28
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "songs",
+    "size": [
+      80,
+      24
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "songs",
+    "size": [
+      40,
+      12
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "select",
+    "size": [
+      100,
+      28
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "select",
+    "size": [
+      80,
+      24
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "select",
+    "size": [
+      40,
+      12
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      100,
+      28
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      80,
+      24
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      40,
+      12
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "select",
+    "size": [
+      100,
+      28
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "select",
+    "size": [
+      80,
+      24
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "select",
+    "size": [
+      40,
+      12
+    ],
+    "ok": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      100,
+      28
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      80,
+      24
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      40,
+      12
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "select",
+    "size": [
+      100,
+      28
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "select",
+    "size": [
+      80,
+      24
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "select",
+    "size": [
+      40,
+      12
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  }
+]

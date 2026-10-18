@@ -1,0 +1,24 @@
+[
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  }
+]

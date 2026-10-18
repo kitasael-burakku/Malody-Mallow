@@ -10,7 +10,7 @@ import (
 	"maly/internal/library"
 )
 
-// El lenguaje del filtro `/` de los paneles biblioteca y cola. Todo acá es
+// El lenguaje local de `/`, ctrl+o y `maly select`. Todo acá es
 // PURO —sin Model— para que la semántica se fije con tablas de tests y no a
 // ojo contra la TUI.
 //
@@ -111,7 +111,7 @@ func parseFilter(s string) filterQuery {
 }
 
 // foldedTrack son los campos buscables de una pista, ya plegados. Se cachea
-// por pista (libTree.folded, Model.queueFolded): plegar Unicode la biblioteca
+// por pista (libTree.folded, Model.queueFolded y picker.tracks): plegar Unicode la biblioteca
 // entera en cada tecla pesa con 40k pistas.
 type foldedTrack struct {
 	title, artist, album, file string

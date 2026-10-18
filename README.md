@@ -186,8 +186,8 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   pista) y la franja del visualizador.
 - **Paleta `ctrl+p`**: consola integrada de comandos (`maly next`, `vol +5`,
   `status`, `get`, `playlist`…) con la salida dentro de la propia paleta.
-- **Selector `ctrl+o` / `maly select`**: búsqueda difusa sobre toda la
-  biblioteca (`enter` reproduce, `tab` agrega a la cola).
+- **Selector `ctrl+o` / `maly select`**: el mismo lenguaje local de `/`
+  sobre toda la biblioteca (`enter` reproduce, `tab` agrega a la cola).
 - **Panel de playlists `ctrl+l`**: gestiona tus playlists sin salir de la
   TUI, y con `A` mandas la selección de la biblioteca o la cola a una.
 - **Buscador de descargas `ctrl+g`**: escribe qué quieres, `enter` busca
@@ -555,7 +555,19 @@ arriba:
 | `a:drake` · `al:views` · `t:one` · `f:rip` | solo en el artista · álbum · título · nombre de archivo |
 | `-live` · `-a:drake` | excluye las que lo contienen |
 
-Mayúsculas y tildes dan igual (`cafe` encuentra "Café").
+Mayúsculas y tildes dan igual (`cafe` encuentra "Café"). **Ctrl+O y
+`maly select` usan este mismo lenguaje**, con ejemplos en la entrada vacía y
+la ayuda. En ambos selectores, `enter` reproduce y `tab` agrega sin cerrar;
+puedes editar el filtro en la propia entrada.
+
+Desde 1.19.8 el selector evalúa cada campo por separado, incluido el nombre de
+archivo sin carpeta ni extensión: una coincidencia difusa ya no puede unir
+letras del artista con las del título. Las subcadenas puntúan por encima de
+las coincidencias difusas; los empates conservan el orden de la biblioteca.
+La negación excluye subcadenas, no coincidencias difusas. Esto puede cambiar
+los resultados y su orden respecto del selector anterior. Las playlists
+conservan su filtro por nombre; `maly search` conserva su búsqueda SQL y
+Ctrl+G / `maly get pick` conservan la consulta remota de yt-dlp.
 
 `maly controls vim` cambia tres teclas: `remove→x`, `next→>`, `prev→<` — la
 navegación vim de arriba está siempre activa, en cualquier preset.

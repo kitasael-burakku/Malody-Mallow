@@ -1,0 +1,12 @@
+
+  ╭─ Canciones ──────────────────────╮
+  │❯ a:live                         …│
+  │──────────────────────────────────│
+  │  sin coincidencias               │
+  │  Edita el filtro de arriba       │
+  │esc cierra · enter reproduce · tab│
+  │agrega · 0 resultado(s)           │
+  ╰──────────────────────────────────╯
+Biblioteca vacía: pulsa ctrl+p y escrib…
+
+

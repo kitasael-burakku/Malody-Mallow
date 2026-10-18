@@ -1,0 +1,38 @@
+[
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "songs",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "surface": "songs",
+    "action": "Tab/Enter",
+    "added_path": "/tmp/mu4-ryykpxj2/es-default/music/02.flac",
+    "played_path": "/tmp/mu4-ryykpxj2/es-default/music/02.flac",
+    "ok": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "surface": "select",
+    "size": [
+      140,
+      42
+    ],
+    "ok": true
+  },
+  {
+    "surface": "select",
+    "action": "Tab/Enter",
+    "added_path": "/tmp/mu4-ryykpxj2/es-default/music/02.flac",
+    "played_path": "/tmp/mu4-ryykpxj2/es-default/music/02.flac",
+    "ok": true
+  }
+]

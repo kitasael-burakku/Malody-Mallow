@@ -1,0 +1,21 @@
+{
+  "suite": {
+    "packages": 17,
+    "tests": 749,
+    "failures": [],
+    "skips": []
+  },
+  "race": {
+    "packages": 17,
+    "tests": 749,
+    "failures": [],
+    "skips": []
+  },
+  "vet": "",
+  "build": {
+    "CGO_ENABLED": "0",
+    "sha256": "f46e6ecdd82978cdd2b693d6e907e4901fd1b21fb381853d70ebbd9a59173976",
+    "path": "/tmp/maly-ux04/maly"
+  },
+  "mpv": "/usr/bin/mpv"
+}

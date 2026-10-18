@@ -106,6 +106,7 @@ precede.
 | 1.19.3 | Consultas en lote en `play`/`add`/`playlist add`, comillas en ctrl+p, completado por argumento y separación entre consultas sin resultados y errores reales de la biblioteca |
 | — | Sobre 1.19.3, sin bump: revisión UI/UX de Codex, evidencia y plan de implementación; regla de numeración por alcance del 2026-10-17 |
 | 1.19.4 | Corrige los bordes desplazados por VS15 en la TUI, `select` y `get pick`; verificado con el motor de Kitty |
-| 1.19.7 (commit autorizado; sin tag) | UX-03: título de hasta dos líneas, marcadores sin color y contraste medido |
+| 1.19.8 (sin commit/tag) | UX-04: consultas locales compartidas por `/`, Ctrl+O y `select`, campos reales y negación |
+| 1.19.7 (commit 2363318; sin tag) | UX-03: título de hasta dos líneas, marcadores sin color y contraste medido |
 | 1.19.6 (commit 9135bcd; sin tag) | UX-02: ayudas contextuales, teclas resueltas, estados e instrucciones envueltos y ayuda por tareas |
 | 1.19.5 (release local) | UX-01: estados vacíos veraces, carga y errores de lectura; mensajes de filtro y playlists en es/en |

@@ -2,8 +2,9 @@
 
 **Estado: UX-00 verificada y publicada en GitHub como `1.19.4`;
 UX-01 con release local `1.19.5`; UX-02 verificada en el commit `9135bcd`
-(`1.19.6`, sin tag); UX-03 implementada y verificada en `1.19.7`, commit autorizado; pendiente de tag.
-UX-04–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
+(`1.19.6`, sin tag); UX-03 verificada en el commit `2363318` (`1.19.7`, sin tag);
+UX-04 implementada y verificada en `1.19.8`, pendiente de commit/tag.
+UX-05–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -35,8 +36,8 @@ condicionadas son candidatas, no compromisos de publicación.
 | UX-00 | `1.19.3` → `1.19.4` | Bordes con VS15 | Pequeño: normalización de salida de la TUI, sin alterar datos ni interacción | Verificada; publicada en GitHub |
 | UX-01 | `1.19.4` → `1.19.5` | Estados vacíos veraces | Pequeño: corrige la interpretación visual de datos existentes, sin nuevos comandos ni estado persistente | Verificada; release local v1.19.5, publicación pendiente |
 | UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Verificada; commit 9135bcd, tag pendiente |
-| UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Implementada y verificada; commit autorizado; tag pendiente |
-| UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia CLI ni red | Pendiente |
+| UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Verificada; commit 2363318, tag pendiente |
+| UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia búsqueda SQL ni red | Implementada y verificada; commit/tag pendientes |
 | UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Pendiente |
 | UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño si se mantiene acotado: compone una foto de la cola con la persistencia de playlists existente | Condicionada a diseño acotado |
 | UX-07 | `1.20.9` → `1.20.10` | Continuidad después de descargar | Pequeño si se mantiene acotado: ofrece acciones existentes sobre los archivos obtenidos, sin gestor de trabajos nuevo | Condicionada a verificar el flujo |
@@ -161,7 +162,7 @@ actualiza configs ya creados; documentar ese límite al cerrar la entrega.
 - [x] Validar un config previo sin modificarlo y uno nuevo; revisar Kitty
   real con carátula antes de afirmar aceptación gráfica completa.
 
-**Cierre:** [ingeniería de 1.19.7](../history/roadmap-1.17.md#v1197-2026-10-18--ux-03-títulos-contraste-y-selección) y [evidencia](evidence/ux-03-1.19.7/README.md). Verificación gráfica en Kitty real; ratios sobre fondos de referencia sólidos, sin garantía para efectos del compositor. Commit autorizado; tag, publicación y despliegue pendientes.
+**Cierre:** [ingeniería de 1.19.7](../history/roadmap-1.17.md#v1197-2026-10-18--ux-03-títulos-contraste-y-selección) y [evidencia](evidence/ux-03-1.19.7/README.md). Verificación gráfica en Kitty real; ratios sobre fondos de referencia sólidos, sin garantía para efectos del compositor. Commit `2363318`; tag, publicación y despliegue pendientes.
 
 ## UX-04 — consultas locales coherentes
 
@@ -185,14 +186,16 @@ de la CLI y la consulta remota de yt-dlp.
 
 **Aceptación:**
 
-- [ ] Mismos resultados esperados para campos/negación sobre la misma lista
+- [x] Mismos resultados esperados para campos/negación sobre la misma lista
   de pistas; probar también acentos, NFD, Unicode, nombres de archivo y vacíos.
-- [ ] Coincidencias exactas por encima de difusas; comprobar que no cambia la
+- [x] Coincidencias exactas por encima de difusas; comprobar que no cambia la
   pista seleccionada después de refrescos o de acciones con filtro.
-- [ ] Medición antes/después con una biblioteca grande y consultas repetidas;
+- [x] Medición antes/después con una biblioteca grande y consultas repetidas;
   rechazar recomputación innecesaria por frame. Registrar datos, no estimarlos.
-- [ ] Describir el cambio de semántica en la documentación de uso en ambos
+- [x] Describir el cambio de semántica en la documentación de uso en ambos
   idiomas, sin presentarlo como una nueva búsqueda online.
+
+**Cierre:** [ingeniería de 1.19.8](../history/roadmap-1.17.md#v1198-2026-10-18--ux-04-consultas-locales-coherentes) y [evidencia](evidence/ux-04-1.19.8/README.md). Campos reales y selección por ruta; benchmark de 40.000 pistas y matriz tmux es/en. Pendientes commit/tag, publicación y despliegue.
 
 ## UX-05 — paleta con sugerencias seleccionables
 

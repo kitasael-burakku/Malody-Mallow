@@ -185,8 +185,8 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
 - **`ctrl+p` palette**: an integrated command console (`maly next`,
   `vol +5`, `status`, `get`, `playlist`…) with output inside the palette
   itself.
-- **`ctrl+o` picker / `maly select`**: fuzzy search across the whole
-  library (`enter` plays, `tab` adds to the queue).
+- **`ctrl+o` picker / `maly select`**: the same local query language as `/`
+  across the whole library (`enter` plays, `tab` adds to the queue).
 - **`ctrl+l` playlist panel**: manage your playlists without leaving the
   TUI, and `A` sends the current library or queue selection to one.
 - **`ctrl+g` download search**: type what you want, `enter` searches
@@ -551,7 +551,18 @@ clears it. Every word must appear, and the best matches go first:
 | `a:drake` · `al:views` · `t:one` · `f:rip` | only in the artist · album · title · file name |
 | `-live` · `-a:drake` | excludes tracks containing it |
 
-Case and accents don't matter (`cafe` finds "Café").
+Case and accents don't matter (`cafe` finds "Café"). **Ctrl+O and
+`maly select` use this same language**, with examples in the empty input and
+help. In both pickers, `enter` plays and `tab` adds without closing;
+you can edit the filter directly in the input.
+
+Since 1.19.8, the picker searches each field separately, including the filename
+without its directory or extension: fuzzy matches can no longer join letters
+from artist and title. Substring matches score above fuzzy matches; ties keep
+the library order. Negation excludes substrings, not fuzzy matches. This may
+change results and their order compared with the previous picker. Playlists
+keep their name filter; `maly search` keeps its SQL search, and Ctrl+G /
+`maly get pick` keep yt-dlp's remote query.
 
 `maly controls vim` changes three keys: `remove→x`, `next→>`, `prev→<` —
 the vim navigation above is always active, under any preset.

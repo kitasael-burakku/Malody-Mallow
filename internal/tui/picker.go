@@ -12,15 +12,15 @@ import (
 	"maly/internal/library"
 )
 
-// picker es un selector fuzzy genérico: input de búsqueda, lista filtrada y
-// cursor, dibujado con el panel estándar de maly. Hoy lo usan el selector de
-// canciones (ctrl+o) y `maly select`; para playlists, álbumes o comandos
-// basta con construir otro []pickerItem.
+// picker comparte entrada, navegación y presentación. Las canciones usan
+// filter.go con sus campos; las playlists conservan fuzzy sobre la etiqueta
+// y los resultados remotos desactivan el filtro local con noFilter.
 
 type pickerItem struct {
-	label  string // lo que se muestra
-	value  string // carga útil opaca (ruta, nombre…)
-	folded string // texto normalizado sobre el que se hace fuzzy match
+	label  string       // lo que se muestra
+	value  string       // carga útil opaca (ruta, nombre…)
+	folded string       // etiqueta normalizada para ítems genéricos
+	track  *foldedTrack // solo songItems: campos reales, sin decoración visible
 }
 
 func newPickerItem(label, value string) pickerItem {
@@ -37,6 +37,7 @@ type picker struct {
 	input   textinput.Model
 	items   []pickerItem
 	matches []int
+	tracks  []foldedTrack // caché por colección de canciones, reconstruido en setItems
 	cursor  int
 	page    int // filas visibles en el último render (para pgup/pgdown)
 
@@ -68,6 +69,19 @@ func newPicker(st styles, placeholder string) *picker {
 func (p *picker) setItems(items []pickerItem) {
 	p.loading, p.loadErr = false, ""
 	p.items = items
+	p.tracks = nil
+	// Una colección es homogénea: canciones o ítems genéricos. Si cambia
+	// de tipo, no deben sobrevivir campos de una colección anterior.
+	if len(items) > 0 && items[0].track != nil {
+		p.tracks = make([]foldedTrack, len(items))
+		for i, it := range items {
+			if it.track == nil {
+				p.tracks = nil
+				break
+			}
+			p.tracks[i] = *it.track
+		}
+	}
 	p.filter()
 }
 
@@ -98,6 +112,8 @@ func (p *picker) filter() {
 		for i := range p.items {
 			p.matches = append(p.matches, i)
 		}
+	} else if p.tracks != nil {
+		p.matches = filterRank(parseFilter(p.input.Value()), p.tracks)
 	} else {
 		for _, r := range fuzzy.FindFrom(q, pickerSource(p.items)) {
 			p.matches = append(p.matches, r.Index)
@@ -144,9 +160,12 @@ func (p *picker) handleKey(msg tea.KeyMsg) tea.Cmd {
 		p.clamp()
 		return nil
 	}
+	before := p.input.Value()
 	var cmd tea.Cmd
 	p.input, cmd = p.input.Update(msg)
-	p.filter()
+	if p.input.Value() != before {
+		p.filter()
+	}
 	return cmd
 }
 

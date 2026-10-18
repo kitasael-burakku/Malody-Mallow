@@ -2,9 +2,72 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.8 (2026-10-18) — UX-04: consultas locales coherentes
+
+**Estado:** implementada y verificada; pendiente de commit, tag, publicación y
+despliegue local. UX-03 quedó en `2363318` por autorización del dueño, sin tag
+ni push. PKGBUILD aplazado. Siguiente entrega: UX-05.
+[Aceptación](../planning/roadmap-ui-ux.md#ux-04--consultas-locales-coherentes) y
+[evidencia reproducible](../planning/evidence/ux-04-1.19.8/README.md).
+
+**Base y reproducción.** `main` limpio después de commitear UX-03, const
+`1.19.7`, último tag local `v1.19.5`; no se consultó el remoto. Se reprodujo
+E09 con datos nuevos: cuatro pistas de Áurea encontradas por `/`, cero por
+Ctrl+O y `maly select` con `a:Áurea`. Consulta simple `cafe` y colección completa
+como controles positivos. No fue necesario reabrir la auditoría.
+
+**Antes → después.** `songItems` entrega campos plegados separados de la etiqueta
+visible. El picker cachea esos campos al reemplazar los ítems y llama a
+`parseFilter`/`filterRank`, el mismo motor de biblioteca y cola: AND, prefijos,
+negación por subcadena, fuzzy desde tres runas dentro de un campo y ranking
+estable. No se interpretan prefijos sobre artista/título/álbum concatenados.
+Los ejemplos compactos caben en la entrada a 40×12 y HelpRows explica los campos
+en es/en; ambos README describen el cambio de resultados y orden.
+
+Se comprobaron todos los consumidores del picker: playlists conservan fuzzy por
+etiqueta; Ctrl+G y `get pick` conservan `noFilter` y su consulta remota. La búsqueda
+SQL no cambia. Enter reproduce y Tab agrega sin cerrar. `setItemsKeeping` conserva
+la identidad por ruta al refrescar; `select` conserva su foto inicial de biblioteca.
+Se evita recalcular al mover el cursor de escritura sin cambiar el texto; render
+sigue limitado a dibujar filas. No se añadieron comandos, persistencia, red ni
+contratos IPC; `computeLayout` permanece puro e intacto.
+
+**Versión `1.19.7` → `1.19.8`, cambio pequeño.** Amplía dos selectores existentes
+con el lenguaje local ya disponible, sin un nuevo recorrido ni modelo de reproducción.
+Se incrementa el último componente según releases; no corresponde subir el central.
+
+**Verificación.** Regresiones de respuestas esperadas y paridad en biblioteca,
+cola y ambos selectores, con acentos, NFD, Unicode, campos vacíos, filename,
+negación y exacta antes de difusa. Tras insertar arriba y renombrar la elegida,
+las acciones enviaron su ruta original por IPC. Producción anterior copiada con
+`cp`: compila y falla por consultas incorrectas; restauración desde copia, verde.
+Build sin CGo, vet, suite completa sin CGo y race: 17 paquetes, 749 casos/subcasos,
+cero fallos y cero saltos; mpv presente, bus privado. Los logs y hashes están en
+la evidencia. Se preservaron las regresiones UX-00–UX-03.
+
+La matriz tmux cubre es/en, 140×42, 100×28, 80×24, 40×12 y vuelta al tamaño grande;
+default/vim/override Ctrl+Y, color y NO_COLOR. XDG nuevo, audio nulo, updates y
+viz desactivados. TUI embebida y `select` conectado a su demonio. Tab comprueba
+la cola completa con una ruta más; Enter cambia desde otra pista y verifica la
+ruta final. Los fallos iniciales del arnés fueron expectativas sobre el título
+del selector, contadores envueltos y el nombre CLI `play` (no el IPC `playnow`),
+no defectos del producto. Capturas de buffer, no aceptación gráfica Kitty nueva.
+
+**Coste medido.** 40.000 pistas, tres corridas por consulta: `horizonte` pasa de
+25,44 a 1,853 ms y ~15,72 a ~0,98 MB asignados; render con las mismas 14 filas,
+26,95 → 27,93 µs. Mover izquierda sin editar pasa de 24,79 ms a 0,582 µs.
+Prefijos/negación: 0,68–1,45 ms después (antes no tenían la semántica correcta).
+No se mide aquí el coste de abrir/refrescar, que incluye plegar los campos.
+
+**Vuelta atrás y límites.** Revertir esta entrega o recuperar picker/songs de
+las copias previas; no hay migración de datos. No se modificaron binario instalado,
+servicio de música, configuración real ni PKGBUILD. Falta autorizar el commit/tag
+de UX-04; publicar y comprobar el tag antes de empaquetar. Despliegue local
+pendiente de copiar el binario y reiniciar el servicio por decisión del dueño.
+
 ## v1.19.7 (2026-10-18) — UX-03: títulos, contraste y selección
 
-**Estado:** implementada y verificada, commit autorizado; pendiente de tag, publicación y
+**Estado:** implementada y verificada en el commit `2363318`; pendiente de tag, publicación y
 despliegue local. UX-02 se cerró previamente en el commit `9135bcd`, autorizado
 por el dueño; no se creó `v1.19.6` ni se hizo push. El PKGBUILD sigue aplazado.
 Siguiente entrega: UX-04. [Aceptación](../planning/roadmap-ui-ux.md#ux-03--títulos-contraste-y-selección)

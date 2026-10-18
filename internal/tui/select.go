@@ -173,7 +173,7 @@ func (m *selectModel) view() string {
 	hint := i18n.Tf("songs.hint", len(m.pk.matches))
 	box := m.pk.render(i18n.T("sel.title"), hint, w, maxRows)
 	if m.flash != "" {
-		box += "\n " + m.flash
+		box += "\n" + clip(m.flash, m.width)
 	}
 	return box
 }

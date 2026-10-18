@@ -496,7 +496,7 @@ func TestNpViewFlashVencidoVuelveAlHint(t *testing.T) {
 // otros tres modales. Sin flash no toca la caja; con uno, agrega exactamente
 // una fila.
 func TestWithFlashCuelgaUnaFila(t *testing.T) {
-	m := &Model{st: newStyles(config.Theme{})}
+	m := &Model{st: newStyles(config.Theme{}), width: 40}
 	caja := "linea1\nlinea2"
 
 	if got := m.withFlash(caja); got != caja {

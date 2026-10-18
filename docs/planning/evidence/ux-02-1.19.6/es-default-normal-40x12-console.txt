@@ -1,0 +1,12 @@
+
+
+
+  ╭─ Paleta de comandos ─────────────╮
+  │❯ comando… p. ej. maly next       │
+  │──────────────────────────────────│
+  │esc cierra · enter ejecuta · help │
+  │lista los comandos                │
+  ╰──────────────────────────────────╯
+
+
+

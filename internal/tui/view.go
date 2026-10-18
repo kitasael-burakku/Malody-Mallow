@@ -204,13 +204,13 @@ func (m *Model) libraryPanel(w, h int) string {
 	if len(rows) == 0 {
 		switch {
 		case m.libLoadErr != "":
-			lines = append(lines, m.st.errSt.Render(clip(i18n.Tf("tui.lib_err", m.libLoadErr), innerW)))
+			lines = append(lines, styledLines(i18n.Tf("tui.lib_err", m.libLoadErr), innerW, pageH, m.st.errSt)...)
 		case !m.libLoaded:
 			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.loading"), innerW)))
 		case m.tree.filter != "" && len(m.tree.roots) > 0:
 			lines = append(lines, m.noMatchesLines(innerW)...)
 		default:
-			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.lib_empty"), innerW)))
+			lines = append(lines, styledLines(i18n.T("tui.lib_empty")+"\n"+i18n.T("tui.scan_hint"), innerW, pageH, m.st.dim)...)
 		}
 	}
 	end := m.tree.offset + pageH
@@ -300,7 +300,7 @@ func (m *Model) queuePanel(w, h int) string {
 		case m.status == nil:
 			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.loading"), innerW)))
 		default:
-			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.queue_empty"), innerW)))
+			lines = append(lines, styledLines(i18n.T("tui.queue_empty")+"\n"+i18n.Tf("tui.queue_add_hint", keyLabel(m.keys["add"])), innerW, m.queuePageH(), m.st.dim)...)
 		}
 	}
 	pageH := m.queuePageH()
@@ -528,11 +528,7 @@ func (m *Model) footer() string {
 	case m.updAvail != "":
 		line = m.st.accent.Render(clip(" "+i18n.Tf("tui.update_avail", m.updAvail), hintW))
 	default:
-		hint := i18n.T("tui.footer")
-		if m.embedded {
-			hint += i18n.T("tui.footer_embedded")
-		}
-		line = m.st.dim.Render(clip(hint, hintW))
+		line = m.st.dim.Render(m.mainHint())
 	}
 	return padTo(line, hintW)
 }
@@ -554,33 +550,36 @@ func (m *Model) helpView() string {
 			labelW = kw
 		}
 	}
-	content := make([]string, 0, len(rows))
-	for _, r := range rows {
-		content = append(content, fmt.Sprintf("  %s %s",
-			m.st.accent.Render(padTo(r[0], labelW)), m.st.text.Render(r[1])))
-	}
-	closeHint, scrollHint := i18n.T("help.close"), i18n.T("help.scroll_hint")
-	// Ancho a la medida de la fila más larga (los textos varían por idioma;
-	// se miden ambos hints posibles, se use el que se use); panel rellena
-	// pero no recorta, y una fila larga rompería el borde.
+	// El ancho se elige antes de envolver; nunca se pierden descripciones
+	// detrás de una elipsis. Las teclas largas pasan a una fila propia.
 	w := 50
-	for _, l := range content {
-		if lw := lipgloss.Width(l) + 2; lw > w {
-			w = lw
+	for _, r := range rows {
+		w = max(w, labelW+lipgloss.Width(r[1])+5)
+	}
+	w = min(w, m.width)
+	innerW := w - 2
+	var content []string
+	for _, r := range rows {
+		if r[0] == "" {
+			content = append(content, styledLines(r[1], innerW, 10, m.st.accent.Bold(true))...)
+			continue
+		}
+		if labelW+4 > innerW/2 {
+			content = append(content, styledLines(r[0], innerW, 10, m.st.accent)...)
+			for _, l := range wrappedLines(r[1], innerW-2, 20) {
+				content = append(content, m.st.text.Render("  "+l))
+			}
+		} else {
+			for i, l := range wrappedLines(r[1], innerW-labelW-3, 20) {
+				key := ""
+				if i == 0 {
+					key = r[0]
+				}
+				content = append(content, "  "+m.st.accent.Render(padTo(key, labelW))+" "+m.st.text.Render(l))
+			}
 		}
 	}
-	for _, h := range []string{closeHint, scrollHint} {
-		if lw := lipgloss.Width(h) + 2; lw > w {
-			w = lw
-		}
-	}
-	if w > m.width {
-		w = m.width
-		for i, l := range content {
-			content[i] = clip(l, w-2)
-		}
-		closeHint, scrollHint = clip(closeHint, w-2), clip(scrollHint, w-2)
-	}
+	closeHint, scrollHint := clip(i18n.T("help.close"), innerW), clip(i18n.T("help.scroll_hint"), innerW)
 	// Alto a la medida del contenido, pero sin superar la terminal.
 	// +4 = línea en blanco + hint (siempre pegados al fondo, como el pie de
 	// la app) + los dos bordes del panel.

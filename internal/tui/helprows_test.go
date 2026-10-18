@@ -31,12 +31,6 @@ func TestHelpRowsCubreTodasLasTeclas(t *testing.T) {
 	}
 
 	for action := range keys {
-		// help (`?`) es la única excepción: la lista es la que muestra ESE
-		// modal, y una fila para abrirlo desde dentro de él no dice nada. En
-		// la CLI la cubre la nota de la sección (cli.sec_keys_note).
-		if action == "help" {
-			continue
-		}
 		if !strings.Contains(todas.String(), keys[action]) {
 			t.Errorf("la acción %q es configurable en [keys] pero no aparece en HelpRows: quedaría sin documentar en `?` y en `maly -h`", action)
 		}
@@ -51,7 +45,7 @@ func TestHelpRowsEspacioVisible(t *testing.T) {
 		t.Skipf("play_pause ya no es la barra espaciadora (%q): el caso que cubre este test cambió", keys["play_pause"])
 	}
 	for _, r := range HelpRows(keys) {
-		if strings.TrimSpace(r[0]) == "" {
+		if r[0] != "" && strings.TrimSpace(r[0]) == "" {
 			t.Errorf("fila con la tecla en blanco (%q): el espacio debe mostrarse por su nombre", r[1])
 		}
 	}

@@ -2,6 +2,89 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.6 (2026-10-18) — UX-02: ayudas visibles y contextuales
+
+**Estado:** implementada y verificada; bump y documentación preparados, sin
+tag ni publicación de esta entrega. Commit autorizado el 2026-10-18 para
+continuar con UX-03. El cierre autorizado anterior fue
+`v1.19.5`. PKGBUILD aplazado por el dueño hasta probar las próximas subidas;
+instalación y servicio reales sin modificar. Siguiente entrega: UX-03.
+Alcance y aceptación: [roadmap UI/UX](../planning/roadmap-ui-ux.md#ux-02--ayudas-visibles-y-contextuales).
+
+**Base y reproducción.** Árbol limpio en `main`, commit
+`b8ebe5a0cae4c72b0a019e869ccbfef0abdeeeba`, const `1.19.5` y tag anotado
+`v1.19.5`. No se verificó el remoto. Con XDG aislado, audio nulo y D-Bus privado,
+la TUI anterior anunció `a agrega` teniendo `add=f7`; a 80×24 desaparecía el
+filtro del pie. El selector de canciones vacío cortaba el remedio y Esc a
+40×12. Los controles positivos fueron el mismo selector a tamaño grande y,
+después, una biblioteca poblada con navegación y acciones efectivas. Se
+conservan [buffers, arnés y resultados](../planning/evidence/ux-02-1.19.6/README.md).
+
+**Antes → después.** El pie fijo se sustituye por acciones completas ordenadas
+por prioridad, foco y ancho, con las teclas resueltas. Descubre el panel oculto
+en columna única y distingue expandir, plegar y reproducir. Espacio tiene un
+nombre visible; una acción que no cabe no anuncia una tecla cortada. Los
+mensajes vacíos y errores se envuelven dentro del espacio existente. La
+biblioteca ofrece `maly scan` en una línea propia; los selectores muestran Esc
+primero y reparten sus instrucciones en hasta tres filas. La ayuda conserva
+`HelpRows` compartido con CLI, ahora con encabezados por tareas, descripciones
+envueltas y scroll. Ahora suena usa las teclas reales de pausa y ayuda. El
+primer flash vacío también resuelve la tecla de consola; los flashes de
+modales se acotan al ancho de pantalla.
+
+La prioridad flash → scan → pie normal **ya funcionaba** y se conserva; su
+regresión es un control positivo que pasa también con producción anterior.
+No se cambian interacción, comandos, filtros, reproducción, IPC ni datos.
+No se adelanta el contraste/marcador de selección de UX-03. No se reserva otra
+fila permanente: `computeLayout`, `libraryPageH`, `queuePageH` y `maxRows` de
+resultados siguen iguales. El picker puede crecer dos filas de instrucciones
+dentro del margen que ya reservaban sus llamadores; a 40×12 caben también
+flash y tres resultados mínimos. La consola cabe con su mínimo de cuatro
+filas de historial y progreso de scan. La ayuda necesita más desplazamiento,
+a cambio de conservar las descripciones completas.
+
+**Versión: `1.19.5` → `1.19.6`, cambio pequeño.** Mejora la presentación y el
+descubrimiento de acciones existentes dentro del modelo de interacción actual,
+sin contratos nuevos de reproducción, IPC o persistencia. Conforme a
+[releases](../development/releases.md), aumenta solo el último componente.
+El tamaño del diff y las nuevas claves i18n no justifican un salto central.
+
+**Verificación.** Cuatro grupos `TestUX02*` verifican contenido presente y
+incorrecto ausente, posición final del pie, estados vacíos/poblados, controles
+reales de expansión, retorno tras flash/scan, ayuda larga y límites del frame.
+Cubren es/en, los cuatro tamaños y los límites 89/90 y 119/120 del pie.
+Para la dirección negativa se copiaron con `cp` los archivos de producción
+originales, manteniendo únicamente las claves nuevas adicionales para que los
+tests comparasen textos reales: compiló y fallaron tres grupos por atajos
+fijos, contenido perdido y falta de grupos. Se restauró producción con `cp` y
+todos pasaron. También se corrigieron fixtures antiguos sin ancho/teclas,
+que no representaban un modelo inicializado; no se debilitó la expectativa.
+
+Build sin CGo, vet, suite completa sin CGo y suite completa con `-race`:
+**17 paquetes correctos, cero fallos y cero saltos** en ambas suites. mpv
+estuvo disponible; ejecución bajo bus privado y mediante el mecanismo de
+permisos para sockets/cache. `gofmt` y `git diff --check` correctos.
+
+La TUI real recorrió es/en × default/vim/overrides × normal/NO_COLOR ×
+140×42, 100×28, 80×24 y 40×12, con regreso a 140×42: **48 combinaciones y
+60 puntos de tamaño**. Se ejercitaron filtro, cola, ayuda hasta el final,
+canciones, playlists, consola y ahora suena; Space remapeado agregó la pista.
+`maly -h` se leyó con las mismas configuraciones. Música, carátula y `.lrc`
+sintéticos locales; updates y visualizador desactivados. Los errores de
+lectura y las transiciones breves de scan/flash se cubren determinísticamente
+en tests, sin depender de capturar un instante real de escaneo.
+
+**Riesgo, vuelta atrás y límites.** El riesgo era perder instrucciones o filas
+al envolver; se comprobaron contenido y posiciones, además de dimensiones.
+No hay migración de datos. Antes del commit, se puede restaurar la copia de
+producción previa; después, revertir la entrega en un commit nuevo y reconstruir
+el binario anterior. Se preservan siempre cambios ajenos. No se desplegó nada.
+La aceptación visual aquí es el buffer real de tmux; no demuestra contraste
+sobre fondos del escritorio, fuentes ni el protocolo de carátulas Kitty. No
+se repitió la matriz de dos clientes/servicio: esta entrega no altera estado
+compartido. No se probó red ni descargas reales; los consumidores remotos del
+picker conservan sus fases y quedan cubiertos por la suite existente.
+
 ## v1.19.5 (2026-10-17) — UX-01: estados vacíos veraces
 
 **Estado:** implementada y verificada; cierre local autorizado por el dueño

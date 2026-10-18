@@ -1078,7 +1078,7 @@ func (m *Model) consoleView() string {
 		}
 		lines = append(lines, m.st.accent.Render(clip(txt, innerW)))
 	}
-	lines = append(lines, m.st.dim.Render(clip("  "+i18n.T("con.hint"), innerW)))
+	lines = append(lines, styledLines(i18n.T("con.hint"), innerW, 3, m.st.dim)...)
 
 	box := m.st.panel(i18n.T("con.title"), lines, w, len(lines)+2, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)

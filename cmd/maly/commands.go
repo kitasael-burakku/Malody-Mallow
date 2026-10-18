@@ -240,6 +240,10 @@ func helpText() string {
 
 	sec(i18n.T("cli.sec_keys"), i18n.T("cli.sec_keys_note"))
 	for _, r := range keyRows {
+		if r[0] == "" {
+			b.WriteString("\n" + bold.Render(r[1]) + "\n")
+			continue
+		}
 		key(r[0], r[1])
 	}
 

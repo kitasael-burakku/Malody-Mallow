@@ -105,7 +105,8 @@ func TestHelpViewScrollea(t *testing.T) {
 		t.Fatalf("una pulsación de scroll debía mover helpScroll a 1, quedó en %d", m.helpScroll)
 	}
 	// Scrollear hasta el fondo: la última fila debe llegar a verse.
-	for i := 0; i < 20; i++ {
+	// Ahora las descripciones envueltas y los grupos ocupan más filas.
+	for i := 0; i < 200; i++ {
 		m.handleHelpKey(tea.KeyMsg{Type: tea.KeyDown})
 	}
 	out = m.helpView()

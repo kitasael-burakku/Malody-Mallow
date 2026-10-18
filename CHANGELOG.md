@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.6 — 2026-10-18 (pendiente de publicación)
+
+- **Ayudas visibles y contextuales.** El pie anuncia acciones según el panel,
+  la selección y las teclas configuradas; conserva ayuda y salida en ventanas
+  pequeñas. Los mensajes vacíos y las instrucciones de los selectores se
+  distribuyen en varias líneas, con Esc visible. La ayuda se agrupa por tareas,
+  comparte sus teclas con `maly -h` y permite leer descripciones largas al
+  desplazarse. Los errores y el progreso de escaneo conservan su prioridad.
+
 ## v1.19.5 — 2026-10-17 (pendiente de publicación)
 
 - **Estados vacíos veraces.** Una biblioteca o cola poblada con un filtro sin

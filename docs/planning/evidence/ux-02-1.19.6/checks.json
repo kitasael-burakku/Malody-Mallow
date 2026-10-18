@@ -1,0 +1,67 @@
+{
+  "base": "b8ebe5a0cae4c72b0a019e869ccbfef0abdeeeba",
+  "version": "1.19.6",
+  "build": "CGO_ENABLED=0 go build -o /tmp/maly-ux02/maly-after ./cmd/maly: exit 0",
+  "vet": "go vet ./...: exit 0",
+  "private_bus": true,
+  "mpv_available": true,
+  "regression": {
+    "old_compiles": true,
+    "old_exit": 1,
+    "failed_tests": [
+      "TestUX02ContextAndBindings",
+      "TestUX02WrappedStatesAndPickerExit",
+      "TestUX02HelpTasksAndLongKeys"
+    ],
+    "restored_exit": 0,
+    "positive_control": "TestUX02FooterPriorityAndReturn pasa también antes"
+  },
+  "suite": {
+    "command": "CGO_ENABLED=0 go test -json -count=1 ./...",
+    "packages_passed": [
+      "maly/internal/queue",
+      "maly/internal/safetext",
+      "maly/internal/config",
+      "maly/internal/probe",
+      "maly/internal/media",
+      "maly/internal/i18n",
+      "maly/internal/version",
+      "maly/internal/update",
+      "maly/internal/viz",
+      "maly/internal/mpris",
+      "maly/internal/library",
+      "maly/internal/tui",
+      "maly/cmd/maly",
+      "maly/internal/getter",
+      "maly/internal/ipc",
+      "maly/internal/player",
+      "maly/internal/daemon"
+    ],
+    "failures": [],
+    "skips": []
+  },
+  "race": {
+    "command": "go test -race -json -count=1 ./...",
+    "packages_passed": [
+      "maly/internal/queue",
+      "maly/internal/safetext",
+      "maly/internal/probe",
+      "maly/internal/config",
+      "maly/internal/mpris",
+      "maly/internal/i18n",
+      "maly/internal/media",
+      "maly/internal/version",
+      "maly/internal/update",
+      "maly/internal/viz",
+      "maly/internal/getter",
+      "maly/internal/tui",
+      "maly/cmd/maly",
+      "maly/internal/ipc",
+      "maly/internal/player",
+      "maly/internal/library",
+      "maly/internal/daemon"
+    ],
+    "failures": [],
+    "skips": []
+  }
+}

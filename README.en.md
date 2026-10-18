@@ -529,6 +529,11 @@ destination.
 | `?` | full help (every key, including remapped ones) |
 | `q` | quit |
 
+The footer shows your configured keys and actions for the active panel: Enter
+expands or collapses groups and plays tracks. Narrow windows prioritize help
+and exit; `?` opens scrollable help grouped by task (also available in
+`maly -h`). Pickers display Esc to close them.
+
 **The `/` filter** opens a floating box at the bottom of the active panel and
 filters as you type; `↑`/`↓` (or `ctrl+k`/`ctrl+j`) walk the results without
 leaving it, `enter` keeps the filter on (shown on the panel border) and `esc`

@@ -22,15 +22,18 @@ import (
 // cfg.Keys después de config.Load. Cada fila es {teclas, descripción}, las
 // dos listas para pintar: la descripción ya viene traducida y la tecla, con
 // el espacio sustituido por su nombre (una celda en blanco no se ve).
+// Una fila con tecla vacía es un encabezado de tarea, compartido por CLI y TUI.
 func HelpRows(keys map[string]string) [][2]string {
 	k := func(action string) string { return keyLabel(keys[action]) }
 	pair := func(a, b string) string { return k(a) + " / " + k(b) }
 
 	return [][2]string{
+		{"", i18n.T("help.group_playback")},
 		{k("play_pause"), i18n.T("help.play_pause")},
 		{pair("next", "prev"), i18n.T("help.next_prev")},
 		{pair("vol_up", "vol_down"), i18n.T("help.volume")},
 		{pair("seek_forward", "seek_back"), i18n.T("help.seek")},
+		{"", i18n.T("help.group_library")},
 		{k("switch_panel"), i18n.T("help.switch")},
 		{"enter", i18n.T("help.enter")},
 		{k("add"), i18n.T("help.add")},
@@ -40,6 +43,8 @@ func HelpRows(keys map[string]string) [][2]string {
 		{"h j k l", i18n.T("help.vim_nav")},
 		{"gg/G ctrl+d/u", i18n.T("help.jump_scroll")},
 		{"pgup/pgdn home/end", i18n.T("help.page_keys")},
+
+		{"", i18n.T("help.group_tools")},
 		{pair("shuffle", "repeat"), i18n.T("help.shuffle_repeat")},
 		{k("toggle_viz"), i18n.T("help.toggle_viz")},
 		{k("now_playing"), i18n.T("help.now_playing")},
@@ -48,6 +53,7 @@ func HelpRows(keys map[string]string) [][2]string {
 		{k("playlists"), i18n.T("help.playlists")},
 		{k("get"), i18n.T("help.get")},
 		{k("playlist_add"), i18n.T("help.playlist_add")},
+		{k("help"), i18n.T("hint.help")},
 		{k("quit"), i18n.T("help.quit")},
 	}
 }

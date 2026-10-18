@@ -1,7 +1,9 @@
 # Roadmap UI/UX — revisión de Codex del 2026-10-17
 
 **Estado: UX-00 verificada y publicada en GitHub como `1.19.4`;
-UX-01 implementada y verificada localmente en `1.19.5`; UX-02–UX-09 pendientes.**
+UX-01 con release local `1.19.5`; UX-02 implementada y verificada en `1.19.6`,
+commit autorizado; pendiente de tag; UX-03–UX-09 pendientes. No se ha verificado publicación
+de estas dos entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -32,7 +34,7 @@ condicionadas son candidatas, no compromisos de publicación.
 | --- | --- | --- | --- | --- |
 | UX-00 | `1.19.3` → `1.19.4` | Bordes con VS15 | Pequeño: normalización de salida de la TUI, sin alterar datos ni interacción | Verificada; publicada en GitHub |
 | UX-01 | `1.19.4` → `1.19.5` | Estados vacíos veraces | Pequeño: corrige la interpretación visual de datos existentes, sin nuevos comandos ni estado persistente | Verificada; release local v1.19.5, publicación pendiente |
-| UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Pendiente |
+| UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Implementada y verificada; commit autorizado; tag pendiente |
 | UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Pendiente |
 | UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia CLI ni red | Pendiente |
 | UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Pendiente |
@@ -116,14 +118,16 @@ su prioridad. No reservar filas de más sin medir cuánto pierde la lista.
 
 **Aceptación:**
 
-- [ ] En 80×24 se descubre cómo buscar, añadir, cambiar de panel, pedir ayuda
+- [x] En 80×24 se descubre cómo buscar, añadir, cambiar de panel, pedir ayuda
   y cerrar la superficie actual; puede repartirse entre pie y ayuda visible.
-- [ ] En 40×12 se conservan salida y acceso a ayuda; el mínimo no obliga a
+- [x] En 40×12 se conservan salida y acceso a ayuda; el mínimo no obliga a
   meter todos los atajos en una fila.
-- [ ] Presets y remapeos aparecen con sus teclas reales, incluyendo espacio
+- [x] Presets y remapeos aparecen con sus teclas reales, incluyendo espacio
   y nombres largos. CLI y ayuda TUI mantienen paridad.
-- [ ] Un flash o un scan no provoca desbordes ni oculta permanentemente las
+- [x] Un flash o un scan no provoca desbordes ni oculta permanentemente las
   instrucciones. Se comprueba contenido y posición, no solo ancho/alto.
+
+**Cierre:** [ingeniería de 1.19.6](../history/roadmap-1.17.md#v1196-2026-10-18--ux-02-ayudas-visibles-y-contextuales) y [evidencia](evidence/ux-02-1.19.6/README.md). Sin filas permanentes adicionales; commit autorizado; tag, publicación y despliegue pendientes. Siguiente entrega: UX-03.
 
 ## UX-03 — títulos, contraste y selección
 

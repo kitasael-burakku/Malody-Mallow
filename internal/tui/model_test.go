@@ -383,7 +383,7 @@ func TestConsoleViewMuestraProgresoDeScan(t *testing.T) {
 // de error con un texto que mandaba a una terminal. Ahora es un flash
 // informativo (isErr=false) que menciona el remedio dentro de la TUI.
 func TestLibraryMsgVaciaNoEsError(t *testing.T) {
-	m := &Model{}
+	m := &Model{keys: config.DefaultKeys()}
 	m.Update(libraryMsg{tracks: nil, lists: nil})
 	if m.flashErr {
 		t.Error("biblioteca vacía no debía marcarse como error")

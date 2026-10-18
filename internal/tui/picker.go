@@ -216,9 +216,7 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 		case empty == "":
 			empty = i18n.T("sel.none_empty")
 		}
-		for _, line := range strings.Split(empty, "\n") {
-			lines = append(lines, style.Render(clip(line, innerW)))
-		}
+		lines = append(lines, styledLines(empty, innerW, maxRows+1, style)...)
 	}
 	start := 0
 	if p.cursor >= maxRows {
@@ -238,7 +236,7 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 		}
 		lines = append(lines, line)
 	}
-	lines = append(lines, p.st.dim.Render(clip("  "+hint, innerW)))
+	lines = append(lines, styledLines(hint, innerW, 3, p.st.dim)...)
 
 	return p.st.panel(title, lines, w, len(lines)+2, true)
 }

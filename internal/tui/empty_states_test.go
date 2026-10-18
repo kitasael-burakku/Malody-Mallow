@@ -127,11 +127,11 @@ func TestUX01LoadingErrorsAndRecovery(t *testing.T) {
 				checkStateText(t, m.View(), []string{"DB inaccesible"}, "scan", strings.TrimSpace(i18n.T("tui.loading")))
 				checkStateText(t, m.libraryPanel(98, 10), []string{"DB inaccesible"}, "scan")
 				m.Update(libraryMsg{})
-				if m.flash != i18n.T("tui.lib_empty_flash_tui") || m.flashErr {
+				if m.flash != i18n.Tf("tui.lib_empty_flash_tui", keyLabel(m.keys["palette"])) || m.flashErr {
 					t.Fatal("se perdió el flash legítimo del primer arranque")
 				}
 				m.flash = ""
-				checkStateText(t, m.View(), []string{strings.TrimSpace(i18n.T("sel.none_empty"))[:15]}, "DB inaccesible")
+				checkStateText(t, m.View(), []string{strings.Split(strings.TrimSpace(i18n.T("sel.none_empty")), "\n")[0]}, "DB inaccesible")
 				checkStateText(t, m.libraryPanel(98, 10), []string{strings.TrimSpace(i18n.T("tui.lib_empty"))}, "DB inaccesible")
 				m.applyStatus(ipc.Response{Status: &ipc.Status{}})
 				checkStateText(t, m.queuePanel(98, 10), []string{strings.TrimSpace(i18n.T("tui.queue_empty"))}, strings.TrimSpace(i18n.T("tui.loading")))

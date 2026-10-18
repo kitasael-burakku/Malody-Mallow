@@ -532,6 +532,11 @@ destino de cada uno.
 | `?` | ayuda completa (todas las teclas, incluidas las remapeadas) |
 | `q` | salir |
 
+El pie muestra las teclas configuradas y las acciones del panel activo: Enter
+expande o pliega grupos y reproduce pistas. En ventanas estrechas prioriza
+ayuda y salida; `?` abre la ayuda agrupada por tareas y desplazable (también
+disponible en `maly -h`). Los selectores indican Esc para cerrarlos.
+
 **El filtro `/`** abre una caja flotante al pie del panel activo y filtra
 mientras escribes; `↑`/`↓` (o `ctrl+k`/`ctrl+j`) recorren los resultados sin
 salir de ella, `enter` deja el filtro puesto (se ve en el borde del panel) y

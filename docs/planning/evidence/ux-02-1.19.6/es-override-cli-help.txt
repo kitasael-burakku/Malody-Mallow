@@ -1,0 +1,91 @@
+Malody Mallow (maly) v1.19.6 — reproductor de música local para tu terminal
+
+USO
+  maly                         abre la TUI (inicia el servicio si hace falta)
+  maly daemon                  inicia solo el servicio en segundo plano
+
+REPRODUCCIÓN (requieren el servicio corriendo o la TUI abierta)
+  play [<query>...]            reanuda; con consultas busca y reproduce
+  select                       elige una canción con búsqueda fuzzy y reprodúcela
+  pause                        pausa la reproducción
+  toggle                       alterna play/pausa
+  stop                         detiene la reproducción
+  next                         pista siguiente
+  prev                         pista anterior
+  jump <pos>                   salta a una posición de la cola
+  move <from> <to>             mueve una pista de la cola a otra posición
+  remove <pos>                 quita una pista de la cola
+  add <query|path>...          agrega a la cola (consultas o rutas)
+  queue                        muestra la cola
+  clear                        vacía la cola
+  status                       muestra el estado actual
+  vol <0-100|+N|-N>            fija o ajusta el volumen
+  seek <+N|-N|mm:ss>           cambia la posición
+  shuffle [on|off]             alterna o fija shuffle
+  repeat [off|all|one]         alterna o fija el modo repeat
+
+BIBLIOTECA (funcionan sin el servicio (salvo playlist play))
+  scan [<path>]                (re)escanea la biblioteca
+  search <query>               busca por título/artista/álbum
+  get <url|query>              descarga audio con yt-dlp a la biblioteca
+  playlist <sub> [args]        gestiona playlists (list|show|create|delete|add|remove|play|export|import)
+
+OTROS
+  controls [<preset>]          muestra o cambia el esquema de controles
+  logo [hex… | default]        muestra o cambia los colores del banner
+  lang [en|es], -l             cambia el idioma de la interfaz
+  info                         muestra rutas, versiones y tamaño de la biblioteca
+  doctor                       revisa que esté todo lo que maly necesita
+  config                       muestra la configuración que está en efecto ahora mismo
+  update                       busca una versión nueva y actualiza maly
+  kill                         apaga el servicio (desde la TUI: la cierra también)
+  completions <shell>          imprime el script de autocompletado del shell
+  help, -h                     muestra esta ayuda
+  version, -v                  muestra la versión (y la del servicio si corre)
+
+EJEMPLOS
+  $ maly play luna
+  $ maly jump 3
+  $ maly move 3 1
+  $ maly remove 2
+  $ maly add ~/Music/album
+  $ maly add luna "dark side"
+  $ maly vol +10
+  $ maly seek 1:23
+  $ maly shuffle on
+  $ maly playlist add favs luna
+  $ maly playlist export favs
+  $ maly get "aurora runaway"
+  $ maly get pick "aurora runaway"
+  $ maly get playlist https://youtube.com/playlist?list=... favs
+
+ATAJOS EN LA TUI (tal como están configuradas; también disponibles en la ayuda de la TUI)
+
+Reproducción
+  ctrl+v             reproducir / pausar
+  n / p              siguiente / anterior
+  + / -              volumen ±5%
+  right / left       seek ±5s
+
+Biblioteca y cola
+  f8                 cambiar de panel
+  enter              reproducir / expandir
+  espacio            agregar a la cola
+  d                  quitar de la cola
+  K / J              subir / bajar la pista en la cola
+  f6                 filtrar panel actual (a: al: t: f: -palabra; ↑↓ mueve)
+  h j k l            navegar la cola (también flechas) · h/l pliega/expande en la biblioteca
+  gg/G ctrl+d/u      inicio / final · media página
+  pgup/pgdn home/end avanzar/retroceder página · inicio / final
+
+Herramientas y vistas
+  s / r              shuffle / repeat
+  v                  alternar visualizador
+  ctrl+t             pantalla ahora suena (carátula y letras)
+  ctrl+y             paleta de comandos
+  ctrl+o             selector de canciones
+  ctrl+l             panel de playlists
+  ctrl+g             buscar y descargar música
+  A                  agregar selección a una playlist
+  f1                 ayuda
+  f2                 salir

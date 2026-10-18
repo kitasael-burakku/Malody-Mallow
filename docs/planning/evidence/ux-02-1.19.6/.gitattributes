@@ -1,0 +1,2 @@
+*.txt whitespace=-blank-at-eof,-blank-at-eol
+*.ansi whitespace=-blank-at-eof,-blank-at-eol

@@ -1,0 +1,12 @@
+
+
+
+  ╭─ Canciones ──────────────────────╮
+  │❯ buscar canción…                 │
+  │──────────────────────────────────│
+  │  biblioteca vacía — ctrl+p y esc…│
+  │  0 resultado(s) · enter reproduc…│
+  ╰──────────────────────────────────╯
+
+
+

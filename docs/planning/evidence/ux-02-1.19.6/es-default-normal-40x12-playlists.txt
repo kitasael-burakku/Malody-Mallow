@@ -1,0 +1,12 @@
+
+  ╭─ Playlists ──────────────────────╮
+  │❯ buscar playlist…                │
+  │──────────────────────────────────│
+  │  no hay playlists                │
+  │  Escribe un nombre + ctrl+n      │
+  │esc cierra · enter reproduce · tab│
+  │encola · ctrl+n crea · ctrl+x     │
+  │borra · 0                         │
+  ╰──────────────────────────────────╯
+
+

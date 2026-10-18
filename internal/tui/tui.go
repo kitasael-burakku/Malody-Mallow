@@ -511,7 +511,7 @@ func (m *Model) withFlash(box string) string {
 	if !ok {
 		return box
 	}
-	return lipgloss.JoinVertical(lipgloss.Center, box, st.Render(flash))
+	return lipgloss.JoinVertical(lipgloss.Center, box, st.Render(clip(flash, m.width)))
 }
 
 // checkVersion detecta que el demonio corre otro binario (pasa al actualizar
@@ -710,7 +710,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// necesita calma. El texto también pasa a mencionar el remedio
 			// DENTRO de la TUI (ctrl+p → scan) en vez de solo el de shell
 			// (auditoría 2026-07-31, hallazgos T6+T7).
-			m.setFlash(i18n.T("tui.lib_empty_flash_tui"), false)
+			m.setFlash(i18n.Tf("tui.lib_empty_flash_tui", keyLabel(m.keys["palette"])), false)
 		}
 		return m, nil
 

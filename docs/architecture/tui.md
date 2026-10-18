@@ -34,6 +34,22 @@ no realimenta el picker con un resultado parcial ni limpia su error.
 El flash legítimo de biblioteca vacía y el error persistente de biblioteca se
 conservan. No hay estado nuevo en disco ni en IPC.
 
+El pie normal usa `mainHint`: ofrece acciones completas por prioridad con las
+teclas ya resueltas en `m.keys` (incluido el nombre visible de espacio). Conserva
+una fila; muestra el panel de destino, y Enter cambia entre expandir, plegar
+y reproducir según la selección. Las acciones que no caben quedan en la ayuda.
+Flash, scan y avisos mantienen su prioridad y al terminar vuelve el pie normal.
+`HelpRows` sigue siendo la fuente compartida con `maly -h`: filas con tecla
+vacía encabezan tareas. La TUI envuelve las descripciones y, en anchos pequeños,
+coloca la tecla encima; el contenido completo se recorre con scroll.
+
+`wrappedLines` envuelve los estados dentro del presupuesto de cada panel, con
+elipsis solo al agotar filas. El picker mantiene `maxRows` para resultados y
+permite hasta tres filas de instrucciones, con Esc primero; la consola usa el
+mismo límite. No cambian `computeLayout` ni las páginas de listas pobladas.
+Los flashes de modales y del selector independiente se acotan al ancho total.
+Ahora suena reutiliza su fila de instrucciones y anuncia pausa/ayuda remapeadas.
+
 Bubble Tea. Recibe estado por **suscripción push**
 (`subscribe`; fallback a polling de 500 ms con reintento). **Todo el
 reparto de la pantalla vive en `computeLayout` (`layout.go`), función

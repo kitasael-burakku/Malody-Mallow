@@ -182,9 +182,9 @@ func (m *Model) npView() string {
 		lines = append(lines, "")
 	}
 
-	hint := i18n.T("np.hint")
+	hint := fitHints(innerW, i18n.T("np.hint"), keyLabel(m.keys["help"])+" "+i18n.T("hint.help"), keyLabel(m.keys["play_pause"])+" "+i18n.T("hint.pause"))
 	if len(m.npLyrics) > 0 && !m.npSynced {
-		hint = i18n.T("np.scroll_hint")
+		hint = fitHints(innerW, i18n.T("np.scroll_hint"), keyLabel(m.keys["help"])+" "+i18n.T("hint.help"))
 	}
 	hintSt := m.st.dim
 	// La capa comparte las teclas de reproducción con la vista principal

@@ -1,0 +1,12 @@
+╭─ Ayuda ──────────────────────────────╮
+│Reproducción                          │
+│ctrl+v                                │
+│  reproducir / pausar                 │
+│n / p                                 │
+│  siguiente / anterior                │
+│+ / -                                 │
+│  volumen ±5%                         │
+│right / left                          │
+│                                      │
+│esc cierra · ↑/↓ pgup/pgdn desplazan  │
+╰──────────────────────────────────────╯

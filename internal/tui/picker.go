@@ -228,7 +228,11 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 	}
 	for i := start; i < end; i++ {
 		it := p.items[p.matches[i]]
-		line := clip("  "+it.label, innerW)
+		prefix := "  "
+		if i == p.cursor {
+			prefix = "> "
+		}
+		line := clip(prefix+it.label, innerW)
 		if i == p.cursor {
 			line = p.st.selected.Render(padTo(line, innerW))
 		} else {

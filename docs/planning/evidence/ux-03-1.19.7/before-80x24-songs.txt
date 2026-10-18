@@ -1,0 +1,24 @@
+
+
+
+
+
+
+             ╭─ Canciones ───────────────────────────────────────╮
+             │❯ buscar canción…                                  │
+             │───────────────────────────────────────────────────│
+             │  Sin artista                                      │
+             │  Áurea — Una canción con un título muy largo que …│
+             │  Áurea — Café en 東京  [Horizontes]               │
+             │  Áurea — Repetida  [Horizontes]                   │
+             │  Áurea — Repetida  [Horizontes]                   │
+             │esc cierra · enter reproduce · tab agrega · 5      │
+             │resultado(s)                                       │
+             ╰───────────────────────────────────────────────────╯
+
+
+
+
+
+
+

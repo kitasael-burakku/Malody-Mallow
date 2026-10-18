@@ -7,6 +7,16 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.7 — 2026-10-18 (pendiente de publicación)
+
+- **Títulos, contraste y selección.** La ficha de la pista muestra hasta dos
+  líneas de título según el espacio disponible. En ventanas pequeñas conserva
+  metadatos, progreso, letras y salida. Biblioteca, cola y selectores tienen
+  un marcador de selección visible sin color, distinto de la pista actual.
+  Los defaults oscuros aclaran ayudas y pista actual; los configs existentes
+  conservan sus colores, con instrucciones para adoptar los nuevos valores
+  o una combinación medida para fondo claro.
+
 ## v1.19.6 — 2026-10-18 (pendiente de publicación)
 
 - **Ayudas visibles y contextuales.** El pie anuncia acciones según el panel,

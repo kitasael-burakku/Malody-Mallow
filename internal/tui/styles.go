@@ -191,3 +191,16 @@ func (s styles) frame(lb frameLabels, lines []string, w, h int, focused bool) st
 	b.WriteString(bs.Render(strings.Repeat("─", fill) + "╯"))
 	return b.String()
 }
+
+// rowMarkers reserva tres celdas: cursor (>) y pista actual (▶) independientes.
+// Siempre son texto, también con NO_COLOR; los grupos conservan ▸/▾ aparte.
+func rowMarkers(selected, playing bool) string {
+	cursor, current := " ", " "
+	if selected {
+		cursor = ">"
+	}
+	if playing {
+		current = "▶"
+	}
+	return cursor + current + " "
+}

@@ -1,0 +1,152 @@
+[
+  {
+    "run": "after-es-dark-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-es-dark-r4",
+    "size": "100x28",
+    "ok": true
+  },
+  {
+    "run": "after-es-dark-r4",
+    "size": "80x24",
+    "ok": true
+  },
+  {
+    "run": "after-es-dark-r4",
+    "size": "40x12",
+    "ok": true
+  },
+  {
+    "run": "after-es-dark-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-es-light-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-es-light-r4",
+    "size": "100x28",
+    "ok": true
+  },
+  {
+    "run": "after-es-light-r4",
+    "size": "80x24",
+    "ok": true
+  },
+  {
+    "run": "after-es-light-r4",
+    "size": "40x12",
+    "ok": true
+  },
+  {
+    "run": "after-es-light-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-es-no-color-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-es-no-color-r4",
+    "size": "100x28",
+    "ok": true
+  },
+  {
+    "run": "after-es-no-color-r4",
+    "size": "80x24",
+    "ok": true
+  },
+  {
+    "run": "after-es-no-color-r4",
+    "size": "40x12",
+    "ok": true
+  },
+  {
+    "run": "after-es-no-color-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-en-dark-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-en-dark-r4",
+    "size": "100x28",
+    "ok": true
+  },
+  {
+    "run": "after-en-dark-r4",
+    "size": "80x24",
+    "ok": true
+  },
+  {
+    "run": "after-en-dark-r4",
+    "size": "40x12",
+    "ok": true
+  },
+  {
+    "run": "after-en-dark-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-en-light-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-en-light-r4",
+    "size": "100x28",
+    "ok": true
+  },
+  {
+    "run": "after-en-light-r4",
+    "size": "80x24",
+    "ok": true
+  },
+  {
+    "run": "after-en-light-r4",
+    "size": "40x12",
+    "ok": true
+  },
+  {
+    "run": "after-en-light-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-en-no-color-r4",
+    "size": "140x42",
+    "ok": true
+  },
+  {
+    "run": "after-en-no-color-r4",
+    "size": "100x28",
+    "ok": true
+  },
+  {
+    "run": "after-en-no-color-r4",
+    "size": "80x24",
+    "ok": true
+  },
+  {
+    "run": "after-en-no-color-r4",
+    "size": "40x12",
+    "ok": true
+  },
+  {
+    "run": "after-en-no-color-r4",
+    "size": "140x42",
+    "ok": true
+  }
+]

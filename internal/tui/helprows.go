@@ -35,6 +35,7 @@ func HelpRows(keys map[string]string) [][2]string {
 		{pair("seek_forward", "seek_back"), i18n.T("help.seek")},
 		{"", i18n.T("help.group_library")},
 		{k("switch_panel"), i18n.T("help.switch")},
+		{"> / ▶", i18n.T("help.selection")},
 		{"enter", i18n.T("help.enter")},
 		{k("add"), i18n.T("help.add")},
 		{k("remove"), i18n.T("help.remove")},

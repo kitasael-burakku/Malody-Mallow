@@ -534,6 +534,11 @@ expands or collapses groups and plays tracks. Narrow windows prioritize help
 and exit; `?` opens scrollable help grouped by task (also available in
 `maly -h`). Pickers display Esc to close them.
 
+Rows use `>` for selection and `▶` for the current track; both may appear
+together and remain visible without color. Now Playing metadata uses up to
+two title lines when space allows; small windows preserve metadata, progress,
+lyrics and exit instructions before adding the second line.
+
 **The `/` filter** opens a floating box at the bottom of the active panel and
 filters as you type; `↑`/`↓` (or `ctrl+k`/`ctrl+j`) walk the results without
 leaving it, `enter` keeps the filter on (shown on the panel border) and `esc`
@@ -764,8 +769,8 @@ subcommand. `maly config` always shows the **effective** configuration
 | `accent` | `#7ab8b8` | accent color: focused panel, cursor |
 | `border` | `#3a4448` | rules and separators |
 | `text` | `#d4dadb` | primary text |
-| `dim` | `#6b7a7e` | secondary text |
-| `playing` | `#b85c50` | now-playing highlight |
+| `dim` | `#849296` | secondary text |
+| `playing` | `#cc8072` | now-playing highlight |
 | `error` | `#c96f60` | error text (console, flashes) |
 | `accent_dim` | derived from `accent` | border of unfocused panels |
 | `surface` | derived from `accent` | background of the selected row |
@@ -773,6 +778,28 @@ subcommand. `maly config` always shows the **effective** configuration
 | `progress_shadow` | derived from `accent` | shadow under the bar (only where there's height) |
 | `banner` | `"splash"` | ASCII art: `splash` (at startup) \| `titlebar` (one row) \| `off` |
 | `logo` | `["#7ab8b8", "#8098a8", "#b85c50"]` | banner gradient stops (2 to 8) |
+
+Defaults target a dark background: on `#171e22`, secondary text `#849296`
+has a 5.25:1 contrast ratio and the current track `#cc8072`, 5.54:1.
+**Updating preserves colors saved in existing configs.** To adopt these two
+values, edit `dim` and `playing` in your `[theme]` section. The terminal
+background is neither detected nor changed automatically.
+
+For a light reference background of `#f5f5f5`, this combination retains the
+color family and exceeds 4.5:1 for text, hints, accents, current track and
+errors (no guarantee for transparent or custom backgrounds):
+
+```toml
+[theme]
+text = "#253035"
+dim = "#506369"
+accent = "#286565"
+playing = "#9b4337"
+error = "#9b4337"
+surface = "#dce8e8"
+border = "#acbabc"
+accent_dim = "#5d7a7a"
+```
 
 The five **derived** keys are computed from `accent` as long as you don't
 write them: change `accent` and borders, selection, and progress bar follow
@@ -813,8 +840,8 @@ transparent = true        # no background; use the terminal's
 accent = "#7ab8b8"        # logo teal: focused panel, cursor, accents
 border = "#3a4448"
 text = "#d4dadb"
-dim = "#6b7a7e"
-playing = "#b85c50"       # logo terracotta: the track that is playing
+dim = "#849296"
+playing = "#cc8072"       # logo terracotta: the track that is playing
 error = "#c96f60"         # error text (console, flashes)
 # These five are DERIVED from accent while they stay commented out: change
 # accent and the rest of the UI follows without touching anything else.

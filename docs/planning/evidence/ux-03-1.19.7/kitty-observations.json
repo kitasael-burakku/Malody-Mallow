@@ -1,0 +1,22 @@
+{
+  "kitty": "0.49.2",
+  "hyprland": "0.56.2",
+  "dark_sizes": [
+    "140x42",
+    "100x28",
+    "80x24",
+    "40x12"
+  ],
+  "light_sizes": [
+    "140x42"
+  ],
+  "graphics_pixels_confirmed": {
+    "dark-140x42-column": 36864,
+    "dark-140x42-now": 50176,
+    "dark-100x28-now": 50176,
+    "dark-80x24-now": 36865
+  },
+  "images_inspected": true,
+  "pngs_retained_in_repository": false,
+  "reason": "El compositor trasluce ventanas ajenas; se conservan solo buffers de la TUI y dimensiones, sin entorno del proceso."
+}

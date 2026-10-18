@@ -1,0 +1,68 @@
+{
+  "before": {
+    "dim": {
+      "color": "#6b7a7e",
+      "on_dark_171e22": 3.783,
+      "on_light_f5f5f5": 4.089
+    },
+    "playing": {
+      "color": "#b85c50",
+      "on_dark_171e22": 3.762,
+      "on_light_f5f5f5": 4.112
+    }
+  },
+  "dark": {
+    "text": {
+      "color": "#d4dadb",
+      "on_dark_171e22": 11.926,
+      "on_light_f5f5f5": 1.297
+    },
+    "dim": {
+      "color": "#849296",
+      "on_dark_171e22": 5.246,
+      "on_light_f5f5f5": 2.948
+    },
+    "accent": {
+      "color": "#7ab8b8",
+      "on_dark_171e22": 7.529,
+      "on_light_f5f5f5": 2.054
+    },
+    "playing": {
+      "color": "#cc8072",
+      "on_dark_171e22": 5.54,
+      "on_light_f5f5f5": 2.792
+    },
+    "error": {
+      "color": "#c96f60",
+      "on_dark_171e22": 4.759,
+      "on_light_f5f5f5": 3.25
+    }
+  },
+  "light": {
+    "text": {
+      "color": "#253035",
+      "on_dark_171e22": 1.247,
+      "on_light_f5f5f5": 12.404
+    },
+    "dim": {
+      "color": "#506369",
+      "on_dark_171e22": 2.674,
+      "on_light_f5f5f5": 5.785
+    },
+    "accent": {
+      "color": "#286565",
+      "on_dark_171e22": 2.521,
+      "on_light_f5f5f5": 6.135
+    },
+    "playing": {
+      "color": "#9b4337",
+      "on_dark_171e22": 2.611,
+      "on_light_f5f5f5": 5.924
+    },
+    "error": {
+      "color": "#9b4337",
+      "on_dark_171e22": 2.611,
+      "on_light_f5f5f5": 5.924
+    }
+  }
+}

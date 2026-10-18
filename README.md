@@ -537,6 +537,11 @@ expande o pliega grupos y reproduce pistas. En ventanas estrechas prioriza
 ayuda y salida; `?` abre la ayuda agrupada por tareas y desplazable (también
 disponible en `maly -h`). Los selectores indican Esc para cerrarlos.
 
+Las filas usan `>` para la selección y `▶` para la pista actual; ambos pueden
+coincidir y siguen visibles sin color. La ficha de «Ahora suena» muestra hasta
+dos líneas de título cuando caben; en ventanas pequeñas conserva metadatos,
+progreso, letras y salida antes que la segunda línea.
+
 **El filtro `/`** abre una caja flotante al pie del panel activo y filtra
 mientras escribes; `↑`/`↓` (o `ctrl+k`/`ctrl+j`) recorren los resultados sin
 salir de ella, `enter` deja el filtro puesto (se ve en el borde del panel) y
@@ -767,8 +772,8 @@ subcomando. `maly config` muestra siempre la configuración **efectiva**
 | `accent` | `#7ab8b8` | color de acento: panel enfocado, cursor |
 | `border` | `#3a4448` | reglas y separadores |
 | `text` | `#d4dadb` | texto principal |
-| `dim` | `#6b7a7e` | texto secundario |
-| `playing` | `#b85c50` | resalte de la pista en reproducción |
+| `dim` | `#849296` | texto secundario |
+| `playing` | `#cc8072` | resalte de la pista en reproducción |
 | `error` | `#c96f60` | texto de error (consola, flashes) |
 | `accent_dim` | derivado de `accent` | borde de los paneles sin foco |
 | `surface` | derivado de `accent` | fondo de la fila seleccionada |
@@ -776,6 +781,28 @@ subcomando. `maly config` muestra siempre la configuración **efectiva**
 | `progress_shadow` | derivado de `accent` | sombra bajo la barra (solo donde hay altura) |
 | `banner` | `"splash"` | arte ASCII: `splash` (al arrancar) \| `titlebar` (una fila) \| `off` |
 | `logo` | `["#7ab8b8", "#8098a8", "#b85c50"]` | paradas del gradiente del banner (2 a 8) |
+
+Los defaults son para fondo oscuro: en `#171e22`, el texto secundario
+`#849296` da 5,25:1 y la pista actual `#cc8072`, 5,54:1. **Actualizar no
+reescribe colores guardados en configs existentes.** Para adoptar estos dos
+valores, cambia `dim` y `playing` en tu sección `[theme]`. No se detecta ni
+se cambia automáticamente el fondo del terminal.
+
+Para un fondo claro de referencia `#f5f5f5`, esta combinación mantiene la
+familia de colores y supera 4,5:1 en texto, ayudas, acentos, pista actual y
+errores (no es una garantía para fondos transparentes o personalizados):
+
+```toml
+[theme]
+text = "#253035"
+dim = "#506369"
+accent = "#286565"
+playing = "#9b4337"
+error = "#9b4337"
+surface = "#dce8e8"
+border = "#acbabc"
+accent_dim = "#5d7a7a"
+```
 
 Las cinco claves **derivadas** se calculan a partir de `accent` mientras no
 las escribas: cambiás `accent` y bordes, selección y barra de reproducción lo
@@ -816,8 +843,8 @@ transparent = true        # sin fondo; usar el del terminal
 accent = "#7ab8b8"        # teal del logo: panel enfocado, cursor, acentos
 border = "#3a4448"
 text = "#d4dadb"
-dim = "#6b7a7e"
-playing = "#b85c50"       # terracota del logo: la pista que está sonando
+dim = "#849296"
+playing = "#cc8072"       # terracota del logo: la pista que está sonando
 error = "#c96f60"         # texto de error (consola, flashes)
 # Estos cinco se DERIVAN de accent mientras sigan comentados: cambiá accent y
 # el resto de la UI lo acompaña sin tocar nada más. Descomentá el que quieras

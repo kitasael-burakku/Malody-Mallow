@@ -50,6 +50,23 @@ mismo límite. No cambian `computeLayout` ni las páginas de listas pobladas.
 Los flashes de modales y del selector independiente se acotan al ancho total.
 Ahora suena reutiliza su fila de instrucciones y anuncia pausa/ayuda remapeadas.
 
+Las filas reservan marcadores de texto independientes: `>` para selección
+con foco y `▶` para pista actual (también pausada); juntos dan `>▶`. En la
+biblioteca se compara la ruta y en cola el índice real, incluido el filtro.
+Los grupos conservan sus flechas de expansión; el resaltado de coincidencias
+compensa el nuevo prefijo. Los pickers muestran `>` en su selección. No depende
+del perfil de color ni cambia las acciones o identidades de las filas.
+
+La ficha comparte `npMetaTextRows`: hasta dos líneas de título, con elipsis si
+no cabe, seguidas por artista, álbum y detalle. La columna reserva siete filas
+para ficha/márgenes (antes seis) y reduce la carátula dentro de su propio panel,
+sin cambiar `computeLayout` ni las listas. En la capa, `npMetaBlock` recibe un
+presupuesto de alto: ceden margen y sombra antes de volver a una línea de título.
+Se reserva al menos una fila de letra y la de hint; una carátula baja ya no
+trunca metadatos más altos que ella. Los defaults de `dim`/`playing` mejoran
+el contraste sobre fondo oscuro; no se reescriben configs ni se detecta el fondo.
+La combinación clara documentada se aplica explícitamente por el usuario.
+
 Bubble Tea. Recibe estado por **suscripción push**
 (`subscribe`; fallback a polling de 500 ms con reintento). **Todo el
 reparto de la pantalla vive en `computeLayout` (`layout.go`), función

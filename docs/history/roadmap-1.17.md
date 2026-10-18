@@ -2,11 +2,113 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.7 (2026-10-18) — UX-03: títulos, contraste y selección
+
+**Estado:** implementada y verificada, commit autorizado; pendiente de tag, publicación y
+despliegue local. UX-02 se cerró previamente en el commit `9135bcd`, autorizado
+por el dueño; no se creó `v1.19.6` ni se hizo push. El PKGBUILD sigue aplazado.
+Siguiente entrega: UX-04. [Aceptación](../planning/roadmap-ui-ux.md#ux-03--títulos-contraste-y-selección)
+y [evidencia](../planning/evidence/ux-03-1.19.7/README.md).
+
+**Base y reproducción.** `main` limpio tras el commit `9135bcd`, const
+`1.19.6`, último tag local `v1.19.5`; remoto sin consultar. Se reconstruyó esa
+base y se reprodujo con cinco FLAC sintéticos: título largo, NFD y CJK, títulos
+repetidos y metadatos ausentes; la primera pista tenía carátula y `.lrc`.
+En la columna, el título seguía en una sola fila aunque sobraba alto. Sin
+color, el cursor de biblioteca/cola/picker no tenía señal propia. El control
+positivo conservaba pistas y posición actual, y el título corto se leía entero.
+Además, a 40×12 una ficha con artista, álbum y género consumía la fila de
+letras y la ayuda de la capa. Se reprodujo ese caso antes de corregir el
+presupuesto; no se atribuye a la nueva segunda línea.
+
+**Antes → después.** `npMetaTextRows` envuelve el título en hasta dos filas.
+La columna reserva siete filas para ficha/márgenes, frente a seis; el arte
+cede una fila cuando el alto limita, conservando su proporción. La capa pasa
+un presupuesto explícito a `npMetaBlock`: margen y sombra ceden primero,
+segunda fila de título después; tiempos, progreso, metadatos y una fila de
+letra más la salida permanecen. Si la carátula es más baja que la ficha,
+el bloque toma el alto de la ficha y ya no descarta sus últimas filas.
+`computeLayout` sigue puro y sin cambios; las listas no pierden filas.
+
+Biblioteca y cola reservan tres celdas de prefijo: `>` cursor enfocado y `▶`
+pista actual, juntos cuando coinciden. Biblioteca compara rutas; cola,
+índices reales incluso al filtrar. El coste horizontal es tres celdas en
+biblioteca y una adicional en cola. Los pickers reutilizan sus dos celdas de
+margen para `> `. Las flechas de expansión siguen aparte; los offsets del
+resaltado se ajustan al prefijo. No se alteran selección lógica ni acciones.
+La leyenda vive en `HelpRows`, compartida con la CLI y traducida en es/en.
+
+**Contraste y temas.** Los defaults oscuros cambian solo `dim` de `#6b7a7e`
+a `#849296` y `playing` de `#b85c50` a `#cc8072`. Frente a `#171e22`, pasan de
+3,78 a 5,25:1 y de 3,76 a 5,54:1. Texto, acento y error ya superaban 4,5:1.
+El logo, bordes y gradientes conservan su paleta. La misma paleta oscura **no**
+cumple el objetivo sobre `#f5f5f5`; no se inventó una detección de fondo ni un
+sistema nuevo de temas. Ambos README ofrecen una combinación clara explícita
+(texto `#253035`, dim `#506369`, acento `#286565`, pista/error `#9b4337`), con
+ratios de 12,40 / 5,78 / 6,14 / 5,92:1 sobre ese fondo. La tabla completa mide
+ambas paletas contra ambos fondos para que el límite sea visible.
+
+La prueba carga un config nuevo y contrasta template/defaults; después carga
+uno previo con los colores antiguos y un texto personalizado, comprobando
+bytes idénticos y valores conservados. Actualizar no reescribe el archivo:
+para adoptar los colores nuevos hace falta editarlos explícitamente. La
+medición es luminancia sRGB sobre pares sólidos, no certificación del escritorio
+ni promesa para transparencia, colores personalizados o contexto lejano de letras.
+
+**Versión: `1.19.6` → `1.19.7`, cambio pequeño.** Presentación de información
+existente dentro de las mismas pantallas y acciones; sin estado persistente,
+IPC ni modelo de reproducción nuevos. Se incrementa solo el último componente
+según [releases](../development/releases.md). El template cambia defaults,
+no introduce migración ni claves de configuración nuevas.
+
+**Verificación.** Los cuatro grupos `TestUX03*` prueban título largo/corto,
+posiciones de artista/álbum/detalle, letra y salida, con/sin arte, selección
+coincidente y separada, texto sin ANSI, contraste y config previo/nuevo.
+Cubren es/en, 140×42, 100×28, 80×24, 40×12 y dos alturas/anchos intermedios.
+Las aserciones de contenido evitan que `panel()` esconda un desborde de alto.
+Se copiaron los archivos de producción anteriores con `cp`: compiló y los
+cuatro grupos fallaron por títulos truncados, letras/salida perdidas,
+marcadores ausentes y contraste insuficiente. Restaurados con `cp`, pasaron.
+
+Build sin CGo, vet, suite completa sin CGo y `-race` correctos: **17 paquetes,
+cero fallos y cero saltos** en ambas suites; mpv disponible y bus privado.
+Los paquetes afectados también pasaron antes del recorrido real. Gofmt y
+`git diff --check` correctos. No se repitió la suite por cambios documentales.
+
+TUI real: es/en × oscuro/claro/NO_COLOR × cuatro tamaños, regresando a
+140×42: **24 combinaciones, 30 puntos**. Filtro, biblioteca, cola con cursor
+y pista iguales/distintos, canciones y ahora suena. XDG propio, audio nulo,
+updates/viz apagados; acciones sobre música sintética. Kitty 0.49.2 real,
+sin tmux: carátula gráfica, regreso entre columna/capa y los cuatro tamaños;
+referencia clara a 140×42. Se verificaron píxeles de la imagen sintética en
+140/100/80; a 40×12 el arte cede como estaba previsto. La revisión gráfica
+conserva los efectos del compositor: no sustituye la medición de colores.
+
+**Trampas del arnés.** Las primeras capturas de cola y modales podían recoger
+el frame previo por esperar texto común a ambos estados: se cambiaron a
+condiciones de posición/modal y se recapturó la matriz. En Kitty hubo que
+usar la API Lua local de Hyprland y su resize; la petición de resize de Kitty
+no bastaba. Enviar `/Una` como una sola entrada no activa el filtro: se
+separó `/` del texto. La carga gráfica puede llegar después del texto: se
+esperaron píxeles, no solo placeholders. Una pasada adicional se detuvo al
+perder el foco, como exigía la guarda que impide actuar sobre otra ventana.
+Los avisos de portales/systemd en el bus privado no son defectos de Maly.
+
+**Riesgo, vuelta atrás y límites.** Riesgo principal: empujar metadatos o
+confundir cursor con reproducción; se midieron ambos. No hay migración ni
+escaneos automáticos. Se guardó copia previa para la regresión; tras un cierre,
+la vuelta atrás es revertir la entrega en un commit nuevo y reconstruir la
+versión anterior. No se reemplazó `~/.local/bin/maly`, no se reinició el servicio
+real y no se tocó el PKGBUILD. Los PNG de escritorio no se incorporan porque
+traslucen ventanas ajenas a la prueba; quedan buffers Kitty y observaciones.
+No se repite servicio/dos clientes ni todos los remapeos de UX-02: aquí no
+cambian contratos compartidos ni dispatch de teclas. No se probó red real.
+
 ## v1.19.6 (2026-10-18) — UX-02: ayudas visibles y contextuales
 
-**Estado:** implementada y verificada; bump y documentación preparados, sin
-tag ni publicación de esta entrega. Commit autorizado el 2026-10-18 para
-continuar con UX-03. El cierre autorizado anterior fue
+**Estado:** implementada y verificada; commit `9135bcd` creado el 2026-10-18
+para continuar con UX-03. Sin tag ni publicación de esta entrega. El cierre
+anterior con tag fue
 `v1.19.5`. PKGBUILD aplazado por el dueño hasta probar las próximas subidas;
 instalación y servicio reales sin modificar. Siguiente entrega: UX-03.
 Alcance y aceptación: [roadmap UI/UX](../planning/roadmap-ui-ux.md#ux-02--ayudas-visibles-y-contextuales).

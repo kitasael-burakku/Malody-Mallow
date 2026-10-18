@@ -229,8 +229,8 @@ func Default() Config {
 			Accent:      "#7ab8b8", // teal del logo: panel enfocado, cursor
 			Border:      "#3a4448",
 			Text:        "#d4dadb",
-			Dim:         "#6b7a7e",
-			Playing:     "#b85c50", // terracota del logo: contrasta con accent
+			Dim:         "#849296",
+			Playing:     "#cc8072", // terracota del logo: contrasta con accent
 			Error:       "#c96f60",
 			Banner:      BannerSplash,
 			// Paradas del gradiente del banner; config no puede importar tui,
@@ -269,8 +269,8 @@ transparent = true        # sin fondo; usar el del terminal
 accent = "#7ab8b8"        # teal del logo: panel enfocado, cursor, acentos
 border = "#3a4448"
 text = "#d4dadb"
-dim = "#6b7a7e"
-playing = "#b85c50"       # terracota del logo: la pista que está sonando
+dim = "#849296"
+playing = "#cc8072"       # terracota del logo: la pista que está sonando
 error = "#c96f60"         # texto de error (consola, flashes)
 # Estos cinco se DERIVAN de accent mientras sigan comentados: cambiá accent y
 # el resto de la UI lo acompaña sin tocar nada más. Descomentá el que quieras

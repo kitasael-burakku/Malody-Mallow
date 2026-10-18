@@ -146,6 +146,7 @@ var table = map[string][2]string{
 	"help.page_keys":      {"page up/down · top / bottom", "avanzar/retroceder página · inicio / final"},
 	"help.close":          {"  esc closes", "  esc cierra"},
 	"help.scroll_hint":    {"esc closes · ↑/↓ pgup/pgdn scroll", "esc cierra · ↑/↓ pgup/pgdn desplazan"},
+	"help.selection":      {"selection / current track (can coincide)", "selección / pista actual (pueden coincidir)"},
 	"help.space":          {"space", "espacio"},
 
 	// ---- TUI: selector de idioma ----

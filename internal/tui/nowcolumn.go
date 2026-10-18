@@ -13,7 +13,7 @@ const (
 	// npColMetaRows es el presupuesto de filas de la ficha (título, artista,
 	// álbum, detalle) más los márgenes: lo que la carátula NO puede ocupar.
 	// Es corto porque el progreso no vive acá sino en la barra del pie.
-	npColMetaRows = 6
+	npColMetaRows = 7
 	// npColArtMaxH acota la carátula aunque sobre altura y ancho. El límite
 	// que muerde de verdad casi siempre es el ANCHO de la columna (la imagen
 	// es cuadrada: alto = ancho/2), así que este tope solo entra en juego en
@@ -63,7 +63,11 @@ func (m *Model) npColumn(w, h int) string {
 	}
 	// Solo la FICHA: los tiempos y la barra de progreso los pone la barra de
 	// ancho completo del pie, que es donde el progreso se lee de verdad.
-	for _, l := range m.npMetaText(innerW - 2) {
+	titleRows := 1
+	if innerH-artH >= len(m.npMetaTextRows(innerW-2, 1))+2 {
+		titleRows = 2
+	}
+	for _, l := range m.npMetaTextRows(innerW-2, titleRows) {
 		lines = append(lines, " "+l)
 	}
 	// El bloque (carátula + ficha) va CENTRADO en vertical, con el aire

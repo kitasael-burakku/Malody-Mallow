@@ -244,10 +244,13 @@ func (m *Model) libraryPanel(w, h int) string {
 		if playing {
 			style = m.st.playing
 		}
-		line := clip(text, innerW)
+		prefix := rowMarkers(i == m.tree.cursor && focused, playing)
+		line := clip(prefix+text, innerW)
 		var marks []bool
 		if m.tree.filter != "" {
-			marks = m.tree.query.highlight(text) // text es la etiqueta tal cual
+			if nm := m.tree.query.highlight(text); nm != nil {
+				marks = append(make([]bool, utf8.RuneCountInString(prefix)), nm...)
+			}
 		}
 		switch {
 		case i == m.tree.cursor && focused:
@@ -316,10 +319,9 @@ func (m *Model) queuePanel(w, h int) string {
 		real := vis[v]
 		t := m.queue[real]
 		name := trackLabel(t.Artist, t.Title)
-		mark := "  "
+		mark := rowMarkers(v == m.queueCursor && focused, real == curIdx)
 		style := m.st.text
 		if real == curIdx {
-			mark = "▶ "
 			style = m.st.playing.Bold(true)
 		}
 		prefix := fmt.Sprintf("%s%3d. ", mark, real+1)

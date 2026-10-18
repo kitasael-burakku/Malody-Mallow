@@ -1,9 +1,9 @@
 # Roadmap UI/UX — revisión de Codex del 2026-10-17
 
 **Estado: UX-00 verificada y publicada en GitHub como `1.19.4`;
-UX-01 con release local `1.19.5`; UX-02 implementada y verificada en `1.19.6`,
-commit autorizado; pendiente de tag; UX-03–UX-09 pendientes. No se ha verificado publicación
-de estas dos entregas.**
+UX-01 con release local `1.19.5`; UX-02 verificada en el commit `9135bcd`
+(`1.19.6`, sin tag); UX-03 implementada y verificada en `1.19.7`, commit autorizado; pendiente de tag.
+UX-04–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -34,8 +34,8 @@ condicionadas son candidatas, no compromisos de publicación.
 | --- | --- | --- | --- | --- |
 | UX-00 | `1.19.3` → `1.19.4` | Bordes con VS15 | Pequeño: normalización de salida de la TUI, sin alterar datos ni interacción | Verificada; publicada en GitHub |
 | UX-01 | `1.19.4` → `1.19.5` | Estados vacíos veraces | Pequeño: corrige la interpretación visual de datos existentes, sin nuevos comandos ni estado persistente | Verificada; release local v1.19.5, publicación pendiente |
-| UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Implementada y verificada; commit autorizado; tag pendiente |
-| UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Pendiente |
+| UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Verificada; commit 9135bcd, tag pendiente |
+| UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Implementada y verificada; commit autorizado; tag pendiente |
 | UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia CLI ni red | Pendiente |
 | UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Pendiente |
 | UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño si se mantiene acotado: compone una foto de la cola con la persistencia de playlists existente | Condicionada a diseño acotado |
@@ -127,7 +127,7 @@ su prioridad. No reservar filas de más sin medir cuánto pierde la lista.
 - [x] Un flash o un scan no provoca desbordes ni oculta permanentemente las
   instrucciones. Se comprueba contenido y posición, no solo ancho/alto.
 
-**Cierre:** [ingeniería de 1.19.6](../history/roadmap-1.17.md#v1196-2026-10-18--ux-02-ayudas-visibles-y-contextuales) y [evidencia](evidence/ux-02-1.19.6/README.md). Sin filas permanentes adicionales; commit autorizado; tag, publicación y despliegue pendientes. Siguiente entrega: UX-03.
+**Cierre:** [ingeniería de 1.19.6](../history/roadmap-1.17.md#v1196-2026-10-18--ux-02-ayudas-visibles-y-contextuales) y [evidencia](evidence/ux-02-1.19.6/README.md). Sin filas permanentes adicionales; commit `9135bcd`; tag, publicación y despliegue pendientes. Siguiente entrega: UX-03.
 
 ## UX-03 — títulos, contraste y selección
 
@@ -151,15 +151,17 @@ actualiza configs ya creados; documentar ese límite al cerrar la entrega.
 
 **Aceptación:**
 
-- [ ] Título largo legible en dos líneas cuando hay presupuesto; artista,
+- [x] Título largo legible en dos líneas cuando hay presupuesto; artista,
   álbum, carátula, letras y progreso no se desplazan fuera de sus áreas.
-- [ ] Selección y pista actual se distinguen cuando coinciden y cuando no,
+- [x] Selección y pista actual se distinguen cuando coinciden y cuando no,
   también sin color y en modo de una columna.
-- [ ] Medir texto informativo contra fondos de referencia oscuro y claro;
+- [x] Medir texto informativo contra fondos de referencia oscuro y claro;
   objetivo orientativo de contraste ≥4,5:1. Registrar los colores medidos,
   sin prometer ese resultado para cualquier transparencia o tema personalizado.
-- [ ] Validar un config previo sin modificarlo y uno nuevo; revisar Kitty
+- [x] Validar un config previo sin modificarlo y uno nuevo; revisar Kitty
   real con carátula antes de afirmar aceptación gráfica completa.
+
+**Cierre:** [ingeniería de 1.19.7](../history/roadmap-1.17.md#v1197-2026-10-18--ux-03-títulos-contraste-y-selección) y [evidencia](evidence/ux-03-1.19.7/README.md). Verificación gráfica en Kitty real; ratios sobre fondos de referencia sólidos, sin garantía para efectos del compositor. Commit autorizado; tag, publicación y despliegue pendientes.
 
 ## UX-04 — consultas locales coherentes
 
@@ -358,6 +360,10 @@ Cierre local autorizado con commit y tag anotado `v1.19.5`; publicación y
 despliegue pendientes. El PKGBUILD se aplaza hasta terminar de probar las
 próximas subidas, por instrucción del dueño.
 
-Siguiente entrega: UX-02. El [prompt de continuidad](PROMPT-CONTINUIDAD-UI-UX.md)
+Siguiente entrega tras UX-01: UX-02. El [prompt de continuidad](PROMPT-CONTINUIDAD-UI-UX.md)
 se conserva como el encargo histórico de UX-01; el estado vigente es este
 roadmap. El historial técnico permanece en `docs/history/`.
+
+2026-10-18: UX-02 quedó en el commit `9135bcd` (`1.19.6`, sin tag). UX-03
+implementada y verificada en `1.19.7`; cuatro entregas UI/UX realizadas,
+publicación y despliegue de las últimas pendientes. Siguiente entrega: UX-04.

@@ -155,17 +155,26 @@ func (m *Model) npView() string {
 	lines := []string{""}
 	if img != nil {
 		metaW := innerW - artW - 7
-		meta := m.npMeta(metaW)
-		top := (artH - len(meta)) / 2
-		for r := 0; r < artH; r++ {
-			left := "  " + art[r] + "   "
+		meta := m.npMetaBlock(metaW, innerH-vizH-4)
+		// La ficha puede superar una carátula baja: nunca descartar sus filas.
+		blockH := max(artH, len(meta))
+		top := (blockH - len(meta)) / 2
+		for r := 0; r < blockH; r++ {
+			left := "  " + strings.Repeat(" ", artW) + "   "
+			if r < artH {
+				left = "  " + art[r] + "   "
+			}
 			if r >= top && r-top < len(meta) {
 				left += meta[r-top]
 			}
 			lines = append(lines, left)
 		}
 	} else {
-		for _, l := range m.npMeta(innerW - 4) {
+		metaH := innerH - vizH - 4 // márgenes, al menos una letra y hint
+		if suppressedByWidth {
+			metaH--
+		}
+		for _, l := range m.npMetaBlock(innerW-4, metaH) {
 			lines = append(lines, "  "+l)
 		}
 		if suppressedByWidth {
@@ -211,7 +220,18 @@ func (m *Model) npView() string {
 // la columna del layout de tres columnas se queda solo con la ficha, porque
 // el progreso vive en la barra de ancho completo del pie.
 func (m *Model) npMeta(w int) []string {
-	lines := m.npMetaText(w)
+	return m.npMetaBlock(w, 100)
+}
+
+// npMetaBlock conserva ficha, tiempos y progreso dentro de h. En poco alto
+// ceden primero el margen y la sombra; después la segunda línea del título.
+func (m *Model) npMetaBlock(w, h int) []string {
+	base := m.npMetaTextRows(w, 1)
+	titleRows := 1
+	if len(base)+3 <= h {
+		titleRows = 2
+	}
+	lines := m.npMetaTextRows(w, titleRows)
 	if m.status == nil || m.status.Track == nil {
 		return lines
 	}
@@ -220,7 +240,10 @@ func (m *Model) npMeta(w int) []string {
 	}
 	s := m.status
 
-	lines = append(lines, "")
+	spacious := len(lines)+4 <= h
+	if spacious {
+		lines = append(lines, "")
+	}
 	icon := "▶"
 	if s.Paused {
 		icon = "⏸"
@@ -238,7 +261,9 @@ func (m *Model) npMeta(w int) []string {
 	// la fila saldría de la cola. Cuando no hay nada que sombrear
 	// (duración desconocida, arranque de la pista) devuelve "" y la fila
 	// queda en blanco, que es exactamente lo que debe verse.
-	lines = append(lines, m.progressShadow(s.Position, s.Duration, w))
+	if spacious {
+		lines = append(lines, m.progressShadow(s.Position, s.Duration, w))
+	}
 	return lines
 }
 
@@ -246,6 +271,10 @@ func (m *Model) npMeta(w int) []string {
 // nada de reproducción. Separada de npMeta para que la columna no duplique la
 // barra de progreso ni los tiempos que ya muestra el pie.
 func (m *Model) npMetaText(w int) []string {
+	return m.npMetaTextRows(w, 2)
+}
+
+func (m *Model) npMetaTextRows(w, titleRows int) []string {
 	if w < 8 {
 		w = 8
 	}
@@ -253,7 +282,7 @@ func (m *Model) npMetaText(w int) []string {
 		return []string{m.st.dim.Render(clip(i18n.T("tui.nothing"), w))}
 	}
 	t := m.status.Track
-	lines := []string{m.st.text.Bold(true).Render(clip(cleanTitle(t.Artist, t.Title), w))}
+	lines := styledLines(cleanTitle(t.Artist, t.Title), w, titleRows, m.st.text.Bold(true))
 	if t.Artist != "" {
 		lines = append(lines, m.st.accent.Render(clip(t.Artist, w)))
 	}

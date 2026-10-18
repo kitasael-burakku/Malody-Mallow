@@ -1,0 +1,362 @@
+[
+  {
+    "run": "es-default-normal",
+    "size": "140x42",
+    "ok": true,
+    "note": "completed before idle-text assertion was corrected"
+  },
+  {
+    "run": "es-default-normal",
+    "size": "100x28",
+    "ok": true,
+    "note": "completed before idle-text assertion was corrected"
+  },
+  {
+    "run": "es-default-normal",
+    "size": "80x24",
+    "ok": true,
+    "note": "completed before idle-text assertion was corrected"
+  },
+  {
+    "run": "es-default-normal",
+    "size": "40x12",
+    "ok": true,
+    "note": "completed before idle-text assertion was corrected"
+  },
+  {
+    "run": "es-default-normal",
+    "size": "140x42",
+    "ok": true,
+    "note": "completed before idle-text assertion was corrected"
+  },
+  {
+    "run": "es-default-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-default-no-color",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-default-no-color",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-default-no-color",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-default-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-normal",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-normal",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-normal",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-no-color",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-no-color",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-no-color",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-vim-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-normal",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-normal",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-normal",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-no-color",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-no-color",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-no-color",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "es-override-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-normal",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-normal",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-normal",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-no-color",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-no-color",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-no-color",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-default-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-normal",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-normal",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-normal",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-no-color",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-no-color",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-no-color",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-vim-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-normal",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-normal",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-normal",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-normal",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-no-color",
+    "size": "100x28",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-no-color",
+    "size": "80x24",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-no-color",
+    "size": "40x12",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  },
+  {
+    "run": "en-override-no-color",
+    "size": "140x42",
+    "states": "library/queue filtered + clear, playlists empty + typed, songs filtered + edit",
+    "ok": true
+  }
+]

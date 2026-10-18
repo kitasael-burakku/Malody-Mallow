@@ -1,0 +1,205 @@
+{
+  "suite": {
+    "packages": [
+      {
+        "Package": "maly/internal/queue",
+        "Action": "pass",
+        "Elapsed": 0.008
+      },
+      {
+        "Package": "maly/internal/safetext",
+        "Action": "pass",
+        "Elapsed": 0.008
+      },
+      {
+        "Package": "maly/internal/config",
+        "Action": "pass",
+        "Elapsed": 0.011
+      },
+      {
+        "Package": "maly/internal/probe",
+        "Action": "pass",
+        "Elapsed": 0.012
+      },
+      {
+        "Package": "maly/internal/media",
+        "Action": "pass",
+        "Elapsed": 0.038
+      },
+      {
+        "Package": "maly/internal/i18n",
+        "Action": "pass",
+        "Elapsed": 0.071
+      },
+      {
+        "Package": "maly/internal/version",
+        "Action": "pass",
+        "Elapsed": 0.002
+      },
+      {
+        "Package": "maly/internal/update",
+        "Action": "pass",
+        "Elapsed": 0.005
+      },
+      {
+        "Package": "maly/internal/viz",
+        "Action": "pass",
+        "Elapsed": 0.024
+      },
+      {
+        "Package": "maly/internal/mpris",
+        "Action": "pass",
+        "Elapsed": 0.36
+      },
+      {
+        "Package": "maly/internal/library",
+        "Action": "pass",
+        "Elapsed": 0.51
+      },
+      {
+        "Package": "maly/internal/tui",
+        "Action": "pass",
+        "Elapsed": 0.511
+      },
+      {
+        "Package": "maly/cmd/maly",
+        "Action": "pass",
+        "Elapsed": 2.316
+      },
+      {
+        "Package": "maly/internal/getter",
+        "Action": "pass",
+        "Elapsed": 2.535
+      },
+      {
+        "Package": "maly/internal/ipc",
+        "Action": "pass",
+        "Elapsed": 2.573
+      },
+      {
+        "Package": "maly/internal/player",
+        "Action": "pass",
+        "Elapsed": 7.795
+      },
+      {
+        "Package": "maly/internal/daemon",
+        "Action": "pass",
+        "Elapsed": 19.064
+      }
+    ],
+    "skips": []
+  },
+  "race": {
+    "packages": [
+      {
+        "Package": "maly/internal/safetext",
+        "Action": "pass",
+        "Elapsed": 1.038
+      },
+      {
+        "Package": "maly/internal/queue",
+        "Action": "pass",
+        "Elapsed": 1.038
+      },
+      {
+        "Package": "maly/internal/probe",
+        "Action": "pass",
+        "Elapsed": 1.045
+      },
+      {
+        "Package": "maly/internal/config",
+        "Action": "pass",
+        "Elapsed": 1.055
+      },
+      {
+        "Package": "maly/internal/mpris",
+        "Action": "pass",
+        "Elapsed": 1.4060000000000001
+      },
+      {
+        "Package": "maly/internal/i18n",
+        "Action": "pass",
+        "Elapsed": 1.486
+      },
+      {
+        "Package": "maly/internal/media",
+        "Action": "pass",
+        "Elapsed": 1.564
+      },
+      {
+        "Package": "maly/internal/version",
+        "Action": "pass",
+        "Elapsed": 1.008
+      },
+      {
+        "Package": "maly/internal/update",
+        "Action": "pass",
+        "Elapsed": 1.012
+      },
+      {
+        "Package": "maly/internal/viz",
+        "Action": "pass",
+        "Elapsed": 1.034
+      },
+      {
+        "Package": "maly/internal/tui",
+        "Action": "pass",
+        "Elapsed": 2.811
+      },
+      {
+        "Package": "maly/internal/getter",
+        "Action": "pass",
+        "Elapsed": 3.574
+      },
+      {
+        "Package": "maly/cmd/maly",
+        "Action": "pass",
+        "Elapsed": 3.9050000000000002
+      },
+      {
+        "Package": "maly/internal/ipc",
+        "Action": "pass",
+        "Elapsed": 4.275
+      },
+      {
+        "Package": "maly/internal/player",
+        "Action": "pass",
+        "Elapsed": 8.883
+      },
+      {
+        "Package": "maly/internal/library",
+        "Action": "pass",
+        "Elapsed": 14.083
+      },
+      {
+        "Package": "maly/internal/daemon",
+        "Action": "pass",
+        "Elapsed": 21.987
+      }
+    ],
+    "skips": []
+  },
+  "regression": {
+    "before_exit": 1,
+    "after_exit": 0,
+    "before_compiled": true,
+    "test_groups": [
+      "--- FAIL: TestUX01FilteredPanels (0.02s)",
+      "--- FAIL: TestUX01LocalPickers (0.01s)",
+      "--- FAIL: TestUX01LoadingErrorsAndRecovery (0.01s)",
+      "--- FAIL: TestUX01PlaylistReadFailure (0.00s)"
+    ],
+    "after": "ok  \tmaly/internal/tui\t0.037s"
+  },
+  "commands": [
+    "CGO_ENABLED=0 go build -o /tmp/maly-ux01/maly-after ./cmd/maly",
+    "go vet ./...",
+    "dbus-run-session -- env CGO_ENABLED=0 go test -json -count=1 ./...",
+    "dbus-run-session -- go test -race -json -count=1 ./...",
+    "go test ./internal/tui -run TestUX01 -count=1 (producci\u00f3n anterior/restaurada con cp)"
+  ],
+  "final_targeted_race": {
+    "command": "go test -race ./internal/tui -run TestUX01 -count=1",
+    "exit": 0
+  }
+}

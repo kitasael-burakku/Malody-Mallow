@@ -2,6 +2,90 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.19.5 (2026-10-17) — UX-01: estados vacíos veraces
+
+**Estado:** implementada y verificada; cierre local autorizado por el dueño
+con commit y tag anotado `v1.19.5`. Publicación y despliegue local pendientes.
+El PKGBUILD se aplaza hasta terminar de probar las próximas subidas, por
+instrucción del dueño.
+Siguiente entrega: UX-02. Alcance y aceptación viven en el
+[roadmap UI/UX](../planning/roadmap-ui-ux.md#ux-01--estados-vacíos-veraces).
+
+**Base y reproducción.** Se comprobó `main` en `2031b730b2c9575fe678a60fc76dbcdeb9f03ab1`,
+const `1.19.4` y tag anotado `v1.19.4`. Había cambios documentales previos en
+el índice y el roadmap, y un prompt de continuidad sin seguimiento; se
+conservaron. No se consultaron remotos ni se reabrió la auditoría. La TUI real,
+bajo tmux con XDG y D-Bus privados, reprodujo E01–E03 con una canción como
+control positivo: biblioteca/cola pobladas decían vacío al filtrar; el selector
+sin playlists pedía escanear. Se conservan [buffers antes/después y resultados](../planning/evidence/ux-01-1.19.5/README.md).
+
+**Antes → después.** Los paneles comparaban las filas filtradas con cero;
+ahora distinguen la colección original y muestran «sin coincidencias» más
+«esc: limpiar filtro». El selector de playlists tiene estado de carga, error
+persistente y vacío propio («Escribe un nombre + ctrl+n»). Con playlists
+existentes y cero coincidencias permite editar el filtro; canciones y `select`
+usan el mismo consejo. Son dos filas breves, sin redistribuir el layout ni
+crear un sistema general de hints: eso sigue siendo UX-02.
+
+La protección inicial y el error persistente de **biblioteca ya existían**:
+se conservaron, se hizo explícita la carga y se transmitió la misma distinción
+al selector de canciones. La cola espera el primer Status y muestra el aviso
+de desconexión si lo hay. El flash de primer arranque sigue reservado a una
+lectura exitosa sin canciones; no se sustituyó por un error.
+
+**Hallazgo dentro del alcance.** `loadLibrary` descartaba los errores parciales
+de playlists y refrescaba el picker como si hubiera leído una lista vacía.
+Se reprodujo con SQLite real desechable: renombrar `playlists.name` rompe esa
+consulta sin impedir `All()`. `libraryMsg.listsErr` conserva la diferencia,
+sin descartar canciones ni modificar el protocolo IPC. Solo una recarga válida
+realimenta el picker y limpia su error. Si había ítems anteriores se conservan;
+el cuerpo de estado se muestra cuando no hay filas visibles. El buscador remoto
+mantiene sus fases y `emptyText` mediante `noFilter`.
+
+**Versión `1.19.4` → `1.19.5`: pequeño.** Corrige la presentación de estados
+existentes y añade únicamente estado transitorio de lectura en la TUI; no hay
+comandos, interacción nueva, persistencia, IPC ni contratos de reproducción.
+Por la regla de releases sube solo el último componente. El cierre local incluye commit y tag anotado;
+no acredita publicación.
+
+**Verificación.** `TestUX01FilteredPanels`, `TestUX01LocalPickers`,
+`TestUX01LoadingErrorsAndRecovery` y `TestUX01PlaylistReadFailure` comprueban el
+mensaje correcto y la ausencia del falso, con controles poblados, recuperación
+de filtro y de DB. Con los cinco archivos de producción TUI originales los
+cuatro grupos fallaron **compilando y por el estado mostrado**; restaurados con
+`cp` pasaron. Se conservaron las traducciones nuevas durante la reversión para
+exigir el texto real. La prueba de fallo parcial falló además antes de añadir
+`listsErr`. El arnés inicialmente intentó Ctrl+K para borrar; el picker lo usa
+para navegar, por lo que se corrigió a Ctrl+E/Ctrl+W.
+
+Pasaron gofmt, build sin CGo, vet, suite completa sin CGo y `-race ./...`,
+con bus privado: los 17 paquetes, mpv real disponible, **cero tests saltados**.
+La ampliación final del test de carga/error a los cuatro tamaños volvió a pasar
+la regresión dirigida y `-race` dirigido; no cambió la producción validada. Las restricciones del
+sandbox sobre sockets y caché de Go se resolvieron mediante permisos, no como
+supuestos bugs del reproductor.
+
+**Aceptación.** es/en × default/vim/override (F6 para filtro, Ctrl+Y para
+playlists) × color/NO_COLOR. Recorrido 140×42 → 100×28 → 80×24 → 40×12 →
+140×42: 48 combinaciones únicas y 60 puntos, conservando foco y recuperación.
+Se probaron los paneles, canciones, creación de playlist, filtro de playlists,
+refresco desde CLI en dos TUIs (embebida y adjunta) y apertura de Ctrl+G sin red.
+Carga/errores y `select` se cubren además por mensajes deterministas del modelo;
+los consumidores remotos por sus tests existentes. Los buffers confirman texto
+útil, incluido Ctrl+N a 40×12; no acreditan fuentes ni contraste del escritorio.
+Los recortes de ayudas generales quedan para UX-02. Sin prueba de audio audible,
+carátula Kitty ni descarga remota, fuera del cambio de estados.
+
+**Datos y vuelta atrás.** Copias exactas previas en `/tmp/maly-ux01/before` y
+copias del arreglo para restaurarlo con `cp`. No hay migración ni datos de usuario
+a revertir. Las pruebas usan DB/config/sockets propios, `ao=null`, visualizador
+y updates apagados; cierran por Ctrl+C, sin matar procesos por patrones. Para
+deshacer esta entrega antes del commit, reponer solo sus archivos desde las
+copias, preservando las ediciones documentales que ya estaban al empezar.
+El binario validado es temporal: `~/.local/bin/maly` y la sesión musical real
+siguen sin actualizarse. El dueño autorizó commit/tag; el push lo hace él.
+El PKGBUILD queda aplazado hasta que termine de probar las próximas subidas.
+
 ## v1.19.4 (2026-10-17) — bordes y presentación Unicode
 
 **Estado:** implementada, verificada y compilada para la entrega local

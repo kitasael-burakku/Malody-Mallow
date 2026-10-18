@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.19.5 — 2026-10-17 (pendiente de publicación)
+
+- **Estados vacíos veraces.** Una biblioteca o cola poblada con un filtro sin
+  resultados indica «sin coincidencias» y cómo limpiarlo. El selector sin
+  playlists explica cómo crear una, también al escribir su nombre. La carga
+  pendiente y los errores de lectura se distinguen de una colección vacía;
+  los selectores de canciones y playlists conservan esa distinción, en inglés
+  y español, sin escaneos automáticos ni cambios en los datos.
+
 ## v1.19.4 — 2026-10-17
 
 - **Bordes alineados al mostrar símbolos con presentación de texto.** Nombres

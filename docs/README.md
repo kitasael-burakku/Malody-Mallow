@@ -50,6 +50,8 @@ no).
 
 ## `planning/` — trabajo futuro
 
+- [Prompt de continuidad UI/UX](planning/PROMPT-CONTINUIDAD-UI-UX.md) — encargo
+  histórico de UX-01; consultar el roadmap para el estado vigente.
 - [`roadmap-ui-ux.md`](planning/roadmap-ui-ux.md) — plan de Codex a partir de
   la revisión del 2026-10-17 sobre v1.19.3: alcance, orden, estado, versiones
   previstas y aceptación. **No es una lista de funciones implementadas.**

@@ -46,10 +46,13 @@ type picker struct {
 	// resultados recién pedidos no aporta nada, y chocaría con que enter
 	// re-busque con el texto nuevo.
 	noFilter bool
-	// emptyText reemplaza el texto de "sin resultados" cuando el picker no
-	// está sobre la biblioteca y ni sel.none ni sel.none_empty aplican. ""
-	// deja los de siempre.
+	// emptyText describe la colección vacía. Con noFilter, también describe
+	// la fase de búsqueda remota. No sustituye un filtro local sin resultados.
 	emptyText string
+	// Solo las lecturas asíncronas locales fijan estos campos; el buscador
+	// remoto conserva su propia máquina de estados y su emptyText.
+	loading bool
+	loadErr string
 }
 
 func newPicker(st styles, placeholder string) *picker {
@@ -63,6 +66,7 @@ func newPicker(st styles, placeholder string) *picker {
 }
 
 func (p *picker) setItems(items []pickerItem) {
+	p.loading, p.loadErr = false, ""
 	p.items = items
 	p.filter()
 }
@@ -197,21 +201,24 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 	}
 	lines := []string{clip(p.input.View(), innerW), p.st.dim.Render(strings.Repeat("─", innerW))}
 	if len(p.matches) == 0 {
-		// Antes esto era siempre "no matches", aunque la causa real fuera
-		// que la biblioteca está vacía de entrada (no que la búsqueda no
-		// encontró nada) — el panel de biblioteca y la CLI (cli.search_none)
-		// ya distinguían los dos casos; el picker era el único que no
-		// (auditoría 2026-07-31, hallazgo T9).
 		empty := p.emptyText
-		if empty == "" {
-			empty = i18n.T("sel.none")
-			if len(p.items) == 0 {
-				empty = i18n.T("sel.none_empty")
-			}
+		style := p.st.dim
+		switch {
+		case p.loadErr != "":
+			empty = p.loadErr
+			style = p.st.errSt
+		case p.loading:
+			empty = i18n.T("tui.loading")
+		case p.noFilter:
+			// El dueño decide entre espera, error y resultados remotos vacíos.
+		case len(p.items) > 0:
+			empty = i18n.T("sel.none") + "\n" + i18n.T("sel.edit_filter")
+		case empty == "":
+			empty = i18n.T("sel.none_empty")
 		}
-		// sel.none_empty es un texto fijo largo (~68-74 celdas); sin clip
-		// rompía el borde en terminales angostas.
-		lines = append(lines, p.st.dim.Render(clip(empty, innerW)))
+		for _, line := range strings.Split(empty, "\n") {
+			lines = append(lines, style.Render(clip(line, innerW)))
+		}
 	}
 	start := 0
 	if p.cursor >= maxRows {

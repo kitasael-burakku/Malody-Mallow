@@ -1,6 +1,7 @@
 # Roadmap UI/UX — revisión de Codex del 2026-10-17
 
-**Estado: UX-00 implementada localmente en `1.19.4`; UX-01–UX-09 pendientes.**
+**Estado: UX-00 verificada y publicada en GitHub como `1.19.4`;
+UX-01 implementada y verificada localmente en `1.19.5`; UX-02–UX-09 pendientes.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -29,8 +30,8 @@ condicionadas son candidatas, no compromisos de publicación.
 
 | ID | Base → destino previsto | Entrega | Tamaño y justificación | Estado |
 | --- | --- | --- | --- | --- |
-| UX-00 | `1.19.3` → `1.19.4` | Bordes con VS15 | Pequeño: normalización de salida de la TUI, sin alterar datos ni interacción | Implementada localmente; pendiente de publicación |
-| UX-01 | `1.19.4` → `1.19.5` | Estados vacíos veraces | Pequeño: corrige la interpretación visual de datos existentes, sin nuevos comandos ni estado persistente | Pendiente |
+| UX-00 | `1.19.3` → `1.19.4` | Bordes con VS15 | Pequeño: normalización de salida de la TUI, sin alterar datos ni interacción | Verificada; publicada en GitHub |
+| UX-01 | `1.19.4` → `1.19.5` | Estados vacíos veraces | Pequeño: corrige la interpretación visual de datos existentes, sin nuevos comandos ni estado persistente | Verificada; release local v1.19.5, publicación pendiente |
 | UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Pendiente |
 | UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Pendiente |
 | UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia CLI ni red | Pendiente |
@@ -84,12 +85,14 @@ escaneos automáticamente.
 
 **Aceptación:**
 
-- [ ] Con biblioteca/cola pobladas y cero coincidencias, mostrar «sin
+- [x] Con biblioteca/cola pobladas y cero coincidencias, mostrar «sin
   coincidencias» y una salida correcta para limpiar o editar el filtro.
-- [ ] Sin playlists, mostrar cómo crear una; no decir que faltan canciones.
-- [ ] Distinguir primera carga y error de DB de los vacíos legítimos.
-- [ ] Los mensajes funcionan en inglés y español; cubrir positivos y negativos
+- [x] Sin playlists, mostrar cómo crear una; no decir que faltan canciones.
+- [x] Distinguir primera carga y error de DB de los vacíos legítimos.
+- [x] Los mensajes funcionan en inglés y español; cubrir positivos y negativos
   con tests de comportamiento verificados en ambas direcciones.
+
+**Cierre:** [ingeniería de 1.19.5](../history/roadmap-1.17.md#v1195-2026-10-17--ux-01-estados-vacíos-veraces) y [evidencia](evidence/ux-01-1.19.5/README.md). Cierre local autorizado con commit y tag anotado `v1.19.5`; publicación pendiente.
 
 ## UX-02 — ayudas visibles y contextuales
 
@@ -334,8 +337,23 @@ Si cambia una decisión general del proyecto, actualizar su dueño en
 
 ## Registro de ejecución
 
-2026-10-17: revisión y documentación terminadas; **0 entregas implementadas**.
-Siguiente trabajo propuesto: reproducir UX-01 sobre el disco actual y aplicar
-la guía. El historial de releases seguirá en `docs/history/`, sin copiar allí
-el plan entero. Al cerrar una entrega, registrar aquí estado, versión real y
-enlace a esa entrada histórica.
+2026-10-17, revisión inicial: documentación terminada, todavía sin entregas
+implementadas en ese momento.
+
+2026-10-17, cierre de UX-00: **1 entrega implementada y verificada**, versión
+`1.19.4`, commit `2031b73`. Se comprobó por HTTPS que `main` y el tag anotado
+`v1.19.4` públicos de GitHub apuntan al mismo commit. El paquete `1.19.4-1`
+pasó `makepkg`; su commit local es `769eef9` en el repositorio independiente
+del PKGBUILD. El dueño informó el push al AUR, sin comprobación independiente
+posterior de ese remoto en esta sesión. El razonamiento del arreglo está en
+la [entrada histórica](../history/roadmap-1.17.md#v1194-2026-10-17--bordes-y-presentación-unicode).
+
+2026-10-17, cierre de implementación de UX-01: **2 entregas implementadas y
+verificadas**, const local `1.19.5`. [Cierre de ingeniería](../history/roadmap-1.17.md#v1195-2026-10-17--ux-01-estados-vacíos-veraces).
+Cierre local autorizado con commit y tag anotado `v1.19.5`; publicación y
+despliegue pendientes. El PKGBUILD se aplaza hasta terminar de probar las
+próximas subidas, por instrucción del dueño.
+
+Siguiente entrega: UX-02. El [prompt de continuidad](PROMPT-CONTINUIDAD-UI-UX.md)
+se conserva como el encargo histórico de UX-01; el estado vigente es este
+roadmap. El historial técnico permanece en `docs/history/`.

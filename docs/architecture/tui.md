@@ -16,6 +16,24 @@ VS16, ZWJ, acentos o diacríticos del arte Kitty. Tampoco promete resolver
 todas las diferencias Unicode entre terminales. Evidencia y alternativas
 en la [entrada de v1.19.4](../history/roadmap-1.17.md#v1194-2026-10-17--bordes-y-presentación-unicode).
 
+Los estados sin filas distinguen **carga pendiente → lectura fallida →
+colección vacía → filtro sin coincidencias**. Biblioteca usa `libLoaded` y
+`libLoadErr`; cola espera el primer `Status` y conserva el aviso de desconexión.
+El filtro se decide sobre la colección de origen (raíces del árbol / cola),
+no sobre las filas visibles. Esc limpia el filtro tanto al escribir como tras
+confirmar; los pickers permiten seguir editando su entrada.
+
+El picker local conserva `loading`/`loadErr` hasta recibir `setItems` exitoso.
+Canciones toma esos estados de la biblioteca. Playlists inicia cargando y usa
+su propio `emptyText` (nombre + Ctrl+N); con ítems existentes, cero coincidencias
+usa el mensaje de filtro. `noFilter` conserva el texto de fase del buscador
+remoto. Los estados se dibujan al no haber filas visibles; ante una recarga
+fallida se conservan los ítems anteriores. `libraryMsg.listsErr` distingue el
+fallo parcial de playlists de una lista vacía válida sin descartar las canciones:
+no realimenta el picker con un resultado parcial ni limpia su error.
+El flash legítimo de biblioteca vacía y el error persistente de biblioteca se
+conservan. No hay estado nuevo en disco ni en IPC.
+
 Bubble Tea. Recibe estado por **suscripción push**
 (`subscribe`; fallback a polling de 500 ms con reintento). **Todo el
 reparto de la pantalla vive en `computeLayout` (`layout.go`), función
@@ -72,8 +90,7 @@ resto solo se llega pasando por el demonio, así que sin partirlas no hay
 forma de comprobar en un test qué decidió esta mitad — que es exactamente
 cómo A-04 pudo pasar desapercibido) + picker
 fuzzy genérico (`picker.go`, usado por ctrl+o canciones, ctrl+l playlists y
-`maly select`; sus knobs `noFilter`/`emptyText`, con valor cero =
-comportamiento de siempre, existen para el buscador de descargas) +
+`maly select`; sus estados locales y los knobs `noFilter`/`emptyText` se describen arriba) +
 buscador de descargas ctrl+g (`get.go`: picker sobre resultados REMOTOS de
 yt-dlp, de dos fases porque cada consulta cuesta ~1 s de red — elige una
 URL y se la pasa a `startGet`, que es el punto único de descarga de la TUI

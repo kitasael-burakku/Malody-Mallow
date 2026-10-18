@@ -48,6 +48,8 @@ func (m *Model) openPlaylists(mode plMode, pending []int64) tea.Cmd {
 	m.plMode = mode
 	m.plPending = pending
 	m.pl = newPicker(m.st, i18n.T("plsel.ph"))
+	m.pl.loading = true
+	m.pl.emptyText = i18n.T("plsel.empty")
 	return tea.Batch(textinput.Blink, loadPlaylists)
 }
 
@@ -272,9 +274,6 @@ func (m *Model) plView() string {
 		hint = i18n.Tf("plsel.hint_add", len(m.pl.matches), len(m.plPending))
 	} else {
 		hint = i18n.Tf("plsel.hint", len(m.pl.matches))
-	}
-	if len(m.pl.items) == 0 && m.pl.input.Value() == "" {
-		hint = i18n.T("plsel.empty")
 	}
 	if m.plConfirm != "" {
 		hint = i18n.Tf("plsel.confirm_delete", m.plConfirm)

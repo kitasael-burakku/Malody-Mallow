@@ -78,6 +78,8 @@ var table = map[string][2]string{
 	"tui.now_title":             {"Now Playing", "Ahora suena"},
 	"tui.lyrics_title":          {"Lyrics", "Letras"},
 	"tui.help_title":            {"Help", "Ayuda"},
+	"tui.loading":               {"  loading…", "  cargando…"},
+	"tui.filter_clear":          {"  esc: clear filter", "  esc: limpiar filtro"},
 	"tui.lib_empty":             {" (library empty — run maly scan)", " (biblioteca vacía — ejecuta maly scan)"},
 	"tui.queue_empty":           {" (queue empty — `a` adds from the library)", " (cola vacía — `a` agrega desde la biblioteca)"},
 	"tui.nothing":               {" ⏹ nothing playing — enter in the Library plays", " ⏹ nada suena — enter en la Biblioteca reproduce"},
@@ -154,13 +156,14 @@ var table = map[string][2]string{
 	"con.ok":           {"ok", "ok"},
 
 	// ---- TUI: selector de canciones y picker genérico ----
-	"songs.title":    {"Songs", "Canciones"},
-	"songs.ph":       {"search song…", "buscar canción…"},
-	"songs.hint":     {"%d result(s) · enter plays · tab adds · esc closes", "%d resultado(s) · enter reproduce · tab agrega · esc cierra"},
-	"songs.added":    {"added: %s", "agregada: %s"},
-	"sel.title":      {"Select Track", "Elegir canción"},
-	"sel.none":       {"  no matches", "  sin coincidencias"},
-	"sel.none_empty": {"  library empty — ctrl+p then `scan`, or `maly scan` from a terminal", "  biblioteca vacía — ctrl+p y escribe `scan`, o `maly scan` desde una terminal"},
+	"songs.title":     {"Songs", "Canciones"},
+	"songs.ph":        {"search song…", "buscar canción…"},
+	"songs.hint":      {"%d result(s) · enter plays · tab adds · esc closes", "%d resultado(s) · enter reproduce · tab agrega · esc cierra"},
+	"songs.added":     {"added: %s", "agregada: %s"},
+	"sel.title":       {"Select Track", "Elegir canción"},
+	"sel.none":        {"  no matches", "  sin coincidencias"},
+	"sel.edit_filter": {"  Edit the filter above", "  Edita el filtro de arriba"},
+	"sel.none_empty":  {"  library empty — ctrl+p then `scan`, or `maly scan` from a terminal", "  biblioteca vacía — ctrl+p y escribe `scan`, o `maly scan` desde una terminal"},
 
 	// ---- TUI: buscador de descargas (ctrl+g) ----
 	"get.title":        {"Download", "Descargar"},
@@ -180,7 +183,8 @@ var table = map[string][2]string{
 	"plsel.hint":           {"%d · enter plays · tab queues · ctrl+n new · ctrl+x delete", "%d · enter reproduce · tab encola · ctrl+n crea · ctrl+x borra"},
 	"plsel.hint_add":       {"%d · enter adds %d track(s) · ctrl+n creates & adds", "%d · enter agrega %d pista(s) · ctrl+n crea y agrega"},
 	"plsel.queued":         {"queued: %s", "encolada: %s"},
-	"plsel.empty":          {"  no playlists — type a name and press ctrl+n", "  no hay playlists — escribe un nombre y pulsa ctrl+n"},
+	"plsel.read_err":       {"playlists: %s", "playlists: %s"},
+	"plsel.empty":          {"  no playlists\n  Type a name + ctrl+n", "  no hay playlists\n  Escribe un nombre + ctrl+n"},
 	"plsel.confirm_delete": {"delete %q? there's no undo — y/enter confirms, any other key cancels", "¿borrar %q? no hay deshacer — y/enter confirma, cualquier otra tecla cancela"},
 
 	// ---- Estado (CLI y consola) ----

@@ -210,9 +210,10 @@ type Model struct {
 
 type tickMsg time.Time
 type libraryMsg struct {
-	tracks []library.Track
-	lists  []plList
-	err    error
+	tracks   []library.Track
+	lists    []plList
+	listsErr error // lectura parcial: las canciones siguen siendo utilizables
+	err      error
 }
 
 // statusMsg es el refresco silencioso periódico; actionMsg es la respuesta a
@@ -430,17 +431,23 @@ func loadLibrary() tea.Msg {
 	if err != nil {
 		return libraryMsg{err: err}
 	}
-	// Las playlists también viven en el árbol; un error aquí no debe tirar
-	// la biblioteca entera (quedan fuera y ya).
-	var lists []plList
-	if pls, err := lib.Playlists(); err == nil {
-		for _, p := range pls {
-			if pt, err := lib.PlaylistTracks(p.Name); err == nil {
-				lists = append(lists, plList{name: p.Name, tracks: pt})
-			}
-		}
+	// Un fallo de playlists no descarta las canciones, pero tampoco puede
+	// convertirse en una lista vacía exitosa al refrescar el picker abierto.
+	msg := libraryMsg{tracks: tracks}
+	pls, err := lib.Playlists()
+	if err != nil {
+		msg.listsErr = err
+		return msg
 	}
-	return libraryMsg{tracks: tracks, lists: lists}
+	for _, p := range pls {
+		pt, err := lib.PlaylistTracks(p.Name)
+		if err != nil {
+			msg.listsErr = err
+			continue
+		}
+		msg.lists = append(msg.lists, plList{name: p.Name, tracks: pt})
+	}
+	return msg
 }
 
 // req manda una acción al demonio (conexión nueva por petición: es un socket
@@ -665,6 +672,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case libraryMsg:
 		if msg.err != nil {
 			m.libLoadErr = msg.err.Error()
+			if m.overlay == ovPlaylists {
+				m.pl.loading = false
+				m.pl.loadErr = i18n.Tf("tui.lib_err", m.libLoadErr)
+			}
 			m.setFlash(i18n.Tf("tui.lib_err", msg.err.Error()), true)
 			return m, nil
 		}
@@ -685,7 +696,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.songs.setItemsKeeping(songItems(m.tree.all))
 		}
 		if m.overlay == ovPlaylists {
-			m.pl.setItemsKeeping(plItems(msg.lists))
+			if msg.listsErr != nil {
+				m.pl.loading = false
+				m.pl.loadErr = i18n.Tf("plsel.read_err", msg.listsErr.Error())
+			} else {
+				m.pl.setItemsKeeping(plItems(msg.lists))
+			}
 		}
 		if len(msg.tracks) == 0 {
 			// isErr=false a propósito: una biblioteca vacía es el estado más
@@ -821,13 +837,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case plListMsg:
+		if m.overlay != ovPlaylists {
+			return m, nil
+		}
 		if msg.err != nil {
+			m.pl.loading = false
+			m.pl.loadErr = i18n.Tf("plsel.read_err", msg.err.Error())
 			m.setFlash(msg.err.Error(), true)
 			return m, nil
 		}
-		if m.overlay == ovPlaylists {
-			m.pl.setItems(msg.items)
-		}
+		m.pl.setItems(msg.items)
 		return m, nil
 
 	case plActMsg:

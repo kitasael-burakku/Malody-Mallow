@@ -1,0 +1,12 @@
+
+
+  ╭─ Playlists ──────────────────────╮
+  │❯ search playlist…                │
+  │──────────────────────────────────│
+  │  no playlists                    │
+  │  Type a name + ctrl+n            │
+  │  0 · enter plays · tab queues · …│
+  ╰──────────────────────────────────╯
+
+
+

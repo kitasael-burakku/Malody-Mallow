@@ -62,6 +62,13 @@ func (m *Model) songsView() string {
 	if maxRows > 14 {
 		maxRows = 14
 	}
+	// La lectura pertenece a la biblioteca, también si el selector se abre
+	// antes de recibirla o después de un error.
+	m.songs.loading = !m.libLoaded
+	m.songs.loadErr = ""
+	if m.libLoadErr != "" {
+		m.songs.loadErr = i18n.Tf("tui.lib_err", m.libLoadErr)
+	}
 	hint := i18n.Tf("songs.hint", len(m.songs.matches))
 	box := m.songs.render(i18n.T("songs.title"), hint, w, maxRows)
 	// El flash de "agregado a la cola" (tab) se armaba y nunca se dibujaba:

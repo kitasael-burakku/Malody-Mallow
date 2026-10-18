@@ -236,9 +236,10 @@ tomadas.
 
 ## Estado actual
 
-**v1.19.4** (`internal/version/version.go`): corrige los bordes desplazados
-por VS15 en la TUI y los selectores; normaliza solo la salida de pantalla
-(ver la ficha de TUI y el roadmap de ingeniería). La 1.19.3 añadió consultas en lote en `play`,
+**v1.19.5 — release local, pendiente de publicación** (`internal/version/version.go`):
+UX-01 distingue carga, error, vacío y filtro sin coincidencias; cierre en el
+roadmap UI/UX y la historia de ingeniería. La 1.19.4 corrigió los bordes
+por VS15 normalizando solo la salida de pantalla (ver la ficha de TUI). La 1.19.3 añadió consultas en lote en `play`,
 `add` y `playlist add`, también en la consola ctrl+p. La 1.19.2 hizo legible
 la CLI en terminales de fondo claro. La 1.19.1 trajo el filtro `/` flotante y el
 arreglo de la posición MPRIS, y es una feature con número de parche por

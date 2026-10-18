@@ -205,13 +205,11 @@ func (m *Model) libraryPanel(w, h int) string {
 		switch {
 		case m.libLoadErr != "":
 			lines = append(lines, m.st.errSt.Render(clip(i18n.Tf("tui.lib_err", m.libLoadErr), innerW)))
-		case m.libLoaded:
-			// clip() obligatorio: el mensaje mide ~32 celdas y el panel de
-			// biblioteca ahora es FIJO en ~30 (antes se llevaba media
-			// pantalla y siempre cabía). panel() no trunca por ancho —
-			// padTo rellena pero no acorta—, así que sin esto el panel
-			// entero se ensancha y arrastra a los de al lado (misma clase
-			// de desborde que la 1.12.1).
+		case !m.libLoaded:
+			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.loading"), innerW)))
+		case m.tree.filter != "" && len(m.tree.roots) > 0:
+			lines = append(lines, m.noMatchesLines(innerW)...)
+		default:
 			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.lib_empty"), innerW)))
 		}
 	}
@@ -272,6 +270,15 @@ func (m *Model) libraryPanel(w, h int) string {
 	return m.st.frame(frameLabels{title: title, foot: filterFoot(m.tree.filter)}, lines, w, h, focused)
 }
 
+// La salida del filtro usa esc, que limpia tanto durante la edición como
+// después de confirmar. Dos filas cortas caben incluso en la columna fija.
+func (m *Model) noMatchesLines(w int) []string {
+	return []string{
+		m.st.dim.Render(clip(i18n.T("sel.none"), w)),
+		m.st.dim.Render(clip(i18n.T("tui.filter_clear"), w)),
+	}
+}
+
 func marker(expanded bool) string {
 	if expanded {
 		return "▾"
@@ -285,9 +292,16 @@ func (m *Model) queuePanel(w, h int) string {
 	var lines []string
 	vis := m.visibleQueue()
 	if len(vis) == 0 {
-		// Mismo motivo que en libraryPanel: el mensaje es más ancho que un
-		// panel angosto (una sola columna en 40 celdas, p. ej.).
-		lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.queue_empty"), innerW)))
+		switch {
+		case len(m.queue) > 0 && m.queueFilter != "":
+			lines = append(lines, m.noMatchesLines(innerW)...)
+		case m.connErr:
+			lines = append(lines, m.st.errSt.Render(clip(i18n.T("tui.no_daemon"), innerW)))
+		case m.status == nil:
+			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.loading"), innerW)))
+		default:
+			lines = append(lines, m.st.dim.Render(clip(i18n.T("tui.queue_empty"), innerW)))
+		}
 	}
 	pageH := m.queuePageH()
 	end := m.queueOffset + pageH

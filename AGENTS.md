@@ -237,12 +237,13 @@ tomadas.
 
 ## Estado actual
 
-**v1.20.9 — UX-06 implementada y verificada; commit autorizado, tag pendiente**
-(`internal/version/version.go`). `playlist save <nombre>` guarda toda la cola
-como playlist nueva; Ctrl+S prepara la entrada. Contrato y aceptación en el
-[roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-06--guardar-la-cola-como-playlist).
-Publicación y despliegue pendientes; UX-07 no iniciada. UX-05 quedó en `4b6d9ef`
-(`1.20.8`, solo commit autorizado, sin tag).
+**v1.20.10 — UX-07 implementada y verificada; commit autorizado; tag pendiente**
+(`internal/version/version.go`). Continuidad tras descarga: selector de archivos
+indexados, añadir/reproducir por ruta exacta y reintento de scan. Contrato y
+aceptación en el [roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-07--continuidad-después-de-descargar).
+Aceptación local con yt-dlp simulado; sin descarga remota real en esta entrega.
+Publicación y despliegue pendientes; UX-08 no iniciada. UX-06 quedó en `0121e52`
+(`1.20.9`, sin tag); UX-05 en `4b6d9ef` (`1.20.8`, sin tag).
 UX-04 quedó en `fb0db1b` (`1.19.8`, sin tag).
 La
 1.19.7 (commit `2363318`, sin tag) mejoró títulos, contraste y selección. La

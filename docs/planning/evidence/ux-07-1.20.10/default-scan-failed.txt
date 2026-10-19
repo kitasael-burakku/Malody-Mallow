@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                       ╭─ Archivos de descarga ────────────────────────────────────────────────────────────────────╮
+                       │❯ a: · al: · t: · f: · -live                                                               │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │Nuevos: 1 · existentes: 0                                                                  │
+                       │  cargando…                                                                                │
+                       │Archivos conservados; falló la indexación                                                  │
+                       │no se indexó el archivo: /tmp/mu7-2f1z_x2h/default/music/recuperar.mp3                     │
+                       │ctrl+r reintenta escaneo · esc cierra                                                      │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+maly:   aviso: /tmp/mu7-2f1z_x2h/default/music/recuperar.mp3: database is locked (5) (SQLITE_BUSY)
+

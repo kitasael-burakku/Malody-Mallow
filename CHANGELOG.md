@@ -7,6 +7,16 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.20.10 — 2026-10-19 (implementada; commit autorizado; tag pendiente)
+
+Después de descargar, la TUI muestra los archivos obtenidos y permite filtrarlos,
+añadir el elegido con Tab o reproducirlo con Enter; la CLI ofrece los comandos
+con sus rutas exactas. No se reproduce nada por terminar una descarga. Los
+archivos existentes y los conservados tras un fallo parcial también se indexan;
+un escaneo fallido mantiene las acciones bloqueadas y ofrece Ctrl+R para
+reintentarlo en la TUI. Los errores siguen visibles y el marcador ✓ aclara que
+solo indica un título parecido, no la identidad de la grabación.
+
 ## v1.20.9 — 2026-10-18 (commit local autorizado; tag y publicación pendientes)
 
 `playlist save <nombre>` guarda toda la cola como una playlist nueva, tanto

@@ -1,0 +1,113 @@
+parcial — neutralizado
+--- FAIL: TestDownloadOutcome (0.00s)
+    --- FAIL: TestDownloadOutcome/partial (0.00s)
+        outcome_test.go:63: rutas equivocadas: {Paths:[] New:0 Existing:0 Partial:false} / exit 1
+    --- FAIL: TestDownloadOutcome/failed (0.00s)
+        outcome_test.go:71: no limpió intermedio
+FAIL
+FAIL	maly/internal/getter	0.003s
+FAIL
+
+parcial — restaurado
+ok  	maly/internal/getter	0.003s
+
+limite_rutas — neutralizado
+--- FAIL: TestDownloadExactPaths (0.00s)
+    outcome_test.go:95: aceptó ruta ajena {[/tmp/TestDownloadExactPaths2875830843/003/ajena.mp3] 1 0 false}
+FAIL
+FAIL	maly/internal/getter	0.002s
+FAIL
+
+limite_rutas — restaurado
+ok  	maly/internal/getter	0.002s
+
+indexacion — neutralizado
+--- FAIL: TestDownloadIndexedMissing (0.00s)
+    outcome_test.go:133: habilitó un archivo sin indexar [] <nil>
+FAIL
+FAIL	maly/internal/getter	0.004s
+FAIL
+
+indexacion — restaurado
+ok  	maly/internal/getter	0.003s
+
+ruta_relativa — neutralizado
+--- FAIL: TestDownloadRelativeDirectory (0.00s)
+    outcome_test.go:121: {[] 0 0 false} the download left no track in your music folder — the search may have matched nothing, or yt-dlp reported an error above
+FAIL
+FAIL	maly/internal/getter	0.002s
+FAIL
+
+ruta_relativa — restaurado
+ok  	maly/internal/getter	0.002s
+
+ruta_accion — neutralizado
+--- FAIL: TestDownloadContinuation (0.00s)
+    get_finish_test.go:125: añadido incorrecto {add  []  0 0 [Igual 2.mp3 · Igual 2] en}
+FAIL
+FAIL	maly/internal/tui	0.005s
+FAIL
+
+ruta_accion — restaurado
+ok  	maly/internal/tui	0.004s
+
+error_scan — neutralizado
+--- FAIL: TestDownloadScanFailureAndRetry (0.00s)
+    get_finish_test.go:147: ocultó fallo parcial/scan
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL
+
+error_scan — restaurado
+ok  	maly/internal/tui	0.005s
+
+respuesta_obsoleta — neutralizado
+--- FAIL: TestDownloadedPlaylistGeneration (0.00s)
+    get_finish_test.go:208: scan viejo reemplazó otra descarga
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL
+
+respuesta_obsoleta — restaurado
+ok  	maly/internal/tui	0.002s
+
+playlist_obsoleta — neutralizado
+--- FAIL: TestDownloadedPlaylistGeneration (0.00s)
+    get_finish_test.go:203: playlist tardía reabrió el selector
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL
+
+playlist_obsoleta — restaurado
+ok  	maly/internal/tui	0.002s
+
+aviso_obsoleto — neutralizado
+--- FAIL: TestDownloadContinuation (0.00s)
+    get_finish_test.go:98: conservó un aviso ajeno a la descarga
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL
+
+aviso_obsoleto — restaurado
+ok  	maly/internal/tui	0.004s
+
+cli_existente — neutralizado
+--- FAIL: TestGetContinuationOutcomes (0.01s)
+    --- FAIL: TestGetContinuationOutcomes/existing (0.00s)
+        get_test.go:865: stat /tmp/TestGetContinuationOutcomesexisting3928057499/001/data/maly/library.db: no such file or directory
+FAIL
+FAIL	maly/cmd/maly	0.011s
+FAIL
+
+cli_existente — restaurado
+ok  	maly/cmd/maly	0.012s
+
+nueva_descarga — neutralizado
+--- FAIL: TestNewDownloadInvalidatesPlaylist (0.00s)
+    get_finish_test.go:244: descarga nueva no invalidó la playlist anterior (playlist=false)
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL
+
+nueva_descarga — restaurado
+ok  	maly/internal/tui	0.002s

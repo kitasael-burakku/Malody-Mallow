@@ -4,9 +4,9 @@
 UX-01 con release local `1.19.5`; UX-02 verificada en el commit `9135bcd`
 (`1.19.6`, sin tag); UX-03 verificada en el commit `2363318` (`1.19.7`, sin tag);
 UX-04 verificada en el commit `fb0db1b` (`1.19.8`, sin tag).
-UX-05 verificada en `4b6d9ef` (`1.20.8`, sin tag). UX-06 implementada y
-verificada (`1.20.9`), con commit autorizado por el dueño; tag pendiente.
-UX-07–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
+UX-05 verificada en `4b6d9ef` (`1.20.8`, sin tag). UX-06 verificada en
+`0121e52` (`1.20.9`, sin tag). UX-07 implementada y verificada (`1.20.10`),
+con commit autorizado; tag pendiente. UX-08–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -42,7 +42,7 @@ condicionadas son candidatas, no compromisos de publicación.
 | UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia búsqueda SQL ni red | Verificada; commit fb0db1b, tag pendiente |
 | UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Verificada; commit 4b6d9ef, tag pendiente |
 | UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño: compone una foto de la cola con la persistencia de playlists existente | Verificada; commit autorizado, tag pendiente |
-| UX-07 | `1.20.9` → `1.20.10` | Continuidad después de descargar | Pequeño si se mantiene acotado: ofrece acciones existentes sobre los archivos obtenidos, sin gestor de trabajos nuevo | Condicionada a verificar el flujo |
+| UX-07 | `1.20.9` → `1.20.10` | Continuidad después de descargar | Pequeño: reutiliza el selector y acciones existentes sobre rutas obtenidas, sin gestor de trabajos nuevo | Verificada con yt-dlp simulado; commit autorizado; tag pendiente |
 | UX-08 | `1.20.10` → `1.21.10` | Reproducir después | Grande: modifica el orden efectivo de reproducción, su interacción con shuffle y la promesa gapless | Candidata; diseño pendiente |
 | UX-09 | `1.21.10` → `1.22.10` | Deshacer una eliminación de cola | Grande: introduce recuperación con validez compartida entre clientes y demonio | Candidata; diseño pendiente |
 
@@ -274,33 +274,40 @@ y [evidencia reproducible](evidence/ux-06-1.20.9/README.md).
 
 ## UX-07 — continuidad después de descargar
 
-**Evidencia E11, estática.** El código informa y escanea tras obtener archivos;
-la revisión no descargó contenido remoto. Reproducir éxito, archivo existente,
-fallo y éxito parcial antes de confirmar el diseño.
+**Implementada y verificada en 1.20.10; commit autorizado; tag pendiente.**
+La evidencia E11 era estática. La reproducción contra `0121e52` confirmó que un
+archivo existente podía quedar sin indexar, y que un fallo parcial ignoraba el
+audio conservado. La TUI anunciaba la descarga antes de comprobar el scan.
 
-**Alcance:** ofrecer ver/añadir/reproducir los archivos obtenidos después del
-scan, sin arrancarlos automáticamente. Mantener referencias por ruta exacta,
-no volver a resolver por título. Explicar que `✓` es coincidencia aproximada
-de título, no identidad certificada de una grabación. En resultados largos,
-estudiar detalle de la selección sin colorear trozos del `pickerItem.label`.
+**Contrato implementado:** tras scan, el selector existente ofrece los archivos
+obtenidos: filtro local, Tab añade, Enter reproduce, Esc cierra. Las acciones
+usan rutas exactas; terminar una descarga no reproduce. Nuevos, existentes y
+parciales se escanean. Fallo de indexación mantiene las acciones bloqueadas y
+ofrece Ctrl+R; los errores se conservan en consola. CLI ofrece comandos por
+ruta, y `get playlist` presenta los archivos de la playlist creada. `✓` anuncia
+similitud de título, nunca identidad certificada.
 
-**Puntos de entrada:** [`get.go`](../../internal/tui/get.go), finalización de
-`getDoneMsg` en [`tui.go`](../../internal/tui/tui.go), consola y `internal/getter`.
-
-**Por qué sí:** evita buscar de nuevo lo recién obtenido. **Límite:** yt-dlp
-sigue en el cliente, con sus interfaces de máquina; no parsear progreso humano,
-no miniaturas de red, no gestor de trabajos ni subsistema de duplicados.
+**Alcance pequeño, 1.20.9 → 1.20.10:** compone scan, biblioteca, picker y acciones
+existentes; no cambia protocolo, esquema ni reproducción. Se estudió ampliar el
+detalle del resultado remoto: se conserva el selector de ancho adaptativo y sus
+etiquetas planas, sin panel adicional ni colores incrustados. La continuidad local
+prioriza nombre de archivo e identidad exacta. No se promete mostrar completo un
+título arbitrariamente largo a 40 columnas. Sin miniaturas, progreso parseado,
+gestor de trabajos ni sistema de duplicados.
 
 **Aceptación:**
 
-- [ ] Acciones posteriores apuntan a los archivos correctos, incluso con
-  títulos iguales; nunca disparan reproducción sin elección del usuario.
-- [ ] Distinguir descarga nueva, archivo existente, ninguna descarga y fallo;
-  un scan fallido no se anuncia como indexación terminada.
-- [ ] Cancelación y cierre siguen sin dejar hijos; los errores permanecen
-  visibles. Un yt-dlp falso valida el flujo, no prueba el servicio remoto.
-- [ ] Si el detalle o la continuidad exigen una pantalla nueva amplia,
-  revisar el alcance y su versión antes de seguir.
+- [x] Rutas correctas con metadatos iguales, añadir/reproducir por elección y
+  cola intacta al terminar descargas.
+- [x] Nueva, existente, vacía, fallo y parcial diferenciados; scan fallido sin
+  acciones y recuperación comprobada.
+- [x] Cancelar búsqueda/descarga y cerrar durante búsqueda no deja vivo el
+  proceso simulado. Los errores permanecen visibles. No se probó descarga real
+  remota ni el árbol de subprocessos de yt-dlp/ffmpeg real.
+- [x] Reutilización acotada del selector; no hizo falta una pantalla nueva amplia.
+
+[Cierre de ingeniería](../history/roadmap-1.17.md#v12010-2026-10-19--ux-07-continuidad-después-de-descargar)
+y [evidencia reproducible](evidence/ux-07-1.20.10/README.md).
 
 ## UX-08 — reproducir después
 
@@ -403,3 +410,9 @@ iniciada. Publicación, PKGBUILD y despliegue continúan pendientes.
 (solo commit, sin tag). UX-06 implementada y verificada en `1.20.9`: siete
 entregas contando UX-00. El dueño autorizó su commit de cierre; tag pendiente. UX-07 no iniciada.
 Publicación, PKGBUILD y despliegue continúan pendientes.
+
+
+2026-10-19, continuación autorizada por el dueño: UX-06 quedó en `0121e52`
+(solo commit, sin tag). UX-07 implementada y verificada en `1.20.10`, ocho
+entregas contando UX-00. Commit autorizado; tag pendiente. UX-08 no iniciada.
+Aceptación local con yt-dlp simulado; publicación y despliegue pendientes.

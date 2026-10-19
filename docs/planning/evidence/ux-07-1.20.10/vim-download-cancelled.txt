@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮
+                       │❯ command… e.g. maly next                                                                  │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │❯ get https://fixture.invalid/partial                                                      │
+                       │Downloading https://fixture.invalid/partial → /tmp/mu7-2f1z_x2h/vim/music                  │
+                       │Partial download · files kept: 1                                                           │
+                       │yt-dlp failed: exit status 1 (see its output above)                                        │
+                       │Indexed: 1 files                                                                           │
+                       │❯ get https://fixture.invalid/empty                                                        │
+                       │Downloading https://fixture.invalid/empty → /tmp/mu7-2f1z_x2h/vim/music                    │
+                       │the download left no track in your music folder — the search may have matched nothing, or …│
+                       │❯ get https://fixture.invalid/failure                                                      │
+                       │Downloading https://fixture.invalid/failure → /tmp/mu7-2f1z_x2h/vim/music                  │
+                       │yt-dlp failed: exit status 1 (see its output above)                                        │
+                       │❯ get https://fixture.invalid/scan-error                                                   │
+                       │Downloading https://fixture.invalid/scan-error → /tmp/mu7-2f1z_x2h/vim/music               │
+                       │New: 1 · existing: 0                                                                       │
+                       │Files kept; indexing failed: file was not indexed: /tmp/mu7-2f1z_x2h/vim/music/recuperar.m…│
+                       │Indexed: 1 files                                                                           │
+                       │❯ get playlist https://fixture.invalid/list Lista                                          │
+                       │Downloading playlist https://fixture.invalid/list → /tmp/mu7-2f1z_x2h/vim/music            │
+                       │yt-dlp reported a failure (exit status 1) — continuing with whatever did download; see its…│
+                       │Updating the library ...                                                                   │
+                       │Partial download · files kept: 2 · Playlist "Lista" created: 2 tracks                      │
+                       │❯ get https://fixture.invalid/slow                                                         │
+                       │Downloading https://fixture.invalid/slow → /tmp/mu7-2f1z_x2h/vim/music                     │
+                       │yt-dlp failed: signal: interrupt (see its output above)                                    │
+                       │esc closes · enter runs · tab/shift+tab choose · ↑↓ history · pgup/pgdn output             │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

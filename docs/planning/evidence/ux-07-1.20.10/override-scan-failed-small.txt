@@ -1,0 +1,12 @@
+
+  ╭─ Archivos de descarga ───────────╮
+  │❯ a: · al: · t: · f: · -live      │
+  │──────────────────────────────────│
+  │Nuevos: 1 · existentes: 0         │
+  │Archivos conservados; falló la    │
+  │indexación                        │
+  │no se indexó el archivo: /tmp/mu7…│
+  │ctrl+r reintenta escaneo · esc    │
+  │cierra                            │
+  ╰──────────────────────────────────╯
+

@@ -1,0 +1,50 @@
+[
+  {
+    "case": "new",
+    "exit": 0,
+    "stdout": "Descargando https://fixture.invalid/audio → /tmp/mu7base-u2a77oq2/new/music\n\nDescarga lista — actualizando la biblioteca ...\nEscaneando /tmp/mu7base-u2a77oq2/new/music ...\nListo: 1 nuevas, 0 actualizadas, 0 eliminadas (1 pistas en total)\nDescargado: Igual\n",
+    "stderr": "",
+    "files": [
+      "Igual.mp3"
+    ],
+    "indexed": [
+      "/tmp/mu7base-u2a77oq2/new/music/Igual.mp3"
+    ]
+  },
+  {
+    "case": "existing",
+    "exit": 0,
+    "stdout": "Descargando https://fixture.invalid/audio → /tmp/mu7base-u2a77oq2/existing/music\nIgual.mp3 ya estaba en tu carpeta de música; no hay nada que descargar\n",
+    "stderr": "",
+    "files": [
+      "Igual.mp3"
+    ],
+    "indexed": []
+  },
+  {
+    "case": "empty",
+    "exit": 1,
+    "stdout": "Descargando https://fixture.invalid/audio → /tmp/mu7base-u2a77oq2/empty/music\n",
+    "stderr": "maly: la descarga no dejó ninguna pista en tu carpeta de música — puede que la búsqueda no encontrara nada, o que yt-dlp reportara un error arriba\n",
+    "files": [],
+    "indexed": []
+  },
+  {
+    "case": "failure",
+    "exit": 1,
+    "stdout": "Descargando https://fixture.invalid/audio → /tmp/mu7base-u2a77oq2/failure/music\n",
+    "stderr": "maly: yt-dlp falló: exit status 1 (revisa su salida arriba)\n",
+    "files": [],
+    "indexed": []
+  },
+  {
+    "case": "partial",
+    "exit": 1,
+    "stdout": "Descargando https://fixture.invalid/audio → /tmp/mu7base-u2a77oq2/partial/music\n",
+    "stderr": "maly: yt-dlp falló: exit status 1 (revisa su salida arriba)\n",
+    "files": [
+      "Igual.mp3"
+    ],
+    "indexed": []
+  }
+]

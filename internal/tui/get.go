@@ -80,6 +80,7 @@ func (m *Model) openGet() tea.Cmd {
 	m.get = newPicker(m.st, i18n.T("get.ph"))
 	m.get.noFilter = true
 	m.getPhase = getIdle
+	m.getDownload = nil
 	m.getResults = nil
 	m.getQuery = ""
 	m.getErr = ""
@@ -157,6 +158,9 @@ func (m *Model) getStale() bool {
 }
 
 func (m *Model) handleGetKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.getDownload != nil {
+		return m.handleDownloadedKey(msg)
+	}
 	switch msg.String() {
 	case "esc", m.keys["get"]:
 		m.closeGet()
@@ -244,8 +248,8 @@ func (m *Model) tickGetSpin() (tea.Model, tea.Cmd) {
 	return m, getSpinCmd()
 }
 
-// ownedTitles arma el conjunto de títulos que YA están en la biblioteca, para
-// marcar en los resultados lo que no hace falta volver a bajar.
+// ownedTitles arma el conjunto de títulos de la biblioteca. El marcador
+// sugiere similitud de título, nunca certifica la identidad de una grabación.
 //
 // La clave es el título limpio y plegado, SIN el artista, y eso es
 // deliberado: el uploader de YouTube casi nunca es el artista real (una
@@ -390,6 +394,9 @@ func (m *Model) getHint() string {
 }
 
 func (m *Model) getView() string {
+	if m.getDownload != nil {
+		return m.downloadView()
+	}
 	w := pickerWidthMax(m.width, getPickerWidth)
 	maxRows := m.height - 10
 	if maxRows > 14 {

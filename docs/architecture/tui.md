@@ -129,7 +129,25 @@ yt-dlp, de dos fases porque cada consulta cuesta ~1 s de red — elige una
 URL y se la pasa a `startGet`, que es el punto único de descarga de la TUI
 y NO vive acá sino en `console.go`, compartido con la consola; `get_pick.go`
 es su gemelo suelto para `maly get pick`, con el patrón de `RunSelect` pero
-SIN exigir demonio). **Cancelar una búsqueda y SALIR no son lo mismo**:
+SIN exigir demonio).
+
+**Continuidad local (UX-07).** `get_finish.go` reutiliza `ovGet` y el picker
+para los archivos de la operación, con `downloadState`: resumen persistente,
+espera de scan, error/reintento y lista indexada. `Collect` e `Indexed` se
+comparten con CLI. Enter/Tab permanecen deshabilitados durante scan y tras un
+error; después envían `Paths` exactas a `playnow`/`add`. El nombre de archivo
+acompaña a los metadatos para distinguir grabaciones iguales. El filtro local
+usa `songItems`; el buscador remoto conserva `noFilter`. `picker.notice` consume
+una fila del presupuesto existente; no se toca `computeLayout`.
+
+Ctrl+R reintenta la indexación; Esc invalida su presentación, sin cancelar un
+scan ya enviado. `getGen` descarta respuestas viejas tanto del scan como de la
+creación de una playlist descargada. Un error de indexación se conserva también
+en el historial de consola. Una descarga sin archivos abre la consola si venía
+del buscador, para que el error no dependa de un flash de cuatro segundos. Al
+abrir los archivos se retiran avisos efímeros de operaciones anteriores.
+
+**Cancelar una búsqueda y SALIR no son lo mismo**:
 `abortGetSearch` (subir la generación + cancelar el contexto) alcanza mientras
 la TUI siga viva, porque `cancel()` no mata —solo marca el contexto— y el kill
 lo ejecuta la goroutine vigía que `os/exec` arranca en `Start()`. Si el proceso

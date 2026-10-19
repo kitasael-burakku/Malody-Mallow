@@ -225,12 +225,25 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
 - Soporte para cookies de navegador (`[ytdlp] cookies_from_browser`) para
   contenido que requiere cuenta.
 - **`ctrl+g` dentro de la TUI** abre un buscador: escribes, `enter` busca
-  en YouTube y eliges entre los resultados antes de descargar; los que ya
-  están en tu biblioteca salen marcados con `✓`, y los directos en curso
+  en YouTube y eliges entre los resultados antes de descargar. `✓` indica
+  un título parecido en tu biblioteca, no que sea la misma grabación; los directos en curso
   y estrenos programados no aparecen. `maly get pick <búsqueda>` es lo
   mismo desde la terminal, sin abrir la TUI. `maly get "una consulta"`
   sigue bajando el primer resultado sin preguntar, que es lo que quieres
   cuando ya sabes qué vas a pedir.
+
+- Tras indexar, la TUI muestra los **archivos de esa descarga**: escribe para
+  filtrar, **Tab añade**, **Enter reproduce** y **Esc cierra**. También funciona
+  al descargar desde Ctrl+P o crear una playlist descargada. Las acciones usan
+  la ruta elegida aunque dos archivos tengan el mismo título. La descarga por
+  sí sola no inicia reproducción. En la CLI aparecen comandos opcionales con
+  las rutas exactas entre comillas.
+- Se distinguen archivos nuevos, existentes, descarga vacía y fallo parcial.
+  Los archivos conservados se escanean antes de ofrecer acciones. Si falla la
+  indexación, la TUI permite **Ctrl+R para reintentar**; la CLI termina con error.
+  Un fallo parcial de `get` mantiene su código de error aunque haya archivos
+  aprovechables. `get playlist` conserva su aviso de parcial y crea la playlist
+  con lo obtenido cuando puede completar el escaneo.
 
 ### Integración de escritorio (MPRIS)
 

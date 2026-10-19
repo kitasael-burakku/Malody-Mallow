@@ -2,6 +2,79 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.20.10 (2026-10-19) — UX-07: continuidad después de descargar
+
+**Estado:** implementada y verificada; commit autorizado; tag pendiente.
+[Contrato y aceptación](../planning/roadmap-ui-ux.md#ux-07--continuidad-después-de-descargar)
+y [evidencia reproducible](../planning/evidence/ux-07-1.20.10/README.md).
+
+**Base y reproducción.** `main` limpio en `0121e52` (UX-06, 1.20.9), último tag
+local v1.19.5; sin consultar remoto. Copias exactas en `/tmp/maly-ux07-backup`
+y binario previo antes de editar. Con yt-dlp simulado, la CLI indexaba una
+nueva descarga, pero no un archivo existente fuera de la DB ni el audio
+conservado con exit 1. Vacío y fallo total ya eran errores. En la TUI el éxito
+se anunciaba antes del scan. No se hizo una descarga remota real.
+
+**Antes → después.** `getter.Collect` comparte la clasificación entre CLI y
+TUI. Comprueba archivos reales y rutas reportadas; el diff queda como respaldo.
+Nuevos, existentes y parciales pasan por scan del destino original y verificación
+de presencia en SQLite. La CLI ofrece comandos por ruta con comillas de shell.
+La TUI reutiliza el selector para filtrar/ver archivos: Tab añade y Enter
+reproduce la ruta elegida. Un scan fallido deja archivos conservados, acciones
+deshabilitadas y Ctrl+R para reintentar. Esc cierra, y la generación evita que
+respuestas tardías invadan otra búsqueda o descarga. `get playlist` ofrece las
+rutas de la playlist recién creada conservando su tratamiento previo de parcial.
+Errores al descargar quedan en consola; un parcial mantiene además su resumen.
+
+**Versión 1.20.9 → 1.20.10, cambio pequeño.** Composición de operaciones y del
+selector existentes, sin protocolo, esquema, trabajos persistentes ni cambios
+al orden de reproducción. Se estudió un panel de detalle remoto para títulos
+largos y se mantuvo fuera de este alcance: el selector adaptativo conserva sus
+etiquetas planas. En los archivos locales se antepone el nombre de archivo para
+distinguir tomas con metadatos iguales. No se certifica identidad con ✓.
+
+**Verificación.** Build sin CGo, vet, suite completa sin CGo y race: 19 paquetes,
+810 casos/subcasos en cada suite, sin fallos ni saltos, mpv real con `ao=null`
+y bus privado. Once neutralizaciones compilables fallaron por la causa prevista
+y pasaron tras restaurar con `cp`: parcial, límite de rutas, presencia en DB,
+ruta relativa, acción por ruta, fallo de scan, generaciones de scan y playlist,
+aviso obsoleto, escaneo del archivo existente en CLI e invalidación de la
+playlist pendiente al iniciar otra descarga. Los logs conservan las
+aserciones concretas; no se contaron errores de compilación como regresiones.
+
+Matriz tmux: es/en, default/vim/override, color/NO_COLOR, 140×42, 100×28, 80×24,
+40×12 y regreso al grande; demonio embebido y servicio privado. Dos archivos
+con metadatos iguales permiten comprobar en IPC que se añade/reproduce el
+segundo, no el que coincida por título. Se prueba cola intacta al terminar,
+existente sin indexar, parcial, vacío, fallo total, bloqueo de SQLite, reintento
+y playlist parcial. Cancelar búsqueda/descarga y cerrar durante búsqueda deja
+muerto el PID simulado antes de cerrar el pane; su shell permanece vivo para
+no ocultar huérfanos con la limpieza del arnés.
+
+**Hallazgos y ajustes.** La inspección de buffers detectó avisos viejos de
+biblioteca vacía/reproducción bajo los archivos; la transición ahora los retira.
+El aviso de archivo existente pone el estado antes del nombre para que un
+nombre largo no lo oculte a 40 columnas. El directorio relativo necesitaba normalización antes de contrastar rutas
+absolutas. El bloqueo de SQLite mostró que scan puede devolver OK con archivos
+omitidos: comprobar cada ruta en DB es necesario. El arnés usa Bash explícito
+para el PID del shell y elimina el archivo de PID anterior antes de esperar una
+búsqueda lenta; esperar solo que existiera podía verificar el proceso equivocado.
+La revisión final también protegió el inicio de otra descarga mientras termina
+el postproceso de una playlist. El test anterior de archivo existente buscaba
+una frase inglesa literal; se actualizó para comprobar el mensaje localizado
+tras anteponer el estado al nombre. Los sockets bloqueados por el sandbox se volvieron a probar fuera de él.
+
+**Riesgo, reversión y límites.** Sin migración, las pistas y playlists siguen
+siendo compatibles con la base. Restaurar solo las fuentes afectadas desde la
+copia exacta o una extracción de `0121e52`, con `cp`, preservando cambios
+posteriores; no se ejecutó una reversión de entrega. La biblioteca real no se
+tocó. El respaldo por diff no atribuye escrituras simultáneas de otros procesos,
+y el reporte de una ruta por línea no admite nombres con saltos de línea.
+Cerrar el selector no cancela un scan ya enviado. No hay cobertura del servicio
+remoto, autenticación ni subprocessos reales de yt-dlp/ffmpeg; los buffers no
+acreditan rasterizado Kitty, escritorio o audio audible. Sin push, tag, PKGBUILD,
+copia a `~/.local/bin/maly` ni reinicio del servicio real. UX-08 no iniciada.
+
 ## v1.20.9 (2026-10-18) — UX-06: guardar la cola
 
 **Estado:** implementada y verificada; commit autorizado por el dueño al cerrar

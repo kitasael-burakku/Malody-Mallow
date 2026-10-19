@@ -1,0 +1,12 @@
+
+  ╭─ Download files ─────────────────╮
+  │❯ a: · al: · t: · f: · -live      │
+  │──────────────────────────────────│
+  │New: 1 · existing: 0              │
+  │Files kept; indexing failed       │
+  │file was not indexed: /tmp/mu7-   │
+  │2f1z_x2h/vim/music/recuperar.mp3  │
+  │ctrl+r retry scan · esc close     │
+  ╰──────────────────────────────────╯
+
+

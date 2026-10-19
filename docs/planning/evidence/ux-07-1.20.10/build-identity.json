@@ -1,0 +1,16 @@
+{
+  "base_commit": "0121e523a5e93333b7cad29f4dbf04b65cf2f64a",
+  "base_version": "1.20.9",
+  "target_version": "1.20.10",
+  "last_tag": "v1.19.5",
+  "binaries": {
+    "before": {
+      "path": "/tmp/maly-ux07-before",
+      "sha256": "bc85b00a436e41ece840452b72da10ef3915243c7b8f4a9e2c12300795647ad2"
+    },
+    "after": {
+      "path": "/tmp/maly-ux07-after",
+      "sha256": "4542181057f187bbe49e800ade7d9bea5cb2f94b0bc55c0c23db7630d80125b9"
+    }
+  }
+}

@@ -7,7 +7,6 @@ import (
 	"image"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -158,12 +157,13 @@ type Model struct {
 	// Buscador de descargas (ctrl+g): picker sobre resultados remotos de
 	// yt-dlp (ver get.go). getGen descarta respuestas pisadas por una
 	// búsqueda posterior o por el cierre; getCancel mata el proceso en vuelo.
-	get        *picker
-	getPhase   getPhase
-	getResults []getter.Result
-	getQuery   string // consulta de los resultados que se están mostrando
-	getErr     string
-	getGen     int
+	get         *picker
+	getPhase    getPhase
+	getDownload *downloadState
+	getResults  []getter.Result
+	getQuery    string // consulta de los resultados que se están mostrando
+	getErr      string
+	getGen      int
 	// getDone se cierra cuando la goroutine de la búsqueda termina. Solo lo
 	// usa la salida (stopGetSearchOnExit), que necesita ESPERAR a que el
 	// yt-dlp haya muerto y no solo pedirlo.
@@ -716,6 +716,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case conMsg:
+		if len(msg.downloaded) > 0 && m.overlay == ovConsole && msg.downloadGen == m.getGen {
+			m.showDownloaded(msg.downloaded, msg.downloadSummary)
+		}
 		for _, l := range msg.lines {
 			m.conPrint(l) // conPrint aplica el tope de historial
 		}
@@ -733,61 +736,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.tickGetSpin()
 
 	case getDoneMsg:
-		// El log de la consola es el destino de siempre; con fromModal el
-		// desenlace va ADEMÁS al flash, que es lo único visible cuando la
-		// descarga no se pidió desde la consola (ver getDoneMsg).
-		if msg.err != nil {
-			// El 403 baja la miniatura antes de fallar: sin esto se queda
-			// huérfana en music_dir con cada intento.
-			getter.Cleanup(msg.dir, msg.before)
-			os.Remove(msg.pathsFile)
-			line := i18n.Tf("cli.get_err", msg.err)
-			m.conErr(line)
-			if msg.fromModal {
-				m.setFlash(line, true)
-			}
-			return m, nil
-		}
-		// Sin error de yt-dlp NO significa que haya bajado algo: una
-		// búsqueda sin resultados sale 0 y no deja nada (ver la tabla medida
-		// en internal/getter/diff.go). Quien decide es el diff.
-		got := getter.NewAudioAll(msg.dir, msg.before)
-		if len(got) == 0 {
-			// …salvo el caso que el directorio no puede ver: yt-dlp NO
-			// rebaja lo que ya existe, así que el diff queda vacío igual que
-			// cuando no encontró nada. Las rutas lo distinguen, y esto no es
-			// un fallo: el archivo está y la biblioteca ya lo tiene (A-07).
-			if ya := getter.ReadPaths(msg.pathsFile); len(ya) > 0 {
-				os.Remove(msg.pathsFile)
-				line := i18n.Tf("cli.get_already", filepath.Base(ya[0]))
-				m.conPrint(m.st.dim.Render(line))
-				if msg.fromModal {
-					m.setFlash(line, false)
-				}
-				return m, nil
-			}
-			os.Remove(msg.pathsFile)
-			getter.Cleanup(msg.dir, msg.before) // la miniatura huérfana
-			line := i18n.T("cli.get_nothing")
-			m.conErr(line)
-			if msg.fromModal {
-				m.setFlash(line, true)
-			}
-			return m, nil
-		}
-		os.Remove(msg.pathsFile)
-		m.conPrint(m.st.dim.Render(i18n.T("cli.get_scan")))
-		if msg.fromModal {
-			// Con una sola pista se puede nombrar sin esperar al scan: el
-			// nombre de archivo ya es "Artista - Título" (la plantilla -o de
-			// getter.Command). Con varias, el mensaje genérico.
-			done := i18n.T("cli.get_scan")
-			if len(got) == 1 {
-				done = i18n.Tf("cli.get_done", strings.TrimSuffix(got[0], filepath.Ext(got[0])))
-			}
-			m.setFlash(done, false)
-		}
-		return m, m.conScan("")
+		return m.finishDownload(msg)
+
+	case downloadIndexedMsg:
+		return m.applyDownloadIndexed(msg)
 
 	case getPlaylistDoneMsg:
 		// yt-dlp sale con código != 0 ante CUALQUIER ítem privado/borrado/

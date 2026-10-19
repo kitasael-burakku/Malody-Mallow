@@ -63,20 +63,38 @@ sin bajar nada (lección de la 1.15.0), y el diff del directorio no ve que
 yt-dlp NO rebaja lo que ya existe —sale 0, no toca el disco, diff vacío— con
 lo que "ya lo tenías" y "no encontré nada" colapsaban en el mismo error, con
 código 1, pese a tener remedios opuestos (A-07). Con el archivo de rutas los
-cuatro desenlaces quedan separados:
+desenlaces quedan separados:
 
 | yt-dlp | rutas | diff | maly dice |
 | --- | --- | --- | --- |
 | 0 | 1 | 1 nuevo | descargado |
 | 0 | 1 | vacío | **ya lo tenías** (y NO es error) |
 | 0 | 0 | vacío | la búsqueda no encontró nada |
-| ≠0 | — | — | falló (+ `Cleanup` de intermedios) |
+| ≠0 | audio conservado | cualquiera | parcial: indexar lo obtenido, avisar del fallo y limpiar intermedios |
+| ≠0 | sin audio | vacío | falló (+ `Cleanup` de intermedios) |
 
 Que el hook dispare también para un archivo SALTADO se comprobó en la fuente
 de yt-dlp (las dos ramas de `report_file_already_downloaded` no retornan
 temprano, así que se llega a `run_all_pps("after_move")`) **y** en vivo contra
 yt-dlp real. Un archivo de rutas ausente o vacío degrada al criterio anterior,
 el diff solo.
+Desde UX-07, `getter.Collect` contrasta las rutas reportadas con archivos de
+audio reales bajo el destino, elimina duplicados y conserva su identidad exacta.
+Si hay reporte, no incorpora archivos ajenos que aparecieron en el diff. Sin
+reporte se conserva el respaldo anterior por diff, que no puede atribuir archivos
+creados simultáneamente por otro proceso. Una descarga existente también pasa
+por scan: estar en disco no equivale a estar indexada. Se escanea el destino
+original, aunque el config cambie durante la descarga. `getter.Indexed` exige
+que todas las rutas estén en SQLite antes de anunciar el resultado final.
+
+`downloadOne` ofrece `maly add`/`maly play` por ruta con comillas de shell, sin
+ejecutarlos. Los nombres con controles remiten a `maly select`, sin alterar la
+ruta ni imprimir controles. Una descarga parcial ofrece los archivos indexados
+y después devuelve el error de yt-dlp. `get playlist` conserva su contrato
+anterior de parcial aprovechable y ofrece las rutas de la playlist creada.
+El formato de rutas sigue siendo una línea por archivo; no admite nombres con
+saltos de línea. No se parsea la salida humana ni se añade red propia.
+
 `[ytdlp] cookies_from_browser` del config viaja tal cual a
 `--cookies-from-browser` (passthrough sin validar, "" = sin flag; los
 comentarios del template del config son estáticos en español, sin i18n);

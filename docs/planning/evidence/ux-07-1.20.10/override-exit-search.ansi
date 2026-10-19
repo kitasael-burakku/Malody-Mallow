@@ -1,0 +1,42 @@
+FALLO SIMULADO
+FALLO SIMULADO
+FALLO SIMULADO
+DESCARGA SIMULADA EN CURSO
+^CTraceback (most recent call last):
+  File "/tmp/mu7-2f1z_x2h/override/bin/yt-dlp", line 7, in <module>
+    time.sleep(120)
+    ~~~~~~~~~~^^^^^
+KeyboardInterrupt
+MALY_TERMINO
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

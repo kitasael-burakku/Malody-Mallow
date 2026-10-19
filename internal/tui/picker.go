@@ -50,6 +50,7 @@ type picker struct {
 	// emptyText describe la colección vacía. Con noFilter, también describe
 	// la fase de búsqueda remota. No sustituye un filtro local sin resultados.
 	emptyText string
+	notice    string // resumen persistente opcional; ocupa una fila del presupuesto
 	// Solo las lecturas asíncronas locales fijan estos campos; el buscador
 	// remoto conserva su propia máquina de estados y su emptyText.
 	loading bool
@@ -219,6 +220,11 @@ func (p *picker) render(title, hint string, w, maxRows int) string {
 		p.input.Width = 0
 	}
 	lines := []string{clip(p.input.View(), innerW), p.st.dim.Render(strings.Repeat("─", innerW))}
+	if p.notice != "" {
+		lines = append(lines, p.st.dim.Render(clip(oneLine(p.notice), innerW)))
+		maxRows--
+		p.page = maxRows
+	}
 	if len(p.matches) == 0 {
 		empty := p.emptyText
 		style := p.st.dim

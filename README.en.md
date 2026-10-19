@@ -222,11 +222,23 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   requires an account.
 - **`ctrl+g` inside the TUI** opens a search screen: you type, `enter`
   searches YouTube, and you pick from the results before downloading;
-  anything already in your library is marked with `✓`, and live streams
-  and scheduled premieres are left out. `maly get pick <query>` is the
+  `✓` indicates a similar title in your library, not the same recording.
+  Live streams and scheduled premieres are left out. `maly get pick <query>` is the
   same from the terminal, without opening the TUI. `maly get "a query"`
   still grabs the first result without asking, which is what you want
   once you know exactly what to request.
+
+- After indexing, the TUI shows **files from that download**: type to filter,
+  **Tab adds**, **Enter plays**, and **Esc closes**. This also works for downloads
+  from Ctrl+P and downloaded playlists. Actions use the selected path even when
+  two files share a title. Completing a download never starts playback by itself.
+  The CLI prints optional commands with the exact paths quoted.
+- New files, existing files, empty downloads and partial failures are distinct.
+  Retained files are scanned before actions become available. If indexing fails,
+  the TUI offers **Ctrl+R to retry**; the CLI exits with an error. A partial `get`
+  failure keeps its error exit code even if some files are usable. `get playlist`
+  keeps its partial warning and creates a playlist from the files obtained when
+  indexing can complete.
 
 ### Desktop integration (MPRIS)
 

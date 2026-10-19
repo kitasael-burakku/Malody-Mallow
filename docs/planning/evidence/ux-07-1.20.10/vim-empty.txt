@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮
+                       │❯ command… e.g. maly next                                                                  │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │New: 2 · existing: 0                                                                       │
+                       │Indexed: 2 files                                                                           │
+                       │❯ get https://fixture.invalid/existing                                                     │
+                       │Downloading https://fixture.invalid/existing → /tmp/mu7-2f1z_x2h/vim/music                 │
+                       │Already present: existente con un título muy largo 東京 y espacios.mp3; nothing to downloa…│
+                       │Indexed: 1 files                                                                           │
+                       │❯ get https://fixture.invalid/partial                                                      │
+                       │Downloading https://fixture.invalid/partial → /tmp/mu7-2f1z_x2h/vim/music                  │
+                       │Partial download · files kept: 1                                                           │
+                       │yt-dlp failed: exit status 1 (see its output above)                                        │
+                       │Indexed: 1 files                                                                           │
+                       │❯ get https://fixture.invalid/empty                                                        │
+                       │Downloading https://fixture.invalid/empty → /tmp/mu7-2f1z_x2h/vim/music                    │
+                       │the download left no track in your music folder — the search may have matched nothing, or …│
+                       │esc closes · enter runs · tab/shift+tab choose · ↑↓ history · pgup/pgdn output             │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+

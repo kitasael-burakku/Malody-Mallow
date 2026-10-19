@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+
+                       [38;2;121;184;184m╭─[1m Paleta de comandos [0m[38;2;121;184;184m──────────────────────────────────────────────────────────────────────╮[39m
+                       [38;2;121;184;184m│❯ [7m[39mc[0m[38;5;240momando… p. ej. maly next[39m                                                                [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150m───────────────────────────────────────────────────────────────────────────────────────────[38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150mNuevos: 2 · existentes: 0[39m                                                                  [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;204;128;113mIndexados: 2 archivos[39m                                                                      [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│❯ [38;2;211;218;219mget https://fixture.invalid/existing[39m                                                     [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150mDescargando https://fixture.invalid/existing → /tmp/mu7-2f1z_x2h/default/music[39m             [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150mYa estaba: existente con un título muy largo 東京 y espacios.mp3; no hay nada que descarga…[38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;204;128;113mIndexados: 1 archivos[39m                                                                      [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│❯ [38;2;211;218;219mget https://fixture.invalid/partial[39m                                                      [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150mDescargando https://fixture.invalid/partial → /tmp/mu7-2f1z_x2h/default/music[39m              [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150mDescarga parcial · archivos conservados: 1[39m                                                 [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;201;111;96myt-dlp falló: exit status 1 (revisa su salida arriba)[39m                                      [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;204;128;113mIndexados: 1 archivos[39m                                                                      [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│❯ [38;2;211;218;219mget https://fixture.invalid/empty[39m                                                        [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150mDescargando https://fixture.invalid/empty → /tmp/mu7-2f1z_x2h/default/music[39m                [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;201;111;96mla descarga no dejó ninguna pista en tu carpeta de música — puede que la búsqueda no encon…[38;2;121;184;184m│[39m
+                       [38;2;121;184;184m│[38;2;131;146;150mesc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida[39m         [38;2;121;184;184m│[39m
+                       [38;2;121;184;184m╰───────────────────────────────────────────────────────────────────────────────────────────╯[39m
+
+
+
+
+
+
+
+
+
+
+
+

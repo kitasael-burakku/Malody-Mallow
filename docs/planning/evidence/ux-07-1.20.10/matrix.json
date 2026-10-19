@@ -1,0 +1,182 @@
+[
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      100,
+      28
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      80,
+      24
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      40,
+      12
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "no_autoplay": true
+  },
+  {
+    "exit_during_search_no_child": true,
+    "profile": "default",
+    "exact_second_path": true,
+    "existing_indexed": true,
+    "partial_indexed": true,
+    "failed_scan_retry": true,
+    "playlist_continuation": true,
+    "search_and_download_cancelled_no_child": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "no_autoplay": true
+  },
+  {
+    "exit_during_search_no_child": true,
+    "profile": "vim",
+    "exact_second_path": true,
+    "existing_indexed": true,
+    "partial_indexed": true,
+    "failed_scan_retry": true,
+    "playlist_continuation": true,
+    "search_and_download_cancelled_no_child": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "no_autoplay": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "no_autoplay": true
+  },
+  {
+    "exit_during_search_no_child": true,
+    "profile": "override",
+    "exact_second_path": true,
+    "existing_indexed": true,
+    "partial_indexed": true,
+    "failed_scan_retry": true,
+    "playlist_continuation": true,
+    "search_and_download_cancelled_no_child": true
+  }
+]

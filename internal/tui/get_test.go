@@ -111,8 +111,8 @@ func TestGetDoneFlashSoloDesdeModal(t *testing.T) {
 	}
 	m = newConModel()
 	_, cmd := m.Update(getDoneMsg{err: nil, fromModal: true, dir: dir, before: before})
-	if m.flash == "" {
-		t.Error("una descarga exitosa desde un modal debe avisar por flash")
+	if m.overlay != ovGet || m.getDownload == nil || !m.getDownload.loading {
+		t.Error("debe mostrar el escaneo pendiente en el selector")
 	}
 	if m.flashErr {
 		t.Error("el flash de una descarga exitosa no debe marcarse como error")
@@ -149,10 +149,9 @@ func TestGetDoneSinPistaEsFallo(t *testing.T) {
 	}
 }
 
-// TestGetDoneNombraLaPista: con una sola pista nueva el aviso la nombra sin
-// esperar al scan — la plantilla -o de getter.Command ya deja el archivo como
-// "Artista - Título".
-func TestGetDoneNombraLaPista(t *testing.T) {
+// El éxito del proceso no habilita acciones antes de verificar la indexación.
+
+func TestGetDoneEsperaIndexacion(t *testing.T) {
 	dir := t.TempDir()
 	before, _ := getter.Snapshot(dir)
 	if err := os.WriteFile(filepath.Join(dir, "AURORA - Runaway.mp3"), []byte("x"), 0o644); err != nil {
@@ -162,15 +161,13 @@ func TestGetDoneNombraLaPista(t *testing.T) {
 	m := newConModel()
 	m.Update(getDoneMsg{err: nil, fromModal: true, dir: dir, before: before})
 
-	if !strings.Contains(m.flash, "AURORA - Runaway") {
-		t.Errorf("el aviso debía nombrar la pista, flash = %q", m.flash)
+	if m.getDownload == nil || !m.getDownload.loading || len(m.get.items) != 0 {
+		t.Fatal("ofreció archivos antes del escaneo")
 	}
-	if strings.Contains(m.flash, ".mp3") {
-		t.Errorf("el aviso no debía llevar la extensión: %q", m.flash)
+	if strings.Contains(strings.Join(m.conLines, "\n"), i18n.Tf("cli.get_done", "AURORA - Runaway")) {
+		t.Fatal("anunció éxito antes de indexar")
 	}
-	if m.flashErr {
-		t.Error("una descarga exitosa no es un error")
-	}
+
 }
 
 // TestConGetSiguePasandoPorStartGet: el refactor no cambió el contrato de la

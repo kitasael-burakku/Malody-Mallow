@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮
+                       │❯ comando… p. ej. maly next                                                                │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │Nuevos: 2 · existentes: 0                                                                  │
+                       │Indexados: 2 archivos                                                                      │
+                       │❯ get https://fixture.invalid/existing                                                     │
+                       │Descargando https://fixture.invalid/existing → /tmp/mu7-2f1z_x2h/override/music            │
+                       │Ya estaba: existente con un título muy largo 東京 y espacios.mp3; no hay nada que descarga…│
+                       │Indexados: 1 archivos                                                                      │
+                       │❯ get https://fixture.invalid/partial                                                      │
+                       │Descargando https://fixture.invalid/partial → /tmp/mu7-2f1z_x2h/override/music             │
+                       │Descarga parcial · archivos conservados: 1                                                 │
+                       │yt-dlp falló: exit status 1 (revisa su salida arriba)                                      │
+                       │Indexados: 1 archivos                                                                      │
+                       │❯ get https://fixture.invalid/empty                                                        │
+                       │Descargando https://fixture.invalid/empty → /tmp/mu7-2f1z_x2h/override/music               │
+                       │la descarga no dejó ninguna pista en tu carpeta de música — puede que la búsqueda no encon…│
+                       │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+

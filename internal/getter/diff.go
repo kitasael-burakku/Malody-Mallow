@@ -171,7 +171,7 @@ func ReadPaths(name string) []string {
 	}
 	var out []string
 	for _, l := range strings.Split(string(data), "\n") {
-		if l = strings.TrimSpace(l); l != "" {
+		if l = strings.TrimSuffix(l, "\r"); l != "" {
 			out = append(out, l)
 		}
 	}

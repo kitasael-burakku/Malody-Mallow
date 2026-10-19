@@ -774,7 +774,7 @@ func TestGetYaLaTeniasNoEsError(t *testing.T) {
 			t.Errorf("re-descargar algo que ya está NO es un error: %v", err)
 		}
 	})
-	if !strings.Contains(out, "already in your music folder") {
+	if !strings.Contains(out, i18n.Tf("cli.get_already", "Fake Artist - Fake Song.mp3")) {
 		t.Errorf("debía decir que ya la tenías, salió:\n%s", out)
 	}
 	if strings.Contains(out, "left no track") {
@@ -823,5 +823,61 @@ func TestGetPasaElArchivoDeRutas(t *testing.T) {
 	}
 	if idx+1 >= len(args) || args[idx+1] != "after_move:filepath" {
 		t.Errorf("el template debía ser after_move:filepath, args=%v", args)
+	}
+}
+
+func TestGetContinuationOutcomes(t *testing.T) {
+	for _, mode := range []string{"new", "existing", "partial"} {
+		t.Run(mode, func(t *testing.T) {
+			dir, _ := getSandbox(t)
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "Igual 'otra toma'.mp3")
+			if mode == "existing" {
+				if err := os.WriteFile(path, []byte("ya estaba"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			script := fmt.Sprintf(`#!/bin/sh
+prev=""
+report=""
+for a in "$@"; do
+ if [ "$prev" = "after_move:filepath" ]; then report=$a; fi
+ prev=$a
+done
+printf 'audio simulado' > "%s"
+printf '%%s\n' "%s" > "$report"
+`, path, path)
+			if mode == "partial" {
+				script += "exit 1\n"
+			}
+			if err := os.WriteFile(filepath.Join(os.Getenv("PATH"), "yt-dlp"), []byte(script), 0700); err != nil {
+				t.Fatal(err)
+			}
+			var runErr error
+			out := captureStdout(t, func() { runErr = runGet([]string{"https://fixture.invalid/track"}) })
+			if (runErr != nil) != (mode == "partial") {
+				t.Fatal(runErr)
+			}
+			lib, err := library.Open(config.DBPath())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lib.Close()
+			if _, ok := lib.ByPath(path); !ok {
+				t.Fatal("no indexó archivo conservado")
+			}
+			quoted := "'" + strings.ReplaceAll(path, "'", "'\"'\"'") + "'"
+			if !strings.Contains(out, "maly add "+quoted) || !strings.Contains(out, "maly play "+quoted) {
+				t.Fatal("rutas de continuación incorrectas", out)
+			}
+			if mode == "partial" && !strings.Contains(out, i18n.Tf("get.partial", 1)) {
+				t.Fatal("ocultó el éxito parcial", out)
+			}
+			if mode == "existing" && !strings.Contains(out, i18n.Tf("cli.get_already", filepath.Base(path))) {
+				t.Fatal("no distinguió archivo existente", out)
+			}
+		})
 	}
 }

@@ -1,0 +1,57 @@
+[
+  {
+    "case": "parcial",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "limite_rutas",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "indexacion",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "ruta_relativa",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "ruta_accion",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "error_scan",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "respuesta_obsoleta",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "playlist_obsoleta",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "aviso_obsoleto",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "cli_existente",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "nueva_descarga",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  }
+]

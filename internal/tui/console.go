@@ -32,19 +32,23 @@ import (
 // reload = la operación mutó playlists: el árbol de la biblioteca debe
 // recargarse (las playlists cuelgan de él y el flash no se ve bajo el modal).
 type conMsg struct {
-	lines  []string
-	reload bool
+	lines           []string
+	reload          bool
+	downloaded      []library.Track
+	downloadSummary string
+	downloadGen     int
 }
 
-// getDoneMsg vuelve de yt-dlp (tea.ExecProcess); err nil = descarga ok.
+// getDoneMsg vuelve de yt-dlp (tea.ExecProcess). Collect verifica los archivos
+// antes de decidir entre éxito, parcial, existente y fallo.
 //
 // fromModal distingue quién lanzó la descarga, y no es cosmético: el
 // desenlace se reporta con conPrint/conErr, o sea al log de la consola, que
 // solo se ve con la consola ABIERTA. Lanzada desde una pantalla que se cierra
 // antes de ceder el terminal a yt-dlp, el usuario no vería nada —ni el "listo"
 // ni el error— salvo que el árbol se actualizara solo. Con fromModal el
-// desenlace va además al flash del pie, que ahí sí es visible porque no queda
-// ningún modal tapándolo.
+// fallo abre la consola para conservar el error; los archivos obtenidos abren
+// la fase local del selector y esperan al escaneo antes de ofrecer acciones.
 type getDoneMsg struct {
 	err       error
 	fromModal bool
@@ -130,11 +134,13 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.conPrint(m.st.dim.Render(i18n.Tf("pl.delete_kept", name)))
 			return m, nil
 		}
+		m.getGen++ // invalida una finalización de descarga cerrada
 		m.overlay = ovNone
 		return m, nil
 	case m.keys["palette"]:
 		m.conChoice = ""
 		m.conPlConfirm = ""
+		m.getGen++ // invalida una finalización de descarga cerrada
 		m.overlay = ovNone
 		return m, nil
 	case "tab", "shift+tab":
@@ -666,10 +672,12 @@ func (m *Model) startGet(spec string, fromModal bool) (tea.Cmd, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	// La foto va ANTES de lanzar nada; el desenlace la compara (ver
-	// getDoneMsg). Un error de lectura acá no debería impedir descargar: se
-	// degrada a before nil, que hace el diff inservible pero no rompe.
-	before, _ := getter.Snapshot(dir)
+	// La foto va ANTES de lanzar nada. Si falla no podemos distinguir lo
+	// nuevo ni limpiar intermedios con seguridad; abortar como en la CLI.
+	before, err := getter.Snapshot(dir)
+	if err != nil {
+		return nil, err
+	}
 	// Archivo de rutas: separa "ya lo tenías" de "no encontré nada", que el
 	// diff colapsa (A-07; espejo de downloadOne en cmd/maly). Si no se puede
 	// crear se sigue sin él, con el diff solo.
@@ -678,6 +686,7 @@ func (m *Model) startGet(spec string, fromModal bool) (tea.Cmd, error) {
 		pathsFile = f.Name()
 		f.Close()
 	}
+	m.getGen++ // una nueva descarga invalida la presentación pendiente de otra
 	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec,
 		Cookies: m.cfg.Ytdlp.CookiesFromBrowser, PathsFile: pathsFile})
 	return tea.ExecProcess(cmd, func(err error) tea.Msg {
@@ -709,6 +718,7 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 	}
 
 	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_pl_start", plan.Opts.Spec, plan.MusicDir)))
+	m.getGen++ // no mostrar una playlist anterior mientras termina esta
 	cmd := getter.Command(plan.Opts)
 	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
 		return getPlaylistDoneMsg{err: err, plan: plan}
@@ -747,7 +757,7 @@ func PlanGetPlaylist(cfg config.Config, url, name string) (getter.PlaylistPlan, 
 // porque son unos pocos pasos secuenciales sin nada que la UI necesite ver
 // a medias.
 func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.Cmd {
-	sock, st := m.sock, m.st
+	sock, st, gen := m.sock, m.st, m.getGen
 	plan := msg.plan
 	return func() tea.Msg {
 		// Cualquier salida por error deja el destino como estaba: si lo
@@ -797,7 +807,15 @@ func (m *Model) conGetPlaylistFinish(msg getPlaylistDoneMsg, partial bool) tea.C
 			return errLine(err)
 		}
 		notifyRefresh()
-		return conMsg{lines: []string{st.playing.Render(i18n.Tf("cli.get_pl_done", name, len(ids)))}, reload: true}
+		tracks, err := lib.PlaylistTracks(name)
+		if err != nil {
+			return errLine(err)
+		}
+		summary := i18n.Tf("cli.get_pl_done", name, len(ids))
+		if partial {
+			summary = i18n.Tf("get.partial", len(tracks)) + " · " + summary
+		}
+		return conMsg{lines: []string{st.playing.Render(summary)}, reload: true, downloaded: tracks, downloadSummary: summary, downloadGen: gen}
 	}
 }
 

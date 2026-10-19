@@ -55,6 +55,7 @@ func HelpRows(keys map[string]string) [][2]string {
 		{k("songs"), i18n.T("help.songs")},
 		{k("playlists"), i18n.T("help.playlists")},
 		{k("get"), i18n.T("help.get")},
+		{"enter / tab", i18n.T("help.get_result")},
 		{k("playlist_add"), i18n.T("help.playlist_add")},
 		{k("save_queue"), i18n.T("help.save_queue")},
 		{k("help"), i18n.T("hint.help")},

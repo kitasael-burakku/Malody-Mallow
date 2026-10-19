@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"maly/internal/config"
 	"maly/internal/getter"
 	"maly/internal/i18n"
 	"maly/internal/library"
+	"maly/internal/safetext"
 	"maly/internal/tui"
 )
 
@@ -110,51 +110,29 @@ func downloadOne(cfg config.Config, spec, label string) error {
 		Cookies: cfg.Ytdlp.CookiesFromBrowser, PathsFile: pathsFile})
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		// El 403 baja la miniatura antes de fallar: sin esto se queda
-		// huérfana en music_dir con cada intento.
-		getter.Cleanup(dir, before)
-		return fmt.Errorf("%s", i18n.Tf("cli.get_err", err))
-	}
-
-	// El código de salida no alcanza: una búsqueda que no encuentra nada sale
-	// 0 sin bajar nada (ver la tabla medida en internal/getter/diff.go), y
-	// esto anunciaba "Descarga lista" seguido de "La biblioteca está vacía".
-	// Quien decide es el directorio… salvo en un caso que el directorio no
-	// puede ver: yt-dlp NO vuelve a bajar lo que ya existe, así que el diff
-	// queda vacío igual que cuando no encontró nada. Las rutas lo distinguen.
-	got := getter.NewAudioAll(dir, before)
-	if len(got) == 0 {
-		if yaEstaban := getter.ReadPaths(pathsFile); len(yaEstaban) > 0 {
-			// No es un fallo y no hay nada que limpiar: el archivo está,
-			// la biblioteca ya lo tiene indexado desde la vez anterior.
-			fmt.Println(i18n.Tf("cli.get_already", filepath.Base(yaEstaban[0])))
-			return nil
-		}
-		getter.Cleanup(dir, before) // el .webp de la miniatura, si quedó
-		return errors.New(i18n.T("cli.get_nothing"))
-	}
-
-	fmt.Println("\n" + i18n.T("cli.get_scan"))
-	// runScan decide el camino: vía demonio si responde (sube LibGen y las
-	// TUIs abiertas recargan el árbol solas), directo a la DB si no.
-	if err := runScan(nil); err != nil {
+	runErr := cmd.Run()
+	out, err := getter.Collect(dir, before, pathsFile, runErr)
+	if err != nil {
 		return err
 	}
-
-	// Con más de un archivo nuevo (una búsqueda puede resolver a varios
-	// ítems) no hay UNA pista que nombrar: queda el mensaje genérico.
-	if len(got) == 1 {
-		// Solo LEE, para poder nombrar la pista: el runScan de arriba ya
-		// dejó la base creada, y si por lo que fuera no está, no hay nada que
-		// nombrar y no hay que fabricarla para descubrirlo (A-12).
-		if lib, err := library.Open(config.DBPath()); err == nil {
-			if t, ok := lib.ByPath(filepath.Join(dir, got[0])); ok {
-				fmt.Println(i18n.Tf("cli.get_done", t.String()))
-			}
-			lib.Close()
-		}
+	fmt.Println(out.Summary())
+	fmt.Println(i18n.T("cli.get_scan"))
+	// Usar el destino real de esta descarga, aunque el config cambie mientras baja.
+	if err := runScan([]string{dir}); err != nil {
+		return fmt.Errorf("%s: %w", i18n.T("get.scan_failed"), err)
 	}
+	tracks, err := getter.Indexed(config.DBPath(), out.Paths)
+	if err != nil {
+		return fmt.Errorf("%s: %w", i18n.T("get.scan_failed"), err)
+	}
+	for _, track := range tracks {
+		fmt.Println(i18n.Tf("cli.get_done", track.String()))
+	}
+	printGetNext(out.Paths)
+	if runErr != nil {
+		return errors.New(i18n.Tf("cli.get_err", runErr))
+	}
+
 	return nil
 }
 
@@ -249,6 +227,15 @@ func runGetPlaylist(args []string) (retErr error) {
 	}
 	notifyRefresh()
 	fmt.Println(i18n.Tf("cli.get_pl_done", name, len(ids)))
+	tracks, err := lib.PlaylistTracks(name)
+	if err != nil {
+		return err
+	}
+	paths := make([]string, len(tracks))
+	for i, t := range tracks {
+		paths[i] = t.Path
+	}
+	printGetNext(paths)
 	return nil
 }
 
@@ -275,4 +262,21 @@ func planGetPlaylist(cfg config.Config, url, name string) (getter.PlaylistPlan, 
 		}
 	}
 	return getter.PlanPlaylist(cfg.MusicPath(), url, name, cfg.Ytdlp.CookiesFromBrowser, existing)
+}
+
+// printGetNext muestra acciones optativas con rutas exactas y quoting de shell.
+// Nunca ejecuta reproducción al terminar una descarga.
+func printGetNext(paths []string) {
+	fmt.Println(i18n.T("get.cli_next"))
+	for _, path := range paths {
+		// Un control en una ruta no debe llegar al terminal ni transformarse en
+		// una orden que apunte a otro archivo. En ese caso se usa el selector local.
+		if safetext.Clean(path) != path {
+			fmt.Println(i18n.T("get.cli_select"))
+			continue
+		}
+		quoted := "'" + strings.ReplaceAll(path, "'", "'\"'\"'") + "'"
+		fmt.Println("maly add " + quoted)
+		fmt.Println("maly play " + quoted)
+	}
 }

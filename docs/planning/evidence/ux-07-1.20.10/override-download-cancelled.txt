@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮
+                       │❯ comando… p. ej. maly next                                                                │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │❯ get https://fixture.invalid/partial                                                      │
+                       │Descargando https://fixture.invalid/partial → /tmp/mu7-2f1z_x2h/override/music             │
+                       │Descarga parcial · archivos conservados: 1                                                 │
+                       │yt-dlp falló: exit status 1 (revisa su salida arriba)                                      │
+                       │Indexados: 1 archivos                                                                      │
+                       │❯ get https://fixture.invalid/empty                                                        │
+                       │Descargando https://fixture.invalid/empty → /tmp/mu7-2f1z_x2h/override/music               │
+                       │la descarga no dejó ninguna pista en tu carpeta de música — puede que la búsqueda no encon…│
+                       │❯ get https://fixture.invalid/failure                                                      │
+                       │Descargando https://fixture.invalid/failure → /tmp/mu7-2f1z_x2h/override/music             │
+                       │yt-dlp falló: exit status 1 (revisa su salida arriba)                                      │
+                       │❯ get https://fixture.invalid/scan-error                                                   │
+                       │Descargando https://fixture.invalid/scan-error → /tmp/mu7-2f1z_x2h/override/music          │
+                       │Nuevos: 1 · existentes: 0                                                                  │
+                       │Archivos conservados; falló la indexación: no se indexó el archivo: /tmp/mu7-2f1z_x2h/over…│
+                       │Indexados: 1 archivos                                                                      │
+                       │❯ get playlist https://fixture.invalid/list Lista                                          │
+                       │Descargando playlist https://fixture.invalid/list → /tmp/mu7-2f1z_x2h/override/music       │
+                       │yt-dlp reportó un fallo (exit status 1) — sigo con lo que sí se haya descargado; revisa su…│
+                       │Actualizando la biblioteca ...                                                             │
+                       │Descarga parcial · archivos conservados: 2 · Playlist "Lista" creada: 2 pistas             │
+                       │❯ get https://fixture.invalid/slow                                                         │
+                       │Descargando https://fixture.invalid/slow → /tmp/mu7-2f1z_x2h/override/music                │
+                       │yt-dlp falló: signal: interrupt (revisa su salida arriba)                                  │
+                       │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

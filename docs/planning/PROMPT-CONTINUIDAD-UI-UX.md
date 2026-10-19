@@ -1,44 +1,44 @@
-# Prompt de continuidad — cierre de UX-06
+# Prompt de continuidad — cierre de UX-07
 
-Actualizado el 2026-10-18. El disco manda si el proyecto avanzó. UX-06 está
-implementada y verificada; no repetirla ni iniciar UX-07 automáticamente.
+Actualizado el 2026-10-19. El disco manda si el proyecto avanzó. UX-07 está
+implementada y verificada; no repetirla ni iniciar UX-08 automáticamente.
 
 Trabaja en `/home/kitasa-elburakku/Projects/maly`, en español. Lee `AGENTS.md`,
 comprueba estado/diff, versión, commits y tags. Base de esta entrega: `main`
-limpio en `4b6d9ef` (UX-05, commit autorizado por el dueño, sin tag), const
-1.20.8 y último tag local v1.19.5. El dueño autorizó el commit de cierre de UX-06, const **1.20.9**;
-consultar `git log -1` para su hash. Sin tag nuevo. No se consultó el remoto.
+limpio en `0121e52` (UX-06, commit autorizado por el dueño, sin tag), const
+1.20.9 y último tag local v1.19.5. La const preparada es **1.20.10**;
+commit de UX-07 autorizado; tag pendiente. No se consultó el remoto.
 
 ## Resultado y fuentes únicas
 
-- [Contrato y aceptación UX-06](roadmap-ui-ux.md#ux-06--guardar-la-cola-como-playlist).
-- [Cierre de ingeniería](../history/roadmap-1.17.md#v1209-2026-10-18--ux-06-guardar-la-cola).
-- [Evidencia y arneses](evidence/ux-06-1.20.9/README.md).
-- [Arquitectura de biblioteca y composición](../architecture/library.md#guardar-una-cola-como-playlist).
+- [Contrato y aceptación UX-07](roadmap-ui-ux.md#ux-07--continuidad-después-de-descargar).
+- [Cierre de ingeniería](../history/roadmap-1.17.md#v12010-2026-10-19--ux-07-continuidad-después-de-descargar).
+- [Evidencia y arneses](evidence/ux-07-1.20.10/README.md).
+- [Arquitectura CLI/getter](../architecture/cli.md) y [TUI](../architecture/tui.md).
 
-`playlist save <nombre>` guarda toda la cola en una playlist nueva, conservando
-orden normal y repeticiones. CLI y consola comparten la operación. Ctrl+S
-(`save_queue`, configurable) prepara el comando; Enter con nombre ejecuta.
-Filtro y shuffle no afectan la foto. Nombre ocupado, vacío o pista sin indexar
-fallan sin escritura parcial. El guardado avisa a las otras TUIs. No cambia
-esquema, protocolo ni reproducción. Bump pequeño **1.20.8 → 1.20.9**.
+Después de descargar, la TUI reutiliza el selector para ofrecer archivos
+indexados por ruta exacta. Tab añade, Enter reproduce, Esc cierra; Ctrl+R
+reintenta una indexación fallida. Nuevos, existentes y parciales se escanean
+antes de habilitar acciones. La CLI imprime comandos opcionales por ruta.
+No se inicia reproducción por terminar una descarga. ✓ aclara similitud de
+título, sin certificar grabación. Bump pequeño **1.20.9 → 1.20.10**.
 
-Build sin CGo, vet, suite sin CGo y race pasaron: 19 paquetes, 789 casos/subcasos
-por suite, sin fallos ni saltos, con mpv y bus privado. Seis neutralizaciones
+Build sin CGo, vet, suite sin CGo y race pasaron: 19 paquetes, 810 casos/subcasos
+por suite, sin fallos ni saltos, con mpv y bus privado. Once neutralizaciones
 compilables fallaron por la aserción esperada y pasaron tras restaurar con `cp`.
 Matriz tmux es/en, cuatro tamaños y redimensionado, default/vim/override,
-color/NO_COLOR, embebido/servicio privado, dos clientes y validación de DB/IPC.
-Son buffers de terminal: no acreditan escritorio, arte Kitty ni audio audible.
-No repetir checks correctos sin cambios, fallos o dudas concretas.
+color/NO_COLOR, embebido/servicio privado y validación de DB/IPC. Incluye fallo
+de scan, recuperación, parciales, selección entre metadatos iguales y PID tras
+cancelar/cerrar. Usa yt-dlp simulado: no acredita descarga remota real ni el
+árbol de procesos yt-dlp/ffmpeg real. Los buffers no acreditan escritorio,
+arte Kitty ni audio audible. No repetir checks correctos sin cambios o dudas.
 
 ## Límite de cierre
 
-**Commit de UX-06 autorizado por el dueño; tag pendiente de autorización.**
-La autorización de commit no incluye tag ni publicación. No hacer push, tocar
-PKGBUILD, sustituir `~/.local/bin/maly` ni reiniciar el servicio
-real. Publicación y despliegue siguen pendientes. Cuando el dueño autorice el
-despliegue, hará falta compilar/copiar y reiniciar para usar el binario nuevo.
+**Commit de UX-07 autorizado por el dueño, separado de UX-08. Tag pendiente.** No hacer push,
+tocar PKGBUILD, sustituir `~/.local/bin/maly` ni reiniciar el servicio real.
+Publicación y despliegue siguen pendientes; para usar el cambio instalado
+hará falta compilar/copiar y reiniciar cuando el dueño lo decida.
 
-UX-07 es la siguiente candidata; requiere autorización y verificar el flujo
-real de descarga antes de fijar alcance. Implementación, pruebas, release local,
-publicación y despliegue son estados distintos.
+UX-08 es la siguiente candidata, con diseño pendiente y cambio de alcance
+grande. Solo abordarla por indicación del dueño; no forma parte de UX-07.

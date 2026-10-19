@@ -1,0 +1,5 @@
+--- FAIL: TestDesktopDownloadTailBoundedAndConcurrent (0.00s)
+    desktop_polish_test.go:159: memoria sin límite 140020
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

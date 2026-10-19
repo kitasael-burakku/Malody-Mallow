@@ -1,0 +1,42 @@
+  ╭─ Ayuda ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮  
+  │Atajos por tarea · teclas según tu configuración                                                                                      │  
+  │                                                                                                                                      │  
+  │╭───────────────────────────────────────────────────────────────╮  ╭───────────────────────────────────────────────────────────────╮  │  
+  ││ Reproducción                                                  │  │ Biblioteca y navegación                                       │  │  
+  ││                                                               │  │                                                               │  │  
+  ││ espacio       reproducir / pausar                             │  │ tab                 cambiar de panel                          │  │  
+  ││ n / p         siguiente / anterior                            │  │ > / ▶               selección / pista actual (pueden          │  │  
+  ││ + / -         volumen ±5%                                     │  │                     coincidir)                                │  │  
+  ││ right / left  avanzar / retroceder 5 segundos                 │  │ enter               reproducir / expandir                     │  │  
+  ││ s / r         shuffle / repeat                                │  │ /                   filtrar este panel: a: al: t: f: -palabra │  │  
+  │╰───────────────────────────────────────────────────────────────╯  │ ctrl+o              buscar canciones: a:artista al:álbum      │  │  
+  │                                                                   │                     t:título f:archivo                        │  │  
+  │╭───────────────────────────────────────────────────────────────╮  │ h j k l             cola: mover · biblioteca: plegar /        │  │  
+  ││ Cola y playlists                                              │  │                     expandir                                  │  │  
+  ││                                                               │  │ gg/G ctrl+d/u       inicio / final · media página             │  │  
+  ││ a       agregar a la cola                                     │  │ pgup/pgdn home/end  avanzar/retroceder página · inicio /      │  │  
+  ││ ctrl+n  reproducir después, en orden de elección              │  │                     final                                     │  │  
+  ││         Crea una entrada; conserva el audio actual.           │  ╰───────────────────────────────────────────────────────────────╯  │  
+  ││ d       quitar de la cola                                     │                                                                     │  
+  ││ u       deshacer la última eliminación, compartida            │  ╭───────────────────────────────────────────────────────────────╮  │  
+  ││         Caduca al cambiar cola/pista/modo o reiniciar.        │  │ Paleta de comandos                                            │  │  
+  ││         Recupera la entrada, sin retroceder el audio.         │  │                                                               │  │  
+  ││ K / J   subir / bajar la pista en la cola                     │  │ ctrl+p           paleta de comandos                           │  │  
+  ││ ctrl+l  panel de playlists                                    │  │ tab / shift+tab  elegir sugerencia · esc cancela selección    │  │  
+  ││ A       agregar selección a una playlist                      │  │ enter            rellenar sugerencia; otra pulsación ejecuta  │  │  
+  ││ ctrl+s  guardar toda la cola como playlist nueva (escribir    │  │ ↑ / ↓            historial de comandos / borrador             │  │  
+  ││         nombre)                                               │  │ pgup/pgdn        desplazar salida                             │  │  
+  │╰───────────────────────────────────────────────────────────────╯  │ ctrl+home/end    inicio / final de la salida                  │  │  
+  │                                                                   ╰───────────────────────────────────────────────────────────────╯  │  
+  │╭───────────────────────────────────────────────────────────────╮                                                                     │  
+  ││ Descargas                                                     │  ╭───────────────────────────────────────────────────────────────╮  │  
+  ││                                                               │  │ Vistas y salida                                               │  │  
+  ││ ctrl+g       buscar y descargar música                        │  │                                                               │  │  
+  ││ enter / tab  archivo descargado: reproducir / añadir          │  │ ctrl+t  pantalla ahora suena (carátula y letras)              │  │  
+  ││ ctrl+r       reintentar indexación tras fallar el escaneo     │  │ v       alternar visualizador                                 │  │  
+  │╰───────────────────────────────────────────────────────────────╯  │ ?       ayuda                                                 │  │  
+  │                                                                   │ q       salir                                                 │  │  
+  │                                                                   ╰───────────────────────────────────────────────────────────────╯  │  
+  │                                                                                                                                      │  
+  │  esc cierra                                                                                                                          │  
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

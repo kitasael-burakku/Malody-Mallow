@@ -1,0 +1,24 @@
+╭─ Help ───────────────────────────────────────────────────────────────────────╮
+│Playback                                                                      │
+│  space              play / pause                                             │
+│  > / <              next / previous                                          │
+│  + / -              volume ±5%                                               │
+│  right / left       seek ±5s                                                 │
+│Library and queue                                                             │
+│  tab                switch panel                                             │
+│  > / ▶              selection / current track (can coincide)                 │
+│  enter              play / expand                                            │
+│  a                  add to queue                                             │
+│  ctrl+n             play next (FIFO): library, queue, songs and downloaded   │
+│                     files; makes a new queue entry                           │
+│  x                  remove from queue                                        │
+│  u                  undo the last shared queue removal; expires on           │
+│                     queue/track/mode changes or restart; does not rewind     │
+│                     audio                                                    │
+│  K / J              move track up / down the queue                           │
+│  /                  filter current panel (a: al: t: f: -word; ↑↓ move)       │
+│  h j k l            navigate the queue (also arrows) · h/l fold/expand in the│
+│                     library                                                  │
+│                                                                              │
+│esc closes · ↑/↓ pgup/pgdn scroll                                             │
+╰──────────────────────────────────────────────────────────────────────────────╯

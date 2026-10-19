@@ -1,0 +1,12 @@
+{
+  "version": "Malody Mallow (maly) v1.22.10\nservicio: v1.22.10",
+  "binary_sha256": "15340754b0a6e8b1bc7157362ecd0b7ad3aa1d49022842b81b15cd4c0684005b",
+  "same_as_repo_binary": true,
+  "ux09_source_files_checked": 163,
+  "source_mismatches": [],
+  "tools": {
+    "kitty": "kitty 0.49.2 created by Kovid Goyal",
+    "yt-dlp": "2026.08.19",
+    "ffmpeg": "ffmpeg version n9.0.2 Copyright (c) 2000-2026 the FFmpeg developers"
+  }
+}

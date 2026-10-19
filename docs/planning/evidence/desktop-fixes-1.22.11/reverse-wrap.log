@@ -1,0 +1,5 @@
+--- FAIL: TestDesktopConsoleWrapKeepsTextAndStyle (0.00s)
+    desktop_polish_test.go:24: la salida no se envolvió [[31mInicio: no hay eliminación disponible, caducó o fue sustituida. Detalle con 東京 y una_ruta_sin_espacios_muy_larga_que_tambien_debe_leerse_hasta FINAL_OK.[0m]
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL

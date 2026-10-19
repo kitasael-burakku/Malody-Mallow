@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.22.11 — 2026-10-19 (implementada; commit local autorizado; tag pendiente)
+
+La ayuda de la TUI separa seis tareas en tarjetas, usa cabeceras contrastadas,
+resalta las teclas configuradas y aprovecha dos columnas en ventanas anchas.
+En ventanas pequeñas conserva una columna desplazable y un indicador de filas.
+La paleta permite leer mensajes largos completos, también al desplazarse o
+redimensionar. Los fallos de descarga conservan su diagnóstico de yt-dlp al
+volver a la TUI; el aviso de terminal pequeña muestra primero el tamaño mínimo.
+
 ## v1.22.10 — 2026-10-19 (implementada; commit local autorizado; tag pendiente)
 
 `undo` en CLI/consola y `u` configurable en la TUI recuperan la última entrada

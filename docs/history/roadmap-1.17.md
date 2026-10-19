@@ -2,6 +2,46 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.22.11 (2026-10-19) — ayuda por tareas y detalles de escritorio
+
+**Estado:** implementada y verificada; commit local autorizado; tag pendiente. Encargo explícito
+tras la [revisión de escritorio](../planning/evidence/desktop-1.22.10/README.md)
+y una captura del dueño mostrando la ayuda demasiado densa.
+
+**Base y alcance.** Los arreglos se verificaron sobre el árbol 1.22.10 de
+UX-09, con HEAD entonces en `7d68623`. UX-09 quedó después en su commit
+separado `6d5b1f6`. Respaldo completo del trabajo previo en
+`/tmp/maly-polish-before`. **1.22.10 → 1.22.11 es un cambio pequeño:** presentación
+y diagnóstico locales, sin modificar reproducción, IPC, configuración ni datos.
+El número central y los contratos de UX-09 se conservan.
+
+**Cambios.** `HelpRows` sigue siendo la fuente única de TUI/CLI, ahora con seis
+secciones. La TUI las presenta como tarjetas con cabeceras contrastadas y teclas
+en negrita; geometría pura integrada en `computeLayout`, dos columnas si caben,
+una con scroll en estrecho. Se separaron las instrucciones de la paleta y las
+condiciones de deshacer en líneas legibles. `maly -h` indenta las continuaciones.
+
+D1: la consola envuelve antes de paginar, conserva los estilos y cuenta filas
+visuales en PgUp/PgDn/Ctrl+Home/End. Redimensionar vuelve a envolver el historial
+original y acota el desplazamiento. D2: `tea.Exec` mantiene el proceso interactivo
+y copia stdout/stderr a un buffer con mutex de 16 KiB; al fallar conserva hasta
+40 líneas finales saneadas en el historial de la paleta. No interpreta mensajes
+de yt-dlp, no decide el éxito a partir de ellos ni escribe logs persistentes.
+Funciona en pista y playlist; la CLI conserva su salida directa y ambos clientes
+retiran la indicación ambigua «revisa arriba». D3: el mínimo 40×12 va primero y
+el aviso se ajusta al ancho disponible.
+
+**Verificación.** Build sin CGo, vet, suite y race: 19 paquetes y 916 casos/subcasos,
+sin fallos ni saltos, con mpv y D-Bus privados. Seis contrapruebas compilaron,
+fallaron por el defecto neutralizado y pasaron al restaurar mediante `cp`.
+Kitty/Hyprland reales: es/en, default/Vim/atajo personalizado, color/NO_COLOR,
+ayuda ancha y mínima, error largo, 404 real con yt-dlp y descarga correcta.
+La prueba remota de este cierre se limita a HTTP local, sin cookies ni escucha.
+
+[Evidencia y capturas](../planning/evidence/desktop-fixes-1.22.11/README.md).
+No se cambia el tema personal ni el binario instalado; no hay tag, push,
+empaquetado o reinicio del servicio real.
+
 ## v1.22.10 (2026-10-19) — UX-09: deshacer una eliminación
 
 **Estado:** implementada y verificada; commit local autorizado; tag pendiente.

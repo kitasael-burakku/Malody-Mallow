@@ -1,0 +1,5 @@
+--- FAIL: TestDesktopHelpCardsAndResponsiveLayout (0.00s)
+    desktop_polish_test.go:94: la ayuda ancha sigue en una sola columna
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

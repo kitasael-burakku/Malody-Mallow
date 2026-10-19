@@ -110,7 +110,7 @@ espejo de la CLI—, con tres diferencias deliberadas: una comilla solo abre al
 EMPEZAR un argumento, así que el apóstrofo de `Don't Stop` es texto, y una
 comilla sin cerrar es error porque no hay prompt de continuación, y la barra
 invertida es texto literal, no un escape; `playlist` en `console_playlist.go`, `get` vía
-`tea.ExecProcess` + `internal/getter` compartido con la CLI, `controls`
+`tea.Exec` + `downloadExec` + `internal/getter` compartido con la CLI, `controls`
 aplica el preset en vivo recargando `m.keys`; `playlist delete` NO borra:
 arma `conPlConfirm` y lo resuelve la línea SIGUIENTE, que se consume pase
 lo que pase —igual que `confirmYesNo` de la CLI, que lee UNA línea— y es
@@ -118,7 +118,7 @@ campo aparte del `plConfirm` del panel ctrl+l para que un camino no cancele
 el borrado pendiente del otro. En `get playlist`, `planGetPlaylist` toma
 TODAS las decisiones previas a la descarga y `newTrackIDs` filtra lo que ya
 estaba en el destino: van separadas de sus consumidores porque
-`tea.ExecProcess` solo se resuelve dentro del runtime de bubbletea y al
+`tea.Exec` solo se resuelve dentro del runtime de bubbletea y al
 resto solo se llega pasando por el demonio, así que sin partirlas no hay
 forma de comprobar en un test qué decidió esta mitad — que es exactamente
 cómo A-04 pudo pasar desapercibido) + picker
@@ -346,3 +346,25 @@ la tecla resuelta después de ayuda/salida mientras hay token, incluso con cola
 vacía o filtrada y a 40 columnas. La ayuda explica su caducidad. En consola,
 `undo` pide la última vigente del demonio, con la misma gramática sin argumentos
 que la CLI. Los mensajes de éxito distinguen recuperación y reproducción.
+
+
+## Ajustes de escritorio (1.22.11)
+
+`HelpRows` alimenta seis grupos, compartidos con la CLI. `helpView` los divide en
+columnas de tarjetas con cabeceras del estilo contrastado de selección y teclas
+resaltadas; `computeLayout` resuelve su geometría pura mediante `helpLayout`.
+`helpScroll` recorre las filas de contenido con contador visible. El color es
+redundante: títulos, bordes y negrita conservan la jerarquía en NO_COLOR.
+
+`consoleOutput` envuelve el historial original antes de recortarlo por altura;
+`conScroll` cuenta filas visuales desde el final. `ansi.Cut` conserva el estilo
+de cada tramo aunque el borde reinicie ANSI entre filas. Se normaliza VS15 solo
+sobre la copia de presentación, antes de medirla, sin cambiar el historial.
+Ctrl+Home usa el total envuelto y el render acota tras un cambio de tamaño.
+
+`downloadExec` implementa `tea.ExecCommand`: mantiene stdin y salida directa al
+terminal, copiando stdout/stderr a un buffer con mutex, máximo 16 KiB. Cuando
+falla una pista o playlist, las últimas 40 líneas se sanean con `safetext`
+antes de incorporarlas a la consola. ANSI se descarta en esta copia; CR separa
+filas de progreso. No se interpreta el texto humano ni se persiste un log.
+La clasificación del resultado sigue en `getter.Collect` y el plan de playlist.

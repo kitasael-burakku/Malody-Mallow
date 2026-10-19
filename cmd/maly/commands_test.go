@@ -100,8 +100,10 @@ func TestHelpAtajosDesdeHelpRows(t *testing.T) {
 		if !strings.Contains(out, r[0]) {
 			t.Errorf("`maly -h` no muestra la tecla %q (%s)", r[0], r[1])
 		}
-		if !strings.Contains(out, r[1]) {
-			t.Errorf("`maly -h` no muestra la descripción %q", r[1])
+		for _, line := range strings.Split(r[1], "\n") {
+			if !strings.Contains(out, line) {
+				t.Errorf("`maly -h` no muestra la descripción %q", line)
+			}
 		}
 	}
 }

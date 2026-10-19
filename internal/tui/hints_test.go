@@ -151,7 +151,7 @@ func TestUX02HelpTasksAndLongKeys(t *testing.T) {
 		checkStateText(t, all.String(), []string{i18n.T("help.group_playback"), i18n.T("help.group_library"), i18n.T("help.group_tools"), "ctrl+shift+f12", i18n.T("help.space")})
 		// Recorrer el contenido, no comparar solo el ancho que panel() rellena.
 		var screens strings.Builder
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 200; i++ {
 			m.helpScroll = i
 			out := m.helpView()
 			assertUX02Frame(t, out, 40, 12)

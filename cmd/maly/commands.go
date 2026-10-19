@@ -200,7 +200,13 @@ func helpText() string {
 		}
 	}
 	key := func(k, desc string) {
-		b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(padRight(k, keyW)), desc))
+		for i, line := range strings.Split(desc, "\n") {
+			label := k
+			if i > 0 {
+				label = ""
+			}
+			b.WriteString(fmt.Sprintf("  %s %s\n", cmdSt.Render(padRight(label, keyW)), line))
+		}
 	}
 
 	b.WriteString(bold.Render("Malody Mallow") + " " + dim.Render("(maly) v"+version.Version) + " — " + i18n.T("cli.tagline") + "\n")

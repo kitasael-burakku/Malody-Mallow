@@ -1,0 +1,24 @@
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮                        
+                       │❯ comando… p. ej. maly next                                                                │                        
+                       │───────────────────────────────────────────────────────────────────────────────────────────│                        
+                       │❯ playlist save "QA cola completa"                                                         │                        
+                       │Cola guardada en "QA cola completa": 4 pistas                                              │                        
+                       │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │                        
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯

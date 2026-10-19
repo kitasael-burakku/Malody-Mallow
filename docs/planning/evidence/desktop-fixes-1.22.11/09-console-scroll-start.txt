@@ -1,0 +1,26 @@
+                                                                                                    
+                                                                                                    
+                 ╭─ Paleta de comandos ───────────────────────────────────────────╮                 
+                 │❯ comando… p. ej. maly next                                     │                 
+                 │────────────────────────────────────────────────────────────────│                 
+                 │❯ undo                                                          │                 
+                 │No se puede deshacer: no hay eliminación disponible, caducó o   │                 
+                 │fue sustituida                                                  │                 
+                 │❯ get http://127.0.0.1:18779/NoExiste.mp3                       │                 
+                 │Descargando http://127.0.0.1:18779/NoExiste.mp3 → /tmp/maly-    │                 
+                 │polish-live/sandbox/music                                       │                 
+                 │Última salida de yt-dlp:                                        │                 
+                 │[generic] Extracting URL: http://127.0.0.1:18779/NoExiste.mp3   │                 
+                 │[generic] NoExiste: Downloading webpage                         │                 
+                 │ERROR: [generic] NoExiste: Unable to download webpage: HTTP     │                 
+                 │Error 404: File not found (caused by <HTTPError 404: File not   │                 
+                 │found>)                                                         │                 
+                 │yt-dlp falló: exit status 1                                     │                 
+                 │❯ get http://127.0.0.1:18779/Prueba.mp3                         │                 
+                 │Descargando http://127.0.0.1:18779/Prueba.mp3 → /tmp/maly-      │                 
+                 │polish-live/sandbox/music                                       │                 
+                 │Ya estaba: NA - Prueba.mp3; no hay nada que descargar           │                 
+                 │Indexados: 1 archivos                                           │                 
+                 │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial │                 
+                 │· pgup/pgdn salida                                              │                 
+                 ╰────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,12 @@
+╭─ Ayuda ─────── filas 103–108 de 108 ─╮
+│Atajos por tarea · teclas según tu co…│
+│                                      │
+││ ctrl+t  pantalla ahora suena     │  │
+││         (carátula y letras)      │  │
+││ v       alternar visualizador    │  │
+││ ?       ayuda                    │  │
+││ q       salir                    │  │
+│╰──────────────────────────────────╯  │
+│                                      │
+│esc cierra · ↑/↓ pgup/pgdn desplazan  │
+╰──────────────────────────────────────╯

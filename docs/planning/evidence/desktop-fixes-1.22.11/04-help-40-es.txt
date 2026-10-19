@@ -1,0 +1,12 @@
+╭─ Ayuda ─────────── filas 1–6 de 108 ─╮
+│Atajos por tarea · teclas según tu co…│
+│                                      │
+│╭──────────────────────────────────╮  │
+││ Reproducción                     │  │
+││                                  │  │
+││ espacio       reproducir /       │  │
+││               pausar             │  │
+││ n / p         siguiente /        │  │
+│                                      │
+│esc cierra · ↑/↓ pgup/pgdn desplazan  │
+╰──────────────────────────────────────╯

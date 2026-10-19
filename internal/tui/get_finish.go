@@ -33,6 +33,9 @@ type downloadIndexedMsg struct {
 
 func (m *Model) finishDownload(msg getDoneMsg) (tea.Model, tea.Cmd) {
 	defer os.Remove(msg.pathsFile)
+	if msg.err != nil {
+		m.printDownloadOutput(msg.output)
+	}
 	out, err := getter.Collect(msg.dir, msg.before, msg.pathsFile, msg.err)
 	if err != nil {
 		m.conErr(err.Error())

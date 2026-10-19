@@ -1,0 +1,12 @@
+╭─ Help ───────────────────────────────╮
+│Playback                              │
+│space                                 │
+│  play / pause                        │
+│> / <                                 │
+│  next / previous                     │
+│+ / -                                 │
+│  volume ±5%                          │
+│right / left                          │
+│                                      │
+│esc closes · ↑/↓ pgup/pgdn scroll     │
+╰──────────────────────────────────────╯

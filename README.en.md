@@ -557,7 +557,13 @@ destination.
 The footer shows your configured keys and actions for the active panel: Enter
 expands or collapses groups and plays tracks. Narrow windows prioritize help
 and exit; `?` opens scrollable help grouped by task (also available in
-`maly -h`). Pickers display Esc to close them.
+`maly -h`). Six sections use contrasting headings and highlighted keys: two
+columns when space allows, one in narrow windows. Shortcuts reflect your preset
+and custom settings. Pickers display Esc to close them.
+
+The palette wraps long responses; PgUp/PgDn and Ctrl+Home/End navigate the full
+output. Failed downloads retain the final portion of yt-dlp's diagnostic output
+so you can read the cause after returning to the TUI.
 
 Rows use `>` for selection and `▶` for the current track; both may appear
 together and remain visible without color. Now Playing metadata uses up to

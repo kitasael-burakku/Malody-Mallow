@@ -1,0 +1,5 @@
+--- FAIL: TestDesktopDownloadExecRetainsSafeDiagnostics (0.00s)
+    desktop_polish_test.go:141: el regreso a TUI perdió el diagnóstico false yt-dlp failed: exit status 7
+FAIL
+FAIL	maly/internal/tui	0.004s
+FAIL

@@ -1,0 +1,10 @@
+{
+  "binary_sha256": "06fae2912d7be95f4fa70f4e69c8fd61576293aac0e75e3e388d78850b8bf9bf",
+  "profiles": [
+    "es/default/color",
+    "en/vim/ctrl+y/color",
+    "en/vim/ctrl+y/NO_COLOR"
+  ],
+  "captures": 15,
+  "result": "passed"
+}

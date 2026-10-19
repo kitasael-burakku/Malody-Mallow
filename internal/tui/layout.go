@@ -81,6 +81,7 @@ type layoutOpts struct {
 // layout es el reparto ya resuelto. Todos los anchos incluyen los bordes de
 // su panel, y todos los altos las filas de borde.
 type layout struct {
+	help helpLayout // geometría de la ayuda, resuelta junto al resto de pantalla
 	mode layoutMode
 	// Anchos de columna. En layoutSingle libW y queueW valen ambos el ancho
 	// completo: solo se dibuja el panel enfocado, nunca los dos a la vez.
@@ -106,6 +107,7 @@ func computeLayout(w, h int, opts layoutOpts) layout {
 		return l
 	}
 
+	l.help = computeHelpLayout(w, h)
 	switch {
 	case w >= fullMinWidth:
 		l.mode = layoutFull
@@ -241,4 +243,25 @@ func filterBoxRect(l layout, focus panelID, w int) filterBox {
 		return filterBox{}
 	}
 	return b
+}
+
+// computeHelpLayout decide también la geometría de la ayuda, sin estado ni E/S.
+// En ancho completo usa dos columnas; una ventana estrecha conserva cada grupo.
+type helpLayout struct{ width, height, columns, cardW int }
+
+func computeHelpLayout(w, h int) helpLayout {
+	width := min(180, w)
+	if w >= 80 {
+		width = min(180, w-4)
+	}
+	cols := 1
+	if width >= 116 {
+		cols = 2
+	}
+	cardW := width - 4
+	if cols == 2 {
+		cardW = (width - 6) / 2
+		width = 2*cardW + 6
+	}
+	return helpLayout{width: width, height: h, columns: cols, cardW: cardW}
 }

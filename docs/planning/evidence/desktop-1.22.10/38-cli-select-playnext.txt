@@ -1,0 +1,8 @@
+╭─ Elegir canción ──────────────────────────────────────────────────────────────────────────╮
+│❯ a:aurea -t:Elegida                                                                      …│
+│───────────────────────────────────────────────────────────────────────────────────────────│
+│> Áurea — A — Canción actual con título largo: café 東京 ☕ prueba de anchura              │
+│  Áurea — Conversion                                                                       │
+│esc cierra · enter reproduce · tab añade · ctrl+n después · 2                              │
+╰───────────────────────────────────────────────────────────────────────────────────────────╯
+Para después: 1 pista(s); reproducción sin cambios

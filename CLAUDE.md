@@ -237,11 +237,13 @@ tomadas.
 
 ## Estado actual
 
-**v1.22.10 — UX-09 implementada y verificada; commit local autorizado; tag pendiente**
-(`internal/version/version.go`). Una eliminación de cola recuperable, compartida
-por el demonio: CLI/consola `undo`, TUI `u` configurable. Caducidad explícita y
-recuperación de contenido sin retroceder audio. Contrato y aceptación en el
-[roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-09--deshacer-una-eliminación-de-cola).
+**v1.22.11 — ayuda y detalles de escritorio verificados; commit local autorizado; tag pendiente**
+(`internal/version/version.go`). Ayuda por tareas en tarjetas adaptables,
+mensajes de paleta completos, diagnóstico de descargas y mínimo visible.
+[Cierre de ingeniería](docs/history/roadmap-1.17.md#v12211-2026-10-19--ayuda-por-tareas-y-detalles-de-escritorio).
+Incluye UX-09 (1.22.10), en el commit `6d5b1f6`: eliminación compartida recuperable
+mediante CLI/consola `undo` o TUI `u`, sin retroceder audio.
+[Contrato UX-09](docs/planning/roadmap-ui-ux.md#ux-09--deshacer-una-eliminación-de-cola).
 UX-08 (1.21.10) quedó en `7d68623`, sin tag.
 UX-07 (1.20.10) quedó en `5806445`; su aceptación de descargas usó
 solo yt-dlp simulado. Publicación y despliegue pendientes.

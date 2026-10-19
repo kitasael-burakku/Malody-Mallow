@@ -1,0 +1,14 @@
+{
+  "pid": 146256,
+  "exe": "/home/kitasa-elburakku/.local/bin/maly",
+  "duration_s": 6.000451821999377,
+  "cpu_percent_one_core": 0.8332705850030437,
+  "rss_mib": 25.43359375,
+  "profile": "TUI + daemon embebido, pausa, ao=null, visualizador apagado, 140x42",
+  "excludes": [
+    "Kitty",
+    "mpv",
+    "compositor"
+  ],
+  "selection": "/proc/comm=maly y XDG_RUNTIME_DIR aislado; ejecutable resuelto"
+}

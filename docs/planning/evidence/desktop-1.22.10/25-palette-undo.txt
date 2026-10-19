@@ -1,0 +1,18 @@
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                                                                                                    
+                 ╭─ Paleta de comandos ───────────────────────────────────────────╮                 
+                 │❯ undo                                                         …│                 
+                 │────────────────────────────────────────────────────────────────│                 
+                 │> undo                                                          │                 
+                 │deshacer la última eliminación de cola sin reiniciar audio      │                 
+                 │❯ playlist save "QA cola completa"                              │                 
+                 │Cola guardada en "QA cola completa": 4 pistas                   │                 
+                 │esc edita · enter rellena · tab/shift+tab elige · ↑↓ historial  │                 
+                 ╰────────────────────────────────────────────────────────────────╯

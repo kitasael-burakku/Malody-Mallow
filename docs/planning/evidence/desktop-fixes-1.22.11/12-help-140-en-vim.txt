@@ -1,0 +1,40 @@
+                                                                                                                                            
+  ╭─ Help ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮  
+  │Shortcuts by task · keys follow your settings                                                                                         │  
+  │                                                                                                                                      │  
+  │╭───────────────────────────────────────────────────────────────╮  ╭───────────────────────────────────────────────────────────────╮  │  
+  ││ Playback                                                      │  │ Library & navigation                                          │  │  
+  ││                                                               │  │                                                               │  │  
+  ││ space         play / pause                                    │  │ tab                 switch panel                              │  │  
+  ││ > / <         next / previous                                 │  │ > / ▶               selection / current track (can coincide)  │  │  
+  ││ + / -         volume ±5%                                      │  │ enter               play / expand                             │  │  
+  ││ right / left  seek ±5 seconds                                 │  │ /                   filter this panel: a: al: t: f: -word     │  │  
+  ││ s / r         shuffle / repeat                                │  │ ctrl+o              find songs: a:artist al:album t:title     │  │  
+  │╰───────────────────────────────────────────────────────────────╯  │                     f:file                                    │  │  
+  │                                                                   │ h j k l             queue: move · library: fold / expand      │  │  
+  │╭───────────────────────────────────────────────────────────────╮  │ gg/G ctrl+d/u       top / bottom · half page                  │  │  
+  ││ Queue & playlists                                             │  │ pgup/pgdn home/end  page up/down · top / bottom               │  │  
+  ││                                                               │  ╰───────────────────────────────────────────────────────────────╯  │  
+  ││ a       add to queue                                          │                                                                     │  
+  ││ ctrl+n  play next, in chosen order                            │  ╭───────────────────────────────────────────────────────────────╮  │  
+  ││         Adds a new entry; keeps current audio.                │  │ Command palette                                               │  │  
+  ││ x       remove from queue                                     │  │                                                               │  │  
+  ││ ctrl+y  undo last removal, shared by all clients              │  │ ctrl+p           command palette                              │  │  
+  ││         Expires on queue/track/mode changes or restart.       │  │ tab / shift+tab  choose a suggestion · esc cancels selection  │  │  
+  ││         Restores the entry, without rewinding audio.          │  │ enter            fill suggestion; press again to run          │  │  
+  ││ K / J   move track up / down the queue                        │  │ ↑ / ↓            command history / draft                      │  │  
+  ││ ctrl+l  playlist panel                                        │  │ pgup/pgdn        scroll output                                │  │  
+  ││ A       add selection to a playlist                           │  │ ctrl+home/end    start / end of output                        │  │  
+  ││ ctrl+s  save the whole queue as a new playlist (enter name)   │  ╰───────────────────────────────────────────────────────────────╯  │  
+  │╰───────────────────────────────────────────────────────────────╯                                                                     │  
+  │                                                                   ╭───────────────────────────────────────────────────────────────╮  │  
+  │╭───────────────────────────────────────────────────────────────╮  │ Views & exit                                                  │  │  
+  ││ Downloads                                                     │  │                                                               │  │  
+  ││                                                               │  │ ctrl+t  now playing screen (cover & lyrics)                   │  │  
+  ││ ctrl+g       search and download music                        │  │ v       toggle visualizer                                     │  │  
+  ││ enter / tab  downloaded file: play / add                      │  │ ?       help                                                  │  │  
+  ││ ctrl+r       retry indexing after a failed scan               │  │ q       quit                                                  │  │  
+  │╰───────────────────────────────────────────────────────────────╯  ╰───────────────────────────────────────────────────────────────╯  │  
+  │                                                                                                                                      │  
+  │  esc closes                                                                                                                          │  
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

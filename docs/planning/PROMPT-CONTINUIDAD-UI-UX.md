@@ -1,22 +1,33 @@
-# Prompt de continuidad — cierre de UX-09
+# Continuidad — UX-09 y ajustes de escritorio listos para cierre
 
-Actualizado el 2026-10-19. El disco manda si el proyecto avanzó. UX-09 está
-implementada y verificada; no repetirla ni iniciar trabajo adicional sin encargo.
+Actualizado el 2026-10-19. Leer `AGENTS.md` y comprobar el disco.
+Const actual **1.22.11**: incluye UX-09 y los arreglos de escritorio posteriores,
+con cierre local autorizado en dos commits separados. UX-09 quedó en
+`6d5b1f6`; los ajustes de escritorio van en el siguiente commit. Los tags
+siguen pendientes; no se autorizó push, PKGBUILD,
+sustituir el binario instalado ni reiniciar el servicio real.
 
-Trabaja en `/home/kitasa-elburakku/Projects/maly`, en español. Lee `AGENTS.md`,
-comprueba estado/diff, versión, commits y tags. Base de UX-09: `main` limpio
-en `7d68623` (UX-08, 1.21.10); UX-07 quedó en `5806445` (1.20.10). Ambos
-commits fueron autorizados, sin tags. Último tag local v1.19.5; no se consultó
-remoto. Const preparada **1.22.10**, commit local de UX-09 autorizado; tag pendiente.
-Respaldo previo `/tmp/maly-ux09-backup`, recuperable también desde `7d68623`.
+## Último encargo completado
 
-## Resultado y fuentes únicas
+El dueño pidió corregir los tres detalles del informe y mejorar la ayuda de su
+captura. Se cerraron D1 (salida cortada), D2 (diagnóstico perdido) y D3 (mínimo
+invisible), además de dividir y resaltar la ayuda. Fuente única del cierre:
+[ingeniería](../history/roadmap-1.17.md#v12211-2026-10-19--ayuda-por-tareas-y-detalles-de-escritorio)
+y [evidencias](evidence/desktop-fixes-1.22.11/README.md).
 
-- [Contrato y aceptación UX-09](roadmap-ui-ux.md#ux-09--deshacer-una-eliminación-de-cola).
-- [Cierre de ingeniería](../history/roadmap-1.17.md#v12210-2026-10-19--ux-09-deshacer-una-eliminación).
-- [Evidencia y arneses](evidence/ux-09-1.22.10/README.md).
-- Arquitectura de [cola/player](../architecture/playback.md),
-  [demonio](../architecture/daemon.md), [CLI](../architecture/cli.md) y [TUI](../architecture/tui.md).
+Checks: 19 paquetes, 916 casos/subcasos, sin saltos/fallos en suite y race;
+build sin CGo y vet correctos. Seis contrapruebas compilables, restauradas con
+`cp`. Capturas reales Kitty/Hyprland y yt-dlp/ffmpeg reales contra HTTP local.
+La revisión anterior también probó búsqueda real de YouTube; no se descargó
+contenido remoto ni se comprobó escucha audible.
+
+Respaldo del estado completo de UX-09 anterior a estos arreglos:
+`/tmp/maly-polish-before`. La [evidencia original de UX-09](evidence/ux-09-1.22.10/README.md)
+identifica aquella entrega; su manifiesto no corresponde al código posterior.
+No repetir trabajo ya verificado ni inventar otro UX. El dueño autorizó solo
+los commits separados. Publicación, tags y despliegue siguen pendientes.
+
+## Contrato de UX-09 conservado
 
 El dueño aprobó una recuperación compartida. `undo` en CLI/consola recupera
 la última eliminación disponible. `u` configurable (`undo_remove`) en la TUI
@@ -25,23 +36,3 @@ avanzar, detener, ajustar modos o reiniciar; pausa, seek, volumen, reloj y
 duraciones la conservan. Reinserta una entrada y sus posiciones, no la cola
 entera. Recuperar la antigua actual no vuelve atrás el audio. Bump grande:
 **1.21.10 → 1.22.10**, por el nuevo estado compartido y su contrato de validez.
-
-Build sin CGo, vet, suite sin CGo y race: 19 paquetes, 910 casos/subcasos por
-suite, sin fallos ni saltos; mpv y bus privado. Diez contrapruebas compilables
-fallaron por la razón esperada y pasaron tras restaurar con cp. Matriz tmux
-es/en, cuatro tamaños y redimensionado, default/vim/Ctrl+Y, color/NO_COLOR,
-dos clientes, daemon embebido y separado privado. Incluye rutas reales en
-mpv, cola filtrada, token viejo, antigua actual y caducidad tras reiniciar.
-No repetir checks correctos sin cambios o dudas. Los buffers no acreditan
-escritorio/Kitty ni audio audible; UX-07 sigue validada con yt-dlp simulado.
-
-## Límite de cierre
-
-**Commit/tag de UX-09 pendientes de autorización del dueño.** La autorización
-de los commits UX-07/UX-08 no cierra esta entrega. No hacer push, tocar PKGBUILD,
-sustituir `~/.local/bin/maly` ni reiniciar el servicio real. Para usar el cambio
-instalado hará falta compilar/copiar y reiniciar cuando el dueño lo decida.
-
-UX-00–UX-09 están implementadas y verificadas con sus límites documentados.
-No hay UX-10 definida; el trabajo pendiente es el cierre/publicación/despliegue
-que el dueño autorice, no inventar otra entrega.

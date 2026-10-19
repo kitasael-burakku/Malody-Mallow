@@ -1,0 +1,38 @@
+[
+  {
+    "case": "wrap",
+    "test": "TestDesktopConsoleWrapKeepsTextAndStyle",
+    "compiled_expected_fail": true,
+    "restored_pass": true
+  },
+  {
+    "case": "minimum",
+    "test": "TestDesktopMinimumNoticeKeepsDimensions",
+    "compiled_expected_fail": true,
+    "restored_pass": true
+  },
+  {
+    "case": "help",
+    "test": "TestDesktopHelpCardsAndResponsiveLayout",
+    "compiled_expected_fail": true,
+    "restored_pass": true
+  },
+  {
+    "case": "capture",
+    "test": "TestDesktopDownloadExecRetainsSafeDiagnostics",
+    "compiled_expected_fail": true,
+    "restored_pass": true
+  },
+  {
+    "case": "display",
+    "test": "TestDesktopDownloadExecRetainsSafeDiagnostics",
+    "compiled_expected_fail": true,
+    "restored_pass": true
+  },
+  {
+    "case": "bound",
+    "test": "TestDesktopDownloadTailBoundedAndConcurrent",
+    "compiled_expected_fail": true,
+    "restored_pass": true
+  }
+]

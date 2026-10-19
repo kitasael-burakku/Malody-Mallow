@@ -1,0 +1,31 @@
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮                        
+                       │❯ comando… p. ej. maly next                                                                │                        
+                       │───────────────────────────────────────────────────────────────────────────────────────────│                        
+                       │❯ playlist save "QA cola completa"                                                         │                        
+                       │Cola guardada en "QA cola completa": 4 pistas                                              │                        
+                       │❯ undo                                                                                     │                        
+                       │No se puede deshacer: no hay eliminación disponible, caducó o fue sustituida               │                        
+                       │❯ get http://127.0.0.1:18769/Prueba.mp3                                                    │                        
+                       │Descargando http://127.0.0.1:18769/Prueba.mp3 → /tmp/maly-desktop-review/sandbox/music     │                        
+                       │Nuevos: 1 · existentes: 0                                                                  │                        
+                       │Indexados: 1 archivos                                                                      │                        
+                       │❯ get http://127.0.0.1:18769/Prueba.mp3                                                    │                        
+                       │Descargando http://127.0.0.1:18769/Prueba.mp3 → /tmp/maly-desktop-review/sandbox/music     │                        
+                       │Ya estaba: NA - Prueba.mp3; no hay nada que descargar                                      │                        
+                       │Indexados: 1 archivos                                                                      │                        
+                       │❯ get http://127.0.0.1:18769/NoExiste.mp3                                                  │                        
+                       │Descargando http://127.0.0.1:18769/NoExiste.mp3 → /tmp/maly-desktop-review/sandbox/music   │                        
+                       │yt-dlp falló: exit status 1 (revisa su salida arriba)                                      │                        
+                       │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │                        
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯

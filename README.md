@@ -562,7 +562,13 @@ destino de cada uno.
 El pie muestra las teclas configuradas y las acciones del panel activo: Enter
 expande o pliega grupos y reproduce pistas. En ventanas estrechas prioriza
 ayuda y salida; `?` abre la ayuda agrupada por tareas y desplazable (también
-disponible en `maly -h`). Los selectores indican Esc para cerrarlos.
+disponible en `maly -h`). Son seis bloques con cabeceras contrastadas y teclas
+resaltadas: dos columnas cuando caben y una en ventanas estrechas. Las teclas
+siempre reflejan tu preset y configuración. Los selectores indican Esc para cerrarlos.
+
+La paleta envuelve las respuestas largas; PgUp/PgDn y Ctrl+Home/End recorren
+la salida completa. Si una descarga falla, conserva el tramo final del
+diagnóstico de yt-dlp para poder leer la causa al regresar a la TUI.
 
 Las filas usan `>` para la selección y `▶` para la pista actual; ambos pueden
 coincidir y siguen visibles sin color. La ficha de «Ahora suena» muestra hasta

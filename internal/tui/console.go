@@ -50,6 +50,7 @@ type conMsg struct {
 // fallo abre la consola para conservar el error; los archivos obtenidos abren
 // la fase local del selector y esperan al escaneo antes de ofrecer acciones.
 type getDoneMsg struct {
+	output    []string
 	err       error
 	fromModal bool
 	// dir/before son la foto del destino ANTES de la descarga: el código de
@@ -70,8 +71,9 @@ type getDoneMsg struct {
 // lo que conGetPlaylist decidió antes de lanzar el proceso tiene que viajar
 // en el mensaje hasta conGetPlaylistFinish.
 type getPlaylistDoneMsg struct {
-	err  error
-	plan getter.PlaylistPlan
+	output []string
+	err    error
+	plan   getter.PlaylistPlan
 }
 
 // updRunMsg trae el instalador listo para correr (hay release nuevo);
@@ -210,8 +212,8 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// la propia auditoría, no chocan con eso. Valor a propósito más
 		// grande que cualquier maxScroll real: el propio render() lo acota
 		// (ver su "if m.conScroll > maxScroll"), así que no hace falta
-		// duplicar acá el cálculo de maxRows/ancho.
-		m.conScroll = len(m.conLines)
+		// duplicar acá el presupuesto vertical. Contamos filas envueltas.
+		m.conScroll = len(m.consoleOutput(pickerWidth(m.width) - 2))
 		return m, nil
 	case "ctrl+end":
 		m.conScroll = 0
@@ -699,8 +701,8 @@ func (m *Model) startGet(spec string, fromModal bool) (tea.Cmd, error) {
 	m.getGen++ // una nueva descarga invalida la presentación pendiente de otra
 	cmd := getter.Command(getter.Opts{Dir: dir, Spec: spec,
 		Cookies: m.cfg.Ytdlp.CookiesFromBrowser, PathsFile: pathsFile})
-	return tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return getDoneMsg{err: err, fromModal: fromModal, dir: dir, before: before, pathsFile: pathsFile}
+	return execDownload(cmd, func(err error, output []string) tea.Msg {
+		return getDoneMsg{err: err, output: output, fromModal: fromModal, dir: dir, before: before, pathsFile: pathsFile}
 	}), nil
 }
 
@@ -730,8 +732,8 @@ func (m *Model) conGetPlaylist(args []string) (tea.Model, tea.Cmd) {
 	m.conPrint(m.st.dim.Render(i18n.Tf("cli.get_pl_start", plan.Opts.Spec, plan.MusicDir)))
 	m.getGen++ // no mostrar una playlist anterior mientras termina esta
 	cmd := getter.Command(plan.Opts)
-	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
-		return getPlaylistDoneMsg{err: err, plan: plan}
+	return m, execDownload(cmd, func(err error, output []string) tea.Msg {
+		return getPlaylistDoneMsg{err: err, output: output, plan: plan}
 	})
 }
 
@@ -1089,7 +1091,7 @@ func (m *Model) consoleView() string {
 	maxRows = max(1, maxRows)
 	lines = append(lines, suggestions...)
 
-	out := m.conLines
+	out := m.consoleOutput(innerW)
 	maxScroll := len(out) - maxRows
 	if maxScroll < 0 {
 		maxScroll = 0

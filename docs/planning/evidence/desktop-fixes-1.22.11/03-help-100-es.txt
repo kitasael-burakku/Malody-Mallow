@@ -1,0 +1,28 @@
+  ╭─ Ayuda ─────────────────────────────────────────────────────────────────── filas 1–22 de 66 ─╮  
+  │Atajos por tarea · teclas según tu configuración                                              │  
+  │                                                                                              │  
+  │╭──────────────────────────────────────────────────────────────────────────────────────────╮  │  
+  ││ Reproducción                                                                             │  │  
+  ││                                                                                          │  │  
+  ││ espacio       reproducir / pausar                                                        │  │  
+  ││ n / p         siguiente / anterior                                                       │  │  
+  ││ + / -         volumen ±5%                                                                │  │  
+  ││ right / left  avanzar / retroceder 5 segundos                                            │  │  
+  ││ s / r         shuffle / repeat                                                           │  │  
+  │╰──────────────────────────────────────────────────────────────────────────────────────────╯  │  
+  │                                                                                              │  
+  │╭──────────────────────────────────────────────────────────────────────────────────────────╮  │  
+  ││ Biblioteca y navegación                                                                  │  │  
+  ││                                                                                          │  │  
+  ││ tab                 cambiar de panel                                                     │  │  
+  ││ > / ▶               selección / pista actual (pueden coincidir)                          │  │  
+  ││ enter               reproducir / expandir                                                │  │  
+  ││ /                   filtrar este panel: a: al: t: f: -palabra                            │  │  
+  ││ ctrl+o              buscar canciones: a:artista al:álbum t:título f:archivo              │  │  
+  ││ h j k l             cola: mover · biblioteca: plegar / expandir                          │  │  
+  ││ gg/G ctrl+d/u       inicio / final · media página                                        │  │  
+  ││ pgup/pgdn home/end  avanzar/retroceder página · inicio / final                           │  │  
+  │╰──────────────────────────────────────────────────────────────────────────────────────────╯  │  
+  │                                                                                              │  
+  │esc cierra · ↑/↓ pgup/pgdn desplazan                                                          │  
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯

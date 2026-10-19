@@ -1,0 +1,53 @@
+{
+  "track": {
+    "before": {
+      "id": 141,
+      "path": "/home/kitasa-elburakku/Music/Ed Helms, The Lorax Singers - How Bad Can I Be？.mp3",
+      "title": "How Bad Can I Be?",
+      "artist": "Ed Helms, The Lorax Singers",
+      "album": "Dr. Seuss' The Lorax - Original Songs From The Motion Picture",
+      "genre": "Music",
+      "duration": 172.16
+    },
+    "after": {
+      "id": 141,
+      "path": "/home/kitasa-elburakku/Music/Ed Helms, The Lorax Singers - How Bad Can I Be？.mp3",
+      "title": "How Bad Can I Be?",
+      "artist": "Ed Helms, The Lorax Singers",
+      "album": "Dr. Seuss' The Lorax - Original Songs From The Motion Picture",
+      "genre": "Music",
+      "duration": 172.16
+    },
+    "same": true
+  },
+  "paused": {
+    "before": true,
+    "after": true,
+    "same": true
+  },
+  "position": {
+    "before": 18.261312,
+    "after": 18.261312,
+    "same": true
+  },
+  "queue_len": {
+    "before": 18,
+    "after": 18,
+    "same": true
+  },
+  "volume": {
+    "before": 100,
+    "after": 100,
+    "same": true
+  },
+  "shuffle": {
+    "before": true,
+    "after": true,
+    "same": true
+  },
+  "repeat": {
+    "before": "all",
+    "after": "all",
+    "same": true
+  }
+}

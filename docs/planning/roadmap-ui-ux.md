@@ -390,6 +390,15 @@ validez entre clientes y demonio; conserva el último componente.
 Cierre y límites en [ingeniería](../history/roadmap-1.17.md#v12210-2026-10-19--ux-09-deshacer-una-eliminación)
 y [evidencia reproducible](evidence/ux-09-1.22.10/README.md).
 
+## Ajustes tras la revisión de escritorio — 1.22.11
+
+Encargo adicional explícito del dueño, posterior a UX-09: corregir D1/D2/D3 de
+la revisión y hacer más clara la ayuda mostrada en su captura. Implementado y
+verificado; no añade otra entrega UX numerada. Ayuda en seis tarjetas, dos
+columnas adaptables, salida de paleta completa, diagnóstico de descarga retenido
+y aviso mínimo visible. [Cierre y evidencia](evidence/desktop-fixes-1.22.11/README.md).
+Commit/tag pendientes, junto con UX-09; no se autorizó publicación ni despliegue.
+
 ## Fuera de alcance y cierre de decisiones
 
 No se reabren ratón, Matugen, miniaturas remotas, marquesinas, `playlist move`,

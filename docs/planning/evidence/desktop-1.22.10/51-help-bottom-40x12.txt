@@ -1,0 +1,12 @@
+╭─ Ayuda ──────────────────────────────╮
+│  agregar selección a una playlist    │
+│ctrl+s                                │
+│  guardar toda la cola como playlist  │
+│  nueva (escribir nombre)             │
+│?                                     │
+│  ayuda                               │
+│q                                     │
+│  salir                               │
+│                                      │
+│esc cierra · ↑/↓ pgup/pgdn desplazan  │
+╰──────────────────────────────────────╯

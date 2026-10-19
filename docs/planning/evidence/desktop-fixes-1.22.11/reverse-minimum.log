@@ -1,0 +1,6 @@
+--- FAIL: TestDesktopMinimumNoticeKeepsDimensions (0.00s)
+    desktop_polish_test.go:76: fila 0: 33 celdas, máximo 20
+    desktop_polish_test.go:76: fila 0: 36 celdas, máximo 20
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL

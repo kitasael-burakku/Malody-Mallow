@@ -144,7 +144,7 @@ type Model struct {
 	conHistory   []string
 	conHistIdx   int
 	conHistDraft string
-	// conScroll: líneas de salida scrolleadas hacia arriba desde el fondo
+	// conScroll: filas visuales de salida desplazadas desde el fondo
 	// (T28 de la auditoría 2026-07-31). 0 = mostrando lo último; sin esto un
 	// search/queue largo perdía las primeras líneas sin aviso ni forma de
 	// volver a verlas. El clamp de verdad vive en consoleView(), que conoce
@@ -742,6 +742,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyDownloadIndexed(msg)
 
 	case getPlaylistDoneMsg:
+		if msg.err != nil {
+			m.printDownloadOutput(msg.output)
+		}
 		// yt-dlp sale con código != 0 ante CUALQUIER ítem privado/borrado/
 		// bloqueado por región, que en playlists reales de YouTube es la
 		// norma y no la excepción. Cortar acá dejaba huérfano en disco todo

@@ -1,0 +1,91 @@
+func (m *Model) helpView() string {
+	// Las filas salen de HelpRows, compartida con la sección de atajos de
+	// `maly -h`: un atajo nuevo aparece en los dos lados o en ninguno.
+	rows := HelpRows(m.keys)
+	// Columna de teclas a la medida de la más ancha, en vez de un ancho fijo:
+	// las teclas son configurables ([keys] del usuario) y "pgup/pgdn
+	// home/end" (fila agregada después del 14 original) ya lo superaba —
+	// padTo no acorta, así que esa fila quedaba pegada a su descripción sin
+	// separación (auditoría de UX post-1.12.0). El modal ya agranda la caja
+	// al contenido (ver el cálculo de w más abajo), así que no hay tope que
+	// respetar acá.
+	labelW := 0
+	for _, r := range rows {
+		if kw := lipgloss.Width(r[0]); kw > labelW {
+			labelW = kw
+		}
+	}
+	// El ancho se elige antes de envolver; nunca se pierden descripciones
+	// detrás de una elipsis. Las teclas largas pasan a una fila propia.
+	w := 50
+	for _, r := range rows {
+		w = max(w, labelW+lipgloss.Width(r[1])+5)
+	}
+	w = min(w, m.width)
+	innerW := w - 2
+	var content []string
+	for _, r := range rows {
+		if r[0] == "" {
+			content = append(content, styledLines(r[1], innerW, 10, m.st.accent.Bold(true))...)
+			continue
+		}
+		if labelW+4 > innerW/2 {
+			content = append(content, styledLines(r[0], innerW, 10, m.st.accent)...)
+			for _, l := range wrappedLines(r[1], innerW-2, 20) {
+				content = append(content, m.st.text.Render("  "+l))
+			}
+		} else {
+			for i, l := range wrappedLines(r[1], innerW-labelW-3, 20) {
+				key := ""
+				if i == 0 {
+					key = r[0]
+				}
+				content = append(content, "  "+m.st.accent.Render(padTo(key, labelW))+" "+m.st.text.Render(l))
+			}
+		}
+	}
+	closeHint, scrollHint := clip(i18n.T("help.close"), innerW), clip(i18n.T("help.scroll_hint"), innerW)
+	// Alto a la medida del contenido, pero sin superar la terminal.
+	// +4 = línea en blanco + hint (siempre pegados al fondo, como el pie de
+	// la app) + los dos bordes del panel.
+	h := len(content) + 4
+	if h > m.height {
+		h = m.height
+	}
+	innerH := h - 2
+	// Presupuesto de filas de atajos: innerH menos la blanco y el hint, que
+	// no se scrollean — siempre visibles, igual que un pie de página.
+	contentBudget := innerH - 2
+	if contentBudget < 1 {
+		contentBudget = 1
+	}
+	// Antes esto truncaba en silencio (panel() se queda con las primeras
+	// filas y descarta el resto sin avisar): en terminales chicas se perdían
+	// justo los atajos menos obvios (vim nav, paleta, ahora suena…) sin
+	// ningún indicador. Ahora scrollea con las mismas teclas que ya usa
+	// "Ahora suena" (arriba/abajo, pgup/pgdown), clampado igual que
+	// npScroll, y el hint del fondo avisa cuando hay más (auditoría
+	// 2026-07-31, hallazgo T2).
+	truncated := len(content) > contentBudget
+	if !truncated {
+		m.helpScroll = 0
+	} else {
+		if maxScroll := len(content) - contentBudget; m.helpScroll > maxScroll {
+			m.helpScroll = maxScroll
+		}
+		if m.helpScroll < 0 {
+			m.helpScroll = 0
+		}
+	}
+	visible := content
+	if truncated {
+		visible = content[m.helpScroll : m.helpScroll+contentBudget]
+	}
+	hint := closeHint
+	if truncated {
+		hint = scrollHint
+	}
+	lines := append(append([]string{}, visible...), "", m.st.dim.Render(hint))
+	box := m.st.panel(i18n.T("tui.help_title"), lines, w, h, true)
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+}

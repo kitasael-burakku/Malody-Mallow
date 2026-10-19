@@ -1,0 +1,9 @@
+{
+  "base_head": "7d68623d2e2266b0fb94fe2831597b1600d9a9ed",
+  "base_tree_version": "1.22.10 with uncommitted UX-09",
+  "target": "1.22.11",
+  "initial_visual_binary_sha256": "c82776ec2ce0c688306f9caeadf63964a4bab2c708bb5d7c6dec0cf8d13661b9",
+  "final_binary_sha256": "06fae2912d7be95f4fa70f4e69c8fd61576293aac0e75e3e388d78850b8bf9bf",
+  "final_binary": "/tmp/maly-polish-after",
+  "CGO_ENABLED": "0"
+}

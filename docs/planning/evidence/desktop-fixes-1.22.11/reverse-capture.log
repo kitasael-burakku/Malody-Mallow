@@ -1,0 +1,5 @@
+--- FAIL: TestDesktopDownloadExecRetainsSafeDiagnostics (0.00s)
+    desktop_polish_test.go:126: no conservó diagnóstico []
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

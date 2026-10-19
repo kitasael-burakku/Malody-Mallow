@@ -147,3 +147,10 @@ al demonio (ver [protocolo](daemon.md)), no a una composición add/move del clie
 con la consola. Pide al demonio la última eliminación disponible (la operación
 no pertenece al cliente que la hizo); la TUI usa además una precondición con
 el token observado. Ver [protocolo y caducidad](daemon.md).
+
+
+**1.22.11:** `maly -h` comparte los seis grupos de `HelpRows` e indenta cada
+continuación de una descripción. La CLI de descarga mantiene la salida directa
+de yt-dlp; el mensaje final compartido no remite a una salida «arriba» que la
+TUI pudiera haber ocultado. La TUI conserva además el tramo final saneado en
+su paleta, según la ficha de TUI.

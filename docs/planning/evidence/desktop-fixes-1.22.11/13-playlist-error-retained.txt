@@ -1,0 +1,29 @@
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                                                                                                                                            
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮                        
+                       │❯ command… e.g. maly next                                                                  │                        
+                       │───────────────────────────────────────────────────────────────────────────────────────────│                        
+                       │❯ get playlist http://127.0.0.1:18779/NoExiste.mp3 QAfallo                                 │                        
+                       │Downloading playlist http://127.0.0.1:18779/NoExiste.mp3 → /tmp/maly-polish-               │                        
+                       │live/sandbox/music                                                                         │                        
+                       │Last output from yt-dlp:                                                                   │                        
+                       │[generic] Extracting URL: http://127.0.0.1:18779/NoExiste.mp3                              │                        
+                       │[generic] NoExiste: Downloading webpage                                                    │                        
+                       │ERROR: [generic] NoExiste: Unable to download webpage: HTTP Error 404: File not found      │                        
+                       │(caused by <HTTPError 404: File not found>)                                                │                        
+                       │yt-dlp reported a failure (exit status 1) — continuing with whatever did download; see its │                        
+                       │output above                                                                               │                        
+                       │Updating the library ...                                                                   │                        
+                       │no tracks from /tmp/maly-polish-live/sandbox/music/QAfallo ended up in the library         │                        
+                       │esc closes · enter runs · tab/shift+tab choose · ↑↓ history · pgup/pgdn output             │                        
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯

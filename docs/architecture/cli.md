@@ -5,8 +5,11 @@ Fuente única: esta ficha. `CLAUDE.md` solo lleva el resumen.
 ## `cmd/maly`
 
 CLI. `commands.go` tiene la **tabla de comandos**: fuente única de
-verdad para dispatch, help y completions de shell (bash/fish/zsh vía
-`__complete` oculto). `tui.go` decide en `startOrAttach` si la TUI embebe el
+verdad para dispatch, secciones, aliases y callbacks de completado de shell
+(bash/fish/zsh vía `__complete` oculto). Nombres, argumentos localizados y
+claves de descripción se comparten con la TUI desde `internal/commandmeta`;
+help y completado leen esos metadatos, incluidos los subcomandos de playlist/get.
+Los tests contrastan gramática esperada, dispatch real y paridad. `tui.go` decide en `startOrAttach` si la TUI embebe el
 demonio o entra como cliente: ante `ErrAlreadyRunning` NO se rinde —el flock
 ya dijo que hay otro— sino que espera hasta 8 s a que conteste
 (`waitForDaemon`), porque un demonio arrancando tarda hasta 5 s esperando a

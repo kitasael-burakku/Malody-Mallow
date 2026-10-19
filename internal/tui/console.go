@@ -14,6 +14,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"maly/internal/commandmeta"
 	"maly/internal/config"
 	"maly/internal/getter"
 	"maly/internal/i18n"
@@ -87,6 +88,8 @@ const conHistMax = 50
 
 func (m *Model) openConsole() tea.Cmd {
 	m.overlay = ovConsole
+	m.conChoice = ""
+	m.conPlConfirm = ""
 	m.conInput = textinput.New()
 	m.conInput.Prompt = "❯ "
 	m.conInput.PromptStyle = m.st.accent
@@ -116,13 +119,34 @@ func (m *Model) conErr(text string) {
 
 func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc", m.keys["palette"]:
+	case "esc":
+		if m.conChoice != "" {
+			m.conChoice = ""
+			return m, nil
+		}
+		if name := m.conPlConfirm; name != "" {
+			m.conPlConfirm = ""
+			m.conInput.SetValue("")
+			m.conPrint(m.st.dim.Render(i18n.Tf("pl.delete_kept", name)))
+			return m, nil
+		}
 		m.overlay = ovNone
 		return m, nil
+	case m.keys["palette"]:
+		m.conChoice = ""
+		m.conPlConfirm = ""
+		m.overlay = ovNone
+		return m, nil
+	case "tab", "shift+tab":
+		m.conSelectSuggestion(msg.String() == "shift+tab")
+		return m, nil
 	case "enter":
+		if m.conAcceptSuggestion() {
+			return m, nil
+		}
 		line := strings.TrimSpace(m.conInput.Value())
 		m.conInput.SetValue("")
-		if line == "" {
+		if line == "" && m.conPlConfirm == "" {
 			return m, nil
 		}
 		// Volver siempre al fondo al ejecutar un comando nuevo: si el
@@ -138,6 +162,7 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.conHistIdx = len(m.conHistory)
 		return m.execConsole(line)
 	case "up":
+		m.conChoice = ""
 		if len(m.conHistory) == 0 {
 			return m, nil
 		}
@@ -151,6 +176,7 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.conInput.CursorEnd()
 		return m, nil
 	case "down":
+		m.conChoice = ""
 		if len(m.conHistory) == 0 || m.conHistIdx >= len(m.conHistory) {
 			return m, nil
 		}
@@ -185,30 +211,23 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.conScroll = 0
 		return m, nil
 	}
+	m.conChoice = ""
 	var cmd tea.Cmd
 	m.conInput, cmd = m.conInput.Update(msg)
 	return m, cmd
 }
 
-// ConsoleCommands son los nombres que execConsole acepta — mantener esta
-// lista al día con el switch de abajo (nombres primarios, sin alias como
-// "-h"). cmd/maly la usa para el test de paridad contra la tabla `commands`
-// de la CLI (ver commands_test.go: TestConsoleParityConCLI): sin esa red, el
-// switch podía derivar de la tabla real sin que ningún test lo notara — el
-// gap real que la destapó fue `remove`, que existía en la CLI y no acá hasta
-// que se cerró junto con este test. El propio paquete tui verifica además
-// que cada nombre de ESTA lista es aceptado de verdad por el switch
-// (TestConsoleCommandsSonReales en console_test.go): sin eso, la lista sería
-// una tercera copia a mano y el test de cmd/maly compararía copia contra
-// copia.
-var ConsoleCommands = []string{
-	"help", "quit", "exit", "kill", "cls", "viz",
-	"play", "pause", "toggle", "stop", "next", "prev", "clear",
-	"add", "jump", "move", "remove", "vol", "seek", "shuffle", "repeat",
-	"status", "queue", "search", "select", "playlist", "get",
-	"controls", "logo", "lang", "info", "doctor", "config", "version", "update",
-	"scan", "rescan",
-}
+// ConsoleCommands deriva del catálogo compartido. Los tests verifican cada
+// nombre contra el dispatch real, además de la paridad con la CLI.
+var ConsoleCommands = func() []string {
+	var names []string
+	for _, e := range commandmeta.Console() {
+		if !strings.Contains(e.Name, " ") {
+			names = append(names, e.Name)
+		}
+	}
+	return names
+}()
 
 // splitArgs parte una línea de la consola en argumentos como lo haría la
 // shell con la CLI: por espacios, salvo dentro de comillas simples o
@@ -270,6 +289,23 @@ func nonBlank(args []string) []string {
 // execConsole interpreta una línea como si fuera la CLI de maly. El prefijo
 // "maly" es opcional.
 func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
+	// Borrado de playlist pendiente de confirmar: esta guarda va ANTES del
+	// switch, y consume la línea entera pase lo que pase — igual que
+	// confirmYesNo en la CLI, que lee UNA línea y termina el comando. Una
+	// playlist armada a mano no tiene deshacer (C15/T26); la CLI y el panel
+	// ctrl+l ya confirmaban, y la consola era el tercer camino, el único que
+	// borraba de una (auditoría 2026-09-04, A-04). Wording default-no: solo
+	// sí/y confirma.
+	if name := m.conPlConfirm; name != "" {
+		m.conPlConfirm = ""
+		switch strings.ToLower(strings.TrimSpace(line)) {
+		case "s", "si", "sí", "y", "yes":
+			return m, m.conPlaylistDelete(name)
+		}
+		m.conPrint(m.st.dim.Render(i18n.Tf("pl.delete_kept", name)))
+		return m, nil
+	}
+
 	fields, err := splitArgs(line)
 	if err != nil {
 		m.conErr(err.Error())
@@ -283,23 +319,6 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	cmd, args := fields[0], fields[1:]
-
-	// Borrado de playlist pendiente de confirmar: esta guarda va ANTES del
-	// switch, y consume la línea entera pase lo que pase — igual que
-	// confirmYesNo en la CLI, que lee UNA línea y termina el comando. Una
-	// playlist armada a mano no tiene deshacer (C15/T26); la CLI y el panel
-	// ctrl+l ya confirmaban, y la consola era el tercer camino, el único que
-	// borraba de una (auditoría 2026-09-04, A-04). Wording default-no: solo
-	// sí/y confirma.
-	if name := m.conPlConfirm; name != "" {
-		m.conPlConfirm = ""
-		switch strings.ToLower(strings.Join(fields, " ")) {
-		case "s", "si", "sí", "y", "yes":
-			return m, m.conPlaylistDelete(name)
-		}
-		m.conPrint(m.st.dim.Render(i18n.Tf("pl.delete_kept", name)))
-		return m, nil
-	}
 
 	switch cmd {
 	case "help", "-h", "--help":
@@ -448,35 +467,7 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 // conHelp imprime la ayuda de la consola reutilizando las descripciones CLI.
 func (m *Model) conHelp() {
 	m.conPrint(m.st.accent.Render(i18n.T("con.help_head")))
-	rows := [][2]string{
-		{"play [q...]", i18n.T("cli.play")},
-		{"select", i18n.T("cli.select")},
-		{"pause / toggle / stop", i18n.T("cli.toggle")},
-		{"next / prev", i18n.T("cli.next") + " · " + i18n.T("cli.prev")},
-		{"jump <pos>", i18n.T("cli.jump")},
-		{"move <from> <to>", i18n.T("cli.move")},
-		{"remove <pos>", i18n.T("cli.remove")},
-		{"add <q>...", i18n.T("cli.add")},
-		{"queue / status", i18n.T("cli.queue") + " · " + i18n.T("cli.status")},
-		{"vol <0-100|+N|-N>", i18n.T("cli.vol")},
-		{"seek <+N|-N|mm:ss>", i18n.T("cli.seek")},
-		{"shuffle [on|off]", i18n.T("cli.shuffle")},
-		{"repeat [off|all|one]", i18n.T("cli.repeat")},
-		{"clear", i18n.T("cli.clear")},
-		{"scan [path]", i18n.T("cli.scan")},
-		{"search <q>", i18n.T("cli.search")},
-		{"get <url|q>", i18n.T("cli.get")},
-		{"playlist <sub> [args]", i18n.T("cli.playlist")},
-		{"controls [preset]", i18n.T("cli.controls")},
-		{"logo [hex… | default]", i18n.T("cli.logo")},
-		{"lang [en|es]", i18n.T("cli.lang_cmd")},
-		{"info", i18n.T("cli.info")},
-		{"doctor", i18n.T("cli.doctor")},
-		{"config", i18n.T("cli.config")},
-		{"version", i18n.T("cli.version_cmd")},
-		{"update", i18n.T("cli.update")},
-		{"kill", i18n.T("cli.kill")},
-	}
+
 	// clip por columna en vez de confiar en que ningún label/descripción
 	// exceda su presupuesto: padTo no acorta, solo rellena, así que una fila
 	// más ancha que su columna corría la siguiente y rompía la alineación
@@ -489,10 +480,9 @@ func (m *Model) conHelp() {
 	if descW < 0 {
 		descW = 0
 	}
-	for _, r := range rows {
-		m.conPrint(formatHelpRow(m.st, r[0], r[1], labelW, descW))
+	for _, e := range commandmeta.Console() {
+		m.conPrint(formatHelpRow(m.st, e.Usage(), i18n.T(e.DescKey), labelW, descW))
 	}
-	m.conPrint(m.st.dim.Render(i18n.T("con.help_local")))
 }
 
 // formatHelpRow arma una fila de conHelp() con clip independiente por
@@ -635,6 +625,18 @@ func (m *Model) conGet(args []string) (tea.Model, tea.Cmd) {
 	}
 	if args[0] == "playlist" {
 		return m.conGetPlaylist(args[1:])
+	}
+	if args[0] == "pick" {
+		query := strings.TrimSpace(strings.Join(args[1:], " "))
+		if query == "" {
+			m.conErr(i18n.T("cli.usage_get_pick"))
+			return m, nil
+		}
+		// Mismo buscador que Ctrl+G: elegir precede a cualquier descarga.
+		blink := m.openGet()
+		m.get.input.SetValue(query)
+		m.get.input.CursorEnd()
+		return m, tea.Batch(blink, m.runGetSearch())
 	}
 	spec := getter.Spec(strings.Join(args, " "))
 	cmd, err := m.startGet(spec, false)
@@ -1025,13 +1027,6 @@ func searchLines(st styles, resp ipc.Response) []string {
 func (m *Model) consoleView() string {
 	w := pickerWidth(m.width)
 	innerW := w - 2
-	maxRows := m.height - 10
-	if maxRows > 24 {
-		maxRows = 24
-	}
-	if maxRows < 4 {
-		maxRows = 4
-	}
 
 	// El textinput de bubbles nunca recibía Width, así que su propio scroll
 	// horizontal quedaba desactivado (handleOverflow: "Width <= 0" = sin
@@ -1048,6 +1043,24 @@ func (m *Model) consoleView() string {
 		m.conInput.Width = 0
 	}
 	lines := []string{clip(m.conInput.View(), innerW), m.st.dim.Render(strings.Repeat("─", innerW))}
+	suggestions := m.conSuggestionLines(innerW, m.height)
+	hintKey := "con.hint"
+	if m.conChoice != "" {
+		hintKey = "con.hint_select"
+	}
+	if m.conPlConfirm != "" {
+		hintKey = "con.hint_confirm"
+	}
+	hints := styledLines(i18n.T(hintKey), innerW, 3, m.st.dim)
+	// Presupuesto del modal: bordes, entrada, separador, ayudas y scan.
+	// El reparto de paneles principales sigue en computeLayout (puro).
+	maxRows := min(24, m.height-2-len(lines)-len(suggestions)-len(hints))
+	if m.status != nil && m.status.Scanning {
+		maxRows--
+	}
+	maxRows = max(1, maxRows)
+	lines = append(lines, suggestions...)
+
 	out := m.conLines
 	maxScroll := len(out) - maxRows
 	if maxScroll < 0 {
@@ -1078,7 +1091,7 @@ func (m *Model) consoleView() string {
 		}
 		lines = append(lines, m.st.accent.Render(clip(txt, innerW)))
 	}
-	lines = append(lines, styledLines(i18n.T("con.hint"), innerW, 3, m.st.dim)...)
+	lines = append(lines, hints...)
 
 	box := m.st.panel(i18n.T("con.title"), lines, w, len(lines)+2, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)

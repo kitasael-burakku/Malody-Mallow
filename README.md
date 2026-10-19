@@ -186,6 +186,17 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   pista) y la franja del visualizador.
 - **Paleta `ctrl+p`**: consola integrada de comandos (`maly next`, `vol +5`,
   `status`, `get`, `playlist`…) con la salida dentro de la propia paleta.
+  Busca por nombre o descripción en tu idioma (por ejemplo, `pl` o
+  `elimina una playlist`). Tab/Shift+Tab eligen una sugerencia con sus argumentos;
+  Enter la copia a la entrada **sin ejecutarla**. Escribe los argumentos y pulsa
+  Enter para ejecutar; también puedes escribir el comando completo directamente.
+  ↑/↓ recorren el historial y recuperan el borrador; las comillas agrupan frases.
+  PgUp/PgDn desplazan la salida, Ctrl+Home/End van al inicio/final, y Home/End
+  editan la entrada. Escape quita la selección, cancela una confirmación o cierra
+  la paleta, según el estado. `playlist delete` sigue pidiendo confirmación
+  (Enter vacío cancela); cerrar la paleta la descarta. `get pick <búsqueda>`
+  abre el mismo buscador que Ctrl+G antes de descargar. Los argumentos se
+  escriben manualmente; las sugerencias son comandos y subcomandos existentes.
 - **Selector `ctrl+o` / `maly select`**: el mismo lenguaje local de `/`
   sobre toda la biblioteca (`enter` reproduce, `tab` agrega a la cola).
 - **Panel de playlists `ctrl+l`**: gestiona tus playlists sin salir de la

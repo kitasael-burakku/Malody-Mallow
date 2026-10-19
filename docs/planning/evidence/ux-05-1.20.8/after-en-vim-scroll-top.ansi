@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮
+                       │❯ command… e.g. maly next                                                                  │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ add 'Otra dimensión' "Don't Stop"                                                        │
+                       │2 track(s) added to the queue; playing Áurea — Otra dimensión                              │
+                       │❯ play 'Otra dimensión'                                                                    │
+                       │Playing Áurea — Otra dimensión (1 queued)                                                  │
+                       │❯ pause                                                                                    │
+                       │Paused                                                                                     │
+                       │❯ help                                                                                     │
+                       │available commands:                                                                        │
+                       │  play [<query>...]     resume, or search the library and play                             │
+                       │  select                pick a track with fuzzy search and play it                         │
+                       │  pause                 pause playback                                                     │
+                       │  toggle                toggle play/pause                                                  │
+                       │  stop                  stop playback                                                      │
+                       │  next                  next track                                                         │
+                       │esc closes · enter runs · tab/shift+tab choose · ↑↓ history · pgup/pgdn output             │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

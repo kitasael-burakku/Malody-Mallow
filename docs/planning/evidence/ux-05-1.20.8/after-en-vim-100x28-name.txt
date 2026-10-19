@@ -1,0 +1,28 @@
+
+
+
+
+
+
+
+
+                 ╭─ Command Palette ──────────────────────────────────────────────╮
+                 │❯ pl                                                           …│
+                 │────────────────────────────────────────────────────────────────│
+                 │> play [<query>...]                                             │
+                 │  playlist <sub> [args]                                         │
+                 │  playlist list                                                 │
+                 │resume, or search the library and play                          │
+                 │❯ playlist delete                                               │
+                 │usage: maly playlist delete <name>                              │
+                 │esc edits · enter fills · tab/shift+tab choose · ↑↓ history     │
+                 ╰────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+

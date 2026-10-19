@@ -1,0 +1,399 @@
+console-base
+--- FAIL: TestUX05FindAndFill (0.00s)
+    --- FAIL: TestUX05FindAndFill/es/pl (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "play [<consulta>...]":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Paleta de comandos ──────────────────────────────╮              
+                         │❯ pl                                              …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc cierra · enter ejecuta · tab/shift+tab elige · │              
+                         │↑↓ historial · pgup/pgdn salida                    │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/en/pl (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "play [<query>...]":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Command Palette ─────────────────────────────────╮              
+                         │❯ pl                                              …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc closes · enter runs · tab/shift+tab choose · ↑↓│              
+                         │history · pgup/pgdn output                         │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/es/elimina_una_playlist (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist delete <nombre>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Paleta de comandos ──────────────────────────────╮              
+                         │❯ elimina una playlist                            …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc cierra · enter ejecuta · tab/shift+tab elige · │              
+                         │↑↓ historial · pgup/pgdn salida                    │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/en/delete_a_playlist (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist delete <name>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Command Palette ─────────────────────────────────╮              
+                         │❯ delete a playlist                               …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc closes · enter runs · tab/shift+tab choose · ↑↓│              
+                         │history · pgup/pgdn output                         │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/es/confirmación (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist delete <nombre>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Paleta de comandos ──────────────────────────────╮              
+                         │❯ confirmación                                    …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc cierra · enter ejecuta · tab/shift+tab elige · │              
+                         │↑↓ historial · pgup/pgdn salida                    │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/es/playlist_cr (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist create <nombre>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Paleta de comandos ──────────────────────────────╮              
+                         │❯ playlist cr                                     …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc cierra · enter ejecuta · tab/shift+tab elige · │              
+                         │↑↓ historial · pgup/pgdn salida                    │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/en/maly_playlist_cr (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist create <name>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Command Palette ─────────────────────────────────╮              
+                         │❯ maly playlist cr                                …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc closes · enter runs · tab/shift+tab choose · ↑↓│              
+                         │history · pgup/pgdn output                         │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+--- FAIL: TestUX05SelectionEditingHistory (0.00s)
+    console_suggestions_test.go:73: segunda sugerencia = ""
+--- FAIL: TestUX05ActionAndQuotes (0.00s)
+    --- FAIL: TestUX05ActionAndQuotes/agrega (0.00s)
+        console_suggestions_test.go:147: la tecla no produjo ningún comando
+    --- FAIL: TestUX05ActionAndQuotes/vol (0.00s)
+        console_suggestions_test.go:147: la tecla no produjo ningún comando
+    --- FAIL: TestUX05ActionAndQuotes/remove (0.00s)
+        console_suggestions_test.go:147: la tecla no produjo ningún comando
+    --- FAIL: TestUX05ActionAndQuotes/playlist_play (0.00s)
+        console_suggestions_test.go:147: la tecla no produjo ningún comando
+--- FAIL: TestUX05DeleteConfirmation (0.00s)
+    --- FAIL: TestUX05DeleteConfirmation/#00 (0.00s)
+        console_suggestions_test.go:224: confirmación obsoleta pendiente
+    --- FAIL: TestUX05DeleteConfirmation/' (0.00s)
+        console_suggestions_test.go:224: confirmación obsoleta pendiente
+    --- FAIL: TestUX05DeleteConfirmation/escape (0.00s)
+        console_suggestions_test.go:224: confirmación obsoleta pendiente
+    --- FAIL: TestUX05DeleteConfirmation/close (0.00s)
+        console_suggestions_test.go:224: confirmación obsoleta pendiente
+--- FAIL: TestUX05FramesAndScroll (0.00s)
+    --- FAIL: TestUX05FramesAndScroll/es (0.00s)
+        console_suggestions_test.go:268: [140 42] perdió "> playlist import":                                                                                                                                             
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                   ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮                        
+                                   │❯ playlist                                                                                …│                        
+                                   │───────────────────────────────────────────────────────────────────────────────────────────│                        
+                                   │salida-16                                                                                  │                        
+                                   │salida-17                                                                                  │                        
+                                   │salida-18                                                                                  │                        
+                                   │salida-19                                                                                  │                        
+                                   │salida-20                                                                                  │                        
+                                   │salida-21                                                                                  │                        
+                                   │salida-22                                                                                  │                        
+                                   │salida-23                                                                                  │                        
+                                   │salida-24                                                                                  │                        
+                                   │salida-25                                                                                  │                        
+                                   │salida-26                                                                                  │                        
+                                   │salida-27                                                                                  │                        
+                                   │salida-28                                                                                  │                        
+                                   │salida-29                                                                                  │                        
+                                   │salida-30                                                                                  │                        
+                                   │salida-31                                                                                  │                        
+                                   │salida-32                                                                                  │                        
+                                   │salida-33                                                                                  │                        
+                                   │salida-34                                                                                  │                        
+                                   │salida-35                                                                                  │                        
+                                   │salida-36                                                                                  │                        
+                                   │salida-37                                                                                  │                        
+                                   │salida-38                                                                                  │                        
+                                   │salida-39                                                                                  │                        
+                                   │escaneando… 17 archivos                                                                    │                        
+                                   │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │                        
+                                   ╰───────────────────────────────────────────────────────────────────────────────────────────╯                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+    --- FAIL: TestUX05FramesAndScroll/en (0.00s)
+        console_suggestions_test.go:268: [140 42] perdió "> playlist import":                                                                                                                                             
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                   ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮                        
+                                   │❯ playlist                                                                                …│                        
+                                   │───────────────────────────────────────────────────────────────────────────────────────────│                        
+                                   │salida-16                                                                                  │                        
+                                   │salida-17                                                                                  │                        
+                                   │salida-18                                                                                  │                        
+                                   │salida-19                                                                                  │                        
+                                   │salida-20                                                                                  │                        
+                                   │salida-21                                                                                  │                        
+                                   │salida-22                                                                                  │                        
+                                   │salida-23                                                                                  │                        
+                                   │salida-24                                                                                  │                        
+                                   │salida-25                                                                                  │                        
+                                   │salida-26                                                                                  │                        
+                                   │salida-27                                                                                  │                        
+                                   │salida-28                                                                                  │                        
+                                   │salida-29                                                                                  │                        
+                                   │salida-30                                                                                  │                        
+                                   │salida-31                                                                                  │                        
+                                   │salida-32                                                                                  │                        
+                                   │salida-33                                                                                  │                        
+                                   │salida-34                                                                                  │                        
+                                   │salida-35                                                                                  │                        
+                                   │salida-36                                                                                  │                        
+                                   │salida-37                                                                                  │                        
+                                   │salida-38                                                                                  │                        
+                                   │salida-39                                                                                  │                        
+                                   │scanning… 17 files                                                                         │                        
+                                   │esc closes · enter runs · tab/shift+tab choose · ↑↓ history · pgup/pgdn output             │                        
+                                   ╰───────────────────────────────────────────────────────────────────────────────────────────╯                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+                                                                                                                                                        
+--- FAIL: TestUX05SubcommandDispatch (0.00s)
+    console_suggestions_test.go:306: get pick no llegó a validación específica: ["❯ get pick" "maly get needs yt-dlp, which is not in your PATH" "install it: sudo pacman -S yt-dlp · sudo apt install yt-dlp · sudo dnf install yt-dlp · pipx install yt-dlp"]
+--- FAIL: TestUX05GetPickSearchesBeforeDownload (0.00s)
+    console_suggestions_test.go:326: no abrió búsqueda: overlay=2 query=""
+FAIL
+FAIL	maly/internal/tui	0.007s
+FAIL
+
+metadata-without-args
+--- FAIL: TestMetadataContracts (0.00s)
+    commands_test.go:46: es: "play", quería "play [<consulta>...]"
+    commands_test.go:46: en: "play", quería "play [<query>...]"
+    commands_test.go:46: es: "add", quería "add <consulta|ruta>..."
+    commands_test.go:46: en: "add", quería "add <query|path>..."
+    commands_test.go:46: en: "remove", quería "remove <pos>"
+    commands_test.go:46: es: "remove", quería "remove <pos>"
+    commands_test.go:46: en: "vol", quería "vol <0-100|+N|-N>"
+    commands_test.go:46: es: "vol", quería "vol <0-100|+N|-N>"
+    commands_test.go:46: en: "playlist delete", quería "playlist delete <name>"
+    commands_test.go:46: es: "playlist delete", quería "playlist delete <nombre>"
+    commands_test.go:46: en: "playlist add", quería "playlist add <name> <query>..."
+    commands_test.go:46: es: "playlist add", quería "playlist add <nombre> <consulta>..."
+    commands_test.go:46: en: "playlist import", quería "playlist import <file> [<name>]"
+    commands_test.go:46: es: "playlist import", quería "playlist import <archivo> [<nombre>]"
+    commands_test.go:46: en: "get pick", quería "get pick <search>"
+    commands_test.go:46: es: "get pick", quería "get pick <búsqueda>"
+FAIL
+FAIL	maly/internal/commandmeta	0.002s
+--- FAIL: TestUX05CommandMetadataAndCompletion (0.00s)
+    commands_test.go:158: ayuda en sin "play [<query>...]"
+    commands_test.go:158: ayuda es sin "play [<consulta>...]"
+FAIL
+FAIL	maly/cmd/maly	0.003s
+FAIL
+
+names-only
+--- FAIL: TestUX05FindAndFill (0.00s)
+    --- FAIL: TestUX05FindAndFill/es/elimina_una_playlist (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist delete <nombre>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Paleta de comandos ──────────────────────────────╮              
+                         │❯ elimina una playlist                            …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc cierra · enter ejecuta · tab/shift+tab elige · │              
+                         │↑↓ historial · pgup/pgdn salida                    │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/en/delete_a_playlist (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist delete <name>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Command Palette ─────────────────────────────────╮              
+                         │❯ delete a playlist                               …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc closes · enter runs · tab/shift+tab choose · ↑↓│              
+                         │history · pgup/pgdn output                         │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+    --- FAIL: TestUX05FindAndFill/es/confirmación (0.00s)
+        console_suggestions_test.go:47: faltan sugerencia/argumentos "playlist delete <nombre>":                                                                                 
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                         ╭─ Paleta de comandos ──────────────────────────────╮              
+                         │❯ confirmación                                    …│              
+                         │───────────────────────────────────────────────────│              
+                         │esc cierra · enter ejecuta · tab/shift+tab elige · │              
+                         │↑↓ historial · pgup/pgdn salida                    │              
+                         ╰───────────────────────────────────────────────────╯              
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+                                                                                            
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

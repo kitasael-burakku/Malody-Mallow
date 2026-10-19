@@ -2,6 +2,71 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.20.8 (2026-10-18) — UX-05: paleta con sugerencias
+
+**Estado:** implementada y verificada en el árbol de trabajo. Commit/tag
+pendientes de autorización de cierre. Sin push, PKGBUILD ni despliegue local.
+[Aceptación](../planning/roadmap-ui-ux.md#ux-05--paleta-con-sugerencias-seleccionables)
+y [evidencia reproducible](../planning/evidence/ux-05-1.20.8/README.md).
+
+**Base y reproducción.** `main` limpio en `c8c5cf0` (cierre documental posterior
+a UX-04 `fb0db1b`), const 1.19.8, último tag local v1.19.5. No se consultó el
+remoto. En tmux 80×24/es, `pl` + Tab no ofrecía ni rellenaba sugerencias; `help`
+e historial sí funcionaban. Copias exactas antes de editar y XDG de prueba.
+
+**Antes → después.** La consola permite descubrir acciones por nombre o
+descripción localizada, incluidas operaciones de playlists y `get`. Comparte
+metadatos mínimos con ayuda y completado de shell en `internal/commandmeta`;
+se retiraron las listas manuales de `ConsoleCommands` y ayuda de consola,
+derivándolas del catálogo. El dispatch conserva sus responsabilidades en cada
+cliente. Los tests comprueban sintaxis esperada y ejecución real además de paridad.
+
+Tab/Shift+Tab seleccionan, Enter rellena sin ejecutar ni insertar argumentos
+ficticios; el siguiente Enter usa las validaciones existentes. ↑/↓ mantienen
+historial/borrador; Escape retira selección, cancela confirmación o cierra.
+Cerrar la paleta y Enter vacío descartan confirmaciones. A 40×12 se muestra
+una sugerencia; a tamaños mayores hasta tres, con descripción, marcador textual
+y presupuesto de salida/ayudas. Los argumentos se escriben manualmente. No se
+extrajo el dispatch, añadió red propia ni adelantó UX-06. `computeLayout` sigue
+puro y no cambia; tampoco VS15, metadatos/carátulas ni filtros de UX-04.
+
+**Hallazgo al verificar, no al comparar listas.** `get pick` existía en la CLI
+pero la consola lo enviaba como consulta de descarga «pick …». Se corrigió la
+paridad reutilizando el buscador de Ctrl+G. El test ejecuta yt-dlp simulado,
+observa `--dump-json`/`ytsearch10:Otra dimensión`, recibe el resultado y comprueba
+que no se preparó una descarga. No acredita búsqueda ni descarga real.
+
+**Versión 1.19.8 → 1.20.8, cambio grande.** Coordina un recorrido nuevo de
+selección, edición, historial y confirmaciones. Se incrementa el central y se
+conserva el último componente según releases; la corrección de paridad queda
+dentro del alcance de los comandos sugeridos, sin iniciar UX-07.
+
+**Verificación.** Tres variantes compilables fallan por el defecto real:
+console.go de la base, metadatos sin argumentos en ambos consumidores y búsqueda
+solo por nombres. Restauración siempre con `cp`, pruebas verdes. Las pruebas
+capturan IPC y verifican playlists en SQLite. Build sin CGo, vet, suite sin CGo
+y race pasan: 18 paquetes y 777 casos/subcasos por suite, cero fallos y cero
+saltos; mpv disponible, audio nulo y bus privado. gofmt y diff limpios.
+
+La matriz real cubre es/en, cuatro tamaños con regreso al grande,
+default/vim/override Ctrl+Y, color/NO_COLOR, demonio embebido y servicio privado.
+Comprueba rutas/orden de cola, reproducción desde otra pista, pausa, historial,
+borrador, scroll, confirmaciones y refresco de playlist hacia un segundo cliente.
+Se conservan buffers texto/ANSI, sin presentarlos como capturas de escritorio.
+El primer arnés esperaba «conservada» donde se imprime «se mantiene»; también se
+corrigió una espera que confundía el eco histórico con la entrada actual.
+
+**Riesgo y vuelta atrás.** El riesgo principal era que selección o confirmación
+obsoleta enviaran otra acción; lo cubren peticiones y cambios de DB observados.
+No hay migración ni persistencia nueva. Las copias originales y el contenido de
+`c8c5cf0` permiten restaurar solo los archivos afectados con `cp`, preservando
+trabajo posterior; no se toca la biblioteca del usuario. No se ejecutó rollback.
+
+**Límites.** Sin revalidación del rasterizado/arte Kitty, contraste del escritorio,
+audio audible ni descarga real. El binario de prueba no sustituye el instalado.
+Commit/tag esperan autorización; publicación, empaquetado y despliegue siguen
+pendientes. UX-06 no iniciada.
+
 ## Sobre 1.19.8 (2026-10-18) — cierre de sesión y pausa
 
 El dueño autoriza commitear UX-04 y **pausa el trabajo por hoy**. Queda en

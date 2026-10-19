@@ -100,8 +100,7 @@ func TestConsoleViewLongInputNoOverflow(t *testing.T) {
 
 // TestConHelpNoOverflow cubre el bug reportado: `?`/`help` dentro de la
 // consola mostraba filas (get, playlist) más anchas que la caja, rompiendo
-// el borde derecho. El label de "get" vuelve a su forma corta (con.
-// help_local ya menciona la forma playlist aparte) y cada fila se clipea
+// el borde derecho. La forma playlist tiene una fila propia y cada fila se clipea
 // por columna, así que ninguna — ni siquiera con una descripción tan larga
 // como la de playlist — puede desbordar (auditoría de UX post-1.12.0).
 func TestConHelpNoOverflow(t *testing.T) {
@@ -115,7 +114,7 @@ func TestConHelpNoOverflow(t *testing.T) {
 
 	var getRow string
 	for _, l := range m.conLines {
-		if strings.Contains(l, "get <url|q>") {
+		if strings.Contains(l, "get <url|query>") {
 			getRow = l
 			break
 		}
@@ -124,7 +123,7 @@ func TestConHelpNoOverflow(t *testing.T) {
 		t.Fatalf("no encontré la fila de get, salida: %q", m.conLines)
 	}
 	if strings.Contains(getRow, "playlist") {
-		t.Errorf("la forma playlist ya no debía estar en la fila de get (vive en con.help_local aparte): %q", getRow)
+		t.Errorf("la forma playlist ya no debía estar en la fila de get (tiene fila propia): %q", getRow)
 	}
 }
 

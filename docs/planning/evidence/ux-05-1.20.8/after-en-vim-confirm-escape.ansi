@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮
+                       │❯ command… e.g. maly next                                                                  │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │  doctor                check that everything maly needs is in place                       │
+                       │  config                show the configuration currently in effect                         │
+                       │  update                check for a new release and update maly                            │
+                       │  kill                  stop the daemon (from the TUI: also closes it)                     │
+                       │  help                  show this help                                                     │
+                       │  version               show version (and the running daemon's)                            │
+                       │  quit                  close the TUI                                                      │
+                       │  exit                  close the TUI                                                      │
+                       │  cls                   clear console output                                               │
+                       │  viz                   toggle visualizer                                                  │
+                       │  rescan [<path>]       (re)scan the music library                                         │
+                       │  playlist list         list playlists                                                     │
+                       │  playlist show <name>  show playlist tracks                                               │
+                       │  playlist create <name…create a playlist                                                  │
+                       │  playlist delete <name…delete a playlist (confirmation required)                          │
+                       │  playlist add <name> <…add songs to a playlist                                            │
+                       │  playlist remove <name…remove a song from a playlist                                      │
+                       │  playlist play <name>  play a playlist                                                    │
+                       │  playlist export <name…export playlist to M3U                                             │
+                       │  playlist import <file…import playlist from M3U                                           │
+                       │  get pick <search>     search and choose a download                                       │
+                       │  get playlist <url> [<…download a playlist                                                │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │delete playlist "Mi lista"? this can't be undone — type y to confirm, anything else cancel…│
+                       │esc cancels · y + enter: yes · empty enter: no                                             │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

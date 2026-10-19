@@ -1,0 +1,12 @@
+  ╭─ Command Palette ────────────────╮
+  │❯ delete a playlist              …│
+  │──────────────────────────────────│
+  │> playlist delete <name>          │
+  │delete a playlist (confirmation r…│
+  │❯ playlist delete                 │
+  │usage: maly playlist delete <name…│
+  │❯ playlist delete                 │
+  │usage: maly playlist delete <name…│
+  │esc edits · enter fills ·         │
+  │tab/shift+tab choose · ↑↓ history │
+  ╰──────────────────────────────────╯

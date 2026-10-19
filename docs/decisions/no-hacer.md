@@ -132,7 +132,8 @@ entrada: un resultado real trae el separador dentro del propio título.
   aceptó la ruptura: una frase va entre comillas.
   → `docs/architecture/cli.md` (consultas en lote)
 - **La consola ctrl+p nunca fue espejo estricto de la CLI.** Tiene `cls`,
-  `viz`, `logo` y `quit`, y le faltan `select` y `completions`. Lo que sí es
+  `viz`, `quit`/`exit` y `rescan`; no ofrece `daemon` ni el soporte de shell
+  (`completions`/`__complete`). `select` sí está implementado. Lo que sí es
   obligatorio es la **paridad de los comandos que existen en ambos lados**, que
   la cuida `ConsoleCommands` + sus dos tests — el gap que dejó pasar A-04.
 - **`ctrl+g` y las demás PANTALLAS no entran en `ConsoleCommands`**: son

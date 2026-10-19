@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮
+                       │❯ comando… p. ej. maly next                                                                │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │❯ playlist delete                                                                          │
+                       │uso: maly playlist delete <nombre>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │uso: maly playlist delete <nombre>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │uso: maly playlist delete <nombre>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │uso: maly playlist delete <nombre>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │uso: maly playlist delete <nombre>                                                         │
+                       │❯ add 'Otra dimensión' "Don't Stop"                                                        │
+                       │2 pista(s) agregadas a la cola; reproduciendo Áurea — Otra dimensión                       │
+                       │❯ play 'Otra dimensión'                                                                    │
+                       │Reproduciendo Áurea — Otra dimensión (1 en cola)                                           │
+                       │❯ pause                                                                                    │
+                       │Pausado                                                                                    │
+                       │❯ help                                                                                     │
+                       │comandos disponibles:                                                                      │
+                       │  play [<consulta>...]  reanuda; con consultas busca y reproduce                           │
+                       │  select                elige una canción con búsqueda fuzzy y reprodúcela                 │
+                       │  pause                 pausa la reproducción                                              │
+                       │  toggle                alterna play/pausa                                                 │
+                       │  stop                  detiene la reproducción                                            │
+                       │  next                  pista siguiente                                                    │
+                       │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

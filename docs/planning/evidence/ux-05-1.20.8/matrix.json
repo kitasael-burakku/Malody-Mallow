@@ -1,0 +1,194 @@
+[
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "size": [
+      100,
+      28
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "size": [
+      80,
+      24
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "size": [
+      40,
+      12
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "default",
+    "queue_paths": [
+      "/tmp/mu5-z3sqyr7_/default/music/0.flac",
+      "/tmp/mu5-z3sqyr7_/default/music/1.flac"
+    ],
+    "played_path": "/tmp/mu5-z3sqyr7_/default/music/0.flac",
+    "paused": true,
+    "history_draft_scroll": true,
+    "delete_cancel_empty_no_yes": true,
+    "service": false
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "en",
+    "profile": "vim",
+    "queue_paths": [
+      "/tmp/mu5-z3sqyr7_/vim/music/0.flac",
+      "/tmp/mu5-z3sqyr7_/vim/music/1.flac"
+    ],
+    "played_path": "/tmp/mu5-z3sqyr7_/vim/music/0.flac",
+    "paused": true,
+    "history_draft_scroll": true,
+    "delete_cancel_empty_no_yes": true,
+    "service": false
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "selection_fill_invalid_escape": true
+  },
+  {
+    "language": "es",
+    "profile": "override",
+    "queue_paths": [
+      "/tmp/mu5-z3sqyr7_/override/music/0.flac",
+      "/tmp/mu5-z3sqyr7_/override/music/1.flac"
+    ],
+    "played_path": "/tmp/mu5-z3sqyr7_/override/music/0.flac",
+    "paused": true,
+    "history_draft_scroll": true,
+    "delete_cancel_empty_no_yes": true,
+    "service": true
+  },
+  {
+    "two_clients_playlist_refresh": true
+  }
+]

@@ -7,6 +7,17 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.20.8 — 2026-10-18 (pendiente de cierre y publicación)
+
+La paleta Ctrl+P permite encontrar comandos por nombre o descripción localizada,
+ver sus argumentos y elegir con Tab/Shift+Tab. Enter copia la sugerencia sin
+ejecutarla; tras completar sus argumentos, otro Enter la ejecuta. Conserva
+entrada directa, historial con borrador, comillas y scroll de salida. Escape
+regresa a edición, cancela una confirmación o cierra la paleta; cerrar y Enter
+vacío descartan el borrado pendiente. Las sugerencias y ayudas se adaptan a
+ventanas pequeñas. `get pick` también abre desde la consola el buscador para
+elegir antes de descargar, igual que en la CLI.
+
 ## v1.19.8 — 2026-10-18 (pendiente de publicación)
 
 - **Consultas locales coherentes.** Ctrl+O y `maly select` comparten con `/`

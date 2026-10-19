@@ -1,0 +1,24 @@
+
+
+
+
+
+
+             ╭─ Paleta de comandos ──────────────────────────────╮
+             │❯ elimina una playlist                            …│
+             │───────────────────────────────────────────────────│
+             │> playlist delete <nombre>                         │
+             │elimina una playlist (requiere confirmación)       │
+             │❯ playlist delete                                  │
+             │uso: maly playlist delete <nombre>                 │
+             │❯ playlist delete                                  │
+             │uso: maly playlist delete <nombre>                 │
+             │esc edita · enter rellena · tab/shift+tab elige ·  │
+             │↑↓ historial                                       │
+             ╰───────────────────────────────────────────────────╯
+
+
+
+
+
+

@@ -101,7 +101,7 @@ archivo de la última columna, y es la fuente única.**
 
 | Paquete | Qué es y qué no se toca | Ficha |
 | --- | --- | --- |
-| `cmd/maly` | La CLI. `commands.go` es la **tabla de comandos**: fuente única de dispatch, help y completions. `tui.go` decide en `startOrAttach` si embeber el demonio o entrar como cliente (ante `ErrAlreadyRunning` espera hasta 8 s, no se rinde). `runScan` manda la ruta ya RESUELTA. `get.go` es el wrapper de yt-dlp. `info` lista HECHOS y sale 0; `doctor` emite VEREDICTOS y sale 1 solo si algo impide reproducir; ninguno necesita demonio ni red. Dos chequeos de `doctor` le PREGUNTAN al demonio, porque no hay otra forma de saberlo: su config en efecto y si su mpv sigue vivo. | `docs/architecture/cli.md` |
+| `cmd/maly` | La CLI. `commands.go` es la **tabla de comandos**: dispatch, help y completions, con metadatos compartidos en `internal/commandmeta`. `tui.go` decide en `startOrAttach` si embeber el demonio o entrar como cliente (ante `ErrAlreadyRunning` espera hasta 8 s, no se rinde). `runScan` manda la ruta ya RESUELTA. `get.go` es el wrapper de yt-dlp. `info` lista HECHOS y sale 0; `doctor` emite VEREDICTOS y sale 1 solo si algo impide reproducir; ninguno necesita demonio ni red. Dos chequeos de `doctor` le PREGUNTAN al demonio, porque no hay otra forma de saberlo: su config en efecto y si su mpv sigue vivo. | `docs/architecture/cli.md` |
 | `internal/ipc` | Protocolo (Request/Response/Status/TrackInfo), cliente, y `display.go` con los helpers de presentación compartidos — no re-armar "Artista — Título" a mano, ni un mensaje que salga por los tres clientes. El **deadline** de una petición lo decide el protocolo (`reqTimeout`), no el llamador: 30 s por defecto y **ninguno para `scan`**. | `docs/architecture/daemon.md` |
 | `internal/daemon` | El **orden de arranque de `New` no es negociable** (`EnsureRuntimeDir` → `ipc.Ping` → **flock** → socket → biblioteca → player → sesión → MPRIS): solo CON el lock son seguras las dos operaciones destructivas. `serve → handle → dispatch`, dispatch bajo `d.mu`, con **tres excepciones** que resuelven fuera del lock (play/add/playnow, seek, scan). `advance` tiene DOS guardas contra una promesa obsoleta y no se solapan. El push de suscripción se arma **por suscriptor** (`stateFor`) y lleva la cola SOLO si `queue.Gen()` cambió. `d.cfg` ya NO es inmutable: se relee en cada scan bajo `d.mu`. | `docs/architecture/daemon.md` |
 | `internal/player` | Wrapper de mpv. Gapless por ventana de dos entradas con `playlist-clear + append` (**NUNCA podar por índices**). Callbacks **siempre async con `go`** — en línea deadlockean readLoop —, y por eso `loadGen` se valida en DOS puntos. Toda espera a mpv está ACOTADA y con dos topes: 5 s un comando normal, **1 s los de la ventana gapless**, que son best-effort y se pagan bajo `d.mu` en cada mutador. | `docs/architecture/playback.md` |
@@ -236,10 +236,12 @@ tomadas.
 
 ## Estado actual
 
-**v1.19.8 — implementada y verificada en `fb0db1b`; pendiente de tag y publicación**
-(`internal/version/version.go`): UX-04 unifica las consultas locales de canciones;
-aceptación y límites en el roadmap UI/UX y la historia de ingeniería. Trabajo
-pausado al cerrar el 2026-10-18; siguiente entrega UX-05, aún no iniciada. La
+**v1.20.8 — UX-05 implementada y verificada; commit/tag pendientes de autorización**
+(`internal/version/version.go`). La paleta ofrece sugerencias por nombre y
+descripción localizada, selección sin ejecución y argumentos visibles.
+Commit/tag pendientes de autorización del dueño; publicación y despliegue pendientes.
+UX-06 aún no iniciada. UX-04 quedó en `fb0db1b` (`1.19.8`, sin tag).
+La
 1.19.7 (commit `2363318`, sin tag) mejoró títulos, contraste y selección. La
 1.19.6 (commit `9135bcd`, sin tag) presentó ayudas contextuales y teclas resueltas. La 1.19.5
 distinguió carga, error, vacío y filtro sin coincidencias (UX-01). La 1.19.4 corrigió los bordes

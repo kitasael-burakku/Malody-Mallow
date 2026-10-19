@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮
+                       │❯ command… e.g. maly next                                                                  │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │  playlist list         list playlists                                                     │
+                       │  playlist show <name>  show playlist tracks                                               │
+                       │  playlist create <name…create a playlist                                                  │
+                       │  playlist delete <name…delete a playlist (confirmation required)                          │
+                       │  playlist add <name> <…add songs to a playlist                                            │
+                       │  playlist remove <name…remove a song from a playlist                                      │
+                       │  playlist play <name>  play a playlist                                                    │
+                       │  playlist export <name…export playlist to M3U                                             │
+                       │  playlist import <file…import playlist from M3U                                           │
+                       │  get pick <search>     search and choose a download                                       │
+                       │  get playlist <url> [<…download a playlist                                                │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │delete playlist "Mi lista"? this can't be undone — type y to confirm, anything else cancel…│
+                       │kept "Mi lista"                                                                            │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │delete playlist "Mi lista"? this can't be undone — type y to confirm, anything else cancel…│
+                       │❯                                                                                          │
+                       │kept "Mi lista"                                                                            │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │delete playlist "Mi lista"? this can't be undone — type y to confirm, anything else cancel…│
+                       │❯ no                                                                                       │
+                       │kept "Mi lista"                                                                            │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │delete playlist "Mi lista"? this can't be undone — type y to confirm, anything else cancel…│
+                       │esc cancels · y + enter: yes · empty enter: no                                             │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

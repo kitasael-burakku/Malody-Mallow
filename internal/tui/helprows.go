@@ -50,6 +50,8 @@ func HelpRows(keys map[string]string) [][2]string {
 		{k("toggle_viz"), i18n.T("help.toggle_viz")},
 		{k("now_playing"), i18n.T("help.now_playing")},
 		{k("palette"), i18n.T("help.palette")},
+		{"tab / shift+tab", i18n.T("help.console_keys")},
+		{"↑↓ / pgup/pgdn", i18n.T("help.console_history")},
 		{k("songs"), i18n.T("help.songs")},
 		{k("playlists"), i18n.T("help.playlists")},
 		{k("get"), i18n.T("help.get")},

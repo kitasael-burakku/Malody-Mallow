@@ -103,8 +103,8 @@ si TODAS sus palabras están en `noiseWords`, así "(Remix)", "(feat. …)" o
 mantiene a `maly search` encontrando por el título original, y por eso
 tampoco vive en `internal/safetext` (que es una frontera de SEGURIDAD, no
 cosmética). Paneles biblioteca/
-cola + consola ctrl+p (tabla propia de comandos en `console.go`, con paridad
-CLI completa; la línea se parte con `splitArgs`, que hace de shell —comillas
+cola + consola ctrl+p (dispatch propio en `console.go`, metadatos compartidos
+con la CLI en `internal/commandmeta`; la línea se parte con `splitArgs`, que hace de shell —comillas
 simples o dobles agrupan, para que `add Secreto 'Otra dimension'` sea el
 espejo de la CLI—, con tres diferencias deliberadas: una comilla solo abre al
 EMPEZAR un argumento, así que el apóstrofo de `Don't Stop` es texto, y una
@@ -264,3 +264,30 @@ propósito NO es clave TOML: un string multilínea rompería el parser por
 líneas de `saveKey` y el escapado del `\` de figlet. La altura del panel
 es dinámica (`panelH`/`minRows` del `logoModel`; el arte se recorta a
 `maxLogoArt` líneas en config).
+
+## Paleta con sugerencias (UX-05)
+
+`console_suggestions.go` filtra nombres y descripciones localizadas con `Fold`.
+Prioriza nombre exacto, prefijo de nombre, inicio de descripción, frase contenida
+y palabras; una vez que se escriben argumentos no busca acciones por ese texto.
+No consulta DB, IPC ni red al escribir. `commandmeta` contiene solo metadatos:
+`ConsoleCommands` y la ayuda de consola derivan de ahí; la CLI comparte usos,
+descripciones y nombres de subcomandos de su completado. El dispatch sigue en
+cada cliente. No hay autocompletado dinámico de argumentos en la paleta.
+
+`conChoice` guarda el nombre seleccionado; Tab/Shift+Tab recorren la lista,
+Enter rellena únicamente el comando y un espacio si admite argumentos. Nunca
+inserta marcadores como `<nombre>`. Sin selección, Enter usa `execConsole` y sus
+validaciones. Cualquier edición o recorrido de historial retira la selección;
+↑/↓ conservan historial y borrador. Escape vuelve de selección a edición,
+cancela la confirmación pendiente o cierra, en ese orden. La tecla configurada
+para abrir la paleta también la cierra y descarta confirmaciones. Las teclas
+internas de edición/selección son las mismas con default, vim y overrides.
+
+Las sugerencias muestran hasta tres comandos y la descripción del seleccionado
+(o del primero); a 40×12 muestran uno. El presupuesto del modal reserva entrada,
+ayudas, scan y salida; PgUp/PgDn y Ctrl+Home/End conservan su scroll. El marcador
+`>` funciona sin color. `computeLayout` sigue puro; no cambia el reparto principal.
+La confirmación de borrado consume también respuestas vacías o mal entrecomilladas
+como cancelación. `get pick` deriva a `openGet`/`runGetSearch`, que ya daban la
+selección previa de Ctrl+G, en vez de interpretar «pick» como consulta de descarga.

@@ -1,0 +1,28 @@
+
+
+
+
+
+
+
+
+
+                 ╭─ Command Palette ──────────────────────────────────────────────╮
+                 │❯ command… e.g. maly next                                       │
+                 │────────────────────────────────────────────────────────────────│
+                 │❯ playlist delete                                               │
+                 │usage: maly playlist delete <name>                              │
+                 │❯ playlist delete                                               │
+                 │usage: maly playlist delete <name>                              │
+                 │esc closes · enter runs · tab/shift+tab choose · ↑↓ history ·   │
+                 │pgup/pgdn output                                                │
+                 ╰────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+

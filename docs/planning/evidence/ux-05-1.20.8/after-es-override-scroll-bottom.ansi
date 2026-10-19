@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮
+                       │❯ comando… p. ej. maly next                                                                │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │  lang [en|es]          cambia el idioma de la interfaz                                    │
+                       │  info                  muestra rutas, versiones y tamaño de la biblioteca                 │
+                       │  doctor                revisa que esté todo lo que maly necesita                          │
+                       │  config                muestra la configuración que está en efecto ahora mismo            │
+                       │  update                busca una versión nueva y actualiza maly                           │
+                       │  kill                  apaga el servicio (desde la TUI: la cierra también)                │
+                       │  help                  muestra esta ayuda                                                 │
+                       │  version               muestra la versión (y la del servicio si corre)                    │
+                       │  quit                  cierra la TUI                                                      │
+                       │  exit                  cierra la TUI                                                      │
+                       │  cls                   limpia la salida de la consola                                     │
+                       │  viz                   alterna el visualizador                                            │
+                       │  rescan [<ruta>]       (re)escanea la biblioteca                                          │
+                       │  playlist list         lista las playlists                                                │
+                       │  playlist show <nombre…muestra canciones de una playlist                                  │
+                       │  playlist create <nomb…crea una playlist                                                  │
+                       │  playlist delete <nomb…elimina una playlist (requiere confirmación)                       │
+                       │  playlist add <nombre>…agrega canciones a una playlist                                    │
+                       │  playlist remove <nomb…quita una canción de una playlist                                  │
+                       │  playlist play <nombre…reproduce una playlist                                             │
+                       │  playlist export <nomb…exporta una playlist a M3U                                         │
+                       │  playlist import <arch…importa una playlist desde M3U                                     │
+                       │  get pick <búsqueda>   busca y elige una descarga                                         │
+                       │  get playlist <url> [<…descarga una playlist                                              │
+                       │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"maly/internal/commandmeta"
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/tui"
@@ -20,12 +21,13 @@ import (
 func TestUsageCabeEnColumna(t *testing.T) {
 	const col = 28
 	for _, c := range commands {
-		if c.usage == "" {
+		meta, ok := commandmeta.Lookup(c.name)
+		if !ok || c.section == "" {
 			continue // "daemon"/"__complete": no se listan en el help
 		}
-		if len(c.usage) >= col {
+		if len(meta.Usage()) >= col {
 			t.Errorf("%s: usage %q mide %d, desborda la columna de %d (row() usa %%-28s)",
-				c.name, c.usage, len(c.usage), col)
+				c.name, meta.Usage(), len(meta.Usage()), col)
 		}
 	}
 }
@@ -127,5 +129,40 @@ func TestHelpAtajosReflejanElConfig(t *testing.T) {
 		if strings.Contains(line, i18n.T("help.now_playing")) && strings.Contains(line, "ctrl+t") {
 			t.Errorf("`maly -h` sigue anunciando el default para una tecla remapeada: %q", line)
 		}
+	}
+}
+
+// La tabla de ejecución necesita metadatos, y los metadatos compartidos
+// necesitan una entrada ejecutable; una copia comparada consigo misma no basta.
+func TestUX05CommandMetadataAndCompletion(t *testing.T) {
+	old := i18n.Code()
+	t.Cleanup(func() { i18n.Set(old) })
+	for _, c := range commands {
+		if c.name == "__complete" {
+			continue
+		}
+		if _, ok := commandmeta.Lookup(c.name); !ok {
+			t.Errorf("falta metadata para %s", c.name)
+		}
+	}
+	local := map[string]bool{"cls": true, "viz": true, "quit": true, "exit": true, "rescan": true}
+	for _, e := range commandmeta.Console() {
+		name, _, _ := strings.Cut(e.Name, " ")
+		if c, ok := lookup(name); !local[name] && (!ok || c.run == nil) {
+			t.Errorf("sin dispatch CLI: %s", e.Name)
+		}
+	}
+	for lang, want := range map[string]string{"en": "play [<query>...]", "es": "play [<consulta>...]"} {
+		i18n.Set(lang)
+		if !strings.Contains(helpText(), want) {
+			t.Errorf("ayuda %s sin %q", lang, want)
+		}
+		got := completeCommands("pl")
+		if len(got) != 2 || !strings.HasPrefix(got[0], "play\t") || !strings.HasPrefix(got[1], "playlist\t") {
+			t.Errorf("completado pl: %q", got)
+		}
+	}
+	if got := completePlaylist(nil, "de"); len(got) != 1 || got[0] != "delete" {
+		t.Errorf("subcomando delete: %q", got)
 	}
 }

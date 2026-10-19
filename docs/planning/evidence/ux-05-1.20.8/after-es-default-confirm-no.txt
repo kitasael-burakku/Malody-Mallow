@@ -1,0 +1,42 @@
+
+
+
+
+
+
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮
+                       │❯ comando… p. ej. maly next                                                                │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │  exit                  cierra la TUI                                                      │
+                       │  cls                   limpia la salida de la consola                                     │
+                       │  viz                   alterna el visualizador                                            │
+                       │  rescan [<ruta>]       (re)escanea la biblioteca                                          │
+                       │  playlist list         lista las playlists                                                │
+                       │  playlist show <nombre…muestra canciones de una playlist                                  │
+                       │  playlist create <nomb…crea una playlist                                                  │
+                       │  playlist delete <nomb…elimina una playlist (requiere confirmación)                       │
+                       │  playlist add <nombre>…agrega canciones a una playlist                                    │
+                       │  playlist remove <nomb…quita una canción de una playlist                                  │
+                       │  playlist play <nombre…reproduce una playlist                                             │
+                       │  playlist export <nomb…exporta una playlist a M3U                                         │
+                       │  playlist import <arch…importa una playlist desde M3U                                     │
+                       │  get pick <búsqueda>   busca y elige una descarga                                         │
+                       │  get playlist <url> [<…descarga una playlist                                              │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │¿eliminar la playlist "Mi lista"? no se puede deshacer — escribe s para confirmar, cualqui…│
+                       │"Mi lista" se mantiene                                                                     │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │¿eliminar la playlist "Mi lista"? no se puede deshacer — escribe s para confirmar, cualqui…│
+                       │❯                                                                                          │
+                       │"Mi lista" se mantiene                                                                     │
+                       │❯ playlist delete 'Mi lista'                                                               │
+                       │¿eliminar la playlist "Mi lista"? no se puede deshacer — escribe s para confirmar, cualqui…│
+                       │esc cancela · s + enter: sí · enter vacío: no                                              │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+

@@ -184,7 +184,17 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   visualizer strip.
 - **`ctrl+p` palette**: an integrated command console (`maly next`,
   `vol +5`, `status`, `get`, `playlist`…) with output inside the palette
-  itself.
+  itself. Search by name or description in your language (for example, `pl`
+  or `delete a playlist`). Tab/Shift+Tab select a suggestion showing its arguments;
+  Enter copies it into the input **without running it**. Type the arguments and
+  press Enter to run; entering a complete command directly still works.
+  ↑/↓ navigate history and restore the draft; quotes group phrases.
+  PgUp/PgDn scroll output, Ctrl+Home/End jump to its start/end, and Home/End edit
+  the input. Escape clears the selection, cancels a confirmation, or closes the
+  palette, depending on the state. `playlist delete` still asks for confirmation
+  (empty Enter cancels); closing the palette discards it. `get pick <search>`
+  opens the same search screen as Ctrl+G before downloading. Arguments are
+  entered manually; suggestions cover existing commands and subcommands.
 - **`ctrl+o` picker / `maly select`**: the same local query language as `/`
   across the whole library (`enter` plays, `tab` adds to the queue).
 - **`ctrl+l` playlist panel**: manage your playlists without leaving the

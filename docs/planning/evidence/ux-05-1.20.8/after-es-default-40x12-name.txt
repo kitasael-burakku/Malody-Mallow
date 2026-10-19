@@ -1,0 +1,12 @@
+  ╭─ Paleta de comandos ─────────────╮
+  │❯ pl                             …│
+  │──────────────────────────────────│
+  │> play [<consulta>...]            │
+  │reanuda; con consultas busca y re…│
+  │❯ playlist delete                 │
+  │uso: maly playlist delete <nombre…│
+  │❯ playlist delete                 │
+  │uso: maly playlist delete <nombre…│
+  │esc edita · enter rellena ·       │
+  │tab/shift+tab elige · ↑↓ historial│
+  ╰──────────────────────────────────╯

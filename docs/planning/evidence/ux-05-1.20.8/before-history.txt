@@ -1,0 +1,24 @@
+
+
+             ╭─ Paleta de comandos ──────────────────────────────╮
+             │❯ help                                            …│
+             │───────────────────────────────────────────────────│
+             │  scan [path]           (re)escanea la biblioteca  │
+             │  search <q>            busca por título/artista/á…│
+             │  get <url|q>           descarga audio con yt-dlp …│
+             │  playlist <sub> [args] gestiona playlists (list|s…│
+             │  controls [preset]     muestra o cambia el esquem…│
+             │  logo [hex… | default] muestra o cambia los color…│
+             │  lang [en|es]          cambia el idioma de la int…│
+             │  info                  muestra rutas, versiones y…│
+             │  doctor                revisa que esté todo lo qu…│
+             │  config                muestra la configuración q…│
+             │  version               muestra la versión (y la d…│
+             │  update                busca una versión nueva y …│
+             │  kill                  apaga el servicio (desde l…│
+             │también: viz · cls · quit/exit · rescan · get play…│
+             │esc cierra · enter ejecuta · help lista los        │
+             │comandos                                           │
+             ╰───────────────────────────────────────────────────╯
+
+

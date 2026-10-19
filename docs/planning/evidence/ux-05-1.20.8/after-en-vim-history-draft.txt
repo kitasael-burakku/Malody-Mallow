@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮
+                       │❯ borrador 'abierto                                                                       …│
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ playlist delete                                                                          │
+                       │usage: maly playlist delete <name>                                                         │
+                       │❯ add 'Otra dimensión' "Don't Stop"                                                        │
+                       │2 track(s) added to the queue; playing Áurea — Otra dimensión                              │
+                       │❯ play 'Otra dimensión'                                                                    │
+                       │Playing Áurea — Otra dimensión (1 queued)                                                  │
+                       │❯ pause                                                                                    │
+                       │Paused                                                                                     │
+                       │esc closes · enter runs · tab/shift+tab choose · ↑↓ history · pgup/pgdn output             │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"maly/internal/commandmeta"
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
@@ -103,8 +104,8 @@ func completeCommands(cur string) []string {
 			continue
 		}
 		desc := ""
-		if c.descKey != "" {
-			desc = i18n.T(c.descKey)
+		if meta, ok := commandmeta.Lookup(c.name); ok {
+			desc = i18n.T(meta.DescKey)
 		}
 		out = append(out, cand(c.name, desc))
 	}
@@ -181,12 +182,12 @@ func completeTracks(_ []string, cur string) []string {
 	return out
 }
 
-// completeGet ofrece "playlist" como único candidato del primer argumento:
+// completeGet ofrece los subcomandos del primer argumento:
 // el resto (URL, búsqueda, nombre de playlist) es texto libre sin fuente
 // sensata de completado.
-// getSubs son los subcomandos de `maly get`. Lista fija y no derivada: el
+// getSubs deriva del catálogo compartido; el
 // resto de la línea es una consulta libre o una URL, que no se completan.
-var getSubs = []string{"pick", "playlist"}
+var getSubs = commandmeta.Subcommands("get")
 
 func completeGet(args []string, cur string) []string {
 	if len(args) > 0 {
@@ -206,7 +207,7 @@ func completeGet(args []string, cur string) []string {
 func completePlaylist(args []string, cur string) []string {
 	if len(args) == 0 {
 		var out []string
-		for _, sub := range []string{"list", "show", "create", "delete", "add", "remove", "play", "export", "import"} {
+		for _, sub := range commandmeta.Subcommands("playlist") {
 			if strings.HasPrefix(sub, cur) {
 				out = append(out, sub)
 			}

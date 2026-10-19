@@ -2,6 +2,25 @@
 
 Fuente única: esta ficha. `CLAUDE.md` solo lleva el resumen.
 
+## Guardar una cola como playlist
+
+`CreatePlaylistFromPaths(name, paths)` crea el nombre y todas las entradas en
+una transacción. La primera operación escribe el nombre para adquirir el lock
+antes de resolver rutas. Cada ruta se resuelve contra `tracks` dentro de esa
+misma transacción; no se reutilizan IDs de una cola que pudo sobrevivir a un
+escaneo. Se insertan posiciones consecutivas y se conservan duplicados.
+Nombre ocupado, ruta sin indexar o error SQL revierten también la creación de
+la playlist. No cambia el esquema persistente.
+
+La composición de cliente vive en `internal/playlist.SaveQueue`: valida el
+nombre, pide `queue` una sola vez por IPC, abre la biblioteca con `Open`, guarda
+y manda `refresh` tras el commit. CLI y consola comparten esa operación. La
+respuesta `queue` ya copia `q.Items` bajo `d.mu`; una mutación posterior no
+cambia la foto guardada. Si la biblioteca pierde una ruta antes de la transacción,
+se rechaza toda la operación. El aviso de refresco es best-effort, como en las
+demás mutaciones de playlists: una desconexión después del commit no revierte
+un guardado ya confirmado.
+
 ## `internal/library`
 
 SQLite (modernc, sin CGo, `SetMaxOpenConns(1)`, WAL).

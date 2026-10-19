@@ -291,3 +291,16 @@ ayudas, scan y salida; PgUp/PgDn y Ctrl+Home/End conservan su scroll. El marcado
 La confirmación de borrado consume también respuestas vacías o mal entrecomilladas
 como cancelación. `get pick` deriva a `openGet`/`runGetSearch`, que ya daban la
 selección previa de Ctrl+G, en vez de interpretar «pick» como consulta de descarga.
+
+## Acceso a guardar la cola (UX-06)
+
+`save_queue` (Ctrl+S por defecto) abre la consola con `playlist save ` y el
+cursor al final, desde la pantalla principal o Ahora suena. No captura la cola
+ni escribe al abrir: el Enter con nombre ejecuta la operación compartida con
+CLI (`internal/playlist`). La copia local filtrada de la TUI nunca es la fuente.
+Como al cerrar la paleta existente, Escape vuelve a la pantalla principal;
+conserva selección y filtro. `HelpRows` usa la tecla resuelta, y el pie de la
+cola ofrece el acceso cuando hay pistas y espacio, incluso sin coincidencias.
+El resultado positivo recarga la biblioteca local; `refresh` despierta a las
+otras TUIs. El error de pista sin indexar separa `maly scan` en una línea para
+que una ruta larga no esconda el remedio.

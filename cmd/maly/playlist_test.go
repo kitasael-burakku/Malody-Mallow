@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"maly/internal/config"
+	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
 )
@@ -279,5 +280,21 @@ func TestPlaylistAddEnLote(t *testing.T) {
 	}
 	if want := []string{"Otra dimension.mp3", "Secreto.mp3"}; !reflect.DeepEqual(names, want) {
 		t.Errorf("playlist = %q, quería %q", names, want)
+	}
+}
+
+func TestPlaylistSaveGrammar(t *testing.T) {
+	xdgSandbox(t)
+	for _, args := range [][]string{{"save"}, {"save", " "}} {
+		err := runPlaylist(args)
+		if err == nil || err.Error() != i18n.T("pl.usage_save") {
+			t.Fatalf("%q: %v", args, err)
+		}
+	}
+	if err := runPlaylist([]string{"save", "Mi", "cola"}); err == nil || err.Error() != i18n.T("cli.no_daemon") {
+		t.Fatalf("debe consultar la cola real: %v", err)
+	}
+	if _, err := os.Stat(config.DBPath()); !os.IsNotExist(err) {
+		t.Fatal("fabricó DB", err)
 	}
 }

@@ -1,0 +1,42 @@
+  ╭─ Paleta de comandos ─────────────╮
+  │❯ playlist save                  …│
+  │──────────────────────────────────│
+  │  playlist save <nombre>          │
+  │guarda toda la cola como una play…│
+  │pista sin indexar (no se guardó n…│
+  │Escanea su carpeta y reintenta:   │
+  │maly scan <carpeta>               │
+  │esc cierra · enter ejecuta ·      │
+  │tab/shift+tab elige · ↑↓ historial│
+  │· pgup/pgdn salida                │
+  ╰──────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

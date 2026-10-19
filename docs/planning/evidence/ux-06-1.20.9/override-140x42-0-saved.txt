@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                       ╭─ Paleta de comandos ──────────────────────────────────────────────────────────────────────╮
+                       │❯ comando… p. ej. maly next                                                                │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │❯ playlist save Vacía                                                                      │
+                       │la cola está vacía                                                                         │
+                       │agrega pistas antes de guardarla                                                           │
+                       │❯ playlist save G0                                                                         │
+                       │Cola guardada en "G0": 3 pistas                                                            │
+                       │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida         │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

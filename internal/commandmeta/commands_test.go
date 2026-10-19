@@ -47,7 +47,7 @@ func TestMetadataContracts(t *testing.T) {
 			}
 		}
 	}
-	want := []string{"list", "show", "create", "delete", "add", "remove", "play", "export", "import"}
+	want := []string{"list", "show", "create", "delete", "add", "remove", "play", "save", "export", "import"}
 	if got := Subcommands("playlist"); !reflect.DeepEqual(got, want) {
 		t.Errorf("playlist: %q", got)
 	}

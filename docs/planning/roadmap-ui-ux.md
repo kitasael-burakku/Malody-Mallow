@@ -4,8 +4,9 @@
 UX-01 con release local `1.19.5`; UX-02 verificada en el commit `9135bcd`
 (`1.19.6`, sin tag); UX-03 verificada en el commit `2363318` (`1.19.7`, sin tag);
 UX-04 verificada en el commit `fb0db1b` (`1.19.8`, sin tag).
-UX-05 implementada y verificada en el árbol de trabajo (`1.20.8`), con commit/tag pendientes
-de autorización de cierre. UX-06–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
+UX-05 verificada en `4b6d9ef` (`1.20.8`, sin tag). UX-06 implementada y
+verificada (`1.20.9`), con commit autorizado por el dueño; tag pendiente.
+UX-07–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -39,8 +40,8 @@ condicionadas son candidatas, no compromisos de publicación.
 | UX-02 | `1.19.5` → `1.19.6` | Ayudas visibles y contextuales | Pequeño: presenta acciones existentes según foco, teclas y espacio; conserva su comportamiento | Verificada; commit 9135bcd, tag pendiente |
 | UX-03 | `1.19.6` → `1.19.7` | Títulos, contraste y selección | Pequeño: legibilidad dentro del reparto actual, sin rediseñar pantallas ni reproducción | Verificada; commit 2363318, tag pendiente |
 | UX-04 | `1.19.7` → `1.19.8` | Consultas locales coherentes | Pequeño: amplía el selector de canciones con el lenguaje local existente; conserva sus acciones y no cambia búsqueda SQL ni red | Verificada; commit fb0db1b, tag pendiente |
-| UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Verificada; commit/tag pendientes de autorización |
-| UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño si se mantiene acotado: compone una foto de la cola con la persistencia de playlists existente | Condicionada a diseño acotado |
+| UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Verificada; commit 4b6d9ef, tag pendiente |
+| UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño: compone una foto de la cola con la persistencia de playlists existente | Verificada; commit autorizado, tag pendiente |
 | UX-07 | `1.20.9` → `1.20.10` | Continuidad después de descargar | Pequeño si se mantiene acotado: ofrece acciones existentes sobre los archivos obtenidos, sin gestor de trabajos nuevo | Condicionada a verificar el flujo |
 | UX-08 | `1.20.10` → `1.21.10` | Reproducir después | Grande: modifica el orden efectivo de reproducción, su interacción con shuffle y la promesa gapless | Candidata; diseño pendiente |
 | UX-09 | `1.21.10` → `1.22.10` | Deshacer una eliminación de cola | Grande: introduce recuperación con validez compartida entre clientes y demonio | Candidata; diseño pendiente |
@@ -235,34 +236,41 @@ borrador. Escape retira la selección, cancela confirmación o cierra; Enter vac
 cancela el borrado. Metadatos compartidos de comandos/subcomandos y paridad de
 `get pick` corregida al contrastar la sugerencia con la ejecución real.
 [Cierre de ingeniería](../history/roadmap-1.17.md#v1208-2026-10-18--ux-05-paleta-con-sugerencias) y
-[evidencia](evidence/ux-05-1.20.8/README.md). Sin commit/tag, push ni despliegue.
+[evidencia](evidence/ux-05-1.20.8/README.md). Commit autorizado: `4b6d9ef`; sin tag, push ni despliegue.
 
 ## UX-06 — guardar la cola como playlist
 
-**Oportunidad, no defecto reproducido.** No existe una acción dedicada en la
-tabla revisada. Antes de implementar, fijar el contrato: propuesta inicial,
-guardar **toda la cola en su orden visible normal**, incluidos duplicados,
-en una playlist nueva; no guardar el ranking del filtro ni la permutación
-shuffle. No sobrescribir otra playlist de forma implícita.
+**Implementada y verificada en 1.20.9; commit autorizado, tag pendiente.**
+Base limpia `4b6d9ef` (1.20.8). La reproducción previa confirmó que `save` no
+existía; era una oportunidad, no un defecto. El control `playlist create/list`
+funcionaba en el mismo sandbox.
 
-**Alcance y puntos de entrada:** lectura coherente de cola vía IPC,
-[`playlist.go`](../../internal/library/playlist.go), CLI, consola y entrada TUI.
-La biblioteca ya permite duplicados; no cambiar ese contrato ni deduplicar
-silenciosamente. Definir qué hacer con rutas no indexadas antes de crear la
-playlist: error accionable sin escritura parcial es el punto de partida.
+**Contrato fijado antes de implementar:** `playlist save <nombre>` guarda una
+foto de **toda la cola en su orden normal**, con duplicados, en una playlist
+nueva. La foto se toma al ejecutar, no al abrir el acceso. Filtro y shuffle no
+cambian lo guardado. No sobrescribe. Cola vacía, nombre ocupado o ruta sin indexar
+fallan sin playlist parcial; en el último caso indica cómo escanear y reintentar.
+Ctrl+S (`save_queue`, configurable) abre la paleta con el comando preparado.
 
-**Por qué sí:** conserva una selección ya construida. **Límite:** no incorporar
-cola pendiente, exportación de sesión ni un nuevo formato en esta entrega.
-Si requiere nuevo modelo persistente o una API extensa, reclasificar el bump.
+**Alcance:** lectura coherente de cola por IPC existente, transacción en
+`internal/library`, composición compartida en `internal/playlist`, CLI, consola
+y acceso TUI. Sin nueva operación IPC, esquema de DB, formato, cola pendiente
+ni exportación de sesión. El bump **1.20.8 → 1.20.9** sigue siendo pequeño: una
+operación acotada sobre cola y persistencia existentes.
 
 **Aceptación:**
 
-- [ ] Preserva orden y repeticiones; no modifica cola, reproducción ni posición.
-- [ ] Cola vacía, nombre ocupado y pista no indexada no dejan playlists parciales.
-- [ ] Mutación concurrente: se guarda una foto coherente, nunca una mezcla de
-  índices de dos estados. Los demás clientes reciben el refresco pertinente.
-- [ ] Paridad de la operación en CLI/consola y acceso TUI; nombre de comando
-  y atajo se fijan en diseño, no se dan por existentes en esta documentación.
+- [x] Orden y repeticiones intactos; pausa/posición y reproducción conservadas.
+- [x] Vacío, nombre ocupado y pista sin indexar no dejan playlists parciales;
+  también se revierte un fallo SQL después de insertar la primera entrada.
+- [x] Mutaciones concurrentes producen fotos coherentes; dos conexiones que
+  compiten por un nombre no mezclan entradas. Otro cliente recibe el refresco.
+- [x] CLI/consola comparten la operación, con atajo configurable, ayuda y
+  completado. Matriz es/en, cuatro tamaños y redimensionado, default/vim/override,
+  color/NO_COLOR, servicio privado y demonio embebido.
+
+[Cierre de ingeniería](../history/roadmap-1.17.md#v1209-2026-10-18--ux-06-guardar-la-cola)
+y [evidencia reproducible](evidence/ux-06-1.20.9/README.md).
 
 ## UX-07 — continuidad después de descargar
 
@@ -390,3 +398,8 @@ límites en el [cierre histórico](../history/roadmap-1.17.md#sobre-1198-2026-10
 2026-10-18, reanudación: UX-05 implementada y verificada en `1.20.8`. Seis entregas contando
 UX-00; commit/tag esperan autorización de cierre. UX-06 sigue condicionada y no
 iniciada. Publicación, PKGBUILD y despliegue continúan pendientes.
+
+2026-10-18, continuación autorizada por el dueño: UX-05 quedó en `4b6d9ef`
+(solo commit, sin tag). UX-06 implementada y verificada en `1.20.9`: siete
+entregas contando UX-00. El dueño autorizó su commit de cierre; tag pendiente. UX-07 no iniciada.
+Publicación, PKGBUILD y despliegue continúan pendientes.

@@ -1,0 +1,24 @@
+                 │add tracks before saving it
+  │
+                 │❯ playlist save G0
+  │
+                 │Queue saved to "G0": 3 tracks
+  │
+                 │❯ playlist save G1
+  │
+                 │Queue saved to "G1": 3 tracks
+  │
+                 │❯ playlist save G2
+  │
+                 │Queue saved to "G2": 3 tracks
+  │
+
+
+
+
+
+
+
+
+
+

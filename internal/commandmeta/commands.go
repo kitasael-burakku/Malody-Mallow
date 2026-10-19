@@ -70,6 +70,7 @@ var entries = []Entry{
 	{Name: "playlist add", ArgsKey: "cmd.args.playlist_add", DescKey: "cmd.desc.playlist_add"},
 	{Name: "playlist remove", ArgsKey: "cmd.args.playlist_remove", DescKey: "cmd.desc.playlist_remove"},
 	{Name: "playlist play", ArgsKey: "cmd.args.playlist_play", DescKey: "cmd.desc.playlist_play"},
+	{Name: "playlist save", ArgsKey: "cmd.args.playlist_save", DescKey: "cmd.desc.playlist_save"},
 	{Name: "playlist export", ArgsKey: "cmd.args.playlist_export", DescKey: "cmd.desc.playlist_export"},
 	{Name: "playlist import", ArgsKey: "cmd.args.playlist_import", DescKey: "cmd.desc.playlist_import"},
 	{Name: "get pick", ArgsKey: "cmd.args.get_pick", DescKey: "cmd.desc.get_pick"},

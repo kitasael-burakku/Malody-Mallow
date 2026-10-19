@@ -14,11 +14,13 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/playlist"
+	"maly/internal/safetext"
 )
 
 // conPlaylist espeja `maly playlist` dentro de la consola: misma gramática y
 // mensajes que la CLI (cmd/maly/playlist.go). Opera directo sobre SQLite
-// salvo `play`, que necesita al demonio; toda mutación pide recargar el árbol
+// salvo `play` y `save`, que necesitan al demonio; toda mutación pide recargar el árbol
 // vía conMsg.reload (las playlists cuelgan de él).
 func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 	if len(args) == 0 {
@@ -29,6 +31,20 @@ func (m *Model) conPlaylist(args []string) (tea.Model, tea.Cmd) {
 	st := m.st
 
 	switch sub {
+	case "save":
+		name, sock, dbPath := strings.Join(args, " "), m.sock, config.DBPath()
+		return m, func() tea.Msg {
+			n, err := playlist.SaveQueue(sock, dbPath, name)
+			if err != nil {
+				lines := strings.Split(err.Error(), "\n")
+				for i := range lines {
+					lines[i] = st.errSt.Render(lines[i])
+				}
+				return conMsg{lines: lines}
+			}
+			return conMsg{lines: []string{st.playing.Render(i18n.Tf("pl.queue_saved", safetext.Clean(name), n))}, reload: true}
+		}
+
 	case "play":
 		if len(args) == 0 {
 			m.conErr(i18n.T("pl.usage_play"))
@@ -217,4 +233,13 @@ func (m *Model) conPlaylistDelete(name string) tea.Cmd {
 		}
 		return []string{st.playing.Render(i18n.Tf("pl.deleted", name))}, nil
 	})
+}
+
+// openSaveQueue solo prepara la entrada. La instantánea se toma al ejecutar
+// con el nombre escrito, nunca al abrir este acceso desde la TUI.
+func (m *Model) openSaveQueue() tea.Cmd {
+	cmd := m.openConsole()
+	m.conInput.SetValue("playlist save ")
+	m.conInput.CursorEnd()
+	return cmd
 }

@@ -82,8 +82,11 @@ func (m *Model) handleNowKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showHelp = true
 		return m, nil
 	}
-	// La paleta funciona también desde acá (se dibuja encima; al cerrarla
-	// se vuelve a la capa).
+	// La paleta y el acceso al guardado funcionan también desde acá. Como
+	// al abrirla desde el panel, cerrarla vuelve a la pantalla principal.
+	if m.is("save_queue", msg) {
+		return m, m.openSaveQueue()
+	}
 	if m.is("palette", msg) {
 		return m, m.openConsole()
 	}

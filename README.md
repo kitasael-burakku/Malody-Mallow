@@ -540,6 +540,7 @@ destino de cada uno.
 | `ctrl+l` | panel de playlists |
 | `ctrl+g` | buscador de descargas (elige el resultado antes de bajar) |
 | `A` | manda la selección actual a una playlist |
+| `ctrl+s` | prepara el guardado de toda la cola como playlist nueva |
 | `?` | ayuda completa (todas las teclas, incluidas las remapeadas) |
 | `q` | salir |
 
@@ -616,7 +617,7 @@ biblioteca cancela el lote antes de modificar la cola o la playlist.
 `search`, `select` y `get` siguen tomando una sola frase. En la
 consola ctrl+p de la TUI funciona igual, con comillas simples o dobles.
 
-**Biblioteca** — funcionan sin el servicio (salvo `playlist play`):
+**Biblioteca** — funcionan sin el servicio (salvo `playlist play` y `playlist save`):
 
 | Comando | Hace |
 |---|---|
@@ -639,7 +640,18 @@ Subcomandos de `maly playlist`:
 | `remove <nombre> <pos>` | nombre, posición | no |
 | `export <nombre> [archivo]` | nombre, archivo opcional (default `<nombre>.m3u`) | no |
 | `import <archivo> [nombre]` | archivo, nombre opcional | no |
-| `play <nombre>` | nombre | **sí** — el único subcomando que habla con el servicio |
+| `play <nombre>` | nombre | **sí** |
+| `save <nombre>` | nombre de una playlist nueva; guarda toda la cola | **sí** |
+
+`maly playlist save "Mi cola"` guarda una foto de **toda** la cola en su
+orden normal, con repeticiones, sin cambiar reproducción ni posición. El filtro
+y shuffle no alteran lo guardado. Requiere un nombre nuevo; una cola vacía,
+un nombre ocupado o una pista sin indexar cancelan todo, sin playlist parcial.
+Si falta una pista, escanea su carpeta con `maly scan <carpeta>` y reintenta.
+En la consola Ctrl+P se usa `playlist save "Mi cola"`; Ctrl+S abre esa entrada
+preparada para escribir el nombre. El guardado ocurre al pulsar Enter, no al
+abrirla. Escape cancela y vuelve a la pantalla principal. Puedes reasignar
+`save_queue` en `[keys]`; un config anterior hereda Ctrl+S sin reescribirse.
 
 **Otros** — no necesitan servicio:
 
@@ -924,6 +936,7 @@ cookies_from_browser = ""
 # songs = "ctrl+o"
 # playlists = "ctrl+l"
 # playlist_add = "A"
+# save_queue = "ctrl+s"
 # toggle_viz = "v"
 # now_playing = "ctrl+t"
 # get = "ctrl+g"

@@ -107,6 +107,7 @@ archivo de la última columna, y es la fuente única.**
 | `internal/player` | Wrapper de mpv. Gapless por ventana de dos entradas con `playlist-clear + append` (**NUNCA podar por índices**). Callbacks **siempre async con `go`** — en línea deadlockean readLoop —, y por eso `loadGen` se valida en DOS puntos. Toda espera a mpv está ACOTADA y con dos topes: 5 s un comando normal, **1 s los de la ventana gapless**, que son best-effort y se pagan bajo `d.mu` en cada mutador. | `docs/architecture/playback.md` |
 | `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. `gen` sube SOLO con lo que altera `Items` (Add/Replace/Clear/RemoveAt/Move) más `Touch()`, que usa el demonio para las duraciones que escribe en sitio. | `docs/architecture/playback.md` |
 | `internal/library` | SQLite (modernc, sin CGo, `SetMaxOpenConns(1)`, WAL). Scan por **LOTES de 500**, nunca una transacción única. La purga tiene una **GUARDA**: un walk sin ni un archivo de audio no borra nada (`*ScanEmpty`) — era la única pérdida de datos irreversible del proyecto. `scanTrack` es el punto único de salida. **`Create` crea, `Open` NO** (devuelve `fs.ErrNotExist` envuelto): consultar la biblioteca no puede fabricarla. | `docs/architecture/library.md` |
+| `internal/playlist` | Composición de cliente compartida por CLI y consola para guardar una instantánea de cola como playlist nueva; usa IPC y la transacción de biblioteca existente. | `docs/architecture/library.md` |
 | `internal/probe` | ffprobe para las duraciones. A diferencia de `getter.Tools`, **la ausencia NO es error**: se salta la fase en silencio. Se INYECTA en `FillDurations` (library no lo importa). | `docs/architecture/library.md` |
 | `internal/mpris` | MPRIS2 (godbus). `props.go` es una implementación **PROPIA** de Properties — no volver a `godbus/prop`. Caché de carátulas acotado a 32 MB con evicción FIFO (el runtime dir es tmpfs). | `docs/architecture/mpris-media.md` |
 | `internal/media` | Extracción compartida de lo embebido (carátula, letras USLT, `.lrc`, escalado). Lo consumen mpris y la TUI. | `docs/architecture/mpris-media.md` |
@@ -236,11 +237,13 @@ tomadas.
 
 ## Estado actual
 
-**v1.20.8 — UX-05 implementada y verificada; commit/tag pendientes de autorización**
-(`internal/version/version.go`). La paleta ofrece sugerencias por nombre y
-descripción localizada, selección sin ejecución y argumentos visibles.
-Commit/tag pendientes de autorización del dueño; publicación y despliegue pendientes.
-UX-06 aún no iniciada. UX-04 quedó en `fb0db1b` (`1.19.8`, sin tag).
+**v1.20.9 — UX-06 implementada y verificada; commit autorizado, tag pendiente**
+(`internal/version/version.go`). `playlist save <nombre>` guarda toda la cola
+como playlist nueva; Ctrl+S prepara la entrada. Contrato y aceptación en el
+[roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-06--guardar-la-cola-como-playlist).
+Publicación y despliegue pendientes; UX-07 no iniciada. UX-05 quedó en `4b6d9ef`
+(`1.20.8`, solo commit autorizado, sin tag).
+UX-04 quedó en `fb0db1b` (`1.19.8`, sin tag).
 La
 1.19.7 (commit `2363318`, sin tag) mejoró títulos, contraste y selección. La
 1.19.6 (commit `9135bcd`, sin tag) presentó ayudas contextuales y teclas resueltas. La 1.19.5

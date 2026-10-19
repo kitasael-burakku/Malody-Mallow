@@ -1,0 +1,42 @@
+
+
+
+
+                        ╭─ Help ──────────────────────────────────────────────────────────────────────────────────╮
+                        │Playback                                                                                 │
+                        │  space              play / pause                                                        │
+                        │  > / <              next / previous                                                     │
+                        │  + / -              volume ±5%                                                          │
+                        │  right / left       seek ±5s                                                            │
+                        │Library and queue                                                                        │
+                        │  tab                switch panel                                                        │
+                        │  > / ▶              selection / current track (can coincide)                            │
+                        │  enter              play / expand                                                       │
+                        │  a                  add to queue                                                        │
+                        │  x                  remove from queue                                                   │
+                        │  K / J              move track up / down the queue                                      │
+                        │  /                  filter current panel (a: al: t: f: -word; ↑↓ move)                  │
+                        │  h j k l            navigate the queue (also arrows) · h/l fold/expand in the library   │
+                        │  gg/G ctrl+d/u      top / bottom · half page                                            │
+                        │  pgup/pgdn home/end page up/down · top / bottom                                         │
+                        │Tools and views                                                                          │
+                        │  s / r              shuffle / repeat                                                    │
+                        │  v                  toggle visualizer                                                   │
+                        │  ctrl+t             now playing screen (cover & lyrics)                                 │
+                        │  ctrl+p             command palette                                                     │
+                        │  tab / shift+tab    palette: choose suggestion; enter fills, then runs; esc edits/closes│
+                        │  ↑↓ / pgup/pgdn     palette: history/draft; output scroll (ctrl+home/end: start/end)    │
+                        │  ctrl+o             songs: a:artist al:album t:title f:file -live                       │
+                        │  ctrl+l             playlist panel                                                      │
+                        │  ctrl+g             search and download music                                           │
+                        │  A                  add selection to a playlist                                         │
+                        │  ctrl+s             save the whole queue as a new playlist (enter name)                 │
+                        │  ?                  help                                                                │
+                        │  q                  quit                                                                │
+                        │                                                                                         │
+                        │  esc closes                                                                             │
+                        ╰─────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+

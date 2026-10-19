@@ -16,15 +16,26 @@ import (
 	"maly/internal/i18n"
 	"maly/internal/ipc"
 	"maly/internal/library"
+	"maly/internal/playlist"
+	"maly/internal/safetext"
 )
 
-// runPlaylist opera directo sobre SQLite salvo `play`, que necesita demonio.
+// runPlaylist opera sobre SQLite; `play` y `save` también necesitan demonio.
 func runPlaylist(args []string) error {
 	if len(args) == 0 {
 		return errors.New(i18n.T("pl.usage"))
 	}
 	sub := args[0]
 	args = args[1:]
+	if sub == "save" {
+		name := strings.Join(args, " ")
+		n, err := playlist.SaveQueue(config.SocketPath(), config.DBPath(), name)
+		if err != nil {
+			return err
+		}
+		fmt.Println(i18n.Tf("pl.queue_saved", safetext.Clean(name), n))
+		return nil
+	}
 
 	if sub == "play" {
 		if len(args) == 0 {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"maly/internal/i18n"
+	"maly/internal/safetext"
 )
 
 type Playlist struct {
@@ -73,6 +74,51 @@ func (l *Library) CreatePlaylist(name string) error {
 		return errors.New(i18n.Tf("lib.pl_exists", name))
 	}
 	return nil
+}
+
+// CreatePlaylistFromPaths guarda una instantánea ordenada, incluidas las
+// repeticiones. Resuelve rutas, no los IDs potencialmente viejos de una cola.
+// Crear el nombre y todas las entradas es una sola transacción: ni un nombre
+// ocupado ni una pista sin indexar dejan una playlist parcial.
+func (l *Library) CreatePlaylistFromPaths(name string, paths []string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New(i18n.T("lib.pl_name"))
+	}
+	if len(paths) == 0 {
+		return errors.New(i18n.T("pl.save_empty"))
+	}
+	tx, err := l.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Escribir primero toma el lock antes de resolver pistas; otro cliente
+	// no puede ganar el mismo nombre entre la consulta y la inserción.
+	res, err := tx.Exec(`INSERT OR IGNORE INTO playlists (name) VALUES (?)`, name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errors.New(i18n.Tf("lib.pl_exists", safetext.Clean(name)))
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	for pos, path := range paths {
+		var tid int64
+		err := tx.QueryRow(`SELECT id FROM tracks WHERE path = ?`, path).Scan(&tid)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New(i18n.Tf("pl.save_unindexed", safetext.Clean(path)))
+		}
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO playlist_tracks (playlist_id, track_id, pos) VALUES (?, ?, ?)`, id, tid, pos+1); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // DeletePlaylist elimina una playlist y sus entradas.

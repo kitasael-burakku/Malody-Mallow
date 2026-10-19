@@ -252,7 +252,7 @@ func TestUX05FramesAndScroll(t *testing.T) {
 				m.conPrint(fmt.Sprintf("salida-%02d", i))
 			}
 			conType(m, "playlist")
-			for i := 0; i < 10; i++ {
+			for i := 0; i < len(m.conSuggestions()) && m.conChoice != "playlist import"; i++ {
 				conKey(m, tea.KeyTab)
 			}
 			for _, size := range [][2]int{{140, 42}, {100, 28}, {80, 24}, {40, 12}, {140, 42}} {

@@ -106,3 +106,13 @@ puede ser `fail`, y con razón: el demonio no relanza mpv, así que el estado
 impide reproducir y no se arregla solo. Los dos toleran un demonio viejo que
 no sepa contestar (la fila simplemente no sale) y ninguno cambia el hecho de
 que `doctor` funcione sin demonio.
+
+## Guardar la cola (`playlist save`, UX-06)
+
+CLI y consola delegan en `internal/playlist.SaveQueue`; el contrato de la
+instantánea y la transacción vive en [biblioteca](library.md#guardar-una-cola-como-playlist).
+La rama `save` se resuelve antes de abrir una base con `Create`: ni un nombre
+vacío ni la ausencia de servicio o biblioteca fabrican estado. `play` y `save`
+son los subcomandos de playlist que requieren demonio. Catálogo, ayuda, paleta
+y completado anuncian `playlist save <nombre>`; los nombres existentes no se
+sugieren como destino porque no se sobrescriben.

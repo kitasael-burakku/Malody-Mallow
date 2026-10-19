@@ -1027,6 +1027,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showHelp = false
 		return m, m.openConsole()
 	}
+	if m.is("save_queue", msg) {
+		m.showHelp = false
+		return m, m.openSaveQueue()
+	}
 	if m.is("songs", msg) {
 		m.showHelp = false
 		return m, m.openSongs()

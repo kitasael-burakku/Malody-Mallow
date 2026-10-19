@@ -1,0 +1,39 @@
+[
+  {
+    "args": [
+      "--version"
+    ],
+    "exit": 0,
+    "stdout": "Malody Mallow (maly) v1.20.8\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "playlist",
+      "create",
+      "control"
+    ],
+    "exit": 0,
+    "stdout": "Playlist \"control\" creada\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "playlist",
+      "save",
+      "UX06"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "maly: subcomando playlist desconocido \"save\"\nuso:\n  maly playlist list                      lista las playlists\n  maly playlist show <nombre>             lista las pistas de la playlist\n  maly playlist create <nombre>           crea una playlist\n  maly playlist delete <nombre>           elimina una playlist\n  maly playlist add <nombre> <consulta>   agrega resultados de búsqueda\n  maly playlist remove <nombre> <pos>     quita la pista en esa posición\n  maly playlist play <nombre>             reproduce la playlist (requiere el servicio)\n  maly playlist export <nombre> [archivo] escribe la playlist como M3U\n  maly playlist import <archivo> [nombre] crea una playlist desde un M3U\n"
+  },
+  {
+    "args": [
+      "playlist",
+      "list"
+    ],
+    "exit": 0,
+    "stdout": "PLAYLIST  PISTAS\ncontrol   0\n",
+    "stderr": ""
+  }
+]

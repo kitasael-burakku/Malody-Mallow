@@ -1,0 +1,32 @@
+[
+  {
+    "case": "atomicidad",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "orden",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "instantanea",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "atajo",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "consola",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "cli",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  }
+]

@@ -536,6 +536,7 @@ destination.
 | `ctrl+l` | playlist panel |
 | `ctrl+g` | download search (pick the result before downloading) |
 | `A` | send current selection to a playlist |
+| `ctrl+s` | prepare to save the whole queue as a new playlist |
 | `?` | full help (every key, including remapped ones) |
 | `q` | quit |
 
@@ -610,7 +611,7 @@ the queue or playlist. `search`, `select`
 and `get` still take a single phrase. The TUI's ctrl+p console works the same
 way, with single or double quotes.
 
-**Library** — work without the daemon (except `playlist play`):
+**Library** — work without the daemon (except `playlist play` and `playlist save`):
 
 | Command | Does |
 |---|---|
@@ -633,7 +634,19 @@ way, with single or double quotes.
 | `remove <name> <pos>` | name, position | no |
 | `export <name> [file]` | name, optional file (defaults to `<name>.m3u`) | no |
 | `import <file> [name]` | file, optional name | no |
-| `play <name>` | name | **yes** — the only subcommand that talks to the daemon |
+| `play <name>` | name | **yes** |
+| `save <name>` | new playlist name; saves the whole queue | **yes** |
+
+`maly playlist save "My queue"` saves a snapshot of the **whole** queue in
+its normal order, including duplicates, without changing playback or position.
+Filtering and shuffle do not affect what gets saved. It requires a new name;
+an empty queue, an existing name, or an unindexed track cancels the whole
+operation without leaving a partial playlist. If a track is missing, scan its
+folder with `maly scan <folder>` and retry. In the Ctrl+P console, use
+`playlist save "My queue"`; Ctrl+S opens that input ready for the name. Saving
+happens when you press Enter, not when you open it. Escape cancels and returns
+to the main screen. Remap `save_queue` in `[keys]` if needed; older configs
+inherit Ctrl+S without being rewritten.
 
 **Other** — no daemon needed:
 
@@ -920,6 +933,7 @@ cookies_from_browser = ""
 # songs = "ctrl+o"
 # playlists = "ctrl+l"
 # playlist_add = "A"
+# save_queue = "ctrl+s"
 # toggle_viz = "v"
 # now_playing = "ctrl+t"
 # get = "ctrl+g"

@@ -1,0 +1,12 @@
+  ╭─ Command Palette ────────────────╮
+  │❯ command… e.g. maly next         │
+  │──────────────────────────────────│
+  │Queue saved to "G1": 3 tracks     │
+  │❯ playlist save G2                │
+  │Queue saved to "G2": 3 tracks     │
+  │❯ playlist save G3                │
+  │Queue saved to "G3": 3 tracks     │
+  │esc closes · enter runs ·         │
+  │tab/shift+tab choose · ↑↓ history │
+  │· pgup/pgdn output                │
+  ╰──────────────────────────────────╯

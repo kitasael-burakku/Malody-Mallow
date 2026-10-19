@@ -1,0 +1,42 @@
+  ╭─ Paleta de comandos ─────────────╮
+  │❯ comando… p. ej. maly next       │
+  │──────────────────────────────────│
+  │Cola guardada en "G3": 3 pistas   │
+  │❯ playlist save G4                │
+  │Cola guardada en "G4": 3 pistas   │
+  │❯ playlist save Desde CLI         │
+  │la playlist "Desde CLI" ya existe │
+  │esc cierra · enter ejecuta ·      │
+  │tab/shift+tab elige · ↑↓ historial│
+  │· pgup/pgdn salida                │
+  ╰──────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,12 @@
+  ╭─ Paleta de comandos ─────────────╮
+  │❯ comando… p. ej. maly next       │
+  │──────────────────────────────────│
+  │la playlist "Desde CLI" ya existe │
+  │❯ playlist save Incompleta        │
+  │pista sin indexar (no se guardó n…│
+  │Escanea su carpeta y reintenta:   │
+  │maly scan <carpeta>               │
+  │esc cierra · enter ejecuta ·      │
+  │tab/shift+tab elige · ↑↓ historial│
+  │· pgup/pgdn salida                │
+  ╰──────────────────────────────────╯

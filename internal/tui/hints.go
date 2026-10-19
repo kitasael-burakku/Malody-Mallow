@@ -83,6 +83,9 @@ func (m *Model) mainHint() string {
 	} else if len(m.visibleQueue()) > 0 {
 		hints = append(hints, action(k("remove"), i18n.T("hint.remove")), action("enter", i18n.T("hint.play")))
 	}
+	if m.focus == panelQueue && len(m.queue) > 0 {
+		hints = append(hints, action(k("save_queue"), i18n.T("hint.save_queue")))
+	}
 	hints = append(hints, action(k("play_pause"), i18n.T("hint.pause")), action(k("palette"), i18n.T("hint.palette")), action(k("songs"), i18n.T("hint.songs")))
 	if m.embedded {
 		hints = append(hints, strings.TrimSpace(i18n.T("tui.footer_embedded")))

@@ -7,7 +7,16 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
-## v1.20.8 — 2026-10-18 (pendiente de cierre y publicación)
+## v1.20.9 — 2026-10-18 (commit local autorizado; tag y publicación pendientes)
+
+`playlist save <nombre>` guarda toda la cola como una playlist nueva, tanto
+en CLI como en la consola. Conserva el orden normal y las repeticiones, aunque
+haya filtro o shuffle, sin alterar la reproducción. Ctrl+S prepara la entrada
+para escribir el nombre; el atajo es configurable. Cola vacía, nombre ocupado
+o pistas sin indexar cancelan el guardado completo; el error indica cómo
+escanear las pistas que faltan. Las otras TUIs reciben el refresco de playlists.
+
+## v1.20.8 — 2026-10-18 (commit local; tag y publicación pendientes)
 
 La paleta Ctrl+P permite encontrar comandos por nombre o descripción localizada,
 ver sus argumentos y elegir con Tab/Shift+Tab. Enter copia la sugerencia sin

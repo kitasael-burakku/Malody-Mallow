@@ -2,10 +2,68 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.20.9 (2026-10-18) — UX-06: guardar la cola
+
+**Estado:** implementada y verificada; commit autorizado por el dueño al cerrar
+UX-06. Tag, publicación y despliegue pendientes.
+[Contrato y aceptación](../planning/roadmap-ui-ux.md#ux-06--guardar-la-cola-como-playlist)
+y [evidencia](../planning/evidence/ux-06-1.20.9/README.md).
+
+**Base y alcance.** `main` limpio en `4b6d9ef`, const 1.20.8 y último tag local
+v1.19.5. El dueño autorizó continuar con UX-06. Antes de editar se guardaron
+copias y un binario de la base: `playlist save` fallaba como desconocido mientras
+`create/list` funcionaban. Se fijaron nombre, atajo, semántica de instantánea y
+rechazo de rutas sin indexar antes de implementar.
+
+**Resultado.** CLI y consola usan `internal/playlist.SaveQueue`: una consulta
+`queue`, la transacción de `CreatePlaylistFromPaths` y el aviso `refresh` tras
+confirmar. La transacción crea nombre y entradas, resuelve rutas contra la DB
+actual y conserva orden/repeticiones. No usa IDs viejos de la cola. Ctrl+S
+(configurable) prepara la paleta; Enter con el nombre ejecuta. El filtro y
+shuffle no intervienen. Las ayudas salen de `commandmeta`, `HelpRows` e i18n.
+El remedio de escaneo tiene su propia línea para no perderse tras una ruta larga.
+
+**Versión 1.20.8 → 1.20.9, cambio pequeño.** Compone dos operaciones existentes
+sin cambiar protocolo IPC, esquema, reproducción, layout ni formato persistente.
+El paquete pequeño de composición mantiene IPC fuera de library y SQLite fuera
+del protocolo; CLI y consola comparten comportamiento sin acoplarse entre sí.
+
+**Verificación.** Build/vet, suite sin CGo y race completos: 19 paquetes,
+789 casos/subcasos por suite, sin saltos ni fallos; mpv real con `ao=null` y bus
+privado. Seis neutralizaciones compilables fallaron en la aserción prevista:
+rollback, orden, instantánea, atajo y dispatch de consola/CLI. Restauradas con
+`cp`, todas pasaron. Una prueba corre 25 guardados mientras otra goroutine mueve
+la cola del demonio real; cada playlist coincide con uno de los estados completos.
+
+La matriz tmux cubre es/en, cuatro tamaños y regreso al grande, default/vim/override,
+color/NO_COLOR, embebido/servicio privado y dos TUIs. Consulta SQLite y el IPC real:
+`B,A,B` se conserva aun con filtro sin resultados y shuffle; el guardado no cambia
+estado en pausa y durante reproducción mantiene pista y avance natural. Se
+comprueban errores y refresco al segundo cliente, además de buffers texto/ANSI.
+
+**Ajustes del arnés.** El test de sugerencias de UX-05 contaba diez Tabs de forma
+fija; ahora busca la sugerencia concreta con un límite. La primera prueba de
+concurrencia omitía `Run` del daemon, y falló por timeout; se corrigió el arranque.
+En vivo, `play <ruta>` reemplazaba legítimamente la cola de prueba: se cambió a
+`jump 2`. Se espera la duración cargada por mpv antes de comparar estado, para
+no confundir ese refresco asincrónico con una mutación del guardado. La
+contraprueba de CLI debía esperar el error en inglés, idioma de ese proceso.
+No fueron fallos del producto ni se contaron como aceptación.
+
+**Riesgo, vuelta atrás y límites.** Las transacciones y las pruebas cubren mezcla
+de estados y escrituras parciales. No hay migración; las playlists creadas son
+compatibles con la base. Se puede restaurar únicamente las fuentes afectadas
+desde las copias previas o `4b6d9ef`, con `cp`, conservando trabajo posterior.
+No se ejecutó un rollback de entrega ni se tocó la biblioteca real. Como en otras
+mutaciones, el aviso `refresh` es best-effort: perder la conexión después del
+commit no deshace el guardado. Los buffers no acreditan rasterizado Kitty,
+contraste del escritorio ni audio audible. Sin push, tag, PKGBUILD, sustitución
+del binario instalado ni reinicio del servicio real. UX-07 no iniciada.
+
 ## v1.20.8 (2026-10-18) — UX-05: paleta con sugerencias
 
-**Estado:** implementada y verificada en el árbol de trabajo. Commit/tag
-pendientes de autorización de cierre. Sin push, PKGBUILD ni despliegue local.
+**Estado:** implementada y verificada; commit `4b6d9ef` autorizado después
+del cierre. Sin tag, push, PKGBUILD ni despliegue local.
 [Aceptación](../planning/roadmap-ui-ux.md#ux-05--paleta-con-sugerencias-seleccionables)
 y [evidencia reproducible](../planning/evidence/ux-05-1.20.8/README.md).
 

@@ -1,0 +1,42 @@
+  ╭─ Command Palette ────────────────╮
+  │❯ playlist save                  …│
+  │──────────────────────────────────│
+  │  playlist save <name>            │
+  │save the whole queue as a new pla…│
+  │track not indexed (nothing saved)…│
+  │Scan its folder and retry:        │
+  │maly scan <folder>                │
+  │esc closes · enter runs ·         │
+  │tab/shift+tab choose · ↑↓ history │
+  │· pgup/pgdn output                │
+  ╰──────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

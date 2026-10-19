@@ -1,0 +1,218 @@
+[
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      100,
+      28
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      80,
+      24
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      40,
+      12
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "default",
+    "cli_console_errors": true,
+    "playing_save": true,
+    "resolved_shortcut": "ctrl+s"
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "vim",
+    "cli_console_errors": true,
+    "playing_save": true,
+    "resolved_shortcut": "ctrl+s"
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "filter_zero": true,
+    "shuffle": true,
+    "duplicates_order": true,
+    "playback_unchanged": true
+  },
+  {
+    "two_clients_refresh": true
+  },
+  {
+    "profile": "override",
+    "cli_console_errors": true,
+    "playing_save": true,
+    "resolved_shortcut": "ctrl+y"
+  }
+]

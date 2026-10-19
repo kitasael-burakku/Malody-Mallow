@@ -1,0 +1,12 @@
+  ╭─ Command Palette ────────────────╮
+  │❯ command… e.g. maly next         │
+  │──────────────────────────────────│
+  │playlist "Desde CLI" already exis…│
+  │❯ playlist save Incompleta        │
+  │track not indexed (nothing saved)…│
+  │Scan its folder and retry:        │
+  │maly scan <folder>                │
+  │esc closes · enter runs ·         │
+  │tab/shift+tab choose · ↑↓ history │
+  │· pgup/pgdn output                │
+  ╰──────────────────────────────────╯

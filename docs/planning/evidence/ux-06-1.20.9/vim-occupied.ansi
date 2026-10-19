@@ -1,0 +1,42 @@
+
+
+
+
+
+
+
+
+
+
+
+                       ╭─ Command Palette ─────────────────────────────────────────────────────────────────────────╮
+                       │❯ command… e.g. maly next                                                                  │
+                       │───────────────────────────────────────────────────────────────────────────────────────────│
+                       │❯ playlist save Vacía                                                                      │
+                       │queue is empty                                                                             │
+                       │add tracks before saving it                                                                │
+                       │❯ playlist save G0                                                                         │
+                       │Queue saved to "G0": 3 tracks                                                              │
+                       │❯ playlist save G1                                                                         │
+                       │Queue saved to "G1": 3 tracks                                                              │
+                       │❯ playlist save G2                                                                         │
+                       │Queue saved to "G2": 3 tracks                                                              │
+                       │❯ playlist save G3                                                                         │
+                       │Queue saved to "G3": 3 tracks                                                              │
+                       │❯ playlist save G4                                                                         │
+                       │Queue saved to "G4": 3 tracks                                                              │
+                       │❯ playlist save Desde CLI                                                                  │
+                       │playlist "Desde CLI" already exists                                                        │
+                       │esc closes · enter runs · tab/shift+tab choose · ↑↓ history · pgup/pgdn output             │
+                       ╰───────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+

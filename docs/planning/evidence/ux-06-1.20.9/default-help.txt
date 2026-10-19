@@ -1,0 +1,42 @@
+
+
+
+
+                     ╭─ Ayuda ───────────────────────────────────────────────────────────────────────────────────────╮
+                     │Reproducción                                                                                   │
+                     │  espacio            reproducir / pausar                                                       │
+                     │  n / p              siguiente / anterior                                                      │
+                     │  + / -              volumen ±5%                                                               │
+                     │  right / left       seek ±5s                                                                  │
+                     │Biblioteca y cola                                                                              │
+                     │  tab                cambiar de panel                                                          │
+                     │  > / ▶              selección / pista actual (pueden coincidir)                               │
+                     │  enter              reproducir / expandir                                                     │
+                     │  a                  agregar a la cola                                                         │
+                     │  d                  quitar de la cola                                                         │
+                     │  K / J              subir / bajar la pista en la cola                                         │
+                     │  /                  filtrar panel actual (a: al: t: f: -palabra; ↑↓ mueve)                    │
+                     │  h j k l            navegar la cola (también flechas) · h/l pliega/expande en la biblioteca   │
+                     │  gg/G ctrl+d/u      inicio / final · media página                                             │
+                     │  pgup/pgdn home/end avanzar/retroceder página · inicio / final                                │
+                     │Herramientas y vistas                                                                          │
+                     │  s / r              shuffle / repeat                                                          │
+                     │  v                  alternar visualizador                                                     │
+                     │  ctrl+t             pantalla ahora suena (carátula y letras)                                  │
+                     │  ctrl+p             paleta de comandos                                                        │
+                     │  tab / shift+tab    paleta: elige sugerencia; enter rellena, después ejecuta; esc edita/cierra│
+                     │  ↑↓ / pgup/pgdn     paleta: historial/borrador; scroll de salida (ctrl+home/end: inicio/fin)  │
+                     │  ctrl+o             canciones: a:artista al:álbum t:título f:archivo -live                    │
+                     │  ctrl+l             panel de playlists                                                        │
+                     │  ctrl+g             buscar y descargar música                                                 │
+                     │  A                  agregar selección a una playlist                                          │
+                     │  ctrl+s             guardar toda la cola como playlist nueva (escribir nombre)                │
+                     │  ?                  ayuda                                                                     │
+                     │  q                  salir                                                                     │
+                     │                                                                                               │
+                     │  esc cierra                                                                                   │
+                     ╰───────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+

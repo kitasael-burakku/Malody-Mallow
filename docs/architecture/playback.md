@@ -90,3 +90,22 @@ actual si era pendiente. Clear/Replace borran prioridades. `Pending` devuelve
 una copia; `RestorePending` valida índices únicos, existentes y no actuales.
 AddNext incrementa `Gen` por cambiar Items; consumir prioridad solo cambia
 los campos pequeños de Status, sin reenviar la cola entera.
+
+
+**Una eliminación recuperable (UX-09).** Queue guarda un `removal` efímero:
+Track por valor, índice normal, slot shuffle, rango FIFO, condición de actual
+y token aleatorio por eliminación (`crypto/rand.Text`, biblioteca estándar).
+No guarda una foto de Items, order ni pending. RemoveAt sustituye el registro;
+UndoRemove reinserta esa entrada y remapea índices existentes. No cambia la
+identidad de la actual ni pisa duraciones aprendidas en otras entradas. Si la
+quitada era actual, en shuffle queda consumida justo antes de la nueva actual;
+con cola vacía no selecciona ninguna. Solo recupera la prioridad de la entrada
+quitada; no resucita una prioridad consumida por la nueva actual tras RemoveAt.
+
+Los mutadores descartan el registro (Add/AddNext con entradas, Replace/Clear,
+Move efectivo, JumpTo válido, Next exitoso, Prev no vacío, cambios de shuffle,
+CycleRepeat/Invalidate y RestorePending). Touch y PeekNext lo conservan;
+QueueGen no sirve de validez. UndoRemove valida el token antes de tocar nada:
+uno viejo falla sin descartar un registro reciente. Token vacío pide la última
+vigente. El token cambia por eliminación, también entre procesos, y no se
+persiste. UndoRemove sube Gen por insertar, DiscardUndo no cambia contenido.

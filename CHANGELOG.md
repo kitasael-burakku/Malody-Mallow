@@ -7,6 +7,17 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.22.10 — 2026-10-19 (implementada; commit local autorizado; tag pendiente)
+
+`undo` en CLI/consola y `u` configurable en la TUI recuperan la última entrada
+quitada de la cola. La recuperación es compartida entre clientes y no reinicia
+la pista ni retrocede su posición, incluso si se quitó la que sonaba. Conserva
+el lugar en shuffle y la prioridad de «reproducir después». Cambiar la cola,
+avanzar o saltar de pista, detener, ajustar modos o reiniciar hace caducar la
+acción; otra eliminación la sustituye. Pausa, volumen, seek y duraciones no
+la invalidan. El pie anuncia la tecla mientras está disponible y una TUI con
+información vieja no puede recuperar una eliminación posterior por accidente.
+
 ## v1.21.10 — 2026-10-19 (implementada; commit autorizado; tag pendiente)
 
 `playnext` en CLI/consola y Ctrl+N configurable en la TUI preparan canciones

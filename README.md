@@ -554,6 +554,7 @@ destino de cada uno.
 | `ctrl+g` | buscador de descargas (elige el resultado antes de bajar) |
 | `A` | manda la selección actual a una playlist |
 | `ctrl+n` | reproducir después: biblioteca, cola, canciones y archivos descargados; en playlists crea una playlist |
+| `u` | deshacer la última eliminación compartida, desde la pantalla principal |
 | `ctrl+s` | prepara el guardado de toda la cola como playlist nueva |
 | `?` | ayuda completa (todas las teclas, incluidas las remapeadas) |
 | `q` | salir |
@@ -611,6 +612,7 @@ navegación vim de arriba está siempre activa, en cualquier preset.
 | `maly jump <pos>` | salta a una posición de la cola |
 | `maly move <de> <a>` | mueve una pista de la cola a otra posición |
 | `maly remove <pos>` | quita una pista de la cola |
+| `maly undo` | recupera la última eliminación de cola disponible, sin reiniciar audio |
 | `maly add <consulta\|ruta>...` | agrega a la cola (consultas o rutas) |
 | `maly playnext <consulta\|ruta>...` | prepara entradas para después de la actual, en orden FIFO |
 | `maly queue` | muestra la cola |
@@ -643,6 +645,19 @@ nuevas: elegir algo que ya está en cola no mueve ni elimina su entrada original
 Las prioridades se guardan al cerrar y se restauran en pausa. `remove` cancela
 la entrada retirada, `move` conserva su prioridad, y `clear` o reproducir una
 consulta nueva descartan las prioridades anteriores.
+
+**Deshacer una eliminación:** `maly undo` o `undo` en Ctrl+P recupera la
+última entrada quitada por cualquier cliente. En la pantalla principal, `u`
+(`undo_remove` en `[keys]`) actúa sobre la eliminación que la TUI muestra como
+disponible. Si otro cliente la sustituyó, falla con explicación y conserva
+la nueva. No hay temporizador: caduca al añadir, reordenar, vaciar o reemplazar
+la cola, cambiar de pista, detener, ajustar repeat/cambiar shuffle o reiniciar
+el demonio. Otra eliminación sustituye la anterior. Pausa, reanudación de la
+misma pista, volumen, seek, filtros y actualizaciones de duración la conservan.
+Solo recupera contenido: quitar la actual ya eligió otra, y deshacer no vuelve
+a la anterior; recuperar la única entrada tampoco arranca audio. Conserva
+su lugar en shuffle y, si era pendiente, su prioridad FIFO. No hay rehacer
+ni historial, y reiniciar el demonio descarta la recuperación disponible.
 
 **Biblioteca** — funcionan sin el servicio (salvo `playlist play` y `playlist save`):
 
@@ -953,6 +968,7 @@ cookies_from_browser = ""
 # filter = "/"
 # add = "a"
 # play_next = "ctrl+n"
+# undo_remove = "u"
 # remove = "d"
 # move_up = "K"
 # move_down = "J"

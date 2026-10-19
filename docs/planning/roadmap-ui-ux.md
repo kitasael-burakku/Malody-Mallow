@@ -6,7 +6,7 @@ UX-01 con release local `1.19.5`; UX-02 verificada en el commit `9135bcd`
 UX-04 verificada en el commit `fb0db1b` (`1.19.8`, sin tag).
 UX-05 verificada en `4b6d9ef` (`1.20.8`, sin tag). UX-06 verificada en
 `0121e52` (`1.20.9`, sin tag). UX-07 implementada y verificada (`1.20.10`),
-en `5806445`, sin tag. UX-08 implementada y verificada (`1.21.10`), con commit autorizado y tag pendiente. UX-09 pendiente. No se ha verificado publicación de estas entregas.**
+en `5806445`, sin tag. UX-08 implementada y verificada (`1.21.10`), con commit autorizado y tag pendiente. UX-09 implementada y verificada (`1.22.10`), commit local autorizado; tag pendiente. No se ha verificado publicación de estas entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -44,7 +44,7 @@ condicionadas son candidatas, no compromisos de publicación.
 | UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño: compone una foto de la cola con la persistencia de playlists existente | Verificada; commit autorizado, tag pendiente |
 | UX-07 | `1.20.9` → `1.20.10` | Continuidad después de descargar | Pequeño: reutiliza el selector y acciones existentes sobre rutas obtenidas, sin gestor de trabajos nuevo | Verificada con yt-dlp simulado; commit autorizado; tag pendiente |
 | UX-08 | `1.20.10` → `1.21.10` | Reproducir después | Grande: modifica el orden efectivo de reproducción, su interacción con shuffle y la promesa gapless | Implementada y verificada; commit autorizado; tag pendiente |
-| UX-09 | `1.21.10` → `1.22.10` | Deshacer una eliminación de cola | Grande: introduce recuperación con validez compartida entre clientes y demonio | Candidata; diseño pendiente |
+| UX-09 | `1.21.10` → `1.22.10` | Deshacer una eliminación de cola | Grande: introduce recuperación con validez compartida entre clientes y demonio | Implementada y verificada; commit local autorizado; tag pendiente |
 
 La primera tanda recomendada es UX-01–UX-03. Cada fila es una entrega coherente,
 no un bump por archivo o commit. Un cambio que desborde la justificación se
@@ -354,26 +354,41 @@ y [evidencia reproducible](evidence/ux-08-1.21.10/README.md).
 
 ## UX-09 — deshacer una eliminación de cola
 
-**Candidata funcional.** Beneficio: recuperar una pulsación accidental sin
-confirmaciones en cada borrado. No convertirla en historial general de la app.
+**Implementada y verificada en 1.22.10 sobre 7d68623 (1.21.10).
+Commit local autorizado; tag pendiente.**
+El dueño aprobó una sola recuperación compartida. El demonio conserva la
+última entrada quitada; no una foto completa de la cola ni un historial.
 
-**Diseño necesario:** una sola eliminación recuperable, ámbito de la acción,
-propietario del estado y condición explícita de caducidad. Evitar restaurar una
-foto entera que pise cambios de otro cliente. `QueueGen` por sí sola no es un
-contador de todas las mutaciones: también cambia por duraciones y no por cada
-transición de reproducción; no asumir que sirve como token de validez.
+| Situación | Contrato |
+| --- | --- |
+| Undo | Reinsertar la entrada en su posición normal, sin cargar audio, cambiar pausa ni retroceder posición |
+| Actual eliminada | Conservar la nueva actual; restaurar contenido no vuelve a la canción anterior |
+| Última entrada | Recuperar la cola sin arrancarla; play es explícito |
+| Shuffle | Recuperar su lugar en el ciclo; la antigua actual queda ya consumida antes de la nueva actual |
+| Prioridad UX-08 | Recuperar el lugar FIFO de la entrada quitada; no resucitar prioridades ya consumidas al quitar la actual |
+| Duplicados | Recuperar exactamente esa entrada, aunque comparta ruta o metadatos |
+| Otra eliminación | Sustituye la recuperación anterior; una TUI con token anterior falla sin tocar la nueva |
+| Caducidad | Add/playnext/move efectivo/clear/reemplazo, salto/avance/prev, stop, ajustar repeat/cambiar shuffle o reinicio |
+| Sin caducidad | Pausa/reanudar la misma pista, seek, volumen, ticks, lectura, filtros, scan/duraciones; no hay temporizador |
+| Dos clientes | Un solo ganador bajo d.mu; token opaco por eliminación, distinto incluso tras reinicio |
+| CLI/consola | `undo` recupera la última eliminación vigente, con explicación si no existe |
+| TUI | `u` configurable (`undo_remove`), en la pantalla principal; usa el token observado y muestra disponibilidad |
 
-**Por qué sí:** recuperación rápida. **Por qué puede esperar:** requiere un
-contrato nuevo de estado compartido; deshacer contenido no implica volver atrás
-en el tiempo de audio. Rechazarla si no se obtiene una regla sencilla de explicar.
+No persiste la posibilidad de deshacer. El archivo de sesión y SQLite no
+cambian. Una petición caducada no borra una recuperación más reciente.
+**Alcance grande, 1.21.10 → 1.22.10:** nuevo estado compartido y contrato de
+validez entre clientes y demonio; conserva el último componente.
 
 **Aceptación antes de cerrar:**
 
-- [ ] Definir conducta al quitar la pista actual, con shuffle, duplicados,
+- [x] Definir conducta al quitar la pista actual, con shuffle, duplicados,
   salto de canción, reinicio y mutaciones desde otro cliente.
-- [ ] Una acción caducada falla con explicación y no pisa la cola nueva.
-- [ ] Volver a insertar no reinicia audio ni posición por accidente; UX y
+- [x] Una acción caducada falla con explicación y no pisa la cola nueva.
+- [x] Volver a insertar no reinicia audio ni posición por accidente; UX y
   pruebas distinguen restaurar una entrada de restaurar reproducción.
+
+Cierre y límites en [ingeniería](../history/roadmap-1.17.md#v12210-2026-10-19--ux-09-deshacer-una-eliminación)
+y [evidencia reproducible](evidence/ux-09-1.22.10/README.md).
 
 ## Fuera de alcance y cierre de decisiones
 
@@ -447,3 +462,12 @@ UX-09 no iniciada. No se publica ni despliega automáticamente.
 `5806445` (1.20.10); UX-08 se registra en el commit siguiente (1.21.10).
 Se contrastaron ambas instantáneas con las fuentes verificadas, conservando
 las evidencias originales. Tags, publicación y despliegue pendientes; UX-09 no iniciada.
+
+
+**2026-10-19 — UX-09 verificada.** Base limpia `7d68623` / 1.21.10;
+const 1.22.10. El dueño aprobó una recuperación compartida con caducidad.
+Build/vet/suite/race correctos (910 casos/subcasos por suite, sin saltos), diez
+contrapruebas y matriz TUI con dos clientes y mpv privado. Quedan implementadas
+y verificadas las diez entregas UX-00–UX-09, con los límites particulares
+registrados (incluido yt-dlp simulado en UX-07). Commit/tag de UX-09, publicación
+y despliegue pendientes; no se inicia trabajo fuera de este ciclo.

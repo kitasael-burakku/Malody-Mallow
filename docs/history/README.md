@@ -110,6 +110,7 @@ precede.
 | 1.19.8 (commit fb0db1b; sin tag) | UX-04: consultas locales compartidas por `/`, Ctrl+O y `select`, campos reales y negación |
 | 1.20.10 | UX-07: archivos de descarga indexados, acciones por ruta y reintento; verificada con yt-dlp simulado, commit autorizado; tag pendiente |
 | 1.21.10 | UX-08: reproducir después con FIFO persistente, prioridad sobre shuffle/repeat-one y paridad CLI/consola/TUI; verificada, commit autorizado; tag pendiente |
+| 1.22.10 | UX-09: deshacer una eliminación compartida, token de validez y recuperación sin reiniciar audio; verificada, commit local autorizado; tag pendiente |
 | 1.20.9 | UX-06: guardar la cola completa como playlist nueva; transacción atómica y acceso Ctrl+S; commit autorizado, tag pendiente |
 | 1.20.8 | UX-05: paleta con sugerencias, argumentos localizados y confirmaciones coordinadas; commit 4b6d9ef, sin tag |
 | 1.19.7 (commit 2363318; sin tag) | UX-03: título de hasta dos líneas, marcadores sin color y contraste medido |

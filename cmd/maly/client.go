@@ -139,6 +139,10 @@ func buildRequest(cmd string, args []string) (ipc.Request, error) {
 			return req, errors.New(i18n.T("cli.usage_jump_cmd"))
 		}
 		req.Index = n - 1
+	case "undo":
+		if len(args) != 0 {
+			return req, errors.New(i18n.T("cli.usage_undo"))
+		}
 	case "remove":
 		// Mismo parseo 1-based que jump — la op IPC ya existía (la TUI la
 		// usa con la tecla "d") pero le faltaba comando de CLI, el único

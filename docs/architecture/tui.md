@@ -335,3 +335,14 @@ resuelta. Playlists conserva su Ctrl+N local para crear. Consola usa el comando
 compartido `playnext` y el panel marca la primera pendiente por NextPosition,
 con independencia de selección, actual y color. Sin nuevo modal ni reparto
 de pantalla: `computeLayout` sigue siendo la única fuente.
+
+
+**Deshacer eliminación (UX-09).** `undo_remove` (`u` por defecto) funciona en
+la pantalla principal; no captura texto de filtro ni entradas de modales.
+Solo envía `undo` si Status tiene UndoToken y lo copia a Request.Value. Sin él,
+explica que no hay recuperación vigente; nunca manda una petición genérica
+que pudiera afectar una eliminación todavía no observada. El pie prioriza
+la tecla resuelta después de ayuda/salida mientras hay token, incluso con cola
+vacía o filtrada y a 40 columnas. La ayuda explica su caducidad. En consola,
+`undo` pide la última vigente del demonio, con la misma gramática sin argumentos
+que la CLI. Los mensajes de éxito distinguen recuperación y reproducción.

@@ -792,6 +792,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 			return fail(err)
 		}
 		d.stopped = true
+		d.q.DiscardUndo()
 		return okStatus(i18n.TL(lang, "d.stopped"))
 
 	case "next":
@@ -898,6 +899,13 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 			}
 		}
 		return okStatus(i18n.TL(lang, "d.removed"))
+
+	case "undo":
+		if _, ok := d.q.UndoRemove(req.Value); !ok {
+			return fail(errors.New(i18n.TL(lang, "d.undo_expired")))
+		}
+		// Solo contenido: handle realinea la ventana, sin Load ni SetPause.
+		return okStatus(i18n.TL(lang, "d.undone"))
 
 	case "move":
 		if !d.q.Move(req.Index, req.To) {
@@ -1062,6 +1070,7 @@ func (d *Daemon) statusLocked(lang string) *ipc.Status {
 		QueueLen:     d.q.Len(),
 		NextPosition: d.q.NextPosition(),
 		NextCount:    d.q.PendingCount(),
+		UndoToken:    d.q.UndoToken(),
 		LibGen:       d.libGen.Load(),
 		QueueGen:     d.q.Gen(),
 		PlayerDead:   d.pl.Dead(),

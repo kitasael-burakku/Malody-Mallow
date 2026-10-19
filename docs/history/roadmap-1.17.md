@@ -2,6 +2,77 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.22.10 (2026-10-19) — UX-09: deshacer una eliminación
+
+**Estado:** implementada y verificada; commit local autorizado; tag pendiente.
+[Contrato y aceptación](../planning/roadmap-ui-ux.md#ux-09--deshacer-una-eliminación-de-cola)
+y [evidencia reproducible](../planning/evidence/ux-09-1.22.10/README.md).
+
+**Base y decisión.** `main` limpio en `7d68623` (UX-08, 1.21.10), UX-07 en
+`5806445`; último tag local v1.19.5. Sin consultar remoto. Copia exacta en
+`/tmp/maly-ux09-backup`; el binario previo rechaza `undo` como subcomando
+desconocido. El dueño aprobó una sola recuperación compartida: conservar
+pausa/volumen/reloj, caducar por cambios de cola/pista o reinicio. Se concretan
+stop y ajustes de modos como invalidaciones, sin temporizador arbitrario.
+
+**Antes → después.** RemoveAt conserva una entrada y sus posiciones, no una
+foto de la cola. `undo` en CLI/consola la reinserta; `u` configurable en TUI
+manda el token que observó. Un token viejo falla sin consumir una eliminación
+nueva. No depende de QueueGen: aprender duraciones no invalida, y un EOF sí,
+incluso al agotar la cola. No se guardan tokens en sesión. La entrada recupera
+su lugar en shuffle y prioridad FIFO; la antigua actual ya quedó consumida
+antes de la nueva actual. No se carga audio por recuperar contenido, tampoco
+si la cola quedó vacía. El pie anuncia la acción disponible a 40 columnas.
+Contrato completo y arquitectura en las fichas de cola, daemon y TUI.
+
+**Versión 1.21.10 → 1.22.10, cambio grande.** Introduce estado compartido con
+validez entre clientes y reproducción; conserva el último componente. No hay
+migración de SQLite/sesión, nuevas dependencias ni red. Se descartó un historial
+por cliente y restaurar instantáneas completas: complicaban propiedad/validez
+y podían sobrescribir modificaciones ajenas. El identificador aleatorio por
+eliminación evita reutilización tras reinicio; no pretende ser autenticación.
+
+**Verificación.** Build sin CGo, vet, suite completa sin CGo y race correctos:
+19 paquetes, 910 casos/subcasos por suite, cero fallos/saltos, mpv `ao=null`
+y bus privado. Pruebas de cola con shuffle on/off, todas las posiciones de
+actual/eliminada, duplicados por ruta distinguidos por ID, conservación de
+duraciones aprendidas, prioridad FIFO, cola única y caducidad por mutador.
+Pruebas de daemon con pausa/seek/volumen y LoadCount intacto, dos clientes IPC
+con un solo ganador, token nuevo tras reinicio, final natural a otra pista y
+fin de cola. CLI/consola validan argumentos; TUI prueba token observado, falta
+de disponibilidad y ayuda resuelta a 40 columnas.
+
+Diez neutralizaciones compilables fallaron por la aserción esperada y pasaron
+tras restaurar con `cp`: registro, token, identidad actual, FIFO, slot shuffle,
+caducidad al añadir, fin de cola, audio recargado por undo, token TUI y gramática
+CLI. Las suites se ejecutaron después de terminar las neutralizaciones.
+
+Matriz tmux: es/default/color, en/vim/NO_COLOR y es/Ctrl+Y/NO_COLOR;
+140×42 → 100×28 → 80×24 → 40×12 → 140×42. Dos TUIs, daemon embebido y servicio
+privado separado. Recuperación compartida desde la segunda TUI, filtro por
+ruta, consola/CLI, rechazo de token viejo sin pisar el nuevo, quitar actual y
+restaurar sin cambiar la ruta efectiva de mpv, caducidad tras mutación y reinicio.
+Capturas de texto/ANSI; no se acredita audio audible ni rasterizado Kitty.
+
+**Trampas del arnés.** newTestDaemon prepara el socket pero no ejecuta Run:
+los clientes IPC reales requieren arrancar ese bucle; omitirlo causó un timeout,
+no un fallo de la función. Stop responde antes de asentarse el espejo de mpv:
+el caso de última entrada debe esperar Idle antes de afirmar que undo arrancó
+audio. Ambos arneses se corrigieron; no fueron defectos de producción. Los
+sockets bloqueados por el sandbox se probaron con permiso fuera de él.
+
+**Riesgo y reversión.** La acción es global y CLI/consola `undo` actúa sobre la
+última eliminación vigente de cualquier cliente; TUI exige la observada.
+Caducar es deliberadamente conservador y no pretende reconstruir cambios
+intermedios. El orden con EOF se decide bajo el mutex del demonio, conservando
+sus guardas de generación y ruta. No recupera archivos borrados del disco.
+Para volver a UX-08, restaurar las fuentes afectadas de `7d68623` o de la copia
+con `cp` y retirar los cinco archivos Go nuevos de UX-09, preservando cambios
+posteriores; no hay datos persistentes nuevos
+que migrar ni revertir. No se ejecutó esa reversión de entrega. Sin commit,
+tag, push, PKGBUILD, sustitución de `~/.local/bin/maly` ni reinicio real.
+El ciclo UX-00–UX-09 queda implementado, con publicación/despliegue pendientes.
+
 ## v1.21.10 (2026-10-19) — UX-08: reproducir después
 
 **Estado:** implementada y verificada; commit autorizado; tag pendiente.

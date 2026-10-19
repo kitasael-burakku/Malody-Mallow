@@ -1,0 +1,176 @@
+[
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      100,
+      28
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      80,
+      24
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      40,
+      12
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "default",
+    "shared_undo": true,
+    "filtered_exact_path": true,
+    "old_current_keeps_audio": true,
+    "stale_rejected_without_overwrite": true,
+    "restart_expires": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "vim",
+    "shared_undo": true,
+    "filtered_exact_path": true,
+    "old_current_keeps_audio": true,
+    "stale_rejected_without_overwrite": true,
+    "restart_expires": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "undo_visible": true
+  },
+  {
+    "profile": "override",
+    "shared_undo": true,
+    "filtered_exact_path": true,
+    "old_current_keeps_audio": true,
+    "stale_rejected_without_overwrite": true,
+    "restart_expires": true
+  }
+]

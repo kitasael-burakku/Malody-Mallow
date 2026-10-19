@@ -66,7 +66,11 @@ func (m *Model) mainHint() string {
 	if m.focus == panelQueue {
 		panel = i18n.T("hint.to_library")
 	}
-	hints := []string{help, quit, action(k("switch_panel"), panel), action(k("filter"), i18n.T("hint.filter"))}
+	hints := []string{help, quit}
+	if m.status != nil && m.status.UndoToken != "" {
+		hints = append(hints, action(k("undo_remove"), i18n.T("hint.undo_remove")))
+	}
+	hints = append(hints, action(k("switch_panel"), panel), action(k("filter"), i18n.T("hint.filter")))
 	if m.focus == panelLibrary {
 		if m.tree != nil {
 			if n := m.tree.current(); n != nil {

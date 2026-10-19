@@ -141,3 +141,9 @@ metadatos de comando con `add`; acepta lotes tanto en CLI como en consola.
 `maly select` permite enviar la ruta elegida con la tecla configurada
 `play_next` sin cerrar el selector. El orden FIFO y su persistencia pertenecen
 al demonio (ver [protocolo](daemon.md)), no a una composición add/move del cliente.
+
+
+**UX-09:** `undo` no acepta argumentos y comparte metadatos/ayuda/completado
+con la consola. Pide al demonio la última eliminación disponible (la operación
+no pertenece al cliente que la hizo); la TUI usa además una precondición con
+el token observado. Ver [protocolo y caducidad](daemon.md).

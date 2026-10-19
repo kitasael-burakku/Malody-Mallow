@@ -401,6 +401,12 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.conReq(ipc.Request{Cmd: "move", Index: from - 1, To: to - 1})
+	case "undo":
+		if len(args) != 0 {
+			m.conErr(i18n.T("cli.usage_undo"))
+			return m, nil
+		}
+		return m, m.conReq(ipc.Request{Cmd: "undo"})
 	case "remove":
 		if len(args) != 1 {
 			m.conErr(i18n.T("con.usage_remove"))

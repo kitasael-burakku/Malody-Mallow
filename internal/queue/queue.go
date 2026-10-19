@@ -26,6 +26,7 @@ const (
 )
 
 type Queue struct {
+	removed *removal // última eliminación, efímera y compartida por el demonio
 	Items   []library.Track
 	Index   int  // pista actual; -1 si nada seleccionado
 	Shuffle bool // solo lectura desde fuera; mutar SIEMPRE vía SetShuffle
@@ -41,8 +42,8 @@ type Queue struct {
 	// hace con la biblioteca. Arranca en 1 —y no en 0— para que 0 signifique
 	// "demonio sin soporte" en el protocolo, como LibGen.
 	//
-	// Sube SOLO con lo que altera Items: Add, AddNext, Replace, Clear, RemoveAt y
-	// Move. NO con JumpTo, Next, Prev, SetShuffle ni CycleRepeat, que mueven
+	// Sube SOLO con lo que altera Items: Add, AddNext, UndoRemove, Replace,
+	// Clear, RemoveAt y Move. NO con JumpTo, Next, Prev, SetShuffle ni CycleRepeat, que mueven
 	// Index/order/pos —estado que ya viaja aparte en Status— y dejan la lista
 	// igual: subirla ahí re-mandaría la cola entera en cada canción, que es
 	// justo lo que este contador existe para evitar.
@@ -81,6 +82,7 @@ func (q *Queue) SetShuffle(on bool) {
 	if on == q.Shuffle {
 		return
 	}
+	q.DiscardUndo()
 	q.Shuffle = on
 	if on {
 		q.reshuffle()
@@ -143,6 +145,9 @@ func (q *Queue) orderPos(v int) int {
 // cambiar la promesa vigente — a propósito, una pista agregada al final del
 // ciclo debe poder sonar; el demonio realinea la ventana tras cada mutador.
 func (q *Queue) Add(tracks ...library.Track) {
+	if len(tracks) > 0 {
+		q.DiscardUndo()
+	}
 	start := len(q.Items)
 	q.Items = append(q.Items, tracks...)
 	if len(tracks) > 0 {
@@ -160,6 +165,7 @@ func (q *Queue) Add(tracks ...library.Track) {
 
 // Replace sustituye la cola entera y se coloca al inicio.
 func (q *Queue) Replace(tracks []library.Track) {
+	q.DiscardUndo()
 	q.pending = nil
 	q.Items = append([]library.Track(nil), tracks...)
 	q.Index = -1
@@ -171,6 +177,7 @@ func (q *Queue) Replace(tracks []library.Track) {
 
 // Clear vacía la cola.
 func (q *Queue) Clear() {
+	q.DiscardUndo()
 	q.pending = nil
 	q.Items = nil
 	q.Index = -1
@@ -185,6 +192,7 @@ func (q *Queue) RemoveAt(i int) (removed, wasCurrent bool) {
 	if i < 0 || i >= len(q.Items) {
 		return false, false
 	}
+	q.rememberRemoval(i)
 	q.consumePending(i)
 	for k, v := range q.pending {
 		if v > i {
@@ -247,6 +255,7 @@ func (q *Queue) Move(from, to int) bool {
 	if from == to {
 		return true
 	}
+	q.DiscardUndo()
 	t := q.Items[from]
 	q.gen++
 	q.Items = append(q.Items[:from], q.Items[from+1:]...)
@@ -291,6 +300,7 @@ func (q *Queue) JumpTo(i int) (library.Track, bool) {
 	if i < 0 || i >= len(q.Items) {
 		return library.Track{}, false
 	}
+	q.DiscardUndo()
 	if q.Shuffle && len(q.order) > 0 {
 		p := q.orderPos(i)
 		q.order = append(q.order[:p], q.order[p+1:]...)
@@ -324,7 +334,7 @@ func (q *Queue) PeekNext() (library.Track, bool) {
 // promesa del wrap). Es para los cambios de Repeat, campo público que el
 // demonio escribe directo: repeat one/all cambian qué promete PeekNext,
 // pero no el ciclo en curso. Shuffle cambia solo vía SetShuffle.
-func (q *Queue) Invalidate() { q.staged = nil }
+func (q *Queue) Invalidate() { q.DiscardUndo(); q.staged = nil }
 
 // nextIndex calcula el índice al que se avanzaría. natural aplica repeat
 // one (el next manual lo ignora). En shuffle recorre la permutación; al
@@ -372,6 +382,7 @@ func (q *Queue) Next(natural bool) (library.Track, bool) {
 	if !ok {
 		return library.Track{}, false
 	}
+	q.DiscardUndo()
 	// Misma condición que la rama repeat-one de nextIndex: repetir la
 	// actual no consume la permutación.
 	if q.Shuffle && !(natural && q.Repeat == RepeatOne && q.Index >= 0) {
@@ -395,6 +406,7 @@ func (q *Queue) Prev() (library.Track, bool) {
 	if len(q.Items) == 0 {
 		return library.Track{}, false
 	}
+	q.DiscardUndo()
 	if q.Shuffle {
 		switch {
 		case q.pos > 0:
@@ -421,6 +433,7 @@ func (q *Queue) Prev() (library.Track, bool) {
 
 // CycleRepeat rota off → all → one → off.
 func (q *Queue) CycleRepeat() RepeatMode {
+	q.DiscardUndo()
 	switch q.Repeat {
 	case RepeatOff:
 		q.Repeat = RepeatAll

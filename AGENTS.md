@@ -105,7 +105,7 @@ archivo de la última columna, y es la fuente única.**
 | `internal/ipc` | Protocolo (Request/Response/Status/TrackInfo), cliente, y `display.go` con los helpers de presentación compartidos — no re-armar "Artista — Título" a mano, ni un mensaje que salga por los tres clientes. El **deadline** de una petición lo decide el protocolo (`reqTimeout`), no el llamador: 30 s por defecto y **ninguno para `scan`**. | `docs/architecture/daemon.md` |
 | `internal/daemon` | El **orden de arranque de `New` no es negociable** (`EnsureRuntimeDir` → `ipc.Ping` → **flock** → socket → biblioteca → player → sesión → MPRIS): solo CON el lock son seguras las dos operaciones destructivas. `serve → handle → dispatch`, dispatch bajo `d.mu`, con **tres excepciones** que resuelven fuera del lock (play/add/playnow/playnext, seek, scan). `advance` tiene DOS guardas contra una promesa obsoleta y no se solapan. El push de suscripción se arma **por suscriptor** (`stateFor`) y lleva la cola SOLO si `queue.Gen()` cambió. `d.cfg` ya NO es inmutable: se relee en cada scan bajo `d.mu`. | `docs/architecture/daemon.md` |
 | `internal/player` | Wrapper de mpv. Gapless por ventana de dos entradas con `playlist-clear + append` (**NUNCA podar por índices**). Callbacks **siempre async con `go`** — en línea deadlockean readLoop —, y por eso `loadGen` se valida en DOS puntos. Toda espera a mpv está ACOTADA y con dos topes: 5 s un comando normal, **1 s los de la ventana gapless**, que son best-effort y se pagan bajo `d.mu` en cada mutador. | `docs/architecture/playback.md` |
-| `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. `gen` sube SOLO con lo que altera `Items` (Add/AddNext/Replace/Clear/RemoveAt/Move) más `Touch()`, que usa el demonio para las duraciones que escribe en sitio. | `docs/architecture/playback.md` |
+| `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. `gen` sube SOLO con lo que altera `Items` (Add/AddNext/UndoRemove/Replace/Clear/RemoveAt/Move) más `Touch()`, que usa el demonio para las duraciones que escribe en sitio. | `docs/architecture/playback.md` |
 | `internal/library` | SQLite (modernc, sin CGo, `SetMaxOpenConns(1)`, WAL). Scan por **LOTES de 500**, nunca una transacción única. La purga tiene una **GUARDA**: un walk sin ni un archivo de audio no borra nada (`*ScanEmpty`) — era la única pérdida de datos irreversible del proyecto. `scanTrack` es el punto único de salida. **`Create` crea, `Open` NO** (devuelve `fs.ErrNotExist` envuelto): consultar la biblioteca no puede fabricarla. | `docs/architecture/library.md` |
 | `internal/playlist` | Composición de cliente compartida por CLI y consola para guardar una instantánea de cola como playlist nueva; usa IPC y la transacción de biblioteca existente. | `docs/architecture/library.md` |
 | `internal/probe` | ffprobe para las duraciones. A diferencia de `getter.Tools`, **la ausencia NO es error**: se salta la fase en silencio. Se INYECTA en `FillDurations` (library no lo importa). | `docs/architecture/library.md` |
@@ -237,12 +237,14 @@ tomadas.
 
 ## Estado actual
 
-**v1.21.10 — UX-08 implementada y verificada; commit autorizado; tag pendiente**
-(`internal/version/version.go`). Reproducir después con FIFO por entrada,
-compartido y persistente; CLI/consola `playnext`, TUI Ctrl+N configurable.
-Contrato y aceptación en el [roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-08--reproducir-después).
+**v1.22.10 — UX-09 implementada y verificada; commit local autorizado; tag pendiente**
+(`internal/version/version.go`). Una eliminación de cola recuperable, compartida
+por el demonio: CLI/consola `undo`, TUI `u` configurable. Caducidad explícita y
+recuperación de contenido sin retroceder audio. Contrato y aceptación en el
+[roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-09--deshacer-una-eliminación-de-cola).
+UX-08 (1.21.10) quedó en `7d68623`, sin tag.
 UX-07 (1.20.10) quedó en `5806445`; su aceptación de descargas usó
-solo yt-dlp simulado. Publicación y despliegue pendientes; UX-09 no iniciada.
+solo yt-dlp simulado. Publicación y despliegue pendientes.
 UX-06 quedó en `0121e52` (`1.20.9`, sin tag); UX-05 en `4b6d9ef`
 (`1.20.8`, sin tag).
 UX-04 quedó en `fb0db1b` (`1.19.8`, sin tag).

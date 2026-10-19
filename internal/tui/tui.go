@@ -979,6 +979,13 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.showHelp = false
 		return m, m.openConsole()
 	}
+	if m.is("undo_remove", msg) && !m.filterMode {
+		if m.status == nil || m.status.UndoToken == "" {
+			m.setFlash(i18n.T("d.undo_expired"), true)
+			return m, nil
+		}
+		return m, m.req(ipc.Request{Cmd: "undo", Value: m.status.UndoToken})
+	}
 	if m.is("save_queue", msg) {
 		m.showHelp = false
 		return m, m.openSaveQueue()

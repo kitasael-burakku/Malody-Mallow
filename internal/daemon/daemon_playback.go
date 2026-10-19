@@ -60,6 +60,9 @@ func (d *Daemon) advance(reason, chained string, gen int64) {
 			return true, false
 		}
 
+		// Un fin aceptado cierra la ventana de recuperación, incluso al agotar
+		// la cola. Los callbacks de generaciones anteriores ya salieron arriba.
+		d.q.DiscardUndo()
 		if reason == "error" {
 			if d.stopped {
 				// Eco de una entrada que seguía en vuelo cuando paramos a
@@ -180,6 +183,7 @@ func (d *Daemon) resumeLocked(lang string, fail func(error) ipc.Response, okStat
 		}
 		return okStatus("")
 	}
+	d.q.DiscardUndo() // arranque desde idle; reanudar una pausa salió arriba
 	t, ok := d.q.Current()
 	if !ok {
 		if d.q.PendingCount() > 0 {

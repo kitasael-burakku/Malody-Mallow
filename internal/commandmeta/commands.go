@@ -33,6 +33,7 @@ var entries = []Entry{
 	{Name: "prev", DescKey: "cli.prev"},
 	{Name: "jump", ArgsKey: "cmd.args.jump", DescKey: "cli.jump"},
 	{Name: "move", ArgsKey: "cmd.args.move", DescKey: "cli.move"},
+	{Name: "undo", DescKey: "cli.undo"},
 	{Name: "remove", ArgsKey: "cmd.args.remove", DescKey: "cli.remove"},
 	{Name: "playnext", ArgsKey: "cmd.args.add", DescKey: "cli.playnext"},
 	{Name: "add", ArgsKey: "cmd.args.add", DescKey: "cli.add"},

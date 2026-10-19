@@ -1,0 +1,9 @@
+{
+  "command": [
+    "undo"
+  ],
+  "exit": 1,
+  "stdout": "",
+  "stderr": "maly: unknown subcommand \"undo\"\nrun `maly -h` for help\n",
+  "binary_sha256": "dccc8a3afe9c3250108e05e4ca6e447839cf9fbacc6cc261e92bbc6b249cd873"
+}

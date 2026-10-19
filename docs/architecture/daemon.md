@@ -168,3 +168,20 @@ inexistentes y conserva FIFO. Los archivos viejos no necesitan migración;
 un binario anterior ignora prioridades pero conserva las entradas de la cola.
 El ciclo shuffle ordinario sigue regenerándose al restaurar. Si desapareció
 la actual y quedaron pendientes, reanudar elige la primera prioridad.
+
+
+**`undo` (UX-09).** Operación bajo `d.mu`, sin Load/SetPause: reinserta una
+entrada mediante Queue.UndoRemove y `handle` realinea la ventana gapless.
+`Status.UndoToken` viaja incluso sin Queue; `Request.Value` opcional exige
+recuperar esa eliminación. Un token antiguo o ausencia de registro responde
+con explicación localizada, sin tocar la cola. CLI/consola omiten Value para
+pedir la última vigente; la TUI exige el token que observó. No es autenticación:
+es una precondición de validez para evitar que una foto vieja afecte otra acción.
+
+Además de las invalidaciones de Queue, stop y arrancar desde idle descartan
+recuperación. `advance` la descarta después de la guarda LoadGen, también en
+fin de cola sin siguiente y en error: un callback de generación vieja no
+invalida una eliminación nueva. Reanudar la misma pista pausada, volumen,
+seek, ticks y scan/duraciones la conservan. El orden entre undo, mutaciones y
+EOF se decide al tomar `d.mu`; no existe un temporizador. No se serializa en
+la sesión: reiniciar conserva la cola pero nunca el deshacer pendiente.

@@ -1,0 +1,52 @@
+[
+  {
+    "case": "registro",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "token",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "actual",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "fifo",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "shuffle",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "caducidad",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "fin",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "audio",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "tui",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "cli",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  }
+]

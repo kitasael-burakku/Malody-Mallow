@@ -71,7 +71,8 @@ type TrackInfo struct {
 
 // Status es el estado completo del reproductor.
 type Status struct {
-	Playing      bool       `json:"playing"` // hay pista cargada (aunque esté en pausa)
+	UndoToken    string     `json:"undo_token,omitempty"` // efímero; Value de undo exige esa eliminación
+	Playing      bool       `json:"playing"`              // hay pista cargada (aunque esté en pausa)
 	Paused       bool       `json:"paused"`
 	Track        *TrackInfo `json:"track,omitempty"`
 	Position     float64    `json:"position"`

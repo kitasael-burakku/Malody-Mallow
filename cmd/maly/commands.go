@@ -49,6 +49,7 @@ var commands = []command{
 	{name: "prev", section: "playback", run: client("prev")},
 	{name: "jump", section: "playback", run: client("jump"), complete: completeJump},
 	{name: "move", section: "playback", run: client("move"), complete: completeMove},
+	{name: "undo", section: "playback", run: client("undo")},
 	{name: "remove", section: "playback", run: client("remove"), complete: completeJump},
 	{name: "playnext", section: "playback", run: client("playnext"), complete: completeTracks},
 	{name: "add", section: "playback", run: client("add"), complete: completeTracks},

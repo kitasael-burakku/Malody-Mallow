@@ -549,6 +549,7 @@ destination.
 | `ctrl+g` | download search (pick the result before downloading) |
 | `A` | send current selection to a playlist |
 | `ctrl+n` | play next: library, queue, songs and downloaded files; in playlists, create a playlist |
+| `u` | undo the last shared queue removal, from the main screen |
 | `ctrl+s` | prepare to save the whole queue as a new playlist |
 | `?` | full help (every key, including remapped ones) |
 | `q` | quit |
@@ -604,6 +605,7 @@ the vim navigation above is always active, under any preset.
 | `maly jump <pos>` | jump to a queue position |
 | `maly move <from> <to>` | move a queue track to another position |
 | `maly remove <pos>` | remove a track from the queue |
+| `maly undo` | restore the last available queue removal without restarting playback |
 | `maly add <query\|path>...` | add query results or paths to the queue |
 | `maly playnext <query\|path>...` | schedule new entries after the current track, in FIFO order |
 | `maly queue` | show the queue |
@@ -636,6 +638,19 @@ entries: choosing an already queued track does not move or remove its original
 entry. Priorities are saved on exit and restored paused. `remove` cancels the
 removed entry, `move` preserves its priority, and `clear` or playing a new query
 discards previous priorities.
+
+**Undo a removal:** `maly undo` or `undo` in Ctrl+P restores the last entry
+removed by any client. On the main screen, `u` (`undo_remove` in `[keys]`)
+acts on the removal that the TUI shows as available. If another client replaced
+it, the request fails with an explanation and keeps the newer recovery intact.
+There is no timer: adding, reordering, clearing or replacing the queue, changing
+tracks, stopping, setting repeat/changing shuffle or restarting the daemon
+expires it. Another removal replaces it. Pause, resuming the same track,
+volume, seeking, filters and duration updates preserve it. Only queue content
+is restored: removing the current track already selected another one, and undo
+does not switch back; restoring the only entry does not start playback either.
+Its shuffle position and any pending FIFO priority are restored. There is no
+redo or history, and restarting the daemon discards the available recovery.
 
 **Library** — work without the daemon (except `playlist play` and `playlist save`):
 
@@ -949,6 +964,7 @@ cookies_from_browser = ""
 # filter = "/"
 # add = "a"
 # play_next = "ctrl+n"
+# undo_remove = "u"
 # remove = "d"
 # move_up = "K"
 # move_down = "J"

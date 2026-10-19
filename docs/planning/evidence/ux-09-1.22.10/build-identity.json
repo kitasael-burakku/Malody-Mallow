@@ -1,0 +1,21 @@
+{
+  "base_head": "7d68623d2e2266b0fb94fe2831597b1600d9a9ed",
+  "target_version": "1.22.10",
+  "binaries": [
+    {
+      "role": "baseline",
+      "path": "/tmp/maly-ux08-final",
+      "sha256": "dccc8a3afe9c3250108e05e4ca6e447839cf9fbacc6cc261e92bbc6b249cd873"
+    },
+    {
+      "role": "matrix",
+      "path": "/tmp/maly-ux09-after",
+      "sha256": "610a2cc6b5a5e56b16b4e01f226fe96bc534a0ff82d9e243fe1bc599b21cbc7b"
+    },
+    {
+      "role": "checks",
+      "path": "/tmp/mu9c-dzga94bd/maly",
+      "sha256": "08f420b1ec8989904d44762693a1eff831a06e636795014d14974161a9b7be66"
+    }
+  ]
+}

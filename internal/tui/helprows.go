@@ -40,6 +40,7 @@ func HelpRows(keys map[string]string) [][2]string {
 		{k("add"), i18n.T("help.add")},
 		{k("play_next"), i18n.T("help.play_next")},
 		{k("remove"), i18n.T("help.remove")},
+		{k("undo_remove"), i18n.T("help.undo_remove")},
 		{pair("move_up", "move_down"), i18n.T("help.move")},
 		{k("filter"), i18n.T("help.filter")},
 		{"h j k l", i18n.T("help.vim_nav")},

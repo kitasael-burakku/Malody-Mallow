@@ -9,6 +9,7 @@ func (q *Queue) AddNext(tracks ...library.Track) {
 	if len(tracks) == 0 {
 		return
 	}
+	q.DiscardUndo()
 	at := q.Index + 1
 	if len(q.pending) > 0 {
 		at = q.pending[len(q.pending)-1] + 1
@@ -56,6 +57,7 @@ func (q *Queue) PendingCount() int { return len(q.pending) }
 // RestorePending descarta índices corruptos, repetidos y la entrada actual.
 // Los índices ya deben estar remapeados tras quitar archivos desaparecidos.
 func (q *Queue) RestorePending(indices []int) {
+	q.DiscardUndo()
 	q.pending = nil
 	seen := make(map[int]bool, len(indices))
 	for _, i := range indices {

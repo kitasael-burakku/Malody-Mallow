@@ -2,6 +2,17 @@
 
 Índice: [`README.md`](README.md).
 
+## Sobre v1.22.11, sin bump de versión (2026-10-19) — revisión de README
+
+Se contrastaron los README español e inglés con el código y el workflow de CI.
+Se completaron los resúmenes de funciones, Ctrl+N, el mínimo 40×12 y los paquetes
+nuevos; se corrigieron las instrucciones de race, completions y reintentos del
+visualizador. Se aclaró que las capturas son anteriores y que el código de una
+rama puede incluir cambios pendientes de publicación. Sin bump: solo documentación,
+sin cambios del binario. Verificación: enlaces locales de ambos README y
+`git diff --check` correctos; `dbus-run-session -- go test ./...` pasó completo
+fuera del sandbox, después de que este bloqueara los sockets Unix de los tests.
+
 ## v1.22.11 (2026-10-19) — ayuda por tareas y detalles de escritorio
 
 **Estado:** implementada y verificada; commit local autorizado; tag pendiente. Encargo explícito

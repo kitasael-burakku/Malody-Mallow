@@ -71,12 +71,17 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
 - Biblioteca SQLite con búsqueda insensible a acentos y mayúsculas.
 - Visualizador de espectro en vivo (FFT sobre el monitor de PipeWire/PulseAudio).
 - Pantalla "Ahora suena" con carátula, letras sincronizadas (`.lrc` o embebidas) y visualizador.
-- Playlists, selector de canciones con fuzzy search y paleta de comandos integrada.
+- Playlists, guardado de cola, reproducción siguiente y deshacer la última eliminación.
+- Selector de canciones con consultas por campo y búsqueda difusa; paleta con sugerencias seleccionables.
 - Autocompletado de shell dinámico (bash/fish/zsh): completa comandos, títulos reales, playlists y posiciones de cola.
 
 ---
 
 ## Capturas
+
+Estas capturas corresponden a versiones anteriores; la paleta, la ayuda y
+algunos detalles de los paneles han cambiado. Los controles actuales se
+describen en [Uso](#uso).
 
 <table>
 <tr>
@@ -170,6 +175,8 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   sobrante) y "Ahora suena" con la carátula y las letras sincronizadas. Por
   debajo de 120 columnas, "Ahora suena" se colapsa a la barra del pie; por
   debajo de 90, queda una sola columna y `tab` cicla entre biblioteca y cola.
+  El mínimo es **40 columnas × 12 filas**; por debajo aparece un aviso con
+  el tamaño necesario.
 - **Paneles de biblioteca y cola** con navegación vim (`h j k l`, `gg`, `G`,
   `ctrl+d`/`ctrl+u`; las flechas también funcionan) y presets de controles
   (`maly controls` → `default` | `vim`).
@@ -198,7 +205,8 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   abre el mismo buscador que Ctrl+G antes de descargar. Los argumentos se
   escriben manualmente; las sugerencias son comandos y subcomandos existentes.
 - **Selector `ctrl+o` / `maly select`**: el mismo lenguaje local de `/`
-  sobre toda la biblioteca (`enter` reproduce, `tab` agrega a la cola).
+  sobre toda la biblioteca (`enter` reproduce, `tab` agrega a la cola y
+  `ctrl+n` prepara la selección para después de la actual).
 - **Panel de playlists `ctrl+l`**: gestiona tus playlists sin salir de la
   TUI, y con `A` mandas la selección de la biblioteca o la cola a una.
 - **Buscador de descargas `ctrl+g`**: escribe qué quieres, `enter` busca
@@ -213,7 +221,8 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   gradiente de color; las barras siguen la amplitud suavizada (estilo
   CAVA).
 - Si no hay capturador disponible, degrada a **animación** en vez de
-  fallar, y reintenta la captura real cada 15 segundos.
+  fallar. Si pierde una captura que ya había funcionado, la reintenta cada
+  15 segundos.
 
 ### Descargas (`maly get`)
 
@@ -233,8 +242,9 @@ usa el resto de tu escritorio Linux (MPRIS, D-Bus).
   cuando ya sabes qué vas a pedir.
 
 - Tras indexar, la TUI muestra los **archivos de esa descarga**: escribe para
-  filtrar, **Tab añade**, **Enter reproduce** y **Esc cierra**. También funciona
-  al descargar desde Ctrl+P o crear una playlist descargada. Las acciones usan
+  filtrar, **Tab añade**, **Enter reproduce**, **Ctrl+N prepara para después**
+  y **Esc cierra**. También funciona al descargar desde Ctrl+P o crear una
+  playlist descargada. Las acciones usan
   la ruta elegida aunque dos archivos tengan el mismo título. La descarga por
   sí sola no inicia reproducción. En la CLI aparecen comandos opcionales con
   las rutas exactas entre comillas.
@@ -1027,7 +1037,7 @@ diagnostica la mayoría de lo de abajo automáticamente.
 | `maly: command not found` | `~/.local/bin` no está en tu `PATH` | agrégalo a tu `.bashrc`/`.zshrc`/config de fish (el instalador lo ofrece solo) |
 | "mpv is not installed" al abrir la TUI | falta mpv | instálalo — es la única dependencia obligatoria |
 | Biblioteca vacía | nunca corriste un escaneo, o `music_dir` apunta a un directorio sin música | `maly scan`, o revisa `maly info` → `music_path`/`music_src` |
-| Visualizador en modo animación | no hay `pw-record` ni `parec` en el PATH | instala `pipewire` o `pulseaudio-utils`; maly reintenta la captura real cada 15 s |
+| Visualizador en modo animación | no hay `pw-record` ni `parec` en el PATH, o se perdió la captura | si faltan, instálalos y vuelve a abrir la TUI; si la captura ya había funcionado, maly reintenta cada 15 s |
 | Sin integración con playerctl / teclas multimedia | no hay bus de sesión D-Bus disponible | revisa que tu sesión gráfica exporte `DBUS_SESSION_BUS_ADDRESS` |
 | Carátula en bloques de color en vez de imagen real | tu terminal no es kitty, o estás bajo tmux | esperado — el fallback half-blocks funciona en cualquier terminal truecolor |
 | Duraciones en cero en la cola | sin ffprobe, o `scan_durations = false` | instala `ffmpeg` (trae ffprobe) o reproduce la pista una vez |
@@ -1047,10 +1057,12 @@ diagnostica la mayoría de lo de abajo automáticamente.
 │   └── completions/       scripts de bash/fish/zsh (embebidos en el binario)
 ├── internal/
 │   ├── config/             carga/escritura de config.toml, rutas XDG
+│   ├── commandmeta/        gramática y descripciones compartidas por CLI y consola
 │   ├── daemon/             servicio: cola, sesión, arranque, dispatch IPC
 │   ├── player/              wrapper de mpv (gapless, control por socket)
 │   ├── queue/               cola con shuffle por permutación y repeat
 │   ├── library/             SQLite: tags, búsqueda, playlists, M3U
+│   ├── playlist/            guardado de cola compartido por CLI y consola
 │   ├── ipc/                 protocolo del socket Unix (Request/Response)
 │   ├── mpris/                integración MPRIS2 (D-Bus)
 │   ├── media/                carátula/letras embebidas, .lrc
@@ -1063,10 +1075,11 @@ diagnostica la mayoría de lo de abajo automáticamente.
 │   ├── version/                   versión del binario
 │   └── tui/                       interfaz Bubble Tea completa
 ├── pictures/               capturas usadas en este README
-├── .github/workflows/       CI (build+vet+test, y -race sobre library/mpris)
+├── .github/workflows/       CI (build+vet+test, y -race sobre todo el árbol)
 ├── mallow-install.sh         instalador interactivo bilingüe
 ├── Makefile                   build / vet / test / install / clean
 ├── CHANGELOG.md                registro de releases (español)
+├── AGENTS.md                   contrato operativo para Codex (español)
 ├── CLAUDE.md                    contrato operativo del proyecto (español)
 ├── docs/                        documentación profunda (arquitectura, decisiones,
 │                              desarrollo, roadmap) — ver docs/README.md
@@ -1088,21 +1101,22 @@ make test       # go test ./...
 - Los tests de `internal/daemon` y `internal/player` usan mpv real y se
   auto-saltan (`t.Skip`) si no lo encuentran en el PATH — no hace falta
   mockear nada para correr el resto de la suite.
-- `go test -race ./internal/library/ ./internal/mpris/` — los dos paquetes
-  con concurrencia real de goroutines que no dependen de mpv/ffprobe; es
-  exactamente lo que corre el job `race` de CI.
-- CI (`.github/workflows/ci.yml`) tiene dos jobs sobre cada push/PR a
-  `main`: `test` (build + vet + test completo) y `race` (los dos paquetes
-  de arriba con `-race`).
-- `maly completions <shell>` regenera los scripts embebidos en
-  `cmd/maly/completions/` si cambias la tabla de comandos.
+- `go test -race ./...` — detector de carreras sobre todo el árbol, igual
+  que el job `race` de CI; requiere CGo.
+- CI (`.github/workflows/ci.yml`) tiene dos jobs sobre cada push a `main`
+  y cada PR: `test` (build + vet + suite completa, esta última con
+  `CGO_ENABLED=0`) y `race` (`go test -race ./...`).
+- `maly completions <shell>` imprime el script embebido de bash/fish/zsh;
+  no reescribe `cmd/maly/completions/`. Los candidatos dinámicos salen de
+  `maly __complete`, a partir de la tabla de comandos y la biblioteca.
 - Para depurar el arranque de la TUI o del demonio en un entorno aislado,
   [`docs/development/probar-en-vivo.md`](docs/development/probar-en-vivo.md)
   documenta el sandbox de XDG usado en desarrollo (rutas cortas para el
   socket de mpv, `ao=null` en `mpv.conf`, cómo probar bajo tmux).
 
-`CLAUDE.md` es el contrato operativo del proyecto: filosofía, invariantes
-transversales de seguridad/concurrencia y arquitectura de alto nivel.
+`AGENTS.md` y `CLAUDE.md` contienen el contrato operativo para los agentes:
+filosofía, invariantes transversales de seguridad/concurrencia y arquitectura
+de alto nivel.
 El detalle vive en [`docs/`](docs/README.md) — ficha por paquete en
 `docs/architecture/`, decisiones ya cerradas en `docs/decisions/no-hacer.md`,
 y el historial razonado de cada release en `docs/history/`. `CHANGELOG.md` es
@@ -1111,6 +1125,11 @@ el resumen corto, versión por versión.
 ---
 
 ## Estado del proyecto
+
+Este README describe el código de la rama que estás consultando. El badge
+de versión apunta a los tags; una mejora presente en `main` puede estar aún
+pendiente de publicación. Consulta [`CHANGELOG.md`](CHANGELOG.md) para
+distinguir los cambios implementados de las releases publicadas.
 
 Malody Mallow está en desarrollo activo con una cadencia de releases
 frecuente (ver [`CHANGELOG.md`](CHANGELOG.md)). El núcleo — reproducción

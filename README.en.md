@@ -70,12 +70,16 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
 - SQLite library with accent- and case-insensitive search.
 - Live spectrum visualizer (FFT over the PipeWire/PulseAudio monitor).
 - "Now Playing" screen with cover art, synced lyrics (`.lrc` or embedded), and visualizer.
-- Playlists, fuzzy-search song picker, and an integrated command palette.
+- Playlists, saving the queue, play-next requests, and undoing the last removal.
+- Song picker with field queries and fuzzy search; command palette with selectable suggestions.
 - Dynamic shell completion (bash/fish/zsh): completes commands, real track titles, playlists, and queue positions.
 
 ---
 
 ## Screenshots
+
+These screenshots show earlier versions; the palette, help, and some panel
+details have changed. Current controls are described under [Usage](#usage).
 
 <table>
 <tr>
@@ -169,6 +173,8 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   Playing" with cover art and synced lyrics. Below 120 columns, "Now
   Playing" collapses into the footer bar; below 90, a single column remains
   and `tab` cycles between library and queue.
+  The minimum is **40 columns × 12 rows**; smaller windows show a notice
+  with the required size.
 - **Library and queue panels** with vim navigation (`h j k l`, `gg`, `G`,
   `ctrl+d`/`ctrl+u`; arrow keys also work) and control presets
   (`maly controls` → `default` | `vim`).
@@ -196,7 +202,8 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   opens the same search screen as Ctrl+G before downloading. Arguments are
   entered manually; suggestions cover existing commands and subcommands.
 - **`ctrl+o` picker / `maly select`**: the same local query language as `/`
-  across the whole library (`enter` plays, `tab` adds to the queue).
+  across the whole library (`enter` plays, `tab` adds to the queue, and
+  `ctrl+n` schedules the selection after the current track).
 - **`ctrl+l` playlist panel**: manage your playlists without leaving the
   TUI, and `A` sends the current library or queue selection to one.
 - **`ctrl+g` download search**: type what you want, `enter` searches
@@ -209,7 +216,8 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
 - **Live FFT** over the PipeWire/PulseAudio audio monitor, with a color
   gradient; bars follow smoothed amplitude (CAVA-style).
 - Without a capture backend, it falls back to **animation** instead of
-  failing, retrying real capture every 15 seconds.
+  failing. If a previously working capture is lost, it retries every
+  15 seconds.
 
 ### Downloads (`maly get`)
 
@@ -229,8 +237,9 @@ rest of your Linux desktop already uses (MPRIS, D-Bus).
   once you know exactly what to request.
 
 - After indexing, the TUI shows **files from that download**: type to filter,
-  **Tab adds**, **Enter plays**, and **Esc closes**. This also works for downloads
-  from Ctrl+P and downloaded playlists. Actions use the selected path even when
+  **Tab adds**, **Enter plays**, **Ctrl+N schedules next**, and **Esc closes**.
+  This also works for downloads from Ctrl+P and downloaded playlists.
+  Actions use the selected path even when
   two files share a title. Completing a download never starts playback by itself.
   The CLI prints optional commands with the exact paths quoted.
 - New files, existing files, empty downloads and partial failures are distinct.
@@ -1023,7 +1032,7 @@ diagnoses most of the below automatically.
 | `maly: command not found` | `~/.local/bin` isn't in your `PATH` | add it to your `.bashrc`/`.zshrc`/fish config (the installer offers to do this) |
 | "mpv is not installed" when opening the TUI | mpv is missing | install it — it's the only hard dependency |
 | Empty library | you never ran a scan, or `music_dir` points at a directory with no music | `maly scan`, or check `maly info` → `music_path`/`music_src` |
-| Visualizer in animation mode | no `pw-record` or `parec` on PATH | install `pipewire` or `pulseaudio-utils`; maly retries real capture every 15s |
+| Visualizer in animation mode | no `pw-record` or `parec` on PATH, or capture was lost | if missing, install them and reopen the TUI; if capture had worked before, maly retries every 15s |
 | No playerctl / media key integration | no D-Bus session bus available | make sure your graphical session exports `DBUS_SESSION_BUS_ADDRESS` |
 | Cover art shows as colored blocks instead of a real image | your terminal isn't kitty, or you're under tmux | expected — the half-blocks fallback works on any truecolor terminal |
 | Durations show as zero in the queue | no ffprobe, or `scan_durations = false` | install `ffmpeg` (it brings ffprobe), or play the track once |
@@ -1043,10 +1052,12 @@ diagnoses most of the below automatically.
 │   └── completions/       bash/fish/zsh scripts (embedded in the binary)
 ├── internal/
 │   ├── config/             config.toml loading/writing, XDG paths
+│   ├── commandmeta/        grammar and descriptions shared by CLI and console
 │   ├── daemon/             the service: queue, session, startup, IPC dispatch
 │   ├── player/              mpv wrapper (gapless, socket control)
 │   ├── queue/               permutation-based shuffle and repeat
 │   ├── library/             SQLite: tags, search, playlists, M3U
+│   ├── playlist/            queue saving shared by CLI and console
 │   ├── ipc/                 the Unix-socket protocol (Request/Response)
 │   ├── mpris/                MPRIS2 integration (D-Bus)
 │   ├── media/                embedded cover art/lyrics, .lrc
@@ -1059,10 +1070,11 @@ diagnoses most of the below automatically.
 │   ├── version/                   binary version
 │   └── tui/                       the full Bubble Tea interface
 ├── pictures/               screenshots used in this README
-├── .github/workflows/       CI (build+vet+test, and -race over library/mpris)
+├── .github/workflows/       CI (build+vet+test, and -race over all packages)
 ├── mallow-install.sh         bilingual interactive installer
 ├── Makefile                   build / vet / test / install / clean
 ├── CHANGELOG.md                release log (Spanish)
+├── AGENTS.md                   operating contract for Codex (Spanish)
 ├── CLAUDE.md                    project operating contract (Spanish)
 ├── docs/                        deep documentation (architecture, decisions,
 │                              development, roadmap) — see docs/README.md
@@ -1084,21 +1096,21 @@ make test       # go test ./...
 - `internal/daemon` and `internal/player` tests use a real mpv and
   self-skip (`t.Skip`) if it's not found on PATH — no mocking needed to
   run the rest of the suite.
-- `go test -race ./internal/library/ ./internal/mpris/` — the two packages
-  with real goroutine concurrency that don't depend on mpv/ffprobe; it's
-  exactly what CI's `race` job runs.
-- CI (`.github/workflows/ci.yml`) runs two jobs on every push/PR to
-  `main`: `test` (full build + vet + test) and `race` (the two packages
-  above with `-race`).
-- `maly completions <shell>` regenerates the scripts embedded under
-  `cmd/maly/completions/` if you change the command table.
+- `go test -race ./...` — race detection across all packages, matching
+  CI's `race` job; requires CGo.
+- CI (`.github/workflows/ci.yml`) runs two jobs on every push to `main`
+  and every PR: `test` (build + vet + full test suite, the latter with
+  `CGO_ENABLED=0`) and `race` (`go test -race ./...`).
+- `maly completions <shell>` prints the embedded bash/fish/zsh script;
+  it does not rewrite `cmd/maly/completions/`. Dynamic candidates come from
+  `maly __complete`, using the command table and library.
 - To debug TUI or daemon startup in an isolated environment,
   [`docs/development/probar-en-vivo.md`](docs/development/probar-en-vivo.md)
   documents the XDG sandbox used in development (short paths for mpv's
   socket, `ao=null` in `mpv.conf`, how to test under tmux).
 
-`CLAUDE.md` is the project's operating contract: philosophy, cross-cutting
-security/concurrency invariants, and high-level architecture. The detail
+`AGENTS.md` and `CLAUDE.md` contain the agents' operating contract: philosophy,
+cross-cutting security/concurrency invariants, and high-level architecture. The detail
 lives under [`docs/`](docs/README.md) — per-package notes in
 `docs/architecture/`, settled decisions in `docs/decisions/no-hacer.md`, and
 the reasoned history of every release in `docs/history/`. `CHANGELOG.md` is
@@ -1107,6 +1119,11 @@ the short version, release by release. (All of it is in Spanish.)
 ---
 
 ## Project status
+
+This README describes the code in the branch you are viewing. The version
+badge points to tags; a feature present in `main` may still await publication.
+See [`CHANGELOG.md`](CHANGELOG.md) to distinguish implemented changes from
+published releases.
 
 Malody Mallow is under active development at a frequent release cadence
 (see [`CHANGELOG.md`](CHANGELOG.md)). The core — gapless playback, a

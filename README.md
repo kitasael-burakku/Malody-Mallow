@@ -553,6 +553,7 @@ destino de cada uno.
 | `ctrl+l` | panel de playlists |
 | `ctrl+g` | buscador de descargas (elige el resultado antes de bajar) |
 | `A` | manda la selección actual a una playlist |
+| `ctrl+n` | reproducir después: biblioteca, cola, canciones y archivos descargados; en playlists crea una playlist |
 | `ctrl+s` | prepara el guardado de toda la cola como playlist nueva |
 | `?` | ayuda completa (todas las teclas, incluidas las remapeadas) |
 | `q` | salir |
@@ -611,6 +612,7 @@ navegación vim de arriba está siempre activa, en cualquier preset.
 | `maly move <de> <a>` | mueve una pista de la cola a otra posición |
 | `maly remove <pos>` | quita una pista de la cola |
 | `maly add <consulta\|ruta>...` | agrega a la cola (consultas o rutas) |
+| `maly playnext <consulta\|ruta>...` | prepara entradas para después de la actual, en orden FIFO |
 | `maly queue` | muestra la cola |
 | `maly clear` | vacía la cola |
 | `maly status` | muestra el estado actual |
@@ -619,7 +621,7 @@ navegación vim de arriba está siempre activa, en cualquier preset.
 | `maly shuffle [on\|off]` | alterna o fija shuffle |
 | `maly repeat [off\|all\|one]` | alterna o fija el modo repeat |
 
-`play`, `add` y `playlist add` toman **una consulta por argumento**, así que
+`play`, `add`, `playnext` y `playlist add` toman **una consulta por argumento**, así que
 puedes meter varias canciones de una vez: `maly add Secreto "Otra dimension"`
 agrega las dos. Una frase de varias palabras va entre comillas: sin ellas,
 `maly add daft punk` busca «daft» y «punk» por separado. Lo que no encuentre
@@ -629,6 +631,18 @@ consulta. Si ninguna encuentra pistas, el comando falla; un error de la
 biblioteca cancela el lote antes de modificar la cola o la playlist.
 `search`, `select` y `get` siguen tomando una sola frase. En la
 consola ctrl+p de la TUI funciona igual, con comillas simples o dobles.
+
+**Reproducir después:** `maly playnext "B" "C"` prepara B → C sin cambiar
+la pista actual, su posición ni la pausa. Ctrl+N hace lo mismo con la selección
+(incluido `maly select`); se puede cambiar con `play_next` en `[keys]`, y los
+configs anteriores heredan el default sin reescribirse. La primera pendiente
+lleva `[después]` en la cola. Las elecciones pasan antes de shuffle y repeat-one;
+al agotarlas vuelve el modo normal (repeat-one repite la última actual).
+Una cola vacía o detenida espera a `play` o `next`. Cada petición añade entradas
+nuevas: elegir algo que ya está en cola no mueve ni elimina su entrada original.
+Las prioridades se guardan al cerrar y se restauran en pausa. `remove` cancela
+la entrada retirada, `move` conserva su prioridad, y `clear` o reproducir una
+consulta nueva descartan las prioridades anteriores.
 
 **Biblioteca** — funcionan sin el servicio (salvo `playlist play` y `playlist save`):
 
@@ -938,6 +952,7 @@ cookies_from_browser = ""
 # switch_panel = "tab"
 # filter = "/"
 # add = "a"
+# play_next = "ctrl+n"
 # remove = "d"
 # move_up = "K"
 # move_down = "J"

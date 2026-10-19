@@ -119,9 +119,12 @@ func buildRequest(cmd string, args []string) (ipc.Request, error) {
 		// respetó las comillas, así que `maly add Secreto "Otra dimension"`
 		// llega como dos. Una frase de varias palabras va entre comillas.
 		req.SetQueries(queryItems(args))
-	case "add":
+	case "add", "playnext":
 		items := queryItems(args)
 		if len(items) == 0 {
+			if cmd == "playnext" {
+				return req, errors.New(i18n.T("cli.usage_playnext"))
+			}
 			return req, errors.New(i18n.T("cli.usage_add_cmd"))
 		}
 		req.SetQueries(items)
@@ -298,6 +301,6 @@ func printQueue(resp ipc.Response) {
 		if i == cur {
 			mark = "▶ "
 		}
-		fmt.Printf("%s%3d. %s\n", mark, i+1, t)
+		fmt.Printf("%s%3d. %s%s\n", mark, i+1, ipc.NextLabel(resp.Status, i), t)
 	}
 }

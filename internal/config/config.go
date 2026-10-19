@@ -177,6 +177,7 @@ func DefaultKeys() map[string]string {
 		"playlists":    "ctrl+l",
 		"playlist_add": "A",
 		"save_queue":   "ctrl+s",
+		"play_next":    "ctrl+n",
 		"toggle_viz":   "v",
 		"now_playing":  "ctrl+t",
 		"get":          "ctrl+g",
@@ -329,6 +330,7 @@ cookies_from_browser = ""
 # playlists = "ctrl+l"
 # playlist_add = "A"
 # save_queue = "ctrl+s"
+# play_next = "ctrl+n"
 # toggle_viz = "v"
 # now_playing = "ctrl+t"
 # get = "ctrl+g"

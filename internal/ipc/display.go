@@ -96,3 +96,12 @@ func PlaylistNoTracks(missed []string) error {
 	}
 	return errors.New(NoMatch("", missed))
 }
+
+// NextLabel identifica la primera elección pendiente sin confundirla con la
+// pista actual. Compartido por cola CLI, consola y TUI.
+func NextLabel(s *Status, index int) string {
+	if s != nil && s.NextPosition == index+1 {
+		return "[" + i18n.T("queue.next") + "] "
+	}
+	return ""
+}

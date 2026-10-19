@@ -103,9 +103,9 @@ archivo de la última columna, y es la fuente única.**
 | --- | --- | --- |
 | `cmd/maly` | La CLI. `commands.go` es la **tabla de comandos**: dispatch, help y completions, con metadatos compartidos en `internal/commandmeta`. `tui.go` decide en `startOrAttach` si embeber el demonio o entrar como cliente (ante `ErrAlreadyRunning` espera hasta 8 s, no se rinde). `runScan` manda la ruta ya RESUELTA. `get.go` es el wrapper de yt-dlp. `info` lista HECHOS y sale 0; `doctor` emite VEREDICTOS y sale 1 solo si algo impide reproducir; ninguno necesita demonio ni red. Dos chequeos de `doctor` le PREGUNTAN al demonio, porque no hay otra forma de saberlo: su config en efecto y si su mpv sigue vivo. | `docs/architecture/cli.md` |
 | `internal/ipc` | Protocolo (Request/Response/Status/TrackInfo), cliente, y `display.go` con los helpers de presentación compartidos — no re-armar "Artista — Título" a mano, ni un mensaje que salga por los tres clientes. El **deadline** de una petición lo decide el protocolo (`reqTimeout`), no el llamador: 30 s por defecto y **ninguno para `scan`**. | `docs/architecture/daemon.md` |
-| `internal/daemon` | El **orden de arranque de `New` no es negociable** (`EnsureRuntimeDir` → `ipc.Ping` → **flock** → socket → biblioteca → player → sesión → MPRIS): solo CON el lock son seguras las dos operaciones destructivas. `serve → handle → dispatch`, dispatch bajo `d.mu`, con **tres excepciones** que resuelven fuera del lock (play/add/playnow, seek, scan). `advance` tiene DOS guardas contra una promesa obsoleta y no se solapan. El push de suscripción se arma **por suscriptor** (`stateFor`) y lleva la cola SOLO si `queue.Gen()` cambió. `d.cfg` ya NO es inmutable: se relee en cada scan bajo `d.mu`. | `docs/architecture/daemon.md` |
+| `internal/daemon` | El **orden de arranque de `New` no es negociable** (`EnsureRuntimeDir` → `ipc.Ping` → **flock** → socket → biblioteca → player → sesión → MPRIS): solo CON el lock son seguras las dos operaciones destructivas. `serve → handle → dispatch`, dispatch bajo `d.mu`, con **tres excepciones** que resuelven fuera del lock (play/add/playnow/playnext, seek, scan). `advance` tiene DOS guardas contra una promesa obsoleta y no se solapan. El push de suscripción se arma **por suscriptor** (`stateFor`) y lleva la cola SOLO si `queue.Gen()` cambió. `d.cfg` ya NO es inmutable: se relee en cada scan bajo `d.mu`. | `docs/architecture/daemon.md` |
 | `internal/player` | Wrapper de mpv. Gapless por ventana de dos entradas con `playlist-clear + append` (**NUNCA podar por índices**). Callbacks **siempre async con `go`** — en línea deadlockean readLoop —, y por eso `loadGen` se valida en DOS puntos. Toda espera a mpv está ACOTADA y con dos topes: 5 s un comando normal, **1 s los de la ventana gapless**, que son best-effort y se pagan bajo `d.mu` en cada mutador. | `docs/architecture/playback.md` |
-| `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. `gen` sube SOLO con lo que altera `Items` (Add/Replace/Clear/RemoveAt/Move) más `Touch()`, que usa el demonio para las duraciones que escribe en sitio. | `docs/architecture/playback.md` |
+| `internal/queue` | Cola con shuffle por **PERMUTACIÓN** (`order`/`pos`/`staged`): nada se repite hasta agotar el ciclo. `PeekNext()` promete el avance natural; los mutadores mantienen la permutación con cirugía incremental. `gen` sube SOLO con lo que altera `Items` (Add/AddNext/Replace/Clear/RemoveAt/Move) más `Touch()`, que usa el demonio para las duraciones que escribe en sitio. | `docs/architecture/playback.md` |
 | `internal/library` | SQLite (modernc, sin CGo, `SetMaxOpenConns(1)`, WAL). Scan por **LOTES de 500**, nunca una transacción única. La purga tiene una **GUARDA**: un walk sin ni un archivo de audio no borra nada (`*ScanEmpty`) — era la única pérdida de datos irreversible del proyecto. `scanTrack` es el punto único de salida. **`Create` crea, `Open` NO** (devuelve `fs.ErrNotExist` envuelto): consultar la biblioteca no puede fabricarla. | `docs/architecture/library.md` |
 | `internal/playlist` | Composición de cliente compartida por CLI y consola para guardar una instantánea de cola como playlist nueva; usa IPC y la transacción de biblioteca existente. | `docs/architecture/library.md` |
 | `internal/probe` | ffprobe para las duraciones. A diferencia de `getter.Tools`, **la ausencia NO es error**: se salta la fase en silencio. Se INYECTA en `FillDurations` (library no lo importa). | `docs/architecture/library.md` |
@@ -221,7 +221,7 @@ tomadas.
   `safetext` en `x/ansi.Strip`; `gonum` se queda (65 KB reales en el binario).
 - **CLI**: sin parser de flags (todo es subcomando), sin salida JSON, sin
   `maly report`, sin `status --verbose`, sin escape para la guarda de scan
-  vacío, sin `playlist move`. Varios argumentos solo en `play`/`add`/
+  vacío, sin `playlist move`. Varios argumentos solo en `play`/`add`/`playnext`/
   `playlist add` (una consulta por argumento); sin `remove` en lote y sin
   heurística que adivine frase o lista.
 - **TUI**: sin ratón; sin marquesina en las letras; `computeLayout` no vuelve
@@ -237,13 +237,14 @@ tomadas.
 
 ## Estado actual
 
-**v1.20.10 — UX-07 implementada y verificada; commit autorizado; tag pendiente**
-(`internal/version/version.go`). Continuidad tras descarga: selector de archivos
-indexados, añadir/reproducir por ruta exacta y reintento de scan. Contrato y
-aceptación en el [roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-07--continuidad-después-de-descargar).
-Aceptación local con yt-dlp simulado; sin descarga remota real en esta entrega.
-Publicación y despliegue pendientes; UX-08 no iniciada. UX-06 quedó en `0121e52`
-(`1.20.9`, sin tag); UX-05 en `4b6d9ef` (`1.20.8`, sin tag).
+**v1.21.10 — UX-08 implementada y verificada; commit autorizado; tag pendiente**
+(`internal/version/version.go`). Reproducir después con FIFO por entrada,
+compartido y persistente; CLI/consola `playnext`, TUI Ctrl+N configurable.
+Contrato y aceptación en el [roadmap UI/UX](docs/planning/roadmap-ui-ux.md#ux-08--reproducir-después).
+UX-07 (1.20.10) quedó en `5806445`; su aceptación de descargas usó
+solo yt-dlp simulado. Publicación y despliegue pendientes; UX-09 no iniciada.
+UX-06 quedó en `0121e52` (`1.20.9`, sin tag); UX-05 en `4b6d9ef`
+(`1.20.8`, sin tag).
 UX-04 quedó en `fb0db1b` (`1.19.8`, sin tag).
 La
 1.19.7 (commit `2363318`, sin tag) mejoró títulos, contraste y selección. La

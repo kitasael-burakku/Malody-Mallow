@@ -1,0 +1,57 @@
+[
+  {
+    "case": "prioridad",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "consumo_fifo",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "move",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "remove",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "replace",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "restore",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "promesa_anterior",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "daemon",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "cli",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "tui_ruta",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  },
+  {
+    "case": "marcador",
+    "neutralized": "failed for expected assertion, compiled",
+    "restored": "passed"
+  }
+]

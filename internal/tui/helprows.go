@@ -38,6 +38,7 @@ func HelpRows(keys map[string]string) [][2]string {
 		{"> / ▶", i18n.T("help.selection")},
 		{"enter", i18n.T("help.enter")},
 		{k("add"), i18n.T("help.add")},
+		{k("play_next"), i18n.T("help.play_next")},
 		{k("remove"), i18n.T("help.remove")},
 		{pair("move_up", "move_down"), i18n.T("help.move")},
 		{k("filter"), i18n.T("help.filter")},

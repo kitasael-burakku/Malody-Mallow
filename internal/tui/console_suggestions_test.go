@@ -69,7 +69,7 @@ func TestUX05SelectionEditingHistory(t *testing.T) {
 	conType(m, "pl")
 	conKey(m, tea.KeyTab)
 	conKey(m, tea.KeyTab)
-	if m.conChoice != "playlist" {
+	if m.conChoice != "playnext" {
 		t.Fatalf("segunda sugerencia = %q", m.conChoice)
 	}
 	conKey(m, tea.KeyShiftTab)

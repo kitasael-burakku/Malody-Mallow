@@ -324,7 +324,7 @@ func (m *Model) queuePanel(w, h int) string {
 		if real == curIdx {
 			style = m.st.playing.Bold(true)
 		}
-		prefix := fmt.Sprintf("%s%3d. ", mark, real+1)
+		prefix := fmt.Sprintf("%s%3d. ", mark, real+1) + ipc.NextLabel(m.status, real)
 		line := prefix + name
 		var marks []bool
 		if m.queueFilter != "" {

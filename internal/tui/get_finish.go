@@ -136,12 +136,15 @@ func (m *Model) handleDownloadedKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.indexDownload()
 		}
 		return m, nil
-	case "enter", "tab":
+	case "enter", "tab", m.keys["play_next"]:
 		if d.loading || d.err != "" {
 			return m, nil
 		}
 		if it, ok := m.get.current(); ok {
 			cmd := "add"
+			if msg.String() == m.keys["play_next"] {
+				cmd = "playnext"
+			}
 			if msg.String() == "enter" {
 				cmd = "playnow"
 				m.closeGet()
@@ -164,7 +167,7 @@ func (m *Model) downloadView() string {
 	m.get.loading = d.loading
 	m.get.loadErr = d.err
 	m.get.emptyText = i18n.T("get.no_files")
-	hint := i18n.T("get.local_hint")
+	hint := i18n.Tf("get.local_hint", keyLabel(m.keys["play_next"]))
 	if d.loading {
 		hint = i18n.T("get.scanning_hint")
 	} else if d.err != "" {

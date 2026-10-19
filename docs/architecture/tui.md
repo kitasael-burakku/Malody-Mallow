@@ -135,7 +135,7 @@ SIN exigir demonio).
 para los archivos de la operación, con `downloadState`: resumen persistente,
 espera de scan, error/reintento y lista indexada. `Collect` e `Indexed` se
 comparten con CLI. Enter/Tab permanecen deshabilitados durante scan y tras un
-error; después envían `Paths` exactas a `playnow`/`add`. El nombre de archivo
+error; después envían `Paths` exactas a `playnow`/`add`/`playnext`. El nombre de archivo
 acompaña a los metadatos para distinguir grabaciones iguales. El filtro local
 usa `songItems`; el buscador remoto conserva `noFilter`. `picker.notice` consume
 una fila del presupuesto existente; no se toca `computeLayout`.
@@ -322,3 +322,16 @@ cola ofrece el acceso cuando hay pistas y espacio, incluso sin coincidencias.
 El resultado positivo recarga la biblioteca local; `refresh` despierta a las
 otras TUIs. El error de pista sin indexar separa `maly scan` en una línea para
 que una ruta larga no esconda el remedio.
+
+
+**Reproducir después (UX-08).** La acción `play_next` se resuelve desde Keys,
+con Ctrl+N por defecto; no cambia la mezcla defaults ← preset ← overrides.
+Biblioteca recoge las rutas del nodo, cola convierte el índice visible filtrado
+a su entrada real, y canciones/select/archivos descargados mandan la ruta del
+ítem. Nunca se resuelve por su etiqueta. Crea entradas nuevas, incluso desde
+la propia cola. En descargas se conserva el bloqueo durante carga/error de
+indexación. Los selectores permanecen abiertos; ayudas y pies usan la tecla
+resuelta. Playlists conserva su Ctrl+N local para crear. Consola usa el comando
+compartido `playnext` y el panel marca la primera pendiente por NextPosition,
+con independencia de selección, actual y color. Sin nuevo modal ni reparto
+de pantalla: `computeLayout` sigue siendo la única fuente.

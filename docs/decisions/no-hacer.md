@@ -117,7 +117,7 @@ entrada: un resultado real trae el separador dentro del propio título.
   → `docs/history/roadmap-1.14-1.16.md` (1.16.4, A-01)
 - **Sin `playlist move`**: asimetría consciente con la cola (C25).
 - **Varios argumentos SOLO en los comandos que meten canciones** (`play`,
-  `add`, `playlist add`: una consulta por argumento, decisión del dueño). Los
+  `add`, `playnext`, `playlist add`: una consulta por argumento, decisión del dueño). Los
   que BUSCAN (`search`, `select`, `get`) siguen tomando una frase: su
   argumento es una búsqueda, no una lista, y partirla cambiaría qué
   encuentran. `jump`/`move`/`vol`/`seek`/`shuffle`/`repeat` tienen un valor

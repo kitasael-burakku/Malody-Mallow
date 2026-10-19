@@ -1,0 +1,28 @@
+{
+  "base_head": "0121e523a5e93333b7cad29f4dbf04b65cf2f64a",
+  "base_worktree": "UX-07 1.20.10 sin commit",
+  "target_version": "1.21.10",
+  "binaries": [
+    {
+      "role": "baseline",
+      "path": "/tmp/maly-ux07-after",
+      "sha256": "4542181057f187bbe49e800ade7d9bea5cb2f94b0bc55c0c23db7630d80125b9"
+    },
+    {
+      "role": "matrix",
+      "path": "/tmp/maly-ux08-after",
+      "sha256": "dccc8a3afe9c3250108e05e4ca6e447839cf9fbacc6cc261e92bbc6b249cd873"
+    },
+    {
+      "role": "checks",
+      "path": "/tmp/mu8c-4_2x1474/maly",
+      "sha256": "50f333f1258ca37334f0dc92881b75a679110ebf867cbf5d0c23dd9b803bdc2e"
+    },
+    {
+      "role": "final",
+      "path": "/tmp/maly-ux08-final",
+      "sha256": "dccc8a3afe9c3250108e05e4ca6e447839cf9fbacc6cc261e92bbc6b249cd873"
+    }
+  ],
+  "final_matches_matrix": true
+}

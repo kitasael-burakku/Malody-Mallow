@@ -77,11 +77,11 @@ func (m *Model) mainHint() string {
 				} else if n.expanded {
 					verb = i18n.T("hint.collapse")
 				}
-				hints = append(hints, action("enter", verb))
+				hints = append(hints, action("enter", verb), action(k("play_next"), i18n.T("hint.play_next")))
 			}
 		}
 	} else if len(m.visibleQueue()) > 0 {
-		hints = append(hints, action(k("remove"), i18n.T("hint.remove")), action("enter", i18n.T("hint.play")))
+		hints = append(hints, action(k("play_next"), i18n.T("hint.play_next")), action(k("remove"), i18n.T("hint.remove")), action("enter", i18n.T("hint.play")))
 	}
 	if m.focus == panelQueue && len(m.queue) > 0 {
 		hints = append(hints, action(k("save_queue"), i18n.T("hint.save_queue")))

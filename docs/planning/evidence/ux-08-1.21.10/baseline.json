@@ -1,0 +1,11 @@
+{
+  "version": "1.20.10",
+  "sha256": "4542181057f187bbe49e800ade7d9bea5cb2f94b0bc55c0c23db7630d80125b9",
+  "command": [
+    "playnext",
+    "una pista"
+  ],
+  "exit": 1,
+  "stdout": "",
+  "stderr": "maly: unknown subcommand \"playnext\"\nrun `maly -h` for help\n"
+}

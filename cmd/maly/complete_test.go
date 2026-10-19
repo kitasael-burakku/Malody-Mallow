@@ -49,8 +49,8 @@ func TestCompleteFirstArg(t *testing.T) {
 		}
 	}
 
-	if got := values(completeArgs([]string{"pl"})); len(got) != 2 || got[0] != "play" || got[1] != "playlist" {
-		t.Errorf("prefijo \"pl\" debe dar [play playlist], dio %v", got)
+	if got := values(completeArgs([]string{"pl"})); len(got) != 3 || got[0] != "play" || got[1] != "playnext" || got[2] != "playlist" {
+		t.Errorf("prefijo \"pl\" debe dar [play playnext playlist], dio %v", got)
 	}
 }
 

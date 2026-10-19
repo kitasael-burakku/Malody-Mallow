@@ -19,16 +19,16 @@ import (
 // Request es una petición del cliente al demonio.
 type Request struct {
 	Cmd     string   `json:"cmd"`
-	Query   string   `json:"query,omitempty"`   // play/add/search: consulta o ruta
-	Queries []string `json:"queries,omitempty"` // play/add: varias consultas o rutas (ver SetQueries)
+	Query   string   `json:"query,omitempty"`   // play/add/playnext/search: consulta o ruta
+	Queries []string `json:"queries,omitempty"` // play/add/playnext: varias consultas o rutas (ver SetQueries)
 	Value   string   `json:"value,omitempty"`   // vol/seek/repeat/shuffle: argumento
 	Index   int      `json:"index,omitempty"`   // remove/jump/move: posición en la cola
 	To      int      `json:"to,omitempty"`      // move: posición destino
-	Paths   []string `json:"paths,omitempty"`   // add/playnow: rutas exactas (TUI)
+	Paths   []string `json:"paths,omitempty"`   // add/playnow/playnext: rutas exactas (TUI)
 	Lang    string   `json:"lang,omitempty"`    // idioma del cliente; el demonio responde en él
 }
 
-// SetQueries carga en la petición las consultas de un play/add, una por
+// SetQueries carga en la petición las consultas de play/add/playnext, una por
 // argumento (`maly add Secreto "Otra dimension"`). Con UNA sola viaja en
 // Query, como siempre: así el caso de toda la vida sigue funcionando contra
 // un demonio anterior a Queries. Con varias van en Queries, que un demonio
@@ -71,18 +71,20 @@ type TrackInfo struct {
 
 // Status es el estado completo del reproductor.
 type Status struct {
-	Playing    bool       `json:"playing"` // hay pista cargada (aunque esté en pausa)
-	Paused     bool       `json:"paused"`
-	Track      *TrackInfo `json:"track,omitempty"`
-	Position   float64    `json:"position"`
-	Duration   float64    `json:"duration"`
-	Volume     int        `json:"volume"`
-	Shuffle    bool       `json:"shuffle"`
-	Repeat     string     `json:"repeat"` // off | all | one
-	QueueIndex int        `json:"queue_index"`
-	QueueLen   int        `json:"queue_len"`
-	Scanning   bool       `json:"scanning,omitempty"`  // hay un scan en vuelo en el demonio
-	ScanSeen   int        `json:"scan_seen,omitempty"` // archivos de audio vistos por ese scan
+	Playing      bool       `json:"playing"` // hay pista cargada (aunque esté en pausa)
+	Paused       bool       `json:"paused"`
+	Track        *TrackInfo `json:"track,omitempty"`
+	Position     float64    `json:"position"`
+	Duration     float64    `json:"duration"`
+	Volume       int        `json:"volume"`
+	Shuffle      bool       `json:"shuffle"`
+	Repeat       string     `json:"repeat"` // off | all | one
+	QueueIndex   int        `json:"queue_index"`
+	NextPosition int        `json:"next_position,omitempty"` // 1-based; 0 sin prioridad
+	NextCount    int        `json:"next_count,omitempty"`
+	QueueLen     int        `json:"queue_len"`
+	Scanning     bool       `json:"scanning,omitempty"`  // hay un scan en vuelo en el demonio
+	ScanSeen     int        `json:"scan_seen,omitempty"` // archivos de audio vistos por ese scan
 	// ScanTotal > 0 marca la segunda fase del scan (leer duraciones con
 	// ffprobe), donde ScanSeen pasa a significar "cuántas van de ScanTotal".
 	// La fase de indexado no conoce su total por adelantado —esa es su
@@ -247,7 +249,7 @@ const maxRespLine = 64 << 20
 // MaxReqLine acota las PETICIONES que lee el demonio. Es el hermano de
 // maxRespLine y va aparte porque el tráfico es distinto en los dos sentidos,
 // pero 1 MiB —el valor con el que nació— se quedó corto para lo que el propio
-// protocolo permite: `add`/`playnow` mandan RUTAS EXACTAS en Request.Paths,
+// protocolo permite: `add`/`playnow`/`playnext` mandan RUTAS EXACTAS en Request.Paths,
 // así que pulsar `a` sobre un nodo grande del árbol o `tab` sobre una playlist
 // grande genera un JSON proporcional al número de pistas, y con rutas de ~68
 // caracteres el techo caía en ~15.000 (A-06). 16 MiB da margen de sobra

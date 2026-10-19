@@ -1,0 +1,61 @@
+{
+  "mpv": "/usr/bin/mpv",
+  "bus": "private",
+  "checks": {
+    "build": {
+      "exit": 0,
+      "seconds": 9.0,
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "/tmp/mu8c-4_2x1474/maly",
+        "./cmd/maly"
+      ],
+      "CGO_ENABLED": "0"
+    },
+    "vet": {
+      "exit": 0,
+      "seconds": 3.1,
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "CGO_ENABLED": "0"
+    },
+    "suite": {
+      "exit": 0,
+      "seconds": 31.33,
+      "command": [
+        "go",
+        "test",
+        "-json",
+        "-count=1",
+        "./..."
+      ],
+      "CGO_ENABLED": "0",
+      "packages": 19,
+      "cases": 842,
+      "skips": [],
+      "failures": []
+    },
+    "race": {
+      "exit": 0,
+      "seconds": 49.64,
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-json",
+        "-count=1",
+        "./..."
+      ],
+      "CGO_ENABLED": "1",
+      "packages": 19,
+      "cases": 842,
+      "skips": [],
+      "failures": []
+    }
+  }
+}

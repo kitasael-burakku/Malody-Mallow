@@ -2,6 +2,81 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.21.10 (2026-10-19) — UX-08: reproducir después
+
+**Estado:** implementada y verificada; commit autorizado; tag pendiente.
+[Contrato y aceptación](../planning/roadmap-ui-ux.md#ux-08--reproducir-después)
+y [evidencia reproducible](../planning/evidence/ux-08-1.21.10/README.md).
+
+**Base y decisión.** HEAD `0121e52` (UX-06) con UX-07 completa sin commit,
+const 1.20.10; último tag local v1.19.5. Copia exacta de ese árbol, incluidos
+archivos nuevos, en `/tmp/maly-ux08-backup`. Su binario rechaza `playnext` como
+subcomando desconocido. El dueño autorizó UX-08 y eligió explícitamente FIFO:
+B y después C deben sonar B → C. No se consultó remoto.
+
+**Resultado.** `playnext` es una operación atómica del demonio, compartida por
+CLI/consola y la acción TUI `play_next` (Ctrl+N configurable). Crea entradas
+prioritarias persistentes, conservando pista actual, posición y pausa; no
+arranca una cola vacía/detenida. El contrato completo de modos, duplicados,
+mutaciones y EOF vive en el roadmap UI/UX; implementación en las fichas de
+[cola/player](../architecture/playback.md), [demonio](../architecture/daemon.md)
+y [TUI](../architecture/tui.md). La primera pendiente tiene un marcador textual
+compartido, independiente del color y de la selección.
+
+**Versión 1.20.10 → 1.21.10, cambio grande.** Cambia el orden efectivo y la
+promesa gapless, añade prioridad persistente y campos de Status. Se conserva
+el último componente, según la regla de releases. No cambia SQLite, no añade
+red propia ni dependencias. Sesión v1 compatible con un campo opcional.
+
+**Verificación.** Build sin CGo, vet, suite completa sin CGo y race pasaron:
+19 paquetes, 842 casos/subcasos en cada suite, sin fallos ni saltos; mpv real,
+`ao=null`, bus privado. La matriz de cola cruza shuffle on/off y repeat
+off/all/one; comprueba consumo por entrada y continuidad del ciclo. Los tests
+de demonio verifican pausa/posición, lotes, duplicados y sesión con archivos
+eliminados. La transición natural A → B → C usa WAV cortos y comprueba la ruta
+efectiva de mpv y LoadCount sin cargas adicionales, con shuffle on/off y
+repeat-one. Otro test fuerza la ventana resolveEnd → d.mu de una promesa
+obsoleta y verifica reparación por ruta y rechazo de generación vieja.
+Dos clientes IPC compiten con el callback EOF bajo el mismo mutex y sus
+elecciones no se pierden ni duplican; esa carrera está controlada por el test,
+no depende de acertar unos milisegundos de audio real.
+
+Once neutralizaciones compilaron, fallaron por la aserción prevista y pasaron
+tras restaurar cada archivo con `cp`: prioridad, consumo FIFO, move, remove,
+replace, sesión, promesa anterior, dispatch del demonio, gramática CLI, ruta
+TUI y marcador. La aserción del marcador construye su expectativa independiente
+del helper compartido; utilizar el mismo helper habría ocultado la regresión.
+
+Matriz tmux en español/default/color, inglés/vim/NO_COLOR y español/Ctrl+Y/
+NO_COLOR; dos TUIs, demonio embebido y separado privado. Redimensionado
+140×42 → 100×28 → 80×24 → 40×12 → 140×42 con actual pausada intacta.
+CLI, consola, Ctrl+O, cola filtrada y `maly select` generan seis elecciones
+comprobadas por rutas exactas contra mpv. Reinicio completo conserva FIFO,
+pausa y modos. Tests TUI cubren además biblioteca y archivos descargados con
+metadatos iguales. A 40 columnas se priorizan ayuda/salida, y el marcador
+sigue legible; las acciones adicionales están en la ayuda.
+
+**Trampas del arnés.** Tras redimensionar, un buffer viejo aún podía contener
+el filtro buscado: esperar solo una subcadena daba un falso fallo posterior.
+El arnés espera ahora el panel y ancho nuevos, contador filtrado y tecla
+resuelta. No hubo un arreglo de producción por ese síntoma. Las pruebas de
+cola filtrada fijan el foco real y entran por handleKey; un filtro con foco en
+biblioteca no acredita selección filtrada de cola. Los sockets bloqueados por
+el sandbox se probaron con permiso fuera de él.
+
+**Riesgo, reversión y límites.** Una prioridad aceptada ante una promesa ya
+encadenada puede requerir recargar en el límite; no se promete continuidad
+audible en esa carrera. Se conservan las dos guardas contra callbacks viejos.
+Restaurar fuentes desde la copia pre-UX08 con `cp`, preservando cualquier cambio
+posterior, permite volver a UX-07. Tras separar los commits, `5806445` conserva
+esa entrega sin depender de /tmp. El binario anterior conserva las entradas de la sesión pero
+ignora sus prioridades. No se ejecutó una reversión de entrega. Los buffers
+no acreditan rasterizado Kitty, contraste del escritorio ni audio audible.
+No se hicieron descargas remotas ni se modificó la biblioteca/servicio real.
+El dueño autorizó después commits separados: UX-07 en `5806445` y UX-08
+en el siguiente commit. Sin tag, push, PKGBUILD ni copia a `~/.local/bin/maly`.
+UX-09 no iniciada.
+
 ## v1.20.10 (2026-10-19) — UX-07: continuidad después de descargar
 
 **Estado:** implementada y verificada; commit autorizado; tag pendiente.

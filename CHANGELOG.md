@@ -7,6 +7,18 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.21.10 — 2026-10-19 (implementada; commit autorizado; tag pendiente)
+
+`playnext` en CLI/consola y Ctrl+N configurable en la TUI preparan canciones
+para después de la actual, en el orden elegido: B y luego C suenan B → C.
+Conservan la reproducción y la pausa; una cola vacía no arranca sola. Las
+prioridades pasan antes de shuffle y repeat-one, sobreviven al reinicio y
+marcan la próxima entrada en la cola. Cada petición crea entradas nuevas,
+incluso al elegir una pista ya encolada. Funciona en biblioteca, cola filtrada,
+Ctrl+O, `maly select` y archivos descargados; Ctrl+N en playlists sigue creando
+una playlist. La transición actualiza la promesa gapless y repara la carrera
+con un final de pista que ya hubiera encadenado la promesa anterior.
+
 ## v1.20.10 — 2026-10-19 (implementada; commit autorizado; tag pendiente)
 
 Después de descargar, la TUI muestra los archivos obtenidos y permite filtrarlos,

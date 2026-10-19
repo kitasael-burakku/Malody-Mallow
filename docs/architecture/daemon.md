@@ -44,7 +44,7 @@ socket se borra ANTES de cerrar el listener: al revés, otro demonio podría
 bindear entre medias y le borraríamos el suyo.
 `serve → handle → dispatch` (dispatch bajo `d.mu`; `handle`
 refleja mutadores a MPRIS/suscriptores y realinea la ventana gapless).
-play/add/playnow resuelven sus pistas (directorios, tags, rutas) ANTES de
+play/add/playnow/playnext resuelven sus pistas (directorios, tags, rutas) ANTES de
 tomar `d.mu` — un `add <carpeta-grande>` bajo el lock congelaba
 status/TUI/MPRIS, la misma lección que sacó a scan del mutex. `seek` es la
 tercera excepción por lo mismo (cerró B11): `player.seek` reintenta con
@@ -54,7 +54,7 @@ player (mutex propio), así que no toca estado del demonio; a cambio un
 seek concurrente con el next de otro cliente puede caer en la pista nueva
 (daño menor, aceptado como en las otras dos excepciones).
 Con varias consultas (`Request.Queries`, ver `SetQueries`/`QueryList`)
-play/add pasan por `resolveAll`: cada una se resuelve por separado, también
+play/add/playnext pasan por `resolveAll`: cada una se resuelve por separado, también
 fuera del lock, las que no encuentran nada se saltan y se nombran en la
 respuesta. `noTracksError` identifica esos casos (búsqueda sin coincidencias
 o directorio sin audio) sin comparar mensajes traducidos. Cualquier otro
@@ -142,3 +142,29 @@ contra ella y no contra la DB (las lecturas van fuera del lock, el
 emparejamiento por ruta). Sesión en
 `session.go` (JSON atómico en XDG_DATA_HOME, guardado cada 15 s si dirty y en
 Close; restaura la pista actual EN PAUSA).
+
+
+**`playnext` (UX-08).** La resolución sigue fuera de `d.mu`; aceptar el lote,
+`AddNext` y actualizar la ventana gapless ocurre bajo ese mutex, sin cargar ni
+reanudar audio. Dos clientes se ordenan por aceptación, no por inicio de su
+búsqueda. Paths transporta rutas exactas; Queries conserva la deduplicación
+por ruta dentro del lote de consultas. Las llamadas separadas crean entradas
+independientes. `Status.NextPosition` es 1-based (0 sin prioridad) y
+`NextCount` cuenta pendientes; ambos viajan aunque QueueGen no cambie.
+`ipc.NextLabel` presenta la primera en CLI, consola y panel de cola.
+
+La guarda de generación de `advance` sigue descartando callbacks de cargas
+anteriores. Tras ella, si hay prioridad aceptada y mpv encadenó otra ruta,
+se consume y carga la elegida conservando pausa: la prioridad gana a la promesa
+antigua. Esa reparación excepcional puede requerir una carga en el límite;
+la transición natural sana conserva gapless sin cargas adicionales. Si EOF
+se procesó antes de aceptar la petición, esta se agenda después de la nueva
+actual, por el mismo orden serial. Las mutaciones sin prioridad conservan la
+política previa de promesas obsoletas.
+
+La sesión v1 añade `play_next` opcional con índices por entrada, no rutas
+(una ruta puede estar repetida). Restaurar remapea índices al eliminar archivos
+inexistentes y conserva FIFO. Los archivos viejos no necesitan migración;
+un binario anterior ignora prioridades pero conserva las entradas de la cola.
+El ciclo shuffle ordinario sigue regenerándose al restaurar. Si desapareció
+la actual y quedaron pendientes, reanudar elige la primera prioridad.

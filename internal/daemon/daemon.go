@@ -678,7 +678,7 @@ func (d *Daemon) wakeSubs() {
 
 // dispatch ejecuta el comando bajo el mutex del demonio, salvo las
 // excepciones que se resuelven antes de tomarlo (scan, la resolución de
-// pistas de play/add y el seek): todas hacen IO o esperan a mpv, y bajo el
+// pistas de play/add/playnow/playnext y el seek): todas hacen IO o esperan a mpv, y bajo el
 // lock congelarían status, TUI y MPRIS.
 func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	if req.Cmd == "scan" {
@@ -701,7 +701,7 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 		seekErr = d.seek(req.Lang, req.Value)
 	}
 
-	// play/add resuelven sus pistas ANTES de tomar d.mu: resolveTracks puede
+	// play/add/playnow/playnext resuelven sus pistas ANTES de tomar d.mu: resolveTracks puede
 	// recorrer un directorio leyendo tags (IO lento) y trackFromFile leerlos
 	// de rutas fuera de la biblioteca — bajo el lock congelarían status, TUI
 	// y MPRIS, la misma lección que sacó a scan de aquí. lib es thread-safe.
@@ -710,9 +710,9 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 	var resolveErr error
 	switch {
 	case req.Cmd == "play" && len(req.QueryList()) > 0,
-		req.Cmd == "add" && len(req.Paths) == 0:
+		(req.Cmd == "add" || req.Cmd == "playnext") && len(req.Paths) == 0:
 		resolved, missed, resolveErr = d.resolveAll(req.Lang, req.QueryList())
-	case (req.Cmd == "add" || req.Cmd == "playnow") && len(req.Paths) > 0:
+	case (req.Cmd == "add" || req.Cmd == "playnow" || req.Cmd == "playnext") && len(req.Paths) > 0:
 		for _, p := range req.Paths {
 			resolved = append(resolved, trackFromFile(d.lib, p))
 		}
@@ -827,6 +827,19 @@ func (d *Daemon) dispatch(req ipc.Request) ipc.Response {
 			return fail(err)
 		}
 		return okStatus(i18n.TLf(lang, "d.playing", t))
+
+	case "playnext":
+		if resolveErr != nil {
+			return fail(resolveErr)
+		}
+		if len(resolved) == 0 {
+			return fail(errors.New(i18n.TL(lang, "cli.usage_playnext")))
+		}
+		d.q.AddNext(resolved...)
+		// La inserción y su promesa se publican bajo el mismo mutex. Si el
+		// EOF ya encadenó la promesa anterior, advance repara esa transición.
+		d.syncWindowLocked()
+		return okStatus(ipc.WithNoMatch(lang, i18n.TLf(lang, "d.playnext", len(resolved)), missed))
 
 	case "add":
 		if resolveErr != nil {
@@ -1038,18 +1051,20 @@ func infoOf(t library.Track) ipc.TrackInfo {
 func (d *Daemon) statusLocked(lang string) *ipc.Status {
 	st := d.pl.State()
 	s := &ipc.Status{
-		Playing:    !st.Idle,
-		Paused:     st.Paused,
-		Position:   st.Position,
-		Duration:   st.Duration,
-		Volume:     int(st.Volume + 0.5),
-		Shuffle:    d.q.Shuffle,
-		Repeat:     string(d.q.Repeat),
-		QueueIndex: d.q.Index,
-		QueueLen:   d.q.Len(),
-		LibGen:     d.libGen.Load(),
-		QueueGen:   d.q.Gen(),
-		PlayerDead: d.pl.Dead(),
+		Playing:      !st.Idle,
+		Paused:       st.Paused,
+		Position:     st.Position,
+		Duration:     st.Duration,
+		Volume:       int(st.Volume + 0.5),
+		Shuffle:      d.q.Shuffle,
+		Repeat:       string(d.q.Repeat),
+		QueueIndex:   d.q.Index,
+		QueueLen:     d.q.Len(),
+		NextPosition: d.q.NextPosition(),
+		NextCount:    d.q.PendingCount(),
+		LibGen:       d.libGen.Load(),
+		QueueGen:     d.q.Gen(),
+		PlayerDead:   d.pl.Dead(),
 	}
 	if d.notice != "" {
 		s.Notice = i18n.TLf(lang, d.notice, d.noticeArgs...)

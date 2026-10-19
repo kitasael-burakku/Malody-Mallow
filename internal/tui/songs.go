@@ -47,6 +47,11 @@ func (m *Model) handleSongsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.req(ipc.Request{Cmd: "playnow", Paths: []string{it.value}})
 		}
 		return m, nil
+	case m.keys["play_next"]:
+		if it, ok := m.songs.current(); ok {
+			return m, m.req(ipc.Request{Cmd: "playnext", Paths: []string{it.value}})
+		}
+		return m, nil
 	case "tab": // agrega a la cola sin cerrar el selector
 		if it, ok := m.songs.current(); ok {
 			m.setFlash(i18n.Tf("songs.added", it.label), false)
@@ -70,7 +75,7 @@ func (m *Model) songsView() string {
 	if m.libLoadErr != "" {
 		m.songs.loadErr = i18n.Tf("tui.lib_err", m.libLoadErr)
 	}
-	hint := i18n.Tf("songs.hint", len(m.songs.matches))
+	hint := i18n.Tf("songs.hint", keyLabel(m.keys["play_next"]), len(m.songs.matches))
 	box := m.songs.render(i18n.T("songs.title"), hint, w, maxRows)
 	// El flash de "agregado a la cola" (tab) se armaba y nunca se dibujaba:
 	// era el único picker sin esto — plView() sí lo hace, mismo patrón acá

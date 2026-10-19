@@ -548,6 +548,7 @@ destination.
 | `ctrl+l` | playlist panel |
 | `ctrl+g` | download search (pick the result before downloading) |
 | `A` | send current selection to a playlist |
+| `ctrl+n` | play next: library, queue, songs and downloaded files; in playlists, create a playlist |
 | `ctrl+s` | prepare to save the whole queue as a new playlist |
 | `?` | full help (every key, including remapped ones) |
 | `q` | quit |
@@ -604,6 +605,7 @@ the vim navigation above is always active, under any preset.
 | `maly move <from> <to>` | move a queue track to another position |
 | `maly remove <pos>` | remove a track from the queue |
 | `maly add <query\|path>...` | add query results or paths to the queue |
+| `maly playnext <query\|path>...` | schedule new entries after the current track, in FIFO order |
 | `maly queue` | show the queue |
 | `maly clear` | clear the queue |
 | `maly status` | show current status |
@@ -612,7 +614,7 @@ the vim navigation above is always active, under any preset.
 | `maly shuffle [on\|off]` | toggle or set shuffle |
 | `maly repeat [off\|all\|one]` | cycle or set repeat mode |
 
-`play`, `add` and `playlist add` take **one query per argument**, so you can
+`play`, `add`, `playnext` and `playlist add` take **one query per argument**, so you can
 queue several songs at once: `maly add Secreto "Otra dimension"` adds both. A
 multi-word phrase goes in quotes: without them, `maly add daft punk` searches
 for "daft" and "punk" separately. Whatever finds nothing is named at the end
@@ -622,6 +624,18 @@ track, the command fails; a library error cancels the batch before changing
 the queue or playlist. `search`, `select`
 and `get` still take a single phrase. The TUI's ctrl+p console works the same
 way, with single or double quotes.
+
+**Play next:** `maly playnext "B" "C"` schedules B → C without changing the
+current track, position or pause state. Ctrl+N does the same for the selection
+(including `maly select`); remap `play_next` in `[keys]` if needed. Older configs
+inherit the default without being rewritten. The first pending entry is marked
+`[next]` in the queue. Explicit choices take priority over shuffle and repeat-one;
+normal mode resumes afterward (repeat-one repeats the last current track).
+An empty or stopped queue waits for `play` or `next`. Each request adds new
+entries: choosing an already queued track does not move or remove its original
+entry. Priorities are saved on exit and restored paused. `remove` cancels the
+removed entry, `move` preserves its priority, and `clear` or playing a new query
+discards previous priorities.
 
 **Library** — work without the daemon (except `playlist play` and `playlist save`):
 
@@ -934,6 +948,7 @@ cookies_from_browser = ""
 # switch_panel = "tab"
 # filter = "/"
 # add = "a"
+# play_next = "ctrl+n"
 # remove = "d"
 # move_up = "K"
 # move_down = "J"

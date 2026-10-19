@@ -72,3 +72,21 @@ que SetNext anexa); los mutadores mantienen la permutación con cirugía
 incremental (Add entra al tramo no sonado, Move REMAPEA — la promesa sigue
 a la pista movida —, JumpTo recoloca como siguiente y consume) y `Prev`
 camina order hacia atrás (ya no hay history que las mutaciones borren).
+
+
+**Prioridad explícita (UX-08).** `AddNext` crea entradas y guarda sus índices
+normalizados en `pending`, FIFO por petición. Inserta detrás de la última
+pendiente (o de la actual) y remapea actual/permutación/prioridades sin cargar
+mpv. Las entradas nuevas se incorporan al ciclo shuffle; `Next` consume cada
+pendiente vía `JumpTo`, que la recoloca y consume una sola vez en la permutación.
+`PeekNext` prioriza pendientes sobre repeat-one y shuffle. Agotadas, se sigue
+la política ordinaria. Pedir de nuevo una ruta crea otra entrada legítima;
+la garantía de no repetición del ciclo es por entrada, no por ruta.
+
+Remove cancela la entrada y remapea índices; Move conserva la identidad de
+cada prioridad. JumpTo/Prev consumen únicamente la pendiente que seleccionan;
+retirar la actual conserva la política previa de selección y consume la nueva
+actual si era pendiente. Clear/Replace borran prioridades. `Pending` devuelve
+una copia; `RestorePending` valida índices únicos, existentes y no actuales.
+AddNext incrementa `Gen` por cambiar Items; consumir prioridad solo cambia
+los campos pequeños de Status, sin reenviar la cola entera.

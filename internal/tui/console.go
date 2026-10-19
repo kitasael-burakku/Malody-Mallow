@@ -365,13 +365,17 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		return m, m.conReq(req)
 	case "pause", "toggle", "stop", "next", "prev", "clear":
 		return m, m.conReq(ipc.Request{Cmd: cmd})
-	case "add":
+	case "add", "playnext":
 		items := nonBlank(args)
 		if len(items) == 0 {
+			if cmd == "playnext" {
+				m.conErr(i18n.T("cli.usage_playnext"))
+				return m, nil
+			}
 			m.conErr(i18n.T("con.usage_add"))
 			return m, nil
 		}
-		req := ipc.Request{Cmd: "add"}
+		req := ipc.Request{Cmd: cmd}
 		req.SetQueries(items)
 		return m, m.conReq(req)
 	case "jump":
@@ -1021,7 +1025,7 @@ func queueLines(st styles, resp ipc.Response) []string {
 		if i == cur {
 			mark, style = "▶ ", st.playing
 		}
-		out = append(out, style.Render(fmt.Sprintf("%s%3d. %s", mark, i+1, t)))
+		out = append(out, style.Render(fmt.Sprintf("%s%3d. %s%s", mark, i+1, ipc.NextLabel(resp.Status, i), t)))
 	}
 	return out
 }

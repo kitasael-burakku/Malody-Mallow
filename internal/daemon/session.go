@@ -29,6 +29,7 @@ type session struct {
 	Position float64  `json:"position,omitempty"`
 	Volume   float64  `json:"volume"`
 	Shuffle  bool     `json:"shuffle,omitempty"`
+	Pending  []int    `json:"play_next,omitempty"` // índices por entrada, conserva duplicados de ruta
 	Repeat   string   `json:"repeat,omitempty"`
 }
 
@@ -45,6 +46,7 @@ func (d *Daemon) snapshotLocked() session {
 		Volume:  st.Volume,
 		Shuffle: d.q.Shuffle,
 		Repeat:  string(d.q.Repeat),
+		Pending: d.q.Pending(),
 	}
 	// La posición se restaura sobre la pista de Index: solo vale si es la suya
 	// (ver clockOf), o un guardado en plena transición la aplicaría a otra.
@@ -117,6 +119,7 @@ func (d *Daemon) restoreSession() {
 	// Reponer la cola saltando archivos desaparecidos; el índice se corre
 	// por cada hueco anterior a la actual, y si la actual ya no existe no
 	// se adivina otra: queda todo detenido.
+	remap := make(map[int]int, len(s.Queue))
 	idx := s.Index
 	curLost := false
 	for i, p := range s.Queue {
@@ -128,6 +131,7 @@ func (d *Daemon) restoreSession() {
 			}
 			continue
 		}
+		remap[i] = d.q.Len()
 		d.q.Add(trackFromFile(d.lib, p))
 	}
 	if curLost || idx < -1 || idx >= d.q.Len() {
@@ -141,6 +145,13 @@ func (d *Daemon) restoreSession() {
 	case queue.RepeatAll, queue.RepeatOne:
 		d.q.Repeat = m
 	}
+	var pending []int
+	for _, i := range s.Pending {
+		if j, ok := remap[i]; ok {
+			pending = append(pending, j)
+		}
+	}
+	d.q.RestorePending(pending)
 	d.pl.SetVolume(s.Volume)
 
 	t, ok := d.q.Current()

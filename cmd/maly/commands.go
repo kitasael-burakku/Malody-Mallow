@@ -50,6 +50,7 @@ var commands = []command{
 	{name: "jump", section: "playback", run: client("jump"), complete: completeJump},
 	{name: "move", section: "playback", run: client("move"), complete: completeMove},
 	{name: "remove", section: "playback", run: client("remove"), complete: completeJump},
+	{name: "playnext", section: "playback", run: client("playnext"), complete: completeTracks},
 	{name: "add", section: "playback", run: client("add"), complete: completeTracks},
 	{name: "queue", section: "playback", run: client("queue")},
 	{name: "clear", section: "playback", run: client("clear")},

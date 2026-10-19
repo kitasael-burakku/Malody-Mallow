@@ -1,0 +1,141 @@
+prioridad — neutralizado
+--- FAIL: TestPlayNextFIFO (0.00s)
+    --- FAIL: TestPlayNextFIFO/shuffle=false/repeat=one (0.00s)
+        next_test.go:39: promesa FIFO: A true, quería B
+    --- FAIL: TestPlayNextFIFO/shuffle=true/repeat=off (0.00s)
+        next_test.go:39: promesa FIFO: E true, quería B
+    --- FAIL: TestPlayNextFIFO/shuffle=true/repeat=all (0.00s)
+        next_test.go:39: promesa FIFO: D true, quería B
+    --- FAIL: TestPlayNextFIFO/shuffle=true/repeat=one (0.00s)
+        next_test.go:39: promesa FIFO: A true, quería B
+FAIL
+FAIL	maly/internal/queue	0.002s
+FAIL
+
+prioridad — restaurado
+ok  	maly/internal/queue	0.002s
+
+consumo_fifo — neutralizado
+--- FAIL: TestPlayNextFIFO (0.00s)
+    --- FAIL: TestPlayNextFIFO/shuffle=false/repeat=off (0.00s)
+        next_test.go:43: no consumió la promesa C true
+    --- FAIL: TestPlayNextFIFO/shuffle=false/repeat=all (0.00s)
+        next_test.go:43: no consumió la promesa C true
+    --- FAIL: TestPlayNextFIFO/shuffle=false/repeat=one (0.00s)
+        next_test.go:43: no consumió la promesa C true
+    --- FAIL: TestPlayNextFIFO/shuffle=true/repeat=off (0.00s)
+        next_test.go:43: no consumió la promesa C true
+    --- FAIL: TestPlayNextFIFO/shuffle=true/repeat=all (0.00s)
+        next_test.go:43: no consumió la promesa C true
+    --- FAIL: TestPlayNextFIFO/shuffle=true/repeat=one (0.00s)
+        next_test.go:43: no consumió la promesa C true
+FAIL
+FAIL	maly/internal/queue	0.002s
+FAIL
+
+consumo_fifo — restaurado
+ok  	maly/internal/queue	0.002s
+
+move — neutralizado
+--- FAIL: TestPlayNextRemoveCurrentAndMovedPending (0.00s)
+    next_test.go:148: move perdió prioridad
+FAIL
+FAIL	maly/internal/queue	0.002s
+FAIL
+
+move — restaurado
+ok  	maly/internal/queue	0.002s
+
+remove — neutralizado
+--- FAIL: TestPlayNextMutations (0.00s)
+    next_test.go:93: remove dejó una referencia pendiente
+FAIL
+FAIL	maly/internal/queue	0.002s
+FAIL
+
+remove — restaurado
+ok  	maly/internal/queue	0.001s
+
+replace — neutralizado
+--- FAIL: TestPlayNextMutations (0.00s)
+    next_test.go:111: replace conservó prioridad
+FAIL
+FAIL	maly/internal/queue	0.001s
+FAIL
+
+replace — restaurado
+ok  	maly/internal/queue	0.002s
+
+restore — neutralizado
+--- FAIL: TestPlayNextSessionRemap (0.11s)
+    playnext_test.go:205: sesión perdió estado &{true true A 0 0 100 true one 0 0 0 3 false 0 0 1 4 false }
+FAIL
+FAIL	maly/internal/daemon	0.116s
+FAIL
+
+restore — restaurado
+ok  	maly/internal/daemon	0.170s
+
+promesa_anterior — neutralizado
+--- FAIL: TestPlayNextLatePromise (5.07s)
+    playnext_test.go:109: reparación de promesa previa: CurrentPath = "/tmp/TestPlayNextLatePromise2935036848/002/a.wav", quería "/tmp/TestPlayNextLatePromise2935036848/003/prioritaria.wav"
+FAIL
+FAIL	maly/internal/daemon	5.068s
+FAIL
+
+promesa_anterior — restaurado
+ok  	maly/internal/daemon	0.116s
+
+daemon — neutralizado
+--- FAIL: TestPlayNextDaemonPausedAndFIFO (0.11s)
+    playnext_test.go:41: cola vacía arrancó o perdió pendientes &{false false <nil> 0 0 100 false off -1 0 0 2 false 0 0 1 2 false }
+FAIL
+FAIL	maly/internal/daemon	0.112s
+FAIL
+
+daemon — restaurado
+ok  	maly/internal/daemon	0.367s
+
+cli — neutralizado
+--- FAIL: TestPlayNextCLI (0.00s)
+    playnext_test.go:13: gramática playnext incorrecta {playnext  []  0 0 [] } <nil>
+FAIL
+FAIL	maly/cmd/maly	0.003s
+FAIL
+
+cli — restaurado
+ok  	maly/cmd/maly	0.003s
+
+tui_ruta — neutralizado
+--- FAIL: TestPlayNextSurfaces (0.00s)
+    --- FAIL: TestPlayNextSurfaces/songs/ctrl+n (0.00s)
+        playnext_test.go:72: ruta seleccionada incorrecta {playnext  []  0 0 [Igual] en}
+    --- FAIL: TestPlayNextSurfaces/songs/ctrl+y (0.00s)
+        playnext_test.go:72: ruta seleccionada incorrecta {playnext  []  0 0 [Igual] en}
+FAIL
+FAIL	maly/internal/tui	0.005s
+FAIL
+
+tui_ruta — restaurado
+ok  	maly/internal/tui	0.005s
+
+marcador — neutralizado
+--- FAIL: TestPlayNextMarkerAndHints (0.00s)
+    playnext_test.go:88: no marca la siguiente ╭─ Queue (2) ──────────────────────────────────────────────╮
+        │ ▶   1. [next] Actual                                     │
+        │     2. Elegida                                           │
+        │                                                          │
+        │                                                          │
+        │                                                          │
+        │                                                          │
+        │                                                          │
+        │                                                          │
+        │                                                          │
+        │                                                          │
+        ╰──────────────────────────────────────────────────────────╯
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL
+
+marcador — restaurado
+ok  	maly/internal/tui	0.002s

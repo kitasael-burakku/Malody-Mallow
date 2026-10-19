@@ -50,7 +50,7 @@ func RunSelect(cfg config.Config) error {
 	}
 
 	st := newStyles(cfg.Theme)
-	m := &selectModel{st: st, sock: sock, pk: newPicker(st, i18n.T("songs.ph"))}
+	m := &selectModel{nextKey: cfg.Keys["play_next"], st: st, sock: sock, pk: newPicker(st, i18n.T("songs.ph"))}
 	m.pk.setItems(songItems(tracks))
 
 	out, err := tea.NewProgram(m).Run()
@@ -68,6 +68,7 @@ func RunSelect(cfg config.Config) error {
 }
 
 type selectModel struct {
+	nextKey       string
 	st            styles
 	sock          string
 	pk            *picker
@@ -124,6 +125,11 @@ func (m *selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.send(ipc.Request{Cmd: "playnow", Paths: []string{it.value}}, true)
 			}
 			return m, nil
+		case m.nextKey:
+			if it, ok := m.pk.current(); ok {
+				return m, m.send(ipc.Request{Cmd: "playnext", Paths: []string{it.value}}, false)
+			}
+			return m, nil
 		case "tab":
 			if it, ok := m.pk.current(); ok {
 				return m, m.send(ipc.Request{Cmd: "add", Paths: []string{it.value}}, false)
@@ -170,7 +176,7 @@ func (m *selectModel) view() string {
 	if maxRows > 12 {
 		maxRows = 12
 	}
-	hint := i18n.Tf("songs.hint", len(m.pk.matches))
+	hint := i18n.Tf("songs.hint", keyLabel(m.nextKey), len(m.pk.matches))
 	box := m.pk.render(i18n.T("sel.title"), hint, w, maxRows)
 	if m.flash != "" {
 		box += "\n" + clip(m.flash, m.width)

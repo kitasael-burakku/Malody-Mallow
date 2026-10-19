@@ -32,6 +32,7 @@ type Queue struct {
 	Repeat  RepeatMode
 	order   []int // permutación del ciclo shuffle; nil con Shuffle off
 	pos     int   // posición de la actual en order; -1 si nada suena
+	pending []int // entradas con prioridad FIFO, antes de shuffle/repeat-one
 	staged  []int // permutación del ciclo siguiente, prometida por PeekNext
 
 	// gen es la generación del CONTENIDO de Items: arranca en 1 y sube cada
@@ -40,7 +41,7 @@ type Queue struct {
 	// hace con la biblioteca. Arranca en 1 —y no en 0— para que 0 signifique
 	// "demonio sin soporte" en el protocolo, como LibGen.
 	//
-	// Sube SOLO con lo que altera Items: Add, Replace, Clear, RemoveAt y
+	// Sube SOLO con lo que altera Items: Add, AddNext, Replace, Clear, RemoveAt y
 	// Move. NO con JumpTo, Next, Prev, SetShuffle ni CycleRepeat, que mueven
 	// Index/order/pos —estado que ya viaja aparte en Status— y dejan la lista
 	// igual: subirla ahí re-mandaría la cola entera en cada canción, que es
@@ -159,6 +160,7 @@ func (q *Queue) Add(tracks ...library.Track) {
 
 // Replace sustituye la cola entera y se coloca al inicio.
 func (q *Queue) Replace(tracks []library.Track) {
+	q.pending = nil
 	q.Items = append([]library.Track(nil), tracks...)
 	q.Index = -1
 	q.gen++
@@ -169,6 +171,7 @@ func (q *Queue) Replace(tracks []library.Track) {
 
 // Clear vacía la cola.
 func (q *Queue) Clear() {
+	q.pending = nil
 	q.Items = nil
 	q.Index = -1
 	q.gen++
@@ -181,6 +184,12 @@ func (q *Queue) Clear() {
 func (q *Queue) RemoveAt(i int) (removed, wasCurrent bool) {
 	if i < 0 || i >= len(q.Items) {
 		return false, false
+	}
+	q.consumePending(i)
+	for k, v := range q.pending {
+		if v > i {
+			q.pending[k]--
+		}
 	}
 	wasCurrent = i == q.Index
 	q.Items = append(q.Items[:i], q.Items[i+1:]...)
@@ -220,6 +229,9 @@ func (q *Queue) RemoveAt(i int) (removed, wasCurrent bool) {
 		}
 		q.staged = nil
 	}
+	if wasCurrent {
+		q.consumePending(q.Index)
+	}
 	return true, wasCurrent
 }
 
@@ -257,6 +269,16 @@ func (q *Queue) Move(from, to int) bool {
 			q.order[k] = e + 1
 		}
 	}
+	for k, e := range q.pending {
+		switch {
+		case e == from:
+			q.pending[k] = to
+		case from < e && to >= e:
+			q.pending[k] = e - 1
+		case from > e && to <= e:
+			q.pending[k] = e + 1
+		}
+	}
 	q.staged = nil
 	return true
 }
@@ -280,6 +302,7 @@ func (q *Queue) JumpTo(i int) (library.Track, bool) {
 		q.staged = nil
 	}
 	q.Index = i
+	q.consumePending(i)
 	return q.Items[i], true
 }
 
@@ -311,6 +334,9 @@ func (q *Queue) nextIndex(natural bool) (int, bool) {
 	if n == 0 {
 		return 0, false
 	}
+	if len(q.pending) > 0 {
+		return q.pending[0], true
+	}
 	if natural && q.Repeat == RepeatOne && q.Index >= 0 {
 		return q.Index, true
 	}
@@ -338,6 +364,10 @@ func (q *Queue) nextIndex(natural bool) (int, bool) {
 // Next avanza según shuffle/repeat, consumiendo la promesa de PeekNext.
 // natural=true es el fin de pista. ok=false significa fin de la cola.
 func (q *Queue) Next(natural bool) (library.Track, bool) {
+	// JumpTo consume esta entrada sin duplicarla en la permutación.
+	if len(q.pending) > 0 {
+		return q.JumpTo(q.pending[0])
+	}
 	i, ok := q.nextIndex(natural)
 	if !ok {
 		return library.Track{}, false
@@ -361,6 +391,7 @@ func (q *Queue) Next(natural bool) (library.Track, bool) {
 // al inicio). Al cubrir el ciclo entero, Prev ya no se rompe con las
 // mutaciones como el historial viejo.
 func (q *Queue) Prev() (library.Track, bool) {
+	defer func() { q.consumePending(q.Index) }()
 	if len(q.Items) == 0 {
 		return library.Track{}, false
 	}

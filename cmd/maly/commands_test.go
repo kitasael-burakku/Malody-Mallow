@@ -158,7 +158,7 @@ func TestUX05CommandMetadataAndCompletion(t *testing.T) {
 			t.Errorf("ayuda %s sin %q", lang, want)
 		}
 		got := completeCommands("pl")
-		if len(got) != 2 || !strings.HasPrefix(got[0], "play\t") || !strings.HasPrefix(got[1], "playlist\t") {
+		if len(got) != 3 || !strings.HasPrefix(got[0], "play\t") || !strings.HasPrefix(got[1], "playnext\t") || !strings.HasPrefix(got[2], "playlist\t") {
 			t.Errorf("completado pl: %q", got)
 		}
 	}

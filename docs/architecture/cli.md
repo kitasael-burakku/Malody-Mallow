@@ -134,3 +134,10 @@ vacío ni la ausencia de servicio o biblioteca fabrican estado. `play` y `save`
 son los subcomandos de playlist que requieren demonio. Catálogo, ayuda, paleta
 y completado anuncian `playlist save <nombre>`; los nombres existentes no se
 sugieren como destino porque no se sobrescriben.
+
+
+**UX-08:** `playnext` comparte resolución de consultas/rutas, completado y
+metadatos de comando con `add`; acepta lotes tanto en CLI como en consola.
+`maly select` permite enviar la ruta elegida con la tecla configurada
+`play_next` sin cerrar el selector. El orden FIFO y su persistencia pertenecen
+al demonio (ver [protocolo](daemon.md)), no a una composición add/move del cliente.

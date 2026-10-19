@@ -6,7 +6,7 @@ UX-01 con release local `1.19.5`; UX-02 verificada en el commit `9135bcd`
 UX-04 verificada en el commit `fb0db1b` (`1.19.8`, sin tag).
 UX-05 verificada en `4b6d9ef` (`1.20.8`, sin tag). UX-06 verificada en
 `0121e52` (`1.20.9`, sin tag). UX-07 implementada y verificada (`1.20.10`),
-con commit autorizado; tag pendiente. UX-08–UX-09 pendientes. No se ha verificado publicación de estas entregas.**
+en `5806445`, sin tag. UX-08 implementada y verificada (`1.21.10`), con commit autorizado y tag pendiente. UX-09 pendiente. No se ha verificado publicación de estas entregas.**
 Base de la revisión original: `v1.19.3`, commit `16bed5c`. El hotfix posterior
 adelanta la corrección de los bordes; la secuencia futura parte de `1.19.4`.
 Implementado no significa publicado: el cierre de release requiere commit
@@ -43,7 +43,7 @@ condicionadas son candidatas, no compromisos de publicación.
 | UX-05 | `1.19.8` → `1.20.8` | Paleta con sugerencias seleccionables | Grande: nuevo recorrido para descubrir y ejecutar acciones, con navegación, argumentos e historial coordinados | Verificada; commit 4b6d9ef, tag pendiente |
 | UX-06 | `1.20.8` → `1.20.9` | Guardar la cola como playlist | Pequeño: compone una foto de la cola con la persistencia de playlists existente | Verificada; commit autorizado, tag pendiente |
 | UX-07 | `1.20.9` → `1.20.10` | Continuidad después de descargar | Pequeño: reutiliza el selector y acciones existentes sobre rutas obtenidas, sin gestor de trabajos nuevo | Verificada con yt-dlp simulado; commit autorizado; tag pendiente |
-| UX-08 | `1.20.10` → `1.21.10` | Reproducir después | Grande: modifica el orden efectivo de reproducción, su interacción con shuffle y la promesa gapless | Candidata; diseño pendiente |
+| UX-08 | `1.20.10` → `1.21.10` | Reproducir después | Grande: modifica el orden efectivo de reproducción, su interacción con shuffle y la promesa gapless | Implementada y verificada; commit autorizado; tag pendiente |
 | UX-09 | `1.21.10` → `1.22.10` | Deshacer una eliminación de cola | Grande: introduce recuperación con validez compartida entre clientes y demonio | Candidata; diseño pendiente |
 
 La primera tanda recomendada es UX-01–UX-03. Cada fila es una entrega coherente,
@@ -311,28 +311,46 @@ y [evidencia reproducible](evidence/ux-07-1.20.10/README.md).
 
 ## UX-08 — reproducir después
 
-**Candidata funcional.** Beneficio: elegir la próxima pista sin interrumpir
-la actual ni mandarla al final. No existe esa operación dedicada en la base
-revisada. No se implementa como «add + move» desde el cliente: dos peticiones
-permiten intercalaciones y no definen el siguiente efectivo con shuffle.
+**Implementada y verificada en 1.21.10 sobre UX-07 (1.20.10, `5806445`).
+Commit autorizado; tag pendiente.**
+El dueño autorizó UX-08 y eligió FIFO: pedir B y después C significa B → C.
+`playnext` es una operación del demonio; no una secuencia add/move del cliente.
 
-**Diseño necesario:** una operación coherente del demonio, regla para varias
-peticiones consecutivas (FIFO o LIFO), duplicados y repeat one. Conservar la
-permutación y el compromiso de `PeekNext`; estudiar `queue`,
-`daemon_playback.go`, `player` y la [ficha de reproducción](../architecture/playback.md).
+| Situación | Contrato |
+| --- | --- |
+| Reproducción / pausa | Conservar pista, posición y pausa; encolar sin cargar audio |
+| Cola vacía / detenida | Preparar entradas sin arrancar sonido; play/next es explícito |
+| Shuffle off/on | Las pendientes FIFO tienen prioridad; las demás conservan su orden/ciclo |
+| Repeat off/all | Tras agotar pendientes, seguir el modo normal |
+| Repeat one | Las elecciones explícitas pasan primero; después se repite la última actual |
+| Varias llamadas | FIFO por orden de aceptación bajo el mutex; cada lote es indivisible |
+| Duplicados | Cada petición crea entradas nuevas, aunque la ruta ya esté en cola; dentro de un lote de consultas se deduplican solapamientos, como add |
+| Next / jump / prev | Next consume la primera pendiente; seleccionar una pendiente por jump/prev consume esa entrada, sin borrar las demás |
+| Remove / move / clear / play con consulta | Remove cancela esa entrada; move conserva su identidad prioritaria; clear/reemplazo borran prioridades |
+| Fin natural concurrente | Orden serial bajo d.mu. Una prioridad aceptada antes del callback gana; si mpv ya encadenó la promesa antigua se recarga la elegida, sin saltarse una pendiente |
+| Reinicio | Guardar prioridades por entrada; restaurar en pausa, remapear archivos desaparecidos; ciclo shuffle ordinario se regenera como antes |
 
-**Por qué sí:** resuelve una intención frecuente. **Por qué puede esperar:**
-afecta garantías delicadas ya comprobadas. El salto central reconoce ese
-cambio de reproducción, aunque la interfaz sea una sola acción.
+CLI/consola: `playnext <consulta|ruta> [más…]`. TUI: Ctrl+N (`play_next`,
+configurable) sobre biblioteca, cola, canciones y archivos descargados; en la
+cola crea una nueva entrada, no mueve la original. En playlists Ctrl+N mantiene
+su acción local de crear playlist. `maly select` comparte el acceso. La primera
+pendiente se marca como «después»/«next» en las tres representaciones de cola.
+
+**Alcance grande:** prioridad persistente compartida entre clientes, interacción
+con shuffle/repeat y reparación de la transición gapless. **1.20.10 → 1.21.10**
+conserva el último componente. Sin cambios de esquema de biblioteca ni red.
 
 **Aceptación antes de cerrar:**
 
-- [ ] Tabla de comportamiento acordada para shuffle on/off, repeat
+- [x] Tabla de comportamiento acordada para shuffle on/off, repeat
   off/all/one, cola vacía, pausa, final de pista y llamadas consecutivas.
-- [ ] Pruebas de la transición efectiva a la próxima pista, no solo de
+- [x] Pruebas de la transición efectiva a la próxima pista, no solo de
   `Items`; conservar la no repetición del ciclo y actualizar gapless.
-- [ ] Carrera entre final natural y petición de dos clientes cubierta;
+- [x] Carrera entre final natural y petición de dos clientes cubierta;
   paridad CLI/consola/TUI y persistencia definida al reiniciar el servicio.
+
+Cierre y límites en [ingeniería](../history/roadmap-1.17.md#v12110-2026-10-19--ux-08-reproducir-después)
+y [evidencia reproducible](evidence/ux-08-1.21.10/README.md).
 
 ## UX-09 — deshacer una eliminación de cola
 
@@ -414,5 +432,18 @@ Publicación, PKGBUILD y despliegue continúan pendientes.
 
 2026-10-19, continuación autorizada por el dueño: UX-06 quedó en `0121e52`
 (solo commit, sin tag). UX-07 implementada y verificada en `1.20.10`, ocho
-entregas contando UX-00. Commit autorizado; tag pendiente. UX-08 no iniciada.
+entregas contando UX-00. Commit/tag esperan autorización; UX-08 no iniciada.
 Aceptación local con yt-dlp simulado; publicación y despliegue pendientes.
+
+
+**2026-10-19 — UX-08 verificada.** Base HEAD `0121e52` con UX-07 sin commit.
+El dueño eligió FIFO B → C. Const 1.21.10; nueve entregas contando UX-00.
+Build/vet/suite/race correctos, once contrapruebas y matriz de terminal con
+mpv real en entorno privado. UX-07 y UX-08 quedaron pendientes de commit/tag al terminar la verificación;
+UX-09 no iniciada. No se publica ni despliega automáticamente.
+
+
+**2026-10-19 — cierre autorizado en commits separados.** UX-07 quedó en
+`5806445` (1.20.10); UX-08 se registra en el commit siguiente (1.21.10).
+Se contrastaron ambas instantáneas con las fuentes verificadas, conservando
+las evidencias originales. Tags, publicación y despliegue pendientes; UX-09 no iniciada.

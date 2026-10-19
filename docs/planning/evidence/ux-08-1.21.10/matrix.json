@@ -1,0 +1,173 @@
+[
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      100,
+      28
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      80,
+      24
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      40,
+      12
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "default",
+    "language": "es",
+    "color": true,
+    "size": [
+      140,
+      42
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "default",
+    "two_clients_refreshed": true,
+    "six_exact_path_transitions": true,
+    "session_restored_paused": true,
+    "fifo_restored": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "vim",
+    "language": "en",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "vim",
+    "two_clients_refreshed": true,
+    "six_exact_path_transitions": true,
+    "session_restored_paused": true,
+    "fifo_restored": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      100,
+      28
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      80,
+      24
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      40,
+      12
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "override",
+    "language": "es",
+    "color": false,
+    "size": [
+      140,
+      42
+    ],
+    "paused_track_preserved": true
+  },
+  {
+    "profile": "override",
+    "two_clients_refreshed": true,
+    "six_exact_path_transitions": true,
+    "session_restored_paused": true,
+    "fifo_restored": true
+  }
+]

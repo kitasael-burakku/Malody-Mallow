@@ -1245,7 +1245,7 @@ func (m *Model) handleLibraryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.tree.toggle()
 	default:
-		if m.is("add", msg) {
+		if m.is("add", msg) || m.is("play_next", msg) {
 			n := m.tree.current()
 			if n == nil {
 				return m, nil
@@ -1254,7 +1254,11 @@ func (m *Model) handleLibraryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			for _, t := range n.tracks() {
 				paths = append(paths, t.Path)
 			}
-			return m, m.req(ipc.Request{Cmd: "add", Paths: paths})
+			cmd := "add"
+			if m.is("play_next", msg) {
+				cmd = "playnext"
+			}
+			return m, m.req(ipc.Request{Cmd: cmd, Paths: paths})
 		}
 		if m.is("playlist_add", msg) {
 			n := m.tree.current()
@@ -1348,6 +1352,9 @@ func (m *Model) handleQueueKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.req(ipc.Request{Cmd: "jump", Index: vis[m.queueCursor]})
 		}
 	default:
+		if m.is("play_next", msg) && m.queueCursor < len(vis) {
+			return m, m.req(ipc.Request{Cmd: "playnext", Paths: []string{m.queue[vis[m.queueCursor]].Path}})
+		}
 		if m.is("remove", msg) && m.queueCursor < len(vis) {
 			return m, m.req(ipc.Request{Cmd: "remove", Index: vis[m.queueCursor]})
 		}

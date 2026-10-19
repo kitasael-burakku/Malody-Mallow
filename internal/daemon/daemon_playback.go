@@ -109,6 +109,21 @@ func (d *Daemon) advance(reason, chained string, gen int64) {
 					fmt.Fprintf(os.Stderr, "maly: %s: %v\n", i18n.Tf("d.track_failed", t), err)
 				}
 			}
+		} else if !d.stopped && d.q.PendingCount() > 0 {
+			// EOF cruzado con playnext: mpv encadenó la promesa anterior.
+			// Honrar la prioridad sin marcar esa entrada normal como oída.
+			// LoadGen ya descartó callbacks de cargas explícitas superadas.
+			if t, ok := d.q.Next(true); ok {
+				var err error
+				if d.pl.State().Paused {
+					err = d.pl.LoadPaused(t.Path)
+				} else {
+					err = d.pl.Load(t.Path)
+				}
+				if err != nil {
+					d.setNoticeLocked("d.track_failed", t.String())
+				}
+			}
 		}
 		// else: lo anexado ya no es la promesa — un comando mutó la cola (y
 		// cargó/realineó) entre el fin de pista y este punto; avanzar además
@@ -167,7 +182,12 @@ func (d *Daemon) resumeLocked(lang string, fail func(error) ipc.Response, okStat
 	}
 	t, ok := d.q.Current()
 	if !ok {
-		if t, ok = d.q.JumpTo(0); !ok {
+		if d.q.PendingCount() > 0 {
+			t, ok = d.q.Next(false)
+		} else {
+			t, ok = d.q.JumpTo(0)
+		}
+		if !ok {
 			return fail(errors.New(i18n.TL(lang, "d.queue_empty_hint")))
 		}
 	}

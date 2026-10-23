@@ -48,6 +48,9 @@ const (
 	// anterior las barras llenaban el tercio izquierdo de una caja de ancho
 	// completo y el resto quedaba vacío con un borde alrededor.
 	vizStripH = 4
+	// Bandas estables en modo bars: estrechar la terminal agrupa el espectro,
+	// no elimina los agudos ni reinicia la caída de cada banda al redimensionar.
+	vizBands = 96
 	// vizMinRows: con menos alto, la franja es lo PRIMERO que se sacrifica.
 	vizMinRows = 24
 	// bannerMinRows: la barra de título cuesta una fila, y por debajo de esto
@@ -74,15 +77,17 @@ const (
 // layoutOpts son las decisiones del usuario que cambian el reparto. Van como
 // parámetro y no leídas del Model para que computeLayout siga siendo pura.
 type layoutOpts struct {
-	viz    bool   // visualizador encendido
-	banner string // config.BannerSplash | BannerTitlebar | BannerOff
+	viz      bool   // visualizador encendido
+	banner   string // config.BannerSplash | BannerTitlebar | BannerOff
+	vizStyle string // config.VisualizerBars | VisualizerContinuous
 }
 
 // layout es el reparto ya resuelto. Todos los anchos incluyen los bordes de
 // su panel, y todos los altos las filas de borde.
 type layout struct {
-	help helpLayout // geometría de la ayuda, resuelta junto al resto de pantalla
-	mode layoutMode
+	help        helpLayout // geometría de la ayuda, resuelta junto al resto de pantalla
+	viz, nowViz vizLayout  // barras de la franja y del interior de Ctrl+T
+	mode        layoutMode
 	// Anchos de columna. En layoutSingle libW y queueW valen ambos el ancho
 	// completo: solo se dibuja el panel enfocado, nunca los dos a la vez.
 	// npW es 0 fuera de layoutFull.
@@ -108,6 +113,8 @@ func computeLayout(w, h int, opts layoutOpts) layout {
 	}
 
 	l.help = computeHelpLayout(w, h)
+	l.viz = computeVizLayout(w, opts.vizStyle)
+	l.nowViz = computeVizLayout(max(0, w-2), opts.vizStyle)
 	switch {
 	case w >= fullMinWidth:
 		l.mode = layoutFull
@@ -177,6 +184,33 @@ func computeLayout(w, h int, opts layoutOpts) layout {
 	return l
 }
 
+// vizLayout mantiene TODAS las barras igual de anchas. En estilo bars los
+// huecos tienen una celda y reciben el sobrante (como máximo otra celda),
+// para ocupar el ancho completo incluso al alcanzar el límite de 96 barras.
+type vizLayout struct {
+	bars, barW, gap, extra int
+}
+
+func computeVizLayout(w int, style string) vizLayout {
+	if w <= 0 {
+		return vizLayout{}
+	}
+	if style == config.VisualizerContinuous {
+		return vizLayout{bars: w, barW: 1}
+	}
+	n := min(vizBands, max(1, (w+1)/3))
+	barW := (w - (n - 1)) / n
+	return vizLayout{bars: n, barW: barW, gap: 1, extra: w - n*barW - (n - 1)}
+}
+
+func (l vizLayout) start(i int) int {
+	x := i * (l.barW + l.gap)
+	if l.bars > 1 {
+		x += i * l.extra / (l.bars - 1)
+	}
+	return x
+}
+
 func clampInt(v, lo, hi int) int {
 	if v < lo {
 		return lo
@@ -190,8 +224,9 @@ func clampInt(v, lo, hi int) int {
 // layoutOf es el reparto para el estado actual del Model.
 func (m *Model) layoutOf() layout {
 	return computeLayout(m.width, m.height, layoutOpts{
-		viz:    m.vizOn,
-		banner: m.cfg.Theme.Banner,
+		viz:      m.vizOn,
+		banner:   m.cfg.Theme.Banner,
+		vizStyle: m.cfg.Visualizer.Style,
 	})
 }
 

@@ -106,7 +106,7 @@ func (m *Model) view() string {
 		}
 	}
 	if lay.vizH > 0 {
-		parts = append(parts, m.vizStrip(m.width, lay.vizH))
+		parts = append(parts, m.vizStrip(m.width, lay.vizH, lay.viz))
 	}
 	if lay.nowH > 0 {
 		parts = append(parts, m.nowPanel(m.width, lay.nowH))
@@ -383,37 +383,58 @@ var vizBlocks = []rune(" ▁▂▃▄▅▆▇█")
 // vacío se veía pobre (hallazgo P3 del rediseño), y el borde costaba dos filas
 // de las pocas que hay abajo. Sin borde, el espectro se apoya en los paneles
 // de arriba como la franja de la capa ctrl+t, que es donde ya se veía bien.
-func (m *Model) vizStrip(w, h int) string {
-	return strings.Join(m.vizLines(w, h), "\n")
+func (m *Model) vizStrip(w, h int, lay vizLayout) string {
+	return strings.Join(m.vizLines(w, h, lay), "\n")
 }
 
 // vizLines arma las filas del espectro sin panel, para que la capa "Ahora
 // suena" pueda incrustarlas en el suyo.
-func (m *Model) vizLines(innerW, innerH int) []string {
+func (m *Model) vizLines(innerW, innerH int, lay vizLayout) []string {
 	styles := m.vizGradient(innerH)
+	levels := vizLevels(m.vizBars, lay.bars)
 
 	lines := make([]string, innerH)
 	for r := 0; r < innerH; r++ {
 		rowFromBottom := innerH - 1 - r
 		cells := make([]rune, innerW)
 		for c := 0; c < innerW; c++ {
-			var bar float64
-			if c < len(m.vizBars) {
-				bar = m.vizBars[c]
-			}
+			cells[c] = ' '
+		}
+		for i, bar := range levels {
 			rem := int(bar*float64(innerH)*8) - rowFromBottom*8
+			cell := ' '
 			switch {
 			case rem >= 8:
-				cells[c] = vizBlocks[8]
+				cell = vizBlocks[8]
 			case rem > 0:
-				cells[c] = vizBlocks[rem]
-			default:
-				cells[c] = ' '
+				cell = vizBlocks[rem]
+			}
+			x := lay.start(i)
+			for c := x; c < x+lay.barW; c++ {
+				cells[c] = cell
 			}
 		}
 		lines[r] = styles[r].Render(string(cells))
 	}
 	return lines
+}
+
+// vizLevels agrupa intervalos contiguos del espectro completo, conservando
+// su pico. No normaliza cada barra por separado: el silencio sigue siendo
+// silencio y un agudo débil no se convierte en otro máximo artificial.
+func vizLevels(bands []float64, n int) []float64 {
+	levels := make([]float64, n)
+	if len(bands) == 0 {
+		return levels
+	}
+	for i := range levels {
+		lo := i * len(bands) / n
+		hi := max(lo+1, (i+1)*len(bands)/n)
+		for _, v := range bands[lo:hi] {
+			levels[i] = max(levels[i], v)
+		}
+	}
+	return levels
 }
 
 // vizGradient devuelve un estilo por fila interpolando el tema (cacheado).

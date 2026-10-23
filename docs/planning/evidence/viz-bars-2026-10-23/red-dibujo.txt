@@ -1,0 +1,26 @@
+--- FAIL: TestVizBarrasUniformes (0.00s)
+    --- FAIL: TestVizBarrasUniformes/5 (0.00s)
+        visualizer_test.go:31: 1 barras separadas, quería 2: "█████"
+    --- FAIL: TestVizBarrasUniformes/40 (0.00s)
+        visualizer_test.go:31: 1 barras separadas, quería 13: "████████████████████████████████████████"
+    --- FAIL: TestVizBarrasUniformes/80 (0.00s)
+        visualizer_test.go:31: 1 barras separadas, quería 27: "████████████████████████████████████████████████████████████████████████████████"
+    --- FAIL: TestVizBarrasUniformes/130 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 130 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                  "
+    --- FAIL: TestVizBarrasUniformes/144 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 144 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                                "
+    --- FAIL: TestVizBarrasUniformes/240 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 240 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                                                                                                                                "
+    --- FAIL: TestVizBarrasUniformes/270 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 270 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                                                                                                                                                              "
+    --- FAIL: TestVizBarrasUniformes/288 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 288 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                                                                                                                                                                                "
+    --- FAIL: TestVizBarrasUniformes/400 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 400 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                                                                                                                                                                                                                                                                                                "
+    --- FAIL: TestVizBarrasUniformes/574 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 574 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              "
+    --- FAIL: TestVizBarrasUniformes/1000 (0.00s)
+        visualizer_test.go:26: la franja no ocupa exactamente 1000 columnas: "████████████████████████████████████████████████████████████████████████████████████████████████                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        "
+FAIL
+FAIL	maly/internal/tui	0.004s
+FAIL

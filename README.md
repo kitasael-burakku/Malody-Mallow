@@ -907,9 +907,22 @@ manda la tuya.
 | Clave | Default | Qué hace |
 |---|---|---|
 | `enabled` | `true` | activa el visualizador |
+| `style` | `"bars"` | `bars` (barras separadas) \| `continuous` (franja continua anterior) |
 | `color_low` / `color_high` | `#7ab8b8` / `#b85c50` | gradiente de las barras |
 | `bars_gravity` | `0.92` | suavizado de caída de las barras |
 | `backend` | `"auto"` | `auto` (prueba pw-record, luego parec) \| `pipewire` \| `pulse` |
+
+También podés elegirlo directamente en `~/.config/maly/config.toml`: dentro
+de `[visualizer]`, usá `style = "continuous"` para la franja anterior o
+`style = "bars"` para las barras separadas y reabrí la TUI. Si ya tenés un
+config personalizado, basta con añadir esa línea; no reemplaces el archivo.
+En una instalación limpia la línea se genera automáticamente.
+
+En la consola Ctrl+P, `viz continuous` recupera la franja anterior y `viz bars`
+elige las barras separadas. La elección se aplica en vivo y se guarda para
+la siguiente apertura; no cambia si está encendido o apagado. `viz` sin
+argumentos sigue alternando el encendido en la sesión actual. Los configs
+existentes no necesitan añadir la clave: si falta o es inválida se usa `bars`.
 
 `[ytdlp]`:
 
@@ -953,6 +966,7 @@ logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 
 
 [visualizer]
 enabled = true
+style = "bars"             # bars (separadas) | continuous (franja anterior)
 color_low = "#7ab8b8"
 color_high = "#b85c50"
 bars_gravity = 0.92

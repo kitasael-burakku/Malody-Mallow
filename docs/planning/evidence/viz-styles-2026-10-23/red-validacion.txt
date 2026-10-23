@@ -1,0 +1,8 @@
+--- FAIL: TestLoadVisualizerStyle (0.00s)
+    --- FAIL: TestLoadVisualizerStyle/[visualizer]_style_=_"no-existe"_ (0.00s)
+        visualizer_test.go:28: estilo="no-existe", quería "bars"; error=<nil>
+    --- FAIL: TestLoadVisualizerStyle/[visualizer]_style_=_""_ (0.00s)
+        visualizer_test.go:28: estilo="", quería "bars"; error=<nil>
+FAIL
+FAIL	maly/internal/config	0.002s
+FAIL

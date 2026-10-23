@@ -237,7 +237,13 @@ tomadas.
 
 ## Estado actual
 
-**v1.22.12 — captura PCM del visualizador corregida; commit y tag locales; publicación pendiente**
+**v1.22.13 — estilos del visualizador; commit y tag locales; publicación pendiente**
+(`internal/version/version.go`). Barras uniformes o franja continua mediante
+`[visualizer].style` y Ctrl+P `viz bars` / `viz continuous`, con persistencia y
+paridad entre la franja principal y Ctrl+T.
+[Cierre y evidencia](docs/history/roadmap-1.17.md#v12213-2026-10-23--estilos-del-visualizador).
+
+**v1.22.12 — captura PCM del visualizador corregida y publicada**
 (`internal/version/version.go`). PipeWire recibe `--raw` para que el lector
 s16le no interprete un contenedor AU big-endian como audio crudo.
 [Cierre y evidencia](docs/history/roadmap-1.17.md#v12212-2026-10-23--captura-pcm-del-visualizador).

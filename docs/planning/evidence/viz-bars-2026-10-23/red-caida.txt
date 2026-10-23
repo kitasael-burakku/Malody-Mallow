@@ -1,0 +1,5 @@
+--- FAIL: TestVizResizeConservaCaida (0.00s)
+    visualizer_test.go:110: 240 bandas de análisis, quería 96
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

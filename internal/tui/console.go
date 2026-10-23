@@ -353,6 +353,19 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 		m.conLines = nil
 		return m, nil
 	case "viz":
+		if len(args) > 0 {
+			if len(args) != 1 || !config.ValidVisualizerStyle(args[0]) {
+				m.conErr(i18n.T("con.viz_usage"))
+				return m, nil
+			}
+			if err := config.SaveVisualizerStyle(args[0]); err != nil {
+				m.conErr(err.Error())
+				return m, nil
+			}
+			m.cfg.Visualizer.Style = args[0]
+			m.conPrint(m.st.playing.Render(i18n.Tf("con.viz_style_set", args[0])))
+			return m, nil
+		}
 		m.vizOn = !m.vizOn
 		if m.vizOn {
 			m.conPrint(m.st.playing.Render(i18n.T("con.viz_on")))

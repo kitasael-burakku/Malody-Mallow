@@ -901,9 +901,22 @@ yours wins.
 | Key | Default | Does |
 |---|---|---|
 | `enabled` | `true` | turns the visualizer on |
+| `style` | `"bars"` | `bars` (separated bars) \| `continuous` (previous continuous strip) |
 | `color_low` / `color_high` | `#7ab8b8` / `#b85c50` | bar gradient |
 | `bars_gravity` | `0.92` | bar-decay smoothing |
 | `backend` | `"auto"` | `auto` (tries pw-record, then parec) \| `pipewire` \| `pulse` |
+
+You can also choose directly in `~/.config/maly/config.toml`: under
+`[visualizer]`, set `style = "continuous"` for the previous strip or
+`style = "bars"` for separated bars, then reopen the TUI. If you already have
+a custom config, just add that line; keep the rest of your file.
+Clean installations generate the line automatically.
+
+In the Ctrl+P console, `viz continuous` restores the previous strip and
+`viz bars` selects separated bars. The choice applies live and is saved for
+the next launch; it does not change whether the visualizer is on or off.
+`viz` without arguments still toggles it for the current session. Existing
+configs need no new entry: a missing or invalid style falls back to `bars`.
 
 `[ytdlp]`:
 
@@ -948,6 +961,7 @@ logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # banner gradient stops (2 or more)
 
 [visualizer]
 enabled = true
+style = "bars"             # bars (separated) | continuous (previous strip)
 color_low = "#7ab8b8"
 color_high = "#b85c50"
 bars_gravity = 0.92

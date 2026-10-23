@@ -1,0 +1,5 @@
+--- FAIL: TestVizEstiloDefineResolucion (0.00s)
+    visualizer_style_test.go:43: continuous: 96 bandas, quería 240
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

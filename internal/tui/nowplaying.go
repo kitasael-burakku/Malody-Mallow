@@ -213,7 +213,7 @@ func (m *Model) npView() string {
 	lines = append(lines, center(hintSt.Render(clip(hint, innerW)), innerW))
 
 	if vizH > 0 {
-		lines = append(lines, m.vizLines(innerW, vizH)...)
+		lines = append(lines, m.vizLines(innerW, vizH, m.layoutOf().nowViz)...)
 	}
 	return m.st.panel(i18n.T("tui.now_title"), lines, m.width, m.height, false)
 }

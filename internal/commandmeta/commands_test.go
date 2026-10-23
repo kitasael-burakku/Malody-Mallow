@@ -35,6 +35,7 @@ func TestMetadataContracts(t *testing.T) {
 		{"playlist add", "playlist add <name> <query>...", "playlist add <nombre> <consulta>..."},
 		{"playlist import", "playlist import <file> [<name>]", "playlist import <archivo> [<nombre>]"},
 		{"get pick", "get pick <search>", "get pick <búsqueda>"},
+		{"viz", "viz [bars|continuous]", "viz [bars|continuous]"},
 	} {
 		e, ok := Lookup(tc.name)
 		if !ok {

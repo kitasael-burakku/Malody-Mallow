@@ -1,0 +1,5 @@
+--- FAIL: TestVizContinuousPorColumna (0.00s)
+    visualizer_style_test.go:25: fila 0: "   ██", quería "   ▄█"
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

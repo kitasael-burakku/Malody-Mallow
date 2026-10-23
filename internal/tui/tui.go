@@ -637,7 +637,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.vizTicking = false
 			return m, nil
 		}
-		m.vizBars = m.viz.Bars(m.width, m.playingNow())
+		n := vizBands
+		if m.cfg.Visualizer.Style == config.VisualizerContinuous {
+			n = m.width
+		}
+		m.vizBars = m.viz.Bars(n, m.playingNow())
 		// vizWarned se resetea cuando el viz deja de estar en fake: desde
 		// que internal/viz reintenta solo tras perder el backend (UX-N4),
 		// un aviso de una vez ya no alcanza — sin el reset, una SEGUNDA

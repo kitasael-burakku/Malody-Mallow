@@ -2,9 +2,41 @@
 
 Índice: [`README.md`](README.md).
 
-## v1.22.12 (2026-10-23) — captura PCM del visualizador
+## v1.22.13 (2026-10-23) — estilos del visualizador
 
 **Estado:** commit y tag anotado locales; publicación pendiente.
+**1.22.12 → 1.22.13 es un cambio pequeño:** una preferencia visual local
+conserva la captura, el modelo de reproducción, el protocolo y los controles
+existentes. No introduce estado compartido del demonio ni un flujo nuevo.
+
+La franja continua se sustituye por barras igual de anchas con huecos pequeños,
+conservando el orden graves → agudos, la captura PCM, los colores, la escala
+de amplitud y la caída. El análisis usa 96 bandas estables; cada ancho agrupa
+el rango completo en las barras que caben (hasta 96), también en Ctrl+T.
+La geometría vive en `computeLayout`; redimensionar no reinicia la caída.
+
+Por petición posterior del dueño se conserva también la franja anterior:
+`[visualizer].style = "bars" | "continuous"`, seleccionable en vivo desde
+Ctrl+P con `viz bars` / `viz continuous`. La elección persiste sin alterar
+colores ni otras claves. `viz` solo sigue encendiendo/apagando por sesión.
+El modo continuo recupera su análisis por columna; las barras mantienen
+96 bandas estables. Los configs viejos o con estilo inválido usan `bars`.
+Se verificaron carga, guardado quirúrgico, errores sin cambio de estado,
+sugerencias, ambas vistas y persistencia al reabrir; cinco contrapruebas
+compilaron, fallaron por la causa esperada y pasaron al restaurar con `cp`.
+[Evidencia del selector](../planning/evidence/viz-styles-2026-10-23/README.md).
+
+Suite completa sin CGo, race, vet y build correctos. Tres contrapruebas
+compilaron y fallaron por el comportamiento neutralizado antes de restaurar
+con `cp`. Kitty real: comparación con audio del sistema y tonos PCM de
+prueba sin salida audible; 240×42, 140×42, 80×24, 40×12 y Ctrl+T, con
+color y `NO_COLOR`. No se enviaron comandos de reproducción al demonio.
+[Capturas y evidencia](../planning/evidence/viz-bars-2026-10-23/README.md).
+
+## v1.22.12 (2026-10-23) — captura PCM del visualizador
+
+**Estado:** publicada. Se verificaron el tag remoto y su commit `a881792`
+antes de preparar la v1.22.13.
 **1.22.11 → 1.22.12 es un cambio pequeño:** se explicita el formato de la
 captura existente, conservando FFT, suavizado, configuración, reproducción e
 IPC. No se cambia el modelo de interacción ni se introduce estado compartido.

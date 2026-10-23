@@ -1,0 +1,7 @@
+--- FAIL: TestVizAgrupaTodoElEspectro (0.00s)
+    visualizer_test.go:65: n=1: se perdió o duplicó el pico 1: [0]
+--- FAIL: TestVizAgudosVisiblesEnAmbasVistas (0.00s)
+    visualizer_test.go:93: ancho 40, franja: el último grupo no queda solo a la derecha: "                                        "
+FAIL
+FAIL	maly/internal/tui	0.004s
+FAIL

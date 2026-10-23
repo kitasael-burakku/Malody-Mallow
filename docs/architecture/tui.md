@@ -91,7 +91,16 @@ blanco (corte de la 1.13.1), así que estirar el panel solo sumaría filas
 vacías y ese sobrante vuelve a la carátula. La barra de reproducción
 (`nowPanel`) es horizontal y de ancho completo en los TRES modos (decisión
 del dueño: en 26 celdas de columna el progreso no se lee), y el
-visualizador es una FRANJA sin panel propio. `progress.go` tiene la barra
+visualizador es una FRANJA sin panel propio. `[visualizer].style` elige entre
+`bars` (default: 96 bandas logarítmicas estables, barras de ancho uniforme y
+huecos pequeños) y `continuous` (la franja anterior, una banda por columna).
+`computeLayout` resuelve ambos estilos para la franja y el interior de Ctrl+T.
+`vizLevels` cubre el espectro completo conservando los picos, sin normalizar
+las barras por separado. En `bars`, redimensionar conserva la caída de las
+96 bandas. En Ctrl+P, `viz bars` / `viz continuous` aplican el estilo en vivo
+y persisten solo esa clave mediante `SaveVisualizerStyle`; si falla el
+guardado no cambia el estado. Elegir estilo no altera el encendido; `viz`
+sin argumentos conserva su alternancia por sesión. `progress.go` tiene la barra
 como funciones puras: relleno con gradiente agrupado por pasos, cabeza con
 octavos horizontales (`▏▎▍▌▋▊▉` — NO los del viz, que llenan por altura y
 no parten una celda a lo ancho), estela `▓▒` y pista `░`; sus guardas se
@@ -260,7 +269,7 @@ transmisión t=d va pegada a la fila 0 del render cacheado → una vez por
 pista, no por frame; `q=2` OBLIGATORIO o kitty contesta por stdin;
 detección por TERM/KITTY_WINDOW_ID y bajo tmux cae a half-blocks),
 letras (resaltado sincronizado por `Status.Position` si hay `.lrc`) y la
-franja del viz (`vizLines` compartido con `vizPanel`); carga carátula y
+franja del viz (`vizLines` compartido con `vizStrip`); carga carátula y
 letras SIEMPRE en goroutine (`loadNowMeta`, cache por pista `npTrack` +
 render invalidado en resize), y `applyStatus` relanza la carga al cambiar
 la pista. `playbackKey` centraliza las teclas de reproducción compartidas

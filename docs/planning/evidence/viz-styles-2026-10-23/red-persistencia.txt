@@ -1,0 +1,16 @@
+--- FAIL: TestSaveVisualizerStyleSurgical (0.00s)
+    visualizer_test.go:54: se alteró algo más que [visualizer].style:
+        # mi config
+        style = "otra-seccion"
+        [visualizer]
+        # conservar colores
+        enabled = false
+        color_low = "#123456"
+        bars_gravity = 0.85
+        [keys]
+        style = "S"
+
+        error=<nil>
+FAIL
+FAIL	maly/internal/config	0.002s
+FAIL

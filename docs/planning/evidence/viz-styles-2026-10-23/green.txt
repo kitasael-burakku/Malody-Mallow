@@ -1,0 +1,3 @@
+ok  	maly/internal/config	0.003s
+ok  	maly/internal/commandmeta	0.001s
+ok  	maly/internal/tui	0.013s

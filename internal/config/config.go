@@ -117,6 +117,7 @@ func (t *Theme) ResolveDerived() {
 // hexFields(), y el test por reflexión que la cierra también mira este struct.
 type Visualizer struct {
 	Enabled     bool    `toml:"enabled"`
+	Style       string  `toml:"style"` // bars | continuous
 	ColorLow    string  `toml:"color_low"`
 	ColorHigh   string  `toml:"color_high"`
 	BarsGravity float64 `toml:"bars_gravity"`
@@ -125,6 +126,15 @@ type Visualizer struct {
 	// instalados no tiene forma de forzar uno si el automático elige peor.
 	// Un valor no reconocido se comporta como "auto" (viz.filterCandidates).
 	Backend string `toml:"backend"`
+}
+
+const (
+	VisualizerBars       = "bars"
+	VisualizerContinuous = "continuous"
+)
+
+func ValidVisualizerStyle(style string) bool {
+	return style == VisualizerBars || style == VisualizerContinuous
 }
 
 // Ytdlp configura el passthrough hacia yt-dlp de `maly get`. maly no valida
@@ -242,6 +252,7 @@ func Default() Config {
 		},
 		Visualizer: Visualizer{
 			Enabled: true,
+			Style:   VisualizerBars,
 			// El mismo recorrido teal → terracota del logo, para que espectro,
 			// barra de progreso y banner se lean como una sola familia.
 			ColorLow:    "#7ab8b8",
@@ -289,6 +300,7 @@ logo = ["#7ab8b8", "#8098a8", "#b85c50"]  # paradas del gradiente del banner (2 
 
 [visualizer]
 enabled = true
+style = "bars"             # bars (separadas) | continuous (franja anterior)
 color_low = "#7ab8b8"
 color_high = "#b85c50"
 bars_gravity = 0.92
@@ -633,6 +645,9 @@ func Load() (cfg Config, retErr error) {
 	if cfg.Visualizer.BarsGravity <= 0 || cfg.Visualizer.BarsGravity >= 1 {
 		cfg.Visualizer.BarsGravity = 0.92
 	}
+	if !ValidVisualizerStyle(cfg.Visualizer.Style) {
+		cfg.Visualizer.Style = def.Visualizer.Style
+	}
 	if !validLogo(cfg.Theme.Logo) {
 		cfg.Theme.Logo = def.Theme.Logo
 	}
@@ -806,6 +821,11 @@ func SaveLanguage(code string) error { return saveTopLevel("language", code) }
 
 // SaveControls persiste solo el preset de controles en config.toml.
 func SaveControls(name string) error { return saveTopLevel("controls", name) }
+
+// SaveVisualizerStyle persiste solo la elección visual, sin reescribir el tema.
+func SaveVisualizerStyle(style string) error {
+	return saveKey("visualizer", "style", fmt.Sprintf("%q", style))
+}
 
 // saveTopLevel edita (o inserta arriba) una clave string del bloque top-level
 // del TOML sin tocar el resto del archivo.

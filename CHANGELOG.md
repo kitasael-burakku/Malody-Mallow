@@ -7,6 +7,17 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.22.13 — 2026-10-23
+
+El visualizador ofrece barras separadas de ancho uniforme y conserva la
+franja continua anterior. Se eligen desde `[visualizer].style` en el config
+o en vivo con `viz bars` / `viz continuous` en Ctrl+P; la elección se guarda
+para la próxima apertura. Las barras se adaptan al ancho sin perder los
+agudos y conservan su caída al redimensionar. Ambos estilos funcionan en
+la pantalla principal y Ctrl+T, con los colores configurados. Las
+instalaciones limpias incluyen la nueva clave; los configs existentes
+siguen funcionando sin reescribirse.
+
 ## v1.22.12 — 2026-10-23
 
 El visualizador pide audio crudo explícitamente a PipeWire. Antes podía leer

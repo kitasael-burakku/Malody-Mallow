@@ -1,0 +1,8 @@
+--- FAIL: TestConsoleVizStylePersiste (0.00s)
+    --- FAIL: TestConsoleVizStylePersiste/es (0.00s)
+        visualizer_style_test.go:65: elección no persistida o cambió el encendido: disco={Enabled:true Style:bars ColorLow:#7ab8b8 ColorHigh:#b85c50 BarsGravity:0.92 Backend:auto} vivo={Enabled:true Style:bars ColorLow:#7ab8b8 ColorHigh:#b85c50 BarsGravity:0.92 Backend:auto} on=true (<nil>)
+    --- FAIL: TestConsoleVizStylePersiste/en (0.00s)
+        visualizer_style_test.go:65: elección no persistida o cambió el encendido: disco={Enabled:true Style:bars ColorLow:#7ab8b8 ColorHigh:#b85c50 BarsGravity:0.92 Backend:auto} vivo={Enabled:true Style:bars ColorLow:#7ab8b8 ColorHigh:#b85c50 BarsGravity:0.92 Backend:auto} on=true (<nil>)
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

@@ -237,7 +237,14 @@ tomadas.
 
 ## Estado actual
 
-**v1.22.11 — ayuda y detalles de escritorio verificados; commit local autorizado; tag pendiente**
+**v1.22.12 — captura PCM del visualizador corregida; commit y tag locales; publicación pendiente**
+(`internal/version/version.go`). PipeWire recibe `--raw` para que el lector
+s16le no interprete un contenedor AU big-endian como audio crudo.
+[Cierre y evidencia](docs/history/roadmap-1.17.md#v12212-2026-10-23--captura-pcm-del-visualizador).
+El arreglo de Super+M pertenece a la configuración privada de Hyprland, no al
+paquete distribuido.
+
+**v1.22.11 — ayuda y detalles de escritorio verificados**
 (`internal/version/version.go`). Ayuda por tareas en tarjetas adaptables,
 mensajes de paleta completos, diagnóstico de descargas y mínimo visible.
 [Cierre de ingeniería](docs/history/roadmap-1.17.md#v12211-2026-10-19--ayuda-por-tareas-y-detalles-de-escritorio).

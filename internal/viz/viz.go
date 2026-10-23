@@ -90,8 +90,10 @@ type candidate struct {
 // agrega un backend, el diagnóstico se entera solo.
 var captureCandidates = []candidate{
 	// stream.capture.sink=true captura el monitor del sink por defecto.
+	// --raw es obligatorio: stdout sin contenedor explícito entrega AU,
+	// cuyo s16 big-endian no coincide con el PCM s16le de readLoop.
 	{"pw-record", []string{"-P", "{ stream.capture.sink=true }",
-		"--format", "s16", "--rate", "44100", "--channels", "1", "-"}},
+		"--raw", "--format", "s16", "--rate", "44100", "--channels", "1", "-"}},
 	{"parec", []string{"--format=s16le", "--rate=44100", "--channels=1",
 		"-d", "@DEFAULT_MONITOR@"}},
 }

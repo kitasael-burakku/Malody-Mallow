@@ -2,6 +2,23 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.22.12 (2026-10-23) — captura PCM del visualizador
+
+**Estado:** commit y tag anotado locales; publicación pendiente.
+**1.22.11 → 1.22.12 es un cambio pequeño:** se explicita el formato de la
+captura existente, conservando FFT, suavizado, configuración, reproducción e
+IPC. No se cambia el modelo de interacción ni se introduce estado compartido.
+
+Corregido el contrato de `pw-record`: se pide `--raw` porque stdout entregaba
+AU con PCM de 16 bits big-endian y `readLoop` lo leía como s16le, convirtiendo
+la señal en ruido para la FFT. Capturas reales simultáneas del binario
+instalado y el corregido, con el mismo Go 1.27.3, confirmaron la diferencia.
+Prueba de muestras/espectro en ambas direcciones, suite completa sin CGo,
+race, vet y build correctos. La release incorpora bump, changelog y tag anotado.
+[Diagnóstico, capturas y límites](../planning/evidence/viz-pcm-2026-10-23/README.md).
+La misma revisión reparó Super+M en la configuración privada del dueño;
+ese cambio de Hyprland no forma parte del código distribuido de maly.
+
 ## Sobre v1.22.11, sin bump de versión (2026-10-19) — revisión de README
 
 Se contrastaron los README español e inglés con el código y el workflow de CI.

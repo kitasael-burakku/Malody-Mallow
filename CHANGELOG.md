@@ -7,6 +7,12 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.22.12 — 2026-10-23
+
+El visualizador pide audio crudo explícitamente a PipeWire. Antes podía leer
+un contenedor AU como PCM con el orden de bytes incorrecto, generando energía
+falsa en el espectro y barras agitadas que no correspondían a la música.
+
 ## v1.22.11 — 2026-10-19 (implementada; commit local autorizado; tag pendiente)
 
 La ayuda de la TUI separa seis tareas en tarjetas, usa cabeceras contrastadas,

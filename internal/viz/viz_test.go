@@ -2,6 +2,7 @@ package viz
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math"
 	"os"
 	"os/exec"
@@ -114,6 +115,71 @@ func TestReadLoopDegradesToFake(t *testing.T) {
 	ring := v.ring
 	if got := [2]float64{ring[len(ring)-2], ring[len(ring)-1]}; got != [2]float64{0.5, -0.5} {
 		t.Errorf("últimas muestras del ring: %v", got)
+	}
+}
+
+// TestPipeWireCapturaPCMCrudo recorre el arranque y el lector con un capturador
+// que, igual que pw-record, entrega AU big-endian salvo que se pida --raw.
+// Comprobar las muestras y su espectro evita aceptar una captura viva que en
+// realidad alimente la FFT con bytes intercambiados (ruido de banda ancha).
+func TestPipeWireCapturaPCMCrudo(t *testing.T) {
+	dir := t.TempDir()
+	pcm := make([]byte, fftSize*2)
+	au := make([]byte, 24+len(pcm))
+	copy(au, ".snd")
+	for i, field := range []uint32{24, uint32(len(pcm)), 3, sampleRate, 1} {
+		binary.BigEndian.PutUint32(au[4+i*4:], field)
+	}
+	want := make([]float64, fftSize)
+	for i := range want {
+		s := int16(8192 * math.Sin(2*math.Pi*440*float64(i)/sampleRate))
+		binary.LittleEndian.PutUint16(pcm[i*2:], uint16(s))
+		binary.BigEndian.PutUint16(au[24+i*2:], uint16(s))
+		want[i] = float64(s) / 32768
+	}
+	for name, data := range map[string][]byte{"raw": pcm, "au": au} {
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("MALY_TEST_PCM_RAW", filepath.Join(dir, "raw"))
+	t.Setenv("MALY_TEST_PCM_AU", filepath.Join(dir, "au"))
+	script := "#!/bin/sh\nfor arg do\n  if [ \"$arg\" = --raw ]; then exec cat \"$MALY_TEST_PCM_RAW\"; fi\ndone\nexec cat \"$MALY_TEST_PCM_AU\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "pw-record"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	v := newTestViz(0.85, false)
+	if err := v.startCapture("pipewire"); err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	// EOF marca fake después de consumir TODA la salida; hadBackend=false
+	// en este arnés evita reintentos y no se usa Bars (que animaría el fake).
+	deadline := time.Now().Add(5 * time.Second)
+	for !v.Fake() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !v.Fake() {
+		t.Fatal("el capturador de prueba no terminó de entregar sus muestras")
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	for i, sample := range v.ring {
+		if sample != want[i] {
+			t.Fatalf("muestra %d: %f, quería PCM s16le %f; posible contenedor o endianness incorrecto", i, sample, want[i])
+		}
+	}
+	out := v.fftBars(12)
+	dominant := 0
+	for i := range out {
+		if out[i] > out[dominant] {
+			dominant = i
+		}
+	}
+	wantBand := int(12 * math.Log(440/fMin) / math.Log(fMax/fMin))
+	if dominant != wantBand {
+		t.Fatalf("seno de 440 Hz en banda %d, quería %d: %v", dominant, wantBand, out)
 	}
 }
 

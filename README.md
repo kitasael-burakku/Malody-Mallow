@@ -407,6 +407,12 @@ También soporta modo no interactivo con flags:
 `--ref=` tiene prioridad sobre todo lo demás — es lo que usa `maly update`
 internamente para reinstalar exactamente el tag anunciado.
 
+Al desinstalar se conservan los servicios personalizados o sin registro de
+creación del instalador, incluidos sus overrides. Si usan la copia que se
+quita, se paran y deshabilitan antes de borrar el binario. Al reinstalar se
+respeta su contenido y se ofrece habilitar de nuevo su autoinicio; sin
+terminal puedes hacerlo después con `systemctl --user enable --now maly`.
+
 ### Arch Linux (AUR)
 
 ```sh

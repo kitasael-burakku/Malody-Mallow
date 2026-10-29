@@ -401,6 +401,12 @@ Non-interactive flags are also supported:
 `--ref=` takes priority over everything else — it's what `maly update` uses
 internally to reinstall the exact announced tag.
 
+Uninstalling preserves custom services and services without an installer
+ownership record, including their overrides. If they use the copy being
+removed, they are stopped and disabled before the binary is deleted.
+Reinstalling keeps their contents and offers to enable autostart again;
+without a terminal, you can later run `systemctl --user enable --now maly`.
+
 ### Arch Linux (AUR)
 
 ```sh

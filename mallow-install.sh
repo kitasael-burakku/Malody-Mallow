@@ -365,10 +365,19 @@ run_phase() {
 # El trap va aquí, ANTES de la primera pantalla: raw_off debe correr aunque
 # el usuario corte con Ctrl-C a mitad de un menú crudo (si no, el terminal
 # queda sin eco ni cursor). TMP se crea después; vacío, rm -rf no toca nada.
-TMP=''
+TMP='' UNIT_LINK=''
+# disable también elimina enlaces creados con systemctl link. Restauramos
+# el enlace de la unidad personalizada incluso al salir por error o señal.
+restore_unit_link() {
+	[ -n "$UNIT_LINK" ] || return 0
+	if [ ! -e "$UNIT_FILE" ] && [ ! -L "$UNIT_FILE" ]; then
+		ln -s "$UNIT_LINK" "$UNIT_FILE"
+	fi
+}
 cleanup() {
 	hb_stop
 	raw_off 2>/dev/null || :
+	restore_unit_link
 	[ -z "$TMP" ] || rm -rf "$TMP"
 }
 trap 'st=$?; cleanup; exit $st' EXIT INT TERM
@@ -380,7 +389,8 @@ estable por defecto.
 uso: mallow-install.sh [opciones]
   --install     instala (o reinstala) sin pasar por el menú
   --update      recompila y reinstala sobre una instalación existente
-  --uninstall   quita binario y completions (pregunta por config/biblioteca)
+  --uninstall   quita binario y completions; conserva servicios personalizados
+                (pregunta por config/biblioteca)
   --system      instala en /usr/local para todos los usuarios (pide sudo)
   --stable      compila el último tag estable (el default; salta la pantalla)
   --main        compila la rama de desarrollo main en vez del último tag
@@ -396,7 +406,8 @@ stable tag by default.
 usage: mallow-install.sh [options]
   --install     install (or reinstall) skipping the menu
   --update      rebuild and reinstall over an existing install
-  --uninstall   remove binary and completions (asks about config/library)
+  --uninstall   remove binary and completions; preserve custom services
+                (asks about config/library)
   --system      install to /usr/local for all users (asks for sudo)
   --stable      build the latest stable tag (the default; skips the screen)
   --main        build the main development branch instead of the latest tag
@@ -408,6 +419,176 @@ usage: mallow-install.sh [options]
 With no options it opens the interactive flow (or installs with the
 defaults when there is no terminal). yt-dlp+ffmpeg (for `maly get`) and
 the visualizer are optional and picked on the dependencies screen.')"
+}
+
+# Solo una unidad CREADA por esta instalación puede ser suya. La referencia
+# exacta evita adoptar una unidad previa o borrar una editada después. Vive
+# fuera de config/biblioteca para que su borrado opcional no la confunda.
+unit_paths() {
+	UNIT_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
+	UNIT_FILE=$UNIT_DIR/maly.service
+	UNIT_STATE=${XDG_STATE_HOME:-$HOME/.local/state}/mallow-install
+	UNIT_REFERENCE=$UNIT_STATE/maly.service.installed
+	UNIT_ORIGIN=$UNIT_STATE/maly.service.path
+}
+
+read_unit_properties() {
+	UNIT_PROPERTIES=$(systemctl --user show maly.service \
+		-p LoadState -p ExecStart -p DropInPaths 2>/dev/null)
+}
+
+unit_uses_local_binary() {
+	# show resuelve %h y los overrides: leer solo ExecStart del archivo
+	# confundiría una unidad que ahora usa /usr/bin/maly con nuestra copia.
+	unit_exec=$(printf '%s\n' "$UNIT_PROPERTIES" | sed -n 's/^ExecStart=//p')
+	case $unit_exec in
+	"{ path=$BIN/maly ;"*) return 0 ;;
+	esac
+	return 1
+}
+
+unit_is_unchanged() {
+	[ -f "$UNIT_FILE" ] && [ ! -L "$UNIT_FILE" ] &&
+		[ -f "$UNIT_REFERENCE" ] && [ ! -L "$UNIT_REFERENCE" ] &&
+		[ -f "$UNIT_ORIGIN" ] && [ ! -L "$UNIT_ORIGIN" ] &&
+		[ "$(cat "$UNIT_ORIGIN")" = "$UNIT_FILE" ] &&
+		cmp -s "$UNIT_FILE" "$UNIT_REFERENCE" &&
+		[ ! -e "$UNIT_FILE.d" ] && [ ! -L "$UNIT_FILE.d" ] &&
+		! printf '%s\n' "$UNIT_PROPERTIES" | grep -q '^DropInPaths=.'
+}
+
+uninstall_user_service() {
+	unit_paths
+	[ -e "$UNIT_FILE" ] || [ -L "$UNIT_FILE" ] || return 0
+	if ! command -v systemctl >/dev/null 2>&1 || ! read_unit_properties; then
+		die "no pude consultar maly.service; se conservan el servicio y el binario. Revisa systemd --user y reintenta" \
+			"could not inspect maly.service; keeping the service and binary. Check systemd --user and retry"
+	fi
+	if ! unit_uses_local_binary; then
+		warn "servicio conservado sin cambios: $UNIT_FILE — no ejecuta $BIN/maly" \
+			"service left unchanged: $UNIT_FILE — it does not run $BIN/maly"
+		return 0
+	fi
+
+	# Todo esto va ANTES del binario: ignorar un fallo dejaría un demonio
+	# vivo o habilitado cuyo ejecutable ya no existe. No se toca /usr/bin.
+	systemctl --user stop maly.service ||
+		die 'no pude parar maly.service; no se borró el binario' \
+			'could not stop maly.service; the binary was not removed'
+	UNIT_LINK=''
+	if [ -L "$UNIT_FILE" ]; then UNIT_LINK=$(readlink "$UNIT_FILE"); fi
+	if ! systemctl --user --no-reload disable maly.service; then
+		restore_unit_link
+		die 'no pude deshabilitar maly.service; no se borró el binario' \
+			'could not disable maly.service; the binary was not removed'
+	fi
+	restore_unit_link
+	UNIT_LINK=''
+	if unit_is_unchanged; then
+		rm -f "$UNIT_FILE" "$UNIT_REFERENCE" "$UNIT_ORIGIN"
+		msg "servicio del instalador quitado: $UNIT_FILE" "installer service removed: $UNIT_FILE"
+	else
+		warn "servicio personalizado o sin registro conservado: $UNIT_FILE — quedó deshabilitado; al reinstalar puedes habilitarlo con systemctl --user enable --now maly.service" \
+			"custom or untracked service preserved: $UNIT_FILE — it is now disabled; after reinstalling, enable it with systemctl --user enable --now maly.service"
+	fi
+	systemctl --user daemon-reload ||
+		die 'no pude recargar systemd --user; no se borró el binario' \
+			'could not reload systemd --user; the binary was not removed'
+}
+
+install_user_service() {
+	unit_paths
+	# -L también protege enlaces rotos: -e solo los considera inexistentes.
+	if [ -e "$UNIT_FILE" ] || [ -L "$UNIT_FILE" ]; then
+		msg "servicio existente conservado: $UNIT_FILE" "existing service preserved: $UNIT_FILE"
+		# Una actualización no repregunta ni reactiva algo que el usuario
+		# apagó. Una reinstalación sí ofrece recuperar su autoinicio.
+		if [ "$ACTION" = install ] && read_unit_properties && unit_uses_local_binary; then
+			unit_enabled=$(systemctl --user is-enabled maly.service 2>/dev/null || :)
+			case $unit_enabled in
+			disabled | linked)
+				if confirm '¿habilitar el autoinicio del servicio conservado? (sin arrancarlo ahora)' \
+					'enable autostart for the preserved service? (without starting it now)'; then
+					systemctl --user enable maly.service
+				else
+					warn 'servicio conservado sin habilitar; después puedes usar systemctl --user enable --now maly.service' \
+						'service preserved without enabling; later you can use systemctl --user enable --now maly.service'
+				fi ;;
+			esac
+		fi
+		return 0
+	fi
+	if confirm '¿instalar un servicio systemd --user para maly? (autoinicio, se reinicia solo si falla)' \
+		'install a systemd --user service for maly? (autostart, restarts itself on failure)'; then
+		mkdir -p "$UNIT_DIR"
+		write_user_unit > "$UNIT_FILE"
+		mkdir -p "$UNIT_STATE"
+		(umask 077; cp "$UNIT_FILE" "$UNIT_REFERENCE"; printf '%s\n' "$UNIT_FILE" > "$UNIT_ORIGIN")
+		systemctl --user daemon-reload
+		systemctl --user enable maly.service
+		msg "servicio instalado: $UNIT_FILE — arrancará en tu próxima sesión, o inícialo ahora con systemctl --user start maly" \
+			"service installed: $UNIT_FILE — it will start on your next session, or start it now with systemctl --user start maly"
+	fi
+}
+
+# La plantilla sigue siendo la misma en los cuatro canales documentados.
+write_user_unit() {
+	cat <<'EOF'
+[Unit]
+Description=Maly Music Daemon
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/maly daemon
+Restart=on-failure
+RestartSec=2
+
+# Hardening: maly solo habla por sockets Unix (su propio IPC, el de mpv, y
+# D-Bus de sesión para MPRIS) y no necesita nada más. SIN ProtectHome:
+# music_dir puede vivir fuera de $HOME (un disco externo), y esa clave lo
+# bloquearía enterito.
+#
+# RuntimeDirectory=/ConfigurationDirectory= (no ReadWritePaths a mano para
+# estos dos) son la forma correcta de darle acceso a $XDG_RUNTIME_DIR/maly
+# y $XDG_CONFIG_HOME/maly bajo ProtectSystem=strict: systemd las CREA antes
+# de arrancar el proceso y quedan exceptuadas del resto solo lectura solas.
+# La primera versión de este hardening usaba ReadWritePaths=%t/maly a mano,
+# que EXIGE que la ruta ya exista al armar el namespace — funcionaba en
+# caliente (el runtime dir ya estaba de una corrida previa) pero rompía en
+# un boot limpio, con /run/user/$UID/maly recién vacío todavía:
+# "Failed to set up mount namespacing: ...: No such file or directory",
+# status=226/NAMESPACE (encontrado en producción, no en la verificación
+# original — la unit de prueba de entonces tenía por casualidad un
+# directorio padre más amplio ya creado que lo enmascaró).
+#
+# $XDG_DATA_HOME (biblioteca/sesión) no tiene una directiva de systemd
+# dedicada (solo cubre RUNTIME/CONFIGURATION/STATE/CACHE, y STATE apunta a
+# $XDG_STATE_HOME, no a $XDG_DATA_HOME), así que sigue yendo a mano — pero
+# con "-" al principio, que systemd documenta explícitamente para esto: si
+# la ruta no existe todavía, se ignora en vez de abortar el arranque.
+NoNewPrivileges=yes
+ProtectSystem=strict
+RuntimeDirectory=maly
+RuntimeDirectoryMode=0700
+ConfigurationDirectory=maly
+ConfigurationDirectoryMode=0700
+ReadWritePaths=-%h/.local/share/maly
+PrivateTmp=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+
+[Install]
+WantedBy=default.target
+EOF
 }
 
 # ---- argumentos ----
@@ -581,6 +762,7 @@ fi
 # ---- desinstalar ----
 if [ "$ACTION" = uninstall ]; then
 	run_phase
+	[ "$SYSTEM" -ne 0 ] || uninstall_user_service
 	found=0
 	for f in "$BIN/maly" "$BASHC/maly" "$FISHC/maly.fish" "$ZSHC/_maly"; do
 		if [ -e "$f" ]; then
@@ -603,23 +785,6 @@ if [ "$ACTION" = uninstall ]; then
 			warn 'no encontré nada que quitar en esas rutas' 'nothing to remove at those paths'
 		fi
 	fi
-
-	# El servicio systemd --user (si se instaló) se para y se quita sin
-	# preguntar: es parte de la instalación, no dato del usuario — a
-	# diferencia de config/biblioteca, no hay nada que valga la pena
-	# conservar de un maly.service huérfano apuntando a un binario borrado.
-	if [ "$SYSTEM" -eq 0 ]; then
-		UNIT_FILE=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/maly.service
-		if [ -e "$UNIT_FILE" ]; then
-			if command -v systemctl >/dev/null 2>&1; then
-				systemctl --user disable --now maly.service >/dev/null 2>&1 || true
-				systemctl --user daemon-reload >/dev/null 2>&1 || true
-			fi
-			rm -f "$UNIT_FILE"
-			msg "servicio systemd quitado: $UNIT_FILE" "systemd service removed: $UNIT_FILE"
-		fi
-	fi
-
 	# Config y biblioteca son del usuario y por defecto se respetan; borrar
 	# es opción explícita (y sin terminal, jamás).
 	CFG_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/maly
@@ -1190,78 +1355,7 @@ if [ "$SYSTEM" -eq 0 ]; then
 	fi
 fi
 if [ "$SYSTEM" -eq 0 ] && command -v systemctl >/dev/null 2>&1; then
-	# %h en ExecStart es systemd expandiendo a $HOME: coincide con $BIN de
-	# modo usuario a propósito (esta oferta solo aparece en ese modo). No
-	# reofrecer si ya existe — evita repreguntar en cada --update.
-	UNIT_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
-	UNIT_FILE="$UNIT_DIR/maly.service"
-	if [ ! -e "$UNIT_FILE" ]; then
-		sep
-		if confirm "¿instalar un servicio systemd --user para maly? (autoinicio, se reinicia solo si falla)" \
-			"install a systemd --user service for maly? (autostart, restarts itself on failure)"; then
-			mkdir -p "$UNIT_DIR"
-			cat > "$UNIT_FILE" <<'EOF'
-[Unit]
-Description=Maly Music Daemon
-StartLimitIntervalSec=30
-StartLimitBurst=3
-
-[Service]
-Type=simple
-ExecStart=%h/.local/bin/maly daemon
-Restart=on-failure
-RestartSec=2
-
-# Hardening: maly solo habla por sockets Unix (su propio IPC, el de mpv, y
-# D-Bus de sesión para MPRIS) y no necesita nada más. SIN ProtectHome:
-# music_dir puede vivir fuera de $HOME (un disco externo), y esa clave lo
-# bloquearía enterito.
-#
-# RuntimeDirectory=/ConfigurationDirectory= (no ReadWritePaths a mano para
-# estos dos) son la forma correcta de darle acceso a $XDG_RUNTIME_DIR/maly
-# y $XDG_CONFIG_HOME/maly bajo ProtectSystem=strict: systemd las CREA antes
-# de arrancar el proceso y quedan exceptuadas del resto solo lectura solas.
-# La primera versión de este hardening usaba ReadWritePaths=%t/maly a mano,
-# que EXIGE que la ruta ya exista al armar el namespace — funcionaba en
-# caliente (el runtime dir ya estaba de una corrida previa) pero rompía en
-# un boot limpio, con /run/user/$UID/maly recién vacío todavía:
-# "Failed to set up mount namespacing: ...: No such file or directory",
-# status=226/NAMESPACE (encontrado en producción, no en la verificación
-# original — la unit de prueba de entonces tenía por casualidad un
-# directorio padre más amplio ya creado que lo enmascaró).
-#
-# $XDG_DATA_HOME (biblioteca/sesión) no tiene una directiva de systemd
-# dedicada (solo cubre RUNTIME/CONFIGURATION/STATE/CACHE, y STATE apunta a
-# $XDG_STATE_HOME, no a $XDG_DATA_HOME), así que sigue yendo a mano — pero
-# con "-" al principio, que systemd documenta explícitamente para esto: si
-# la ruta no existe todavía, se ignora en vez de abortar el arranque.
-NoNewPrivileges=yes
-ProtectSystem=strict
-RuntimeDirectory=maly
-RuntimeDirectoryMode=0700
-ConfigurationDirectory=maly
-ConfigurationDirectoryMode=0700
-ReadWritePaths=-%h/.local/share/maly
-PrivateTmp=yes
-RestrictAddressFamilies=AF_UNIX
-RestrictNamespaces=yes
-LockPersonality=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-ProtectControlGroups=yes
-ProtectClock=yes
-ProtectHostname=yes
-
-[Install]
-WantedBy=default.target
-EOF
-			systemctl --user daemon-reload
-			systemctl --user enable maly.service >/dev/null 2>&1
-			msg "servicio instalado: $UNIT_FILE — arrancará en tu próxima sesión, o iniciálo ahora con  systemctl --user start maly" \
-				"service installed: $UNIT_FILE — it will start on your next session, or start it now with  systemctl --user start maly"
-		fi
-	fi
+	install_user_service
 fi
 if ! command -v mpv >/dev/null 2>&1; then
 	sep

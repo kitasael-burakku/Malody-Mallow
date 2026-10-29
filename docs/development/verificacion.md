@@ -184,6 +184,13 @@ lo fijaban por el camino viejo.
   el falso no puede depender de `sed`/`mkdir` externos sin agregarlos de
   vuelta detrás del bin falso.
 - Ningún test honra `-short`: pasarlo sería un no-op.
+- `cmd/maly/installer_test.go` ejecuta el instalador con HOME/XDG temporales,
+  sesión sin terminal de control y PATH limitado a utilidades de archivos y
+  un `systemctl` simulado. La desinstalación y los flujos `--install`/`--update`
+  se comprueban por los archivos y llamadas resultantes; el build de estos
+  últimos se simula, sin red. Las ofertas interactivas usan las funciones
+  reales del script sustituyendo solo la respuesta de `confirm`. Esto no
+  certifica una desinstalación contra un gestor systemd real.
 - **Un comando de reproducción vuelve antes de que el ESPEJO del player se
   actualice.** `vol`/`seek`/etc. retornan cuando mpv acepta el comando, pero
   `statusLocked` lee el espejo, que se refresca con el property-change

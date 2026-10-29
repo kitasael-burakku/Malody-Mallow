@@ -2,6 +2,48 @@
 
 Índice: [`README.md`](README.md).
 
+## Sobre v1.22.13, sin bump (2026-10-29) — conservar servicios personalizados
+
+**Problema reproducido:** `--uninstall` borraba cualquier unidad local llamada
+`maly.service`, después de quitar el binario y descartando los errores de
+systemd. Una prueba real de desinstalación/reinstalación eliminó la unidad
+privada del dueño, vinculada a `graphical-session.target` de su Hyprland.
+Se recuperó de un respaldo antes de cambiar el instalador.
+
+La propiedad ahora se registra solo al crear una unidad, con su ruta y una
+copia exacta; no se infiere por el nombre ni por una plantilla coincidente.
+Las unidades personalizadas, sin registro, enlazadas o con overrides se
+conservan. La consulta del ejecutable efectivo evita administrar la copia de
+AUR al desinstalar la de usuario, y un fallo de systemd impide borrar el
+binario. Al reinstalar se respeta la unidad conservada y se ofrece recuperar
+su autoinicio; actualizar no reactiva servicios deshabilitados.
+
+El manual local de systemctl confirmó una trampa adicional: `disable`
+elimina también enlaces manuales a unidades. La desinstalación protege y
+restaura el enlace de la unidad externa, incluso si falla la deshabilitación.
+El contrato completo vive en [Releases y distribución](../development/releases.md#propiedad-y-desinstalación-de-la-unidad).
+
+**Sin bump:** se conserva 1.22.13 porque solo cambian el instalador, sus
+pruebas y la documentación; el binario y la plantilla de servicio no cambian.
+La verificación usa HOME/XDG temporales, PATH limitado y un systemctl
+simulado; no ejecuta el instalador contra la sesión del dueño.
+
+**Verificación:** 15 casos de desinstalación cubren propiedad, edición,
+origen XDG, enlaces válidos/rotos, overrides, otra copia del binario y
+fallos de systemd. También se comprueban creación del registro, ausencia
+de adopción de unidades anteriores, consentimiento al reactivar y el flujo
+completo `--install`/`--update` con compilación simulada y sin red.
+La versión anterior falla por perder la unidad e ignorar la parada; cuatro
+neutralizaciones adicionales detectan la pérdida de la comparación exacta,
+la restauración del enlace, la confirmación y la propagación del fallo de
+parada. Cada variante pasa `sh -n`, falla por su efecto observable y se
+restaura desde copia.
+
+Suite completa sin CGo bajo un bus D-Bus privado, `go vet ./...` y build
+correctos. ShellCheck conserva sus 15 diagnósticos previos, sin añadir
+ninguno. La unidad real conserva su hash, PID 213498 y estado habilitado y
+activo; esta entrega no requiere reinstalar el binario ni reiniciar maly.
+
 ## v1.22.13 (2026-10-23) — estilos del visualizador
 
 **Estado:** commit y tag anotado locales; publicación pendiente.

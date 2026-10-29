@@ -114,6 +114,34 @@ Dos decisiones que no se revierten sin releer su motivo:
   `PrivateTmp`, `RestrictAddressFamilies=AF_UNIX`, …) va **sin `ProtectHome`**,
   que bloquearía un `music_dir` en un disco externo.
 
+### Propiedad y desinstalación de la unidad
+
+El instalador solo borra automáticamente una unidad **creada por él y sin
+cambios**. Al crearla guarda una copia exacta en
+`${XDG_STATE_HOME:-~/.local/state}/mallow-install/maly.service.installed` y
+su ruta de origen en `maly.service.path`. No adopta unidades preexistentes,
+aunque coincidan con la plantilla. La referencia no se actualiza al
+reinstalar sobre una unidad existente.
+
+Antes de quitar el binario consulta el `ExecStart` efectivo a systemd. Solo
+para y deshabilita el servicio si ejecuta precisamente la copia de usuario
+que se está desinstalando; un servicio que usa `/usr/bin/maly` queda intacto.
+Un fallo de consulta, parada, deshabilitación o recarga interrumpe la
+desinstalación antes del borrado del binario.
+
+Las unidades modificadas, antiguas sin registro o enlazadas se conservan.
+También se conserva la unidad base si tiene `maly.service.d/` local o
+drop-ins efectivos informados por systemd. Como `systemctl disable` puede
+eliminar el propio enlace de una unidad externa, se restaura ese enlace,
+incluso al salir por error o señal. Los archivos de overrides no se borran.
+
+Al reinstalar (`--install`), una unidad conservada que usa el binario de
+usuario y está deshabilitada puede volver a habilitarse con confirmación,
+sin arrancarla en ese momento. Sin terminal se conserva deshabilitada y se
+informa el comando manual. `--update` respeta el estado de habilitación.
+La plantilla distribuida, el paquete de AUR y el servicio privado del dueño
+no cambian por este contrato del instalador.
+
 ## Firma de releases: descartada
 
 Se estudió minisign vs GPG. La conclusión: solo aportaría de verdad ya con el

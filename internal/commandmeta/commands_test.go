@@ -17,6 +17,9 @@ func TestMetadataContracts(t *testing.T) {
 		}
 		seen[e.Name] = true
 		for _, lang := range []string{"es", "en"} {
+			if e.Group == "" || i18n.TL(lang, e.Group) == e.Group {
+				t.Errorf("%s: grupo %q sin traducción en %s", e.Name, e.Group, lang)
+			}
 			for _, key := range []string{e.ArgsKey, e.DescKey} {
 				if key != "" && (i18n.TL(lang, key) == key || i18n.TL(lang, key) == "") {
 					t.Errorf("%s: falta %s en %s", e.Name, key, lang)
@@ -58,6 +61,19 @@ func TestMetadataContracts(t *testing.T) {
 	for _, e := range Console() {
 		if e.CLIOnly || strings.HasPrefix(e.Name, "__") || e.Name == "daemon" || e.Name == "completions" {
 			t.Errorf("acción inaplicable: %s", e.Name)
+		}
+	}
+	// La paleta dibuja una banda por grupo al cambiar de categoría: un grupo
+	// partido en dos tramos repetiría su banda y mezclaría el catálogo.
+	closed := map[string]bool{}
+	prev := ""
+	for _, e := range Console() {
+		if e.Group != prev {
+			if closed[e.Group] {
+				t.Errorf("grupo %s partido: reaparece en %s", e.Group, e.Name)
+			}
+			closed[prev] = true
+			prev = e.Group
 		}
 	}
 }

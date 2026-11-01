@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"maly/internal/commandmeta"
 	"maly/internal/config"
 	"maly/internal/i18n"
 	"maly/internal/ipc"
@@ -111,7 +112,8 @@ func TestUX05SelectionEditingHistory(t *testing.T) {
 	}
 	m.openConsole()
 	conKey(m, tea.KeyShiftTab)
-	if m.conChoice != "get playlist" {
+	all := commandmeta.Console()
+	if m.conChoice != all[len(all)-1].Name {
 		t.Fatalf("Shift+Tab inicial no fue al final: %q", m.conChoice)
 	}
 	conKey(m, tea.KeyTab)
@@ -259,12 +261,12 @@ func TestUX05FramesAndScroll(t *testing.T) {
 				m.width, m.height = size[0], size[1]
 				m.status = &ipc.Status{Scanning: true, ScanSeen: 17}
 				out := m.consoleView()
-				boxLinesFitWithin(t, out, pickerWidth(m.width))
-				boxLinesSameWidth(t, out, pickerWidth(m.width))
+				boxLinesFitWithin(t, out, m.layoutOf().console.width)
+				boxLinesSameWidth(t, out, m.layoutOf().console.width)
 				if lipgloss.Height(out) != m.height {
 					t.Fatalf("alto %d en %v", lipgloss.Height(out), size)
 				}
-				for _, text := range []string{"> playlist import", "salida-39", "esc", "tab/shift+tab"} {
+				for _, text := range []string{"❯ playlist import", "salida-39", "esc", "tab"} {
 					if !strings.Contains(out, text) {
 						t.Fatalf("%v perdió %q: %s", size, text, out)
 					}

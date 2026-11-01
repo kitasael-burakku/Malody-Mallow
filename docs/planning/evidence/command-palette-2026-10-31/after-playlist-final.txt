@@ -1,0 +1,40 @@
+
+
+           ╭─ Paleta de comandos ─────────────────────────────────────────────────────────────────────────────────────────────────── 1 de 12 ─╮
+           │  ❯ playlist                                                                                                                      │
+           │  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  │
+           │  ❯ playlist <sub> [args]                 gestiona playlists (list|show|create|delete|add|remove|play|save|export|import)         │
+           │    playlist list                         lista las playlists                                                                     │
+           │    playlist show <nombre>                muestra canciones de una playlist                                                       │
+           │    playlist create <nombre>              crea una playlist                                                                       │
+           │    playlist delete <nombre>              elimina una playlist (requiere confirmación)                                            │
+           │    playlist add <nombre> <consulta>...   agrega canciones a una playlist                                                         │
+           │    playlist remove <nombre> <pos>        quita una canción de una playlist                                                       │
+           │    playlist play <nombre>                reproduce una playlist                                                                  │
+           │    playlist save <nombre>                guarda toda la cola como una playlist nueva                                             │
+           │    playlist export <nombre> [<archivo>]  exporta una playlist a M3U                                                              │
+           │    playlist import <archivo> [<nombre>]  importa una playlist desde M3U                                                          │
+           │    get playlist <url> [<nombre>]         descarga una playlist                                                                   │
+           │                                                                                                                                  │
+           │  gestiona playlists (list|show|create|delete|add|remove|play|save|export|import)                                                 │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  │
+           │  esc edita · enter rellena · ↑↓/tab elige                                                                                        │
+           │                                                                                                                                  │
+           ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

@@ -1,0 +1,23 @@
+
+   ╭─ Command Palette ──────────────────────────────────────────── 1 of 12 ─╮
+   │  ❯ playlist                                                            │
+   │  ────────────────────────────────────────────────────────────────────  │
+   │  ❯ playlist <sub> [args]            manage playlists (list|show|crea…  │
+   │    playlist list                    list playlists                     │
+   │    playlist show <name>             show playlist tracks               │
+   │    playlist create <name>           create a playlist                  │
+   │    playlist delete <name>           delete a playlist (confirmation …  │
+   │    playlist add <name> <query>...   add songs to a playlist            │
+   │    playlist remove <name> <pos>     remove a song from a playlist      │
+   │    playlist play <name>             play a playlist                    │
+   │    playlist save <name>             save the whole queue as a new pl…  │
+   │    playlist export <name> [<file>]  export playlist to M3U             │
+   │    playlist import <file> [<name>]  import playlist from M3U           │
+   │    get playlist <url> [<name>]      download a playlist                │
+   │                                                                        │
+   │  manage playlists                                                      │
+   │  (list|show|create|delete|add|remove|play|save|export|import)          │
+   │  ────────────────────────────────────────────────────────────────────  │
+   │  esc edits · enter fills · ↑↓/tab choose                               │
+   │                                                                        │
+   ╰────────────────────────────────────────────────────────────────────────╯

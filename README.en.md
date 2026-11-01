@@ -191,10 +191,12 @@ details have changed. Current controls are described under [Usage](#usage).
 - **`ctrl+p` palette**: an integrated command console (`maly next`,
   `vol +5`, `status`, `get`, `playlist`…) with output inside the palette
   itself. Search by name or description in your language (for example, `pl`
-  or `delete a playlist`). Tab/Shift+Tab select a suggestion showing its arguments;
+  or `delete a playlist`). ↓ enters the suggestions; ↑/↓ or Tab/Shift+Tab
+  select an action showing its arguments;
   Enter copies it into the input **without running it**. Type the arguments and
   press Enter to run; entering a complete command directly still works.
-  ↑/↓ navigate history and restore the draft; quotes group phrases.
+  Ctrl+↑/↓ navigate history and restore the draft; ↑ also recalls history
+  outside the suggestion list. Quotes group phrases.
   PgUp/PgDn scroll output, Ctrl+Home/End jump to its start/end, and Home/End edit
   the input. Escape clears the selection, cancels a confirmation, or closes the
   palette, depending on the state. `playlist delete` still asks for confirmation

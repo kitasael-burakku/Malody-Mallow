@@ -302,19 +302,62 @@ No consulta DB, IPC ni red al escribir. `commandmeta` contiene solo metadatos:
 descripciones y nombres de subcomandos de su completado. El dispatch sigue en
 cada cliente. No hay autocompletado dinámico de argumentos en la paleta.
 
-`conChoice` guarda el nombre seleccionado; Tab/Shift+Tab recorren la lista,
+`conChoice` guarda el nombre seleccionado; ↓ entra en la lista y, una vez
+seleccionada una acción, ↑/↓ y Tab/Shift+Tab la recorren.
 Enter rellena únicamente el comando y un espacio si admite argumentos. Nunca
 inserta marcadores como `<nombre>`. Sin selección, Enter usa `execConsole` y sus
 validaciones. Cualquier edición o recorrido de historial retira la selección;
-↑/↓ conservan historial y borrador. Escape vuelve de selección a edición,
+Ctrl+↑/↓ conservan historial y borrador incluso durante una selección; ↑
+fuera de la lista también recupera historial y ↓ devuelve el borrador cuando
+se está recorriendo ese historial. Escape vuelve de selección a edición,
 cancela la confirmación pendiente o cierra, en ese orden. La tecla configurada
 para abrir la paleta también la cierra y descarta confirmaciones. Las teclas
 internas de edición/selección son las mismas con default, vim y overrides.
 
-Las sugerencias muestran hasta tres comandos y la descripción del seleccionado
-(o del primero); a 40×12 muestran uno. El presupuesto del modal reserva entrada,
-ayudas, scan y salida; PgUp/PgDn y Ctrl+Home/End conservan su scroll. El marcador
-`>` funciona sin color. `computeLayout` sigue puro; no cambia el reparto principal.
+**Presentación (`console_catalog.go`).** Cada entrada de `commandmeta` lleva
+su categoría (`Group`, clave i18n) y la tabla las tiene SEGUIDAS: un test exige
+que ningún grupo reaparezca, porque la paleta dibuja una cabecera al cambiar de
+categoría. Tres estados:
+
+- **Recién abierta** (sin salida ni texto, `conBrowsing`): el catálogo entero
+  por categorías ocupa el cuerpo disponible. La ventana sigue a la
+  selección y la categoría de la primera fila visible se queda arriba.
+- **Escribiendo:** lista por relevancia, sin cabeceras. Sin salida previa usa
+  todo el cuerpo; con resultados reserva hasta siete filas a las sugerencias
+  (como máximo la mitad del cuerpo), dejando sitio para leer la salida.
+  La selección muestra también la descripción envuelta, incluso en modo
+  de columnas. Una búsqueda sin coincidencias lo dice explícitamente; los
+  argumentos de un comando válido siguen mostrando su gramática.
+- **`help`:** el mismo catálogo con las descripciones ENVUELTAS, impreso en la
+  salida al ancho del momento; un uso que no cabe en su columna baja a su
+  propia fila en vez de pegarse a la descripción (defecto de la tabla fija de
+  22 celdas, captura del dueño).
+
+Columnas: `conColumns` mide el uso más largo de TODO el catálogo, limitado a lo
+que deja 18 celdas a la descripción; por debajo de 20 celdas de uso se pasa al
+modo compacto (uso solo, descripción de la elegida debajo). Bajo su cabecera,
+cada categoría se alinea con su propio uso más largo (`conGroupColumn`), como
+las tarjetas de la ayuda. Al filtrar manda la columna global, para que la
+descripción no salte mientras se escribe.
+
+Identidad: las cabeceras repiten la forma del título del marco (`─ Título ─`)
+y no son bandas, porque la banda (`selected`) es la fila elegida y tiene que
+ser la única. Esa fila lleva `❯`, el glifo del prompt (Enter la escribe ahí), y
+el marcador funciona sin color. El nombre va en accent negrita y los argumentos
+atenuados. El borde muestra cuántas coincidencias hay o cuál se eligió. El pie
+se envuelve por acciones enteras y resalta la tecla de cada una.
+
+`clip()` recorta también un texto de EXACTAMENTE w celdas (truncate reserva la
+de la `…`); la paleta usa `conFit` donde eso pasaría siempre: la columna de uso,
+las cabeceras y la salida. La entrada reserva la celda del cursor, que
+`textinput` dibuja después de las `Width` celdas del valor. La geometría se resuelve
+en `computeLayout` mediante `computeConsoleLayout`: hasta 132×38 celdas,
+con margen exterior cuando hay sitio y dos celdas interiores desde 60 de
+ancho. El marco permanece estable entre catálogo, filtro, selección y salida.
+El cuerpo reserva entrada, dos filas de ayudas, separador, scan y salida.
+Una cabecera separa sugerencias y resultados cuando hay espacio; el borde
+inferior muestra el rango de filas al desplazarse. PgUp/PgDn y Ctrl+Home/End
+conservan su scroll. No cambia el reparto de los paneles principales.
 La confirmación de borrado consume también respuestas vacías o mal entrecomilladas
 como cancelación. `get pick` deriva a `openGet`/`runGetSearch`, que ya daban la
 selección previa de Ctrl+G, en vez de interpretar «pick» como consulta de descarga.

@@ -57,9 +57,9 @@ func HelpRows(keys map[string]string) [][2]string {
 
 		{"", i18n.T("help.group_console")},
 		{k("palette"), i18n.T("help.palette")},
-		{"tab / shift+tab", i18n.T("help.console_keys")},
+		{"↑↓ / tab / shift+tab", i18n.T("help.console_keys")},
 		{"enter", i18n.T("help.console_enter")},
-		{"↑ / ↓", i18n.T("help.console_history")},
+		{"ctrl+↑ / ctrl+↓", i18n.T("help.console_history")},
 		{"pgup/pgdn", i18n.T("help.console_scroll")},
 		{"ctrl+home/end", i18n.T("help.console_ends")},
 

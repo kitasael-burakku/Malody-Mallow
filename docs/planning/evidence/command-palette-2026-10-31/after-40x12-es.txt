@@ -1,0 +1,12 @@
+╭─ Paleta de comandos ─────── 1 de 12 ─╮
+│❯ playlist                            │
+│──────────────────────────────────────│
+│❯ playlist <sub> [args]               │
+│  playlist list                       │
+│                                      │
+│gestiona playlists                    │
+│(list|show|create|delete|add|remove|p…│
+│──────────────────────────────────────│
+│esc edita · enter rellena             │
+│↑↓/tab elige                          │
+╰──────────────────────────────────────╯

@@ -1,0 +1,40 @@
+
+
+           ╭─ Paleta de comandos ─────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+           │  ❯ Busca una acción o escribe un comando…                                                                                        │
+           │  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  │
+           │  ❯ version                                                                                                                       │
+           │  Malody Mallow (maly) v1.22.13                                                                                                   │
+           │  servicio: v1.22.13                                                                                                              │
+           │  ❯ playlist create 'Lista de revisión'                                                                                           │
+           │  la playlist "Lista de revisión" ya existe                                                                                       │
+           │  ❯ playlist delete 'Lista de revisión'                                                                                           │
+           │  ¿eliminar la playlist "Lista de revisión"? no se puede deshacer — escribe s para confirmar, cualquier otra cosa cancela         │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │                                                                                                                                  │
+           │  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  │
+           │  esc cancela · s + enter: sí · enter vacío: no                                                                                   │
+           │                                                                                                                                  │
+           ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

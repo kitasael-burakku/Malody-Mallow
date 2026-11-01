@@ -1,0 +1,28 @@
+--- FAIL: TestConsoleEmptySearchAndFullPreview (0.00s)
+    console_polish_test.go:120: búsqueda vacía silenciosa
+           ╭─ Paleta de comandos ───────────────────────────────────────────────────╮
+           │  ❯ zzzzzz                                                              │
+           │  ────────────────────────────────────────────────────────────────────  │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │                                                                        │
+           │  ────────────────────────────────────────────────────────────────────  │
+           │  esc cierra · enter ejecuta · ↓/tab elige · ↑ historial                │
+           │                                                                        │
+           ╰────────────────────────────────────────────────────────────────────────╯
+
+FAIL
+FAIL	maly/internal/tui	0.002s
+FAIL

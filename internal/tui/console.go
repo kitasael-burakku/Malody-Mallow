@@ -100,6 +100,7 @@ func (m *Model) openConsole() tea.Cmd {
 	m.conInput.Prompt = "❯ "
 	m.conInput.PromptStyle = m.st.accent
 	m.conInput.TextStyle = m.st.text
+	m.conInput.PlaceholderStyle = m.st.dim
 	m.conInput.Placeholder = i18n.T("con.ph")
 	m.conInput.CharLimit = 200
 	m.conInput.Focus()
@@ -169,7 +170,11 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.conHistIdx = len(m.conHistory)
 		return m.execConsole(line)
-	case "up":
+	case "up", "ctrl+up":
+		if m.conChoice != "" && msg.String() == "up" {
+			m.conSelectSuggestion(true)
+			return m, nil
+		}
 		m.conChoice = ""
 		if len(m.conHistory) == 0 {
 			return m, nil
@@ -183,7 +188,11 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.conInput.SetValue(m.conHistory[m.conHistIdx])
 		m.conInput.CursorEnd()
 		return m, nil
-	case "down":
+	case "down", "ctrl+down":
+		if msg.String() == "down" && (m.conChoice != "" || m.conHistIdx == len(m.conHistory)) && len(m.conSuggestions()) > 0 {
+			m.conSelectSuggestion(false)
+			return m, nil
+		}
 		m.conChoice = ""
 		if len(m.conHistory) == 0 || m.conHistIdx >= len(m.conHistory) {
 			return m, nil
@@ -213,7 +222,7 @@ func (m *Model) handleConsoleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// grande que cualquier maxScroll real: el propio render() lo acota
 		// (ver su "if m.conScroll > maxScroll"), así que no hace falta
 		// duplicar acá el presupuesto vertical. Contamos filas envueltas.
-		m.conScroll = len(m.consoleOutput(pickerWidth(m.width) - 2))
+		m.conScroll = len(m.consoleOutput(m.layoutOf().console.contentW))
 		return m, nil
 	case "ctrl+end":
 		m.conScroll = 0
@@ -497,34 +506,25 @@ func (m *Model) execConsole(line string) (tea.Model, tea.Cmd) {
 
 // conHelp imprime la ayuda de la consola reutilizando las descripciones CLI.
 func (m *Model) conHelp() {
-	m.conPrint(m.st.accent.Render(i18n.T("con.help_head")))
-
-	// clip por columna en vez de confiar en que ningún label/descripción
-	// exceda su presupuesto: padTo no acorta, solo rellena, así que una fila
-	// más ancha que su columna corría la siguiente y rompía la alineación
-	// (con una descripción larga de verdad, como la de playlist, incluso
-	// desbordaba el borde de la caja — auditoría de UX post-1.12.0).
-	w := pickerWidth(m.width)
-	innerW := w - 2
-	const labelW = 22
-	descW := innerW - 2 - labelW // 2 = indentación "  "
-	if descW < 0 {
-		descW = 0
-	}
+	// La ayuda es el catálogo completo por categorías, con las descripciones
+	// ENVUELTAS: la tabla anterior recortaba cada uso a 22 celdas fijas y lo
+	// pegaba a su descripción ("playlist delete <name…delete a playlist").
+	// Las columnas se miden con el ancho actual de la caja (ver conColumns).
+	innerW := m.layoutOf().console.contentW
+	usageW, wide := conColumns(innerW)
+	group := ""
 	for _, e := range commandmeta.Console() {
-		m.conPrint(formatHelpRow(m.st, e.Usage(), i18n.T(e.DescKey), labelW, descW))
+		if e.Group != group {
+			if group != "" {
+				m.conPrint("")
+			}
+			group = e.Group
+			m.conPrint(m.conHeading(group, innerW))
+		}
+		for _, l := range m.conEntryBlock(e, innerW, conGroupColumn(e.Group, usageW), wide) {
+			m.conPrint(l)
+		}
 	}
-}
-
-// formatHelpRow arma una fila de conHelp() con clip independiente por
-// columna: sin esto, un label o una descripción más ancha que su
-// presupuesto corría la columna siguiente (padTo no acorta, solo rellena) y
-// con una descripción larga de verdad podía desbordar el borde de la caja
-// (auditoría de UX post-1.12.0). labelW/descW ya vienen acotados a >= 0.
-func formatHelpRow(st styles, label, desc string, labelW, descW int) string {
-	label = clip(label, labelW)
-	desc = clip(desc, descW)
-	return "  " + st.accent.Render(padTo(label, labelW)) + st.text.Render(desc)
 }
 
 // conReq ejecuta una acción simple y devuelve su mensaje como salida.
@@ -1068,74 +1068,70 @@ func searchLines(st styles, resp ipc.Response) []string {
 }
 
 func (m *Model) consoleView() string {
-	w := pickerWidth(m.width)
-	innerW := w - 2
-
-	// El textinput de bubbles nunca recibía Width, así que su propio scroll
-	// horizontal quedaba desactivado (handleOverflow: "Width <= 0" = sin
-	// ventana) y View() emitía el valor completo — un comando largo (una URL
-	// de get, por ejemplo) rompía el borde derecho en vivo, mientras se
-	// escribe. Se reasigna en cada render, mismo criterio que p.page en
-	// picker.render(): barato, y así el próximo Update() recalcula el
-	// scroll con el ancho real de la caja. clip() es la red de seguridad
-	// para el frame en que Width cambió pero handleOverflow todavía no
-	// corrió de nuevo (un resize sin ninguna tecla de por medio).
-	promptW := lipgloss.Width(m.conInput.Prompt)
-	m.conInput.Width = innerW - promptW
-	if m.conInput.Width < 0 {
-		m.conInput.Width = 0
-	}
-	lines := []string{clip(m.conInput.View(), innerW), m.st.dim.Render(strings.Repeat("─", innerW))}
-	suggestions := m.conSuggestionLines(innerW, m.height)
+	l := m.layoutOf().console
+	innerW := l.contentW
+	// Se reserva también la celda del cursor al final de la entrada.
+	m.conInput.Width = max(1, innerW-lipgloss.Width(m.conInput.Prompt)-1)
+	lines := []string{conFit(m.conInput.View(), innerW), m.st.border.Render(strings.Repeat("─", innerW))}
 	hintKey := "con.hint"
+	if len(m.conLines) > 0 {
+		hintKey = "con.hint_output"
+	}
 	if m.conChoice != "" {
 		hintKey = "con.hint_select"
 	}
 	if m.conPlConfirm != "" {
 		hintKey = "con.hint_confirm"
 	}
-	hints := styledLines(i18n.T(hintKey), innerW, 3, m.st.dim)
-	// Presupuesto del modal: bordes, entrada, separador, ayudas y scan.
-	// El reparto de paneles principales sigue en computeLayout (puro).
-	maxRows := min(24, m.height-2-len(lines)-len(suggestions)-len(hints))
-	if m.status != nil && m.status.Scanning {
-		maxRows--
+	hints := m.conHintLines(i18n.T(hintKey), innerW, 2)
+	for len(hints) < 2 {
+		hints = append(hints, "")
 	}
-	maxRows = max(1, maxRows)
+	scanning := m.status != nil && m.status.Scanning
+	bodyH := max(1, l.height-2-len(lines)-len(hints)-1) // separador del pie
+	if scanning {
+		bodyH--
+	}
+	budget := bodyH
+	if len(m.conLines) > 0 {
+		budget = min(7, max(1, bodyH/2))
+	}
+	suggestions, count := m.conSuggestionLines(innerW, budget)
 	lines = append(lines, suggestions...)
-
-	out := m.consoleOutput(innerW)
-	maxScroll := len(out) - maxRows
-	if maxScroll < 0 {
-		maxScroll = 0
+	outputRows := bodyH - len(suggestions)
+	output := m.consoleOutput(innerW)
+	// Una cabecera separa visualmente los resultados de la búsqueda de acciones.
+	if len(output) > 0 && len(suggestions) > 0 && outputRows >= 3 {
+		lines = append(lines, m.conHeading("con.output", innerW))
+		outputRows--
 	}
-	if m.conScroll > maxScroll {
-		m.conScroll = maxScroll
+	outputRows = max(1, outputRows)
+	m.conScroll = min(m.conScroll, max(0, len(output)-outputRows))
+	end := len(output) - m.conScroll
+	start := max(0, end-outputRows)
+	for _, line := range output[start:end] {
+		lines = append(lines, conFit(line, innerW))
 	}
-	end := len(out) - m.conScroll
-	start := end - maxRows
-	if start < 0 {
-		start = 0
+	// El pie y la entrada conservan su posición incluso sin coincidencias.
+	for len(lines) < 2+bodyH {
+		lines = append(lines, "")
 	}
-	out = out[start:end]
-	for _, l := range out {
-		lines = append(lines, clip(l, innerW))
-	}
-	// La consola tapa el pie (footer()), que es el único lugar donde vivía
-	// el avance del scan — con la consola abierta un scan lanzado desde acá
-	// (o desde cualquier otro cliente) quedaba mudo por minutos en una
-	// biblioteca grande. Mismos datos que footer() (llegan por la
-	// suscripción, no hace falta estado nuevo), mismo formato (auditoría
-	// 2026-07-31, hallazgo T12).
-	if m.status != nil && m.status.Scanning {
+	if scanning {
 		txt := i18n.Tf("cli.scan_progress", m.status.ScanSeen)
 		if m.status.ScanTotal > 0 {
 			txt = i18n.Tf("cli.scan_durations", m.status.ScanSeen, m.status.ScanTotal)
 		}
-		lines = append(lines, m.st.accent.Render(clip(txt, innerW)))
+		lines = append(lines, m.st.accent.Render(conFit(txt, innerW)))
 	}
+	lines = append(lines, m.st.border.Render(strings.Repeat("─", innerW)))
 	lines = append(lines, hints...)
-
-	box := m.st.panel(i18n.T("con.title"), lines, w, len(lines)+2, true)
+	for i, line := range lines {
+		lines[i] = strings.Repeat(" ", l.inset) + line
+	}
+	foot := ""
+	if m.conScroll > 0 {
+		foot = i18n.Tf("con.output_range", start+1, end, len(output))
+	}
+	box := m.st.frame(frameLabels{title: i18n.T("con.title"), right: count, foot: foot}, lines, l.width, l.height, true)
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
 }

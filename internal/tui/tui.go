@@ -137,7 +137,7 @@ type Model struct {
 	conChoice string // nombre seleccionado; vacío = edición/ejecución directa
 	conInput  textinput.Model
 	conLines  []string
-	// Historial de comandos (↑/↓, T27 de la auditoría 2026-07-31): conHistIdx
+	// Historial de comandos (Ctrl+↑/↓, o ↑/↓ fuera de la lista): conHistIdx
 	// == len(conHistory) significa "línea nueva, no navegando"; conHistDraft
 	// guarda lo que se estaba escribiendo antes de la primera flecha arriba,
 	// para poder volver a eso con flecha abajo hasta el final.

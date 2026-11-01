@@ -85,8 +85,9 @@ type layoutOpts struct {
 // layout es el reparto ya resuelto. Todos los anchos incluyen los bordes de
 // su panel, y todos los altos las filas de borde.
 type layout struct {
-	help        helpLayout // geometría de la ayuda, resuelta junto al resto de pantalla
-	viz, nowViz vizLayout  // barras de la franja y del interior de Ctrl+T
+	console     consoleLayout // tamaño estable de la paleta de comandos
+	help        helpLayout    // geometría de la ayuda, resuelta junto al resto de pantalla
+	viz, nowViz vizLayout     // barras de la franja y del interior de Ctrl+T
 	mode        layoutMode
 	// Anchos de columna. En layoutSingle libW y queueW valen ambos el ancho
 	// completo: solo se dibuja el panel enfocado, nunca los dos a la vez.
@@ -113,6 +114,7 @@ func computeLayout(w, h int, opts layoutOpts) layout {
 	}
 
 	l.help = computeHelpLayout(w, h)
+	l.console = computeConsoleLayout(w, h)
 	l.viz = computeVizLayout(w, opts.vizStyle)
 	l.nowViz = computeVizLayout(max(0, w-2), opts.vizStyle)
 	switch {
@@ -299,4 +301,23 @@ func computeHelpLayout(w, h int) helpLayout {
 		width = 2*cardW + 6
 	}
 	return helpLayout{width: width, height: h, columns: cols, cardW: cardW}
+}
+
+// La paleta tiene espacio propio: no hereda el ancho reducido de los pickers.
+// Mantiene su rectángulo al filtrar, mostrar resultados o cambiar de selección.
+type consoleLayout struct{ width, height, contentW, inset int }
+
+func computeConsoleLayout(w, h int) consoleLayout {
+	width, height := min(132, w), min(38, h)
+	if w >= 80 {
+		width = min(132, w-6)
+	}
+	if h >= 20 {
+		height = min(38, h-2)
+	}
+	inset := 0
+	if width >= 60 {
+		inset = 2
+	}
+	return consoleLayout{width: max(0, width), height: max(0, height), contentW: max(1, width-2-2*inset), inset: inset}
 }

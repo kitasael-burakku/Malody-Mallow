@@ -7,6 +7,16 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.22.14 — 2026-10-31
+
+La paleta Ctrl+P organiza los comandos por categorías y conserva un marco
+estable al buscar, seleccionar o leer resultados. Aprovecha el espacio libre,
+muestra la descripción completa de la selección e indica las búsquedas sin
+coincidencias. Las flechas recorren las sugerencias y Ctrl+↑/↓ recuperan el
+historial y el borrador; Enter sigue rellenando antes de ejecutar. La ayuda
+envuelve los usos y las descripciones, separa la salida de las sugerencias y
+señala el rango visible al desplazarse, también en terminales pequeñas.
+
 ## v1.22.13 — 2026-10-23
 
 El visualizador ofrece barras separadas de ancho uniforme y conserva la

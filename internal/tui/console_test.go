@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"maly/internal/commandmeta"
 	"net"
 	"os"
 	"path/filepath"
@@ -95,7 +96,7 @@ func TestConsoleViewLongInputNoOverflow(t *testing.T) {
 	m.conInput.SetValue("get " + strings.Repeat("x", 200))
 
 	out := m.consoleView()
-	boxLinesFitWithin(t, out, pickerWidth(m.width))
+	boxLinesFitWithin(t, out, m.layoutOf().console.width)
 }
 
 // TestConHelpNoOverflow cubre el bug reportado: `?`/`help` dentro de la
@@ -110,7 +111,7 @@ func TestConHelpNoOverflow(t *testing.T) {
 
 	m.conHelp()
 	out := m.consoleView()
-	boxLinesFitWithin(t, out, pickerWidth(m.width))
+	boxLinesFitWithin(t, out, m.layoutOf().console.width)
 
 	var getRow string
 	for _, l := range m.conLines {
@@ -130,31 +131,37 @@ func TestConHelpNoOverflow(t *testing.T) {
 // TestConsoleScroll cubre el hallazgo T28 de la auditoría P2: la salida de
 // la consola siempre mostraba la cola de conLines, sin forma de volver a ver
 // las primeras líneas de un search/queue largo.
-// TestFormatHelpRowClipsPorColumna: con los datos reales de hoy (tras
-// revertir el label de get) ninguna fila de conHelp() dispara una
-// diferencia visible entre clipear por columna y clipear la fila entera ya
-// ensamblada — pero un label sintético más largo que su columna sí la
-// dispara: sin clip independiente, padTo no acorta (solo rellena), así que
-// la descripción se corre a una columna distinta de la de las demás filas.
-func TestFormatHelpRowClipsPorColumna(t *testing.T) {
-	st := styles{} // sin tema: Render() no agrega ANSI, así que los índices de byte coinciden con los de celda
-	const labelW, descW = 22, 30
-
-	row := formatHelpRow(st, strings.Repeat("x", 40), "descripcion", labelW, descW)
-	// El label clipeado a labelW dentro de la fila: sin eso, "descripcion"
-	// aparecería mucho más lejos de la columna 2+labelW que en cualquier
-	// otra fila (padTo no acorta, solo rellena). Se mide en celdas, no en
-	// bytes: el "…" del clip ocupa 1 celda pero 3 bytes en UTF-8.
-	idx := strings.Index(row, "descripcion")
-	if idx < 0 {
-		t.Fatalf("no encontré la descripción en la fila: %q", row)
+// TestConEntryBlockUsoLargoNoSePega: la tabla fija de 22 celdas recortaba el
+// uso y lo pegaba a su descripción ("playlist delete <name…delete a
+// playlist", captura del dueño). Un uso más ancho que su columna baja a su
+// propia fila y la descripción sigue empezando en SU columna.
+func TestConEntryBlockUsoLargoNoSePega(t *testing.T) {
+	m := newConModel() // sin TTY: Render() no agrega ANSI y bytes == celdas
+	const innerW = 80
+	usageW, wide := conColumns(innerW)
+	if !wide {
+		t.Fatalf("a %d celdas debía haber columna de descripción", innerW)
 	}
-	if col := lipgloss.Width(row[:idx]); col != 2+labelW {
-		t.Errorf("la descripción debía empezar en la columna %d, apareció en %d: %q", 2+labelW, col, row)
+	long := commandmeta.Entry{Name: strings.Repeat("x", usageW+10), DescKey: "cli.play"}
+	lines := m.conEntryBlock(long, innerW, usageW, wide)
+	if len(lines) < 2 {
+		t.Fatalf("el uso largo debía ir en su propia fila: %q", lines)
 	}
-	if lipgloss.Width(row) > 2+labelW+descW {
-		t.Errorf("la fila mide %d celdas, más que el presupuesto total (%d): %q",
-			lipgloss.Width(row), 2+labelW+descW, row)
+	if strings.Contains(lines[0], i18n.T("cli.play")[:5]) {
+		t.Errorf("la descripción quedó pegada al uso: %q", lines[0])
+	}
+	if col := len(lines[1]) - len(strings.TrimLeft(lines[1], " ")); col != conMarkW+usageW+2 {
+		t.Errorf("descripción en la columna %d, quería %d: %q", col, conMarkW+usageW+2, lines[1])
+	}
+	short := commandmeta.Entry{Name: "next", DescKey: "cli.next"}
+	row := m.conEntryBlock(short, innerW, usageW, wide)[0]
+	if idx := strings.Index(row, i18n.T("cli.next")); idx != conMarkW+usageW+2 {
+		t.Errorf("descripción corta en la columna %d, quería %d: %q", idx, conMarkW+usageW+2, row)
+	}
+	for _, l := range append(lines, row) {
+		if lipgloss.Width(l) > innerW {
+			t.Errorf("fila de %d celdas, máximo %d: %q", lipgloss.Width(l), innerW, l)
+		}
 	}
 }
 

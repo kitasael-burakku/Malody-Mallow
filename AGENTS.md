@@ -237,6 +237,11 @@ tomadas.
 
 ## Estado actual
 
+**v1.22.14 — catálogo y navegación de la paleta; preparación local de release**
+(`internal/version/version.go`). Categorías, marco estable, descripciones
+completas y navegación con flechas; historial mediante Ctrl+↑/↓.
+[Cierre y evidencia](docs/history/roadmap-1.17.md#v12214-2026-10-31--catálogo-y-navegación-de-la-paleta).
+
 **v1.22.13 — estilos del visualizador; commit y tag locales; publicación pendiente**
 (`internal/version/version.go`). Barras uniformes o franja continua mediante
 `[visualizer].style` y Ctrl+P `viz bars` / `viz continuous`, con persistencia y

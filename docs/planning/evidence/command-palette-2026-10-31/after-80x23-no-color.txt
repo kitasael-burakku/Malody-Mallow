@@ -1,0 +1,22 @@
+
+   ╭─ Command Palette ──────────────────────────────────────────── 1 of 20 ─╮
+   │  ❯ pl                                                                  │
+   │  ────────────────────────────────────────────────────────────────────  │
+   │  ❯ play [<query>...]                resume, or search the library an…  │
+   │    playnext <query|path>...         schedule tracks next, in order, …  │
+   │    playlist <sub> [args]            manage playlists (list|show|crea…  │
+   │    playlist list                    list playlists                     │
+   │    playlist show <name>             show playlist tracks               │
+   │    playlist create <name>           create a playlist                  │
+   │    playlist delete <name>           delete a playlist (confirmation …  │
+   │    playlist add <name> <query>...   add songs to a playlist            │
+   │    playlist remove <name> <pos>     remove a song from a playlist      │
+   │    playlist play <name>             play a playlist                    │
+   │    playlist save <name>             save the whole queue as a new pl…  │
+   │    playlist export <name> [<file>]  export playlist to M3U             │
+   │                                                                        │
+   │  resume, or search the library and play                                │
+   │  ────────────────────────────────────────────────────────────────────  │
+   │  esc edits · enter fills · ↑↓/tab choose                               │
+   │                                                                        │
+   ╰────────────────────────────────────────────────────────────────────────╯

@@ -194,10 +194,12 @@ describen en [Uso](#uso).
 - **Paleta `ctrl+p`**: consola integrada de comandos (`maly next`, `vol +5`,
   `status`, `get`, `playlist`…) con la salida dentro de la propia paleta.
   Busca por nombre o descripción en tu idioma (por ejemplo, `pl` o
-  `elimina una playlist`). Tab/Shift+Tab eligen una sugerencia con sus argumentos;
+  `elimina una playlist`). ↓ entra en las sugerencias; ↑/↓ o Tab/Shift+Tab
+  permiten elegir una acción con sus argumentos;
   Enter la copia a la entrada **sin ejecutarla**. Escribe los argumentos y pulsa
   Enter para ejecutar; también puedes escribir el comando completo directamente.
-  ↑/↓ recorren el historial y recuperan el borrador; las comillas agrupan frases.
+  Ctrl+↑/↓ recorren el historial y recuperan el borrador; ↑ también recupera
+  historial fuera de la lista de sugerencias. Las comillas agrupan frases.
   PgUp/PgDn desplazan la salida, Ctrl+Home/End van al inicio/final, y Home/End
   editan la entrada. Escape quita la selección, cancela una confirmación o cierra
   la paleta, según el estado. `playlist delete` sigue pidiendo confirmación

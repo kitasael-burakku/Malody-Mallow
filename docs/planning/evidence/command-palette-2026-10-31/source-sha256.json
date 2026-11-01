@@ -1,0 +1,19 @@
+{
+  "internal/tui/console_catalog.go": "183dc983f07824ec6091c1b55c4e62fb97baed15fac757363dd630730c56e29d",
+  "internal/tui/console_catalog_test.go": "10b43c9e57050320d4df2e5297a6d34c01a707648874ba5f6171afd779c5f978",
+  "internal/tui/console_polish_test.go": "15741c763f2931364d4fe0223a726d20791ce7445f092ae1b0c8d98613e62331",
+  "README.en.md": "5114f1e5a55826d3390e62775da3646ec39fd01135ae5b2b17ff0a7d3ce4ba95",
+  "README.md": "0b6af00f668f597639180eb19eac763adae6bc11cbaf381e8527f3d97fa58e32",
+  "docs/architecture/tui.md": "3d4a920c1ed855d497a18959d61bf911a0af7aebc93899424b6b775a19e18243",
+  "internal/commandmeta/commands.go": "af5b99d01d85c51e9e3f2adcebfa035a1d269c7222d06477d750402341aed923",
+  "internal/commandmeta/commands_test.go": "29068402c711c7613fc7694af1598909cf755a5bd2055532f99f6520ae77b9fa",
+  "internal/i18n/i18n.go": "8b2c0292948841dcd270626f841a41a0561ba0438225a0d598206a88cf5ee3d8",
+  "internal/tui/console.go": "92629f6735c5c2740a8c8393ce3452c8fdb69f800c97f63e265aa9fc8dafa6e0",
+  "internal/tui/console_suggestions.go": "cabc537eef4f5128915c3d468efa6981546baffe8ec98efe500608ee1df7ea6d",
+  "internal/tui/console_suggestions_test.go": "f3ee0cf55513c6cff83b1c2000a10bf183c17cef8f8c0438525db2de7fff5f48",
+  "internal/tui/console_test.go": "d9a0a4d42438d1fa6f2da0a68b64091c0b127826d8be527a330b3311ac2febda",
+  "internal/tui/helprows.go": "eb23a4cb2bdd6473ef4506e1195022a33fa437c44427d53a2afe178ce985da47",
+  "internal/tui/layout.go": "6990534414b61e2f5b2434e96d9fdc275bf134d2e1b724ecb9d948e1eafc211b",
+  "internal/tui/tui.go": "2255ae5e5c5845ac82b5af408c47b8f8e046b146b8245e4d305d132ef713d105",
+  "maly": "ddf0ddd768657c967ee690574c0a3f7eb5e8f3b133915bf6ba3bd8c417222302"
+}

@@ -2,6 +2,40 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.22.14 (2026-10-31) — catálogo y navegación de la paleta
+
+**Estado:** preparación local del commit, tag anotado y PKGBUILD; publicación
+pendiente. La fuente pública se comprobará antes de publicar el paquete.
+**1.22.13 → 1.22.14 es un cambio pequeño:** mejora la presentación y la
+navegación de la consola existente. Conserva sus comandos, el paso de rellenar
+antes de ejecutar y las confirmaciones; no añade un flujo de reproducción,
+estado compartido del demonio ni cambios de protocolo.
+
+Antes, la ayuda usaba una columna fija que podía juntar usos recortados con
+sus descripciones, las sugerencias aprovechaban poco espacio y el tamaño
+de la caja dependía del contenido. Ahora el catálogo se agrupa con metadatos
+compartidos, las columnas se adaptan por categoría y las descripciones de
+ayuda se envuelven. `computeLayout` resuelve un marco estable de hasta
+132×38 celdas. La búsqueda ocupa el cuerpo libre, presenta la descripción
+de la selección e informa cuando no hay coincidencias. La salida tiene su
+separación y un indicador de rango al desplazarse.
+
+↓ entra en sugerencias; ↑/↓ y Tab/Shift+Tab las recorren. Ctrl+↑/↓ recuperan
+historial y borrador; ↑ fuera de la lista conserva el acceso al historial.
+Enter rellena primero y la entrada directa sigue ejecutándose como antes.
+README, ayuda y textos en español e inglés documentan las teclas reales.
+
+**Verificación:** suite completa sin CGo y suite race correctas en los
+19 paquetes, con bus D-Bus privado; vet y build sin CGo correctos. Los hashes
+del código coinciden con la revisión gráfica previa. Esa revisión conserva
+cuatro contrapruebas que compilan y fallan por navegación, marco inestable,
+búsqueda vacía silenciosa y descripción recortada, y pasan al restaurar desde
+copias. Las capturas son de Kitty real en Hyprland anidado, con XDG privados
+y audio nulo: español, inglés, 100×28, 80×24, 40×12 y NO_COLOR. La aceptación
+visual y de uso en la sesión de música del dueño queda pendiente; preparar
+esta release no instala el binario ni reinicia su servicio.
+[Evidencia y límites](../planning/evidence/command-palette-2026-10-31/README.md).
+
 ## Sobre v1.22.13, sin bump (2026-10-29) — conservar servicios personalizados
 
 **Problema reproducido:** `--uninstall` borraba cualquier unidad local llamada

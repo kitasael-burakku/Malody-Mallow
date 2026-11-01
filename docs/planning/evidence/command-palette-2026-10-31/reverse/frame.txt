@@ -1,0 +1,5 @@
+--- FAIL: TestConsoleStableRoom (0.00s)
+    console_polish_test.go:39: es [140 42 132 38]: marco [23 9 93 23]
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

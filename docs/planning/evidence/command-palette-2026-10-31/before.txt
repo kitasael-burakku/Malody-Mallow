@@ -1,0 +1,33 @@
+
+
+
+
+
+
+
+
+
+
+                           ╭─ Paleta de comandos ─────────────────────────────────────────────────────────────── 53 comandos ─╮
+                           │❯ comando… p. ej. maly next                                                                       │
+                           │──────────────────────────────────────────────────────────────────────────────────────────────────│
+                           │─ Reproducción ───────────────────────────────────────────────────────────────────────────────────│
+                           │  play [<consulta>...]  reanuda; con consultas busca y reproduce                                  │
+                           │  select                elige una canción con búsqueda fuzzy y reprodúcela                        │
+                           │  pause                 pausa la reproducción                                                     │
+                           │  toggle                alterna play/pausa                                                        │
+                           │  stop                  detiene la reproducción                                                   │
+                           │  next                  pista siguiente                                                           │
+                           │  prev                  pista anterior                                                            │
+                           │  seek <+N|-N|mm:ss>    cambia la posición                                                        │
+                           │  vol <0-100|+N|-N>     fija o ajusta el volumen                                                  │
+                           │  shuffle [on|off]      alterna o fija shuffle                                                    │
+                           │  repeat [off|all|one]  alterna o fija el modo repeat                                             │
+                           │  status                muestra el estado actual                                                  │
+                           │─ Cola ───────────────────────────────────────────────────────────────────────────────────────────│
+                           │  add <consulta|ruta>...       agrega a la cola (consultas o rutas)                               │
+                           │  playnext <consulta|ruta>...  reproducir después, en orden, sin interrumpir la pista actual      │
+                           │  queue                        muestra la cola                                                    │
+                           │  jump <pos>                   salta a una posición de la cola                                    │
+                           │esc cierra · enter ejecuta · tab/shift+tab elige · ↑↓ historial · pgup/pgdn salida                │
+                           ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯

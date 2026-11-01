@@ -1,0 +1,1 @@
+ok  	maly/internal/tui	0.018s

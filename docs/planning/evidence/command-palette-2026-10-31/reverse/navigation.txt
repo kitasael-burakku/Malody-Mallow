@@ -1,0 +1,5 @@
+--- FAIL: TestConsoleArrowsAndExplicitHistory (0.00s)
+    console_polish_test.go:77: ↓ no entró en las sugerencias  pl
+FAIL
+FAIL	maly/internal/tui	0.003s
+FAIL

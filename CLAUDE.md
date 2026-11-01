@@ -237,6 +237,11 @@ tomadas.
 
 ## Estado actual
 
+**v1.22.14 — catálogo y navegación de la paleta; preparación local de release**
+(`internal/version/version.go`). Categorías, marco estable, descripciones
+completas y navegación con flechas; historial mediante Ctrl+↑/↓.
+[Cierre y evidencia](docs/history/roadmap-1.17.md#v12214-2026-10-31--catálogo-y-navegación-de-la-paleta).
+
 **v1.22.11 — ayuda y detalles de escritorio verificados; commit local autorizado; tag pendiente**
 (`internal/version/version.go`). Ayuda por tareas en tarjetas adaptables,
 mensajes de paleta completos, diagnóstico de descargas y mínimo visible.

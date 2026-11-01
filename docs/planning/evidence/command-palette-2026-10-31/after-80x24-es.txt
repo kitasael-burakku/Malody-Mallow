@@ -1,0 +1,23 @@
+
+   ╭─ Paleta de comandos ───────────────────────────────────────── 1 de 12 ─╮
+   │  ❯ playlist                                                            │
+   │  ────────────────────────────────────────────────────────────────────  │
+   │  ❯ playlist <sub> [args]                 gestiona playlists (list|sh…  │
+   │    playlist list                         lista las playlists           │
+   │    playlist show <nombre>                muestra canciones de una pl…  │
+   │    playlist create <nombre>              crea una playlist             │
+   │    playlist delete <nombre>              elimina una playlist (requi…  │
+   │    playlist add <nombre> <consulta>...   agrega canciones a una play…  │
+   │    playlist remove <nombre> <pos>        quita una canción de una pl…  │
+   │    playlist play <nombre>                reproduce una playlist        │
+   │    playlist save <nombre>                guarda toda la cola como un…  │
+   │    playlist export <nombre> [<archivo>]  exporta una playlist a M3U    │
+   │    playlist import <archivo> [<nombre>]  importa una playlist desde …  │
+   │    get playlist <url> [<nombre>]         descarga una playlist         │
+   │                                                                        │
+   │  gestiona playlists                                                    │
+   │  (list|show|create|delete|add|remove|play|save|export|import)          │
+   │  ────────────────────────────────────────────────────────────────────  │
+   │  esc edita · enter rellena · ↑↓/tab elige                              │
+   │                                                                        │
+   ╰────────────────────────────────────────────────────────────────────────╯

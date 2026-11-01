@@ -116,6 +116,7 @@ precede.
 | 1.22.12 | Captura PCM cruda explícita en PipeWire: evita leer AU big-endian como s16le y generar ruido en el espectro |
 | 1.22.13 | Barras uniformes o franja continua, seleccionables en config y Ctrl+P con persistencia; ambas vistas y adaptación al ancho |
 | Sobre 1.22.13, sin bump | El instalador conserva unidades personalizadas de systemd y comprueba la parada antes de desinstalar el binario |
+| 1.22.14 | Catálogo por categorías en Ctrl+P, marco estable, descripciones completas, navegación con flechas e historial explícito; preparación local de release |
 | 1.20.9 | UX-06: guardar la cola completa como playlist nueva; transacción atómica y acceso Ctrl+S; commit autorizado, tag pendiente |
 | 1.20.8 | UX-05: paleta con sugerencias, argumentos localizados y confirmaciones coordinadas; commit 4b6d9ef, sin tag |
 | 1.19.7 (commit 2363318; sin tag) | UX-03: título de hasta dos líneas, marcadores sin color y contraste medido |

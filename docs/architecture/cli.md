@@ -57,6 +57,27 @@ after_move:filepath` (`Opts.PathsFile` + `getter.ReadPaths`, A-07). La
 distinción está detallada en la cabecera de `internal/getter/search.go` y en
 la 1.15.0 del roadmap.
 
+Los nombres generados se limitan a **220 bytes UTF-8 por componente**, con
+35 bytes de margen sobre el límite habitual de 255 para extensiones e
+intermedios. `getter.boundedName` usa `--parse-metadata` sobre campos privados
+`maly_*`: sanea con `S`, compara el nombre completo con su prefijo `B` y
+conserva el nombre habitual cuando cabe. Si desborda, antepone `[id]` y
+recorta por bytes sin partir runas. En playlists el índice sigue primero;
+el directorio automático usa el ID de la playlist cuando necesita recorte.
+Los IDs habituales de YouTube quedan completos, evitando colisiones por
+prefijos iguales. `title`/`artist` no se modifican y la misma plantilla sirve
+para audio y miniatura, incluidos conversión y embebido. No se usa
+`--restrict-filenames` ni `--trim-filenames` (este último cuenta caracteres).
+`--no-overwrites` protege las descargas existentes; yt-dlp sigue ejecutando
+el postproceso sobre el audio que salta, como ya hacía antes. No se migran
+archivos anteriores: uno con nombre de más de 220 bytes puede volver a
+descargarse con el nombre acotado. El presupuesto presupone componentes de
+255 bytes; no resuelve límites menores, rutas padre excesivas ni identidades
+de otros extractores tan largas que el propio ID exceda el presupuesto.
+Las regresiones de `filenames_test.go` usan JSON local con yt-dlp real y
+audio/portadas generados con ffmpeg, sin red ni cookies; se saltan de forma
+explícita si faltan esas herramientas.
+
 El **criterio de éxito de una descarga** necesita las dos señales, y ninguna
 sola basta: el código de salida no ve que una búsqueda sin resultados sale 0
 sin bajar nada (lección de la 1.15.0), y el diff del directorio no ve que

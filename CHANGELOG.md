@@ -7,6 +7,15 @@ completo detrás de cada decisión (qué se midió, qué se descartó y por qué
 vive en `CLAUDE.md`, pensado para quien vaya a tocar el código, no para
 quien solo quiere saber qué cambió.
 
+## v1.22.15 — 2026-11-08
+
+`maly get` evita los errores de nombre de archivo demasiado largo al descargar
+audio y miniaturas con artistas o títulos extensos. Conserva los nombres que
+caben y acota los demás por bytes UTF-8 sin partir caracteres, con el ID del
+video para distinguir prefijos iguales y margen para los archivos temporales.
+Los títulos y artistas permanecen completos en los metadatos. La corrección
+también cubre playlists y la TUI, sin cambiar la configuración de cookies.
+
 ## v1.22.14 — 2026-10-31
 
 La paleta Ctrl+P organiza los comandos por categorías y conserva un marco

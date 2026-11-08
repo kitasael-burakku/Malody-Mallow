@@ -191,7 +191,7 @@ func TestGetMissingTool(t *testing.T) {
 // getPlaylistSandbox es como getSandbox, pero el yt-dlp falso "descarga" DOS
 // pistas a un subdirectorio derivado de la plantilla -o: soporta tanto el
 // subdirectorio explícito (music_dir/<nombre>, ya existe cuando yt-dlp
-// corre) como el que yt-dlp crearía él mismo con %(playlist_title)s —el
+// corre) como el que yt-dlp crea con el título acotado de la playlist —el
 // falso sustituye ese placeholder LITERAL por $TITLE, para poder probar el
 // diffing de directorio sin depender de la sintaxis de template real de
 // yt-dlp. $TITLE viaja por variable de entorno para que los tests puedan
@@ -217,7 +217,7 @@ func getPlaylistSandbox(t *testing.T, title string) (musicDir, argsFile string) 
 	}
 	argsFile = filepath.Join(tmp, "args.txt")
 	// La sustitución del placeholder va con expansión de parámetros pura
-	// (sin sed): el % de "%(playlist_title)s" hay que escaparlo o el
+	// (sin sed): el % del placeholder hay que escaparlo o el
 	// operador %% de bash/dash se lo come. mkdir sigue siendo externo (no
 	// hay builtin de shell para crear directorios), así que el PATH real
 	// queda DETRÁS del bin falso: yt-dlp/ffmpeg siguen resolviendo al
@@ -232,9 +232,9 @@ for a in "$@"; do
 done
 dir=${out%%/*}
 case "$dir" in
-	*"%%(playlist_title)s"*)
-		prefix=${dir%%\%%(playlist_title)s*}
-		suffix=${dir#*%%(playlist_title)s}
+	*"%%(maly_directory_short,maly_directory_legacy).220B"*)
+		prefix=${dir%%\%%(maly_directory_short,maly_directory_legacy).220B*}
+		suffix=${dir#*%%(maly_directory_short,maly_directory_legacy).220B}
 		dir="$prefix$TITLE$suffix"
 		;;
 esac
@@ -254,7 +254,7 @@ printf 'mp3 falso' > "$dir/02 - Fake Artist - Cancion Dos.mp3"
 }
 
 // TestGetPlaylistNamed: con nombre explícito, las pistas caen directo en
-// music_dir/<nombre> (sin pasar por %(playlist_title)s) y la playlist de
+// music_dir/<nombre> (sin plantilla para el directorio) y la playlist de
 // maly queda con ese mismo nombre, en el orden de los archivos.
 func TestGetPlaylistNamed(t *testing.T) {
 	musicDir, _ := getPlaylistSandbox(t, "no se usa en este caso")
@@ -467,15 +467,15 @@ func getPlaylistFailingSandbox(t *testing.T, title string, survivors int) (music
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// No pasa por fmt.Sprintf (salvo el propio survivors), así que el % de
-	// %(playlist_title)s no necesita escaparse.
+	// No pasa por fmt.Sprintf (salvo el propio survivors), así que el % del
+	// placeholder no necesita escaparse.
 	mkdirAndFiles := ""
 	if survivors > 0 {
 		mkdirAndFiles = `dir=${out%/*}
 case "$dir" in
-	*"%(playlist_title)s"*)
-		prefix=${dir%\%(playlist_title)s*}
-		suffix=${dir#*%(playlist_title)s}
+	*"%(maly_directory_short,maly_directory_legacy).220B"*)
+		prefix=${dir%\%(maly_directory_short,maly_directory_legacy).220B*}
+		suffix=${dir#*%(maly_directory_short,maly_directory_legacy).220B}
 		dir="$prefix$TITLE$suffix"
 		;;
 esac

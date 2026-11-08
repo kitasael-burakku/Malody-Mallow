@@ -56,7 +56,7 @@ type Opts struct {
 	Cookies  string // config [ytdlp] cookies_from_browser; "" = sin flag
 	Playlist bool   // true: --yes-playlist + índice en el nombre; false: --no-playlist
 	// PlaylistSubdir, solo junto a Playlist, antepone además
-	// %(playlist_title)s/ como componente de directorio: yt-dlp crea el
+	// el título de playlist acotado como componente de directorio: yt-dlp crea el
 	// subdirectorio él mismo con el título real de la playlist. Lo usa
 	// `maly get playlist <url>` sin nombre explícito, para no tener que
 	// adivinar el nombre antes de descargar.
@@ -94,18 +94,26 @@ type Opts struct {
 // archivo, para que el orden de la playlist salga del orden alfabético de
 // los archivos descargados sin tener que parsear nada de la salida de yt-dlp.
 func Command(o Opts) *exec.Cmd {
-	tmpl := "%(artist,uploader)s - %(title)s.%(ext)s"
+	stem := "%(artist,uploader)S - %(title)S"
+	short := "[%(id)S] " + stem
 	if o.Playlist {
-		tmpl = "%(playlist_index)02d - " + tmpl
-		if o.PlaylistSubdir {
-			tmpl = "%(playlist_title)s/" + tmpl
-		}
+		stem = "%(playlist_index)02d - " + stem
+		short = "%(playlist_index)02d - " + short
+	}
+	name, namingArgs := boundedName("maly_filename", stem, short)
+	tmpl := name + ".%(ext)s"
+	if o.Playlist && o.PlaylistSubdir {
+		dir, dirArgs := boundedName("maly_directory", "%(playlist_title)S", "[%(playlist_id)S] %(playlist_title)S")
+		tmpl = dir + "/" + tmpl
+		namingArgs = append(namingArgs, dirArgs...)
 	}
 	args := []string{
 		"-x", "--audio-format", "mp3", "--audio-quality", "0",
 		"--embed-metadata", "--embed-thumbnail",
+		"--no-overwrites",
 		"-o", filepath.Join(o.Dir, tmpl),
 	}
+	args = append(args, namingArgs...)
 	if o.Playlist {
 		args = append(args, "--yes-playlist")
 	} else {

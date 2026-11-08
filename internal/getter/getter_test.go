@@ -26,10 +26,13 @@ func TestCommand(t *testing.T) {
 		t.Errorf("el spec debe ir al final tras --: %v", args)
 	}
 	joined := strings.Join(args, " ")
-	for _, flag := range []string{"--audio-format mp3", "--embed-metadata", "--embed-thumbnail", "/tmp/music"} {
+	for _, flag := range []string{"--audio-format mp3", "--embed-metadata", "--embed-thumbnail", "--no-overwrites", "/tmp/music"} {
 		if !strings.Contains(joined, flag) {
 			t.Errorf("falta %q en la invocación: %v", flag, args)
 		}
+	}
+	if strings.Contains(joined, "--restrict-filenames") {
+		t.Error("no debe perder Unicode para limitar los nombres")
 	}
 	// Con el config vacío (default) el flag de cookies no aparece: la
 	// invocación es idéntica a la de siempre.
@@ -59,17 +62,19 @@ func TestCommandPlaylist(t *testing.T) {
 	if strings.Contains(joined, "--no-playlist") {
 		t.Errorf("no debe llevar --no-playlist con Opts.Playlist: %v", cmd.Args)
 	}
-	if !strings.Contains(joined, "%(playlist_index)02d - %(artist,uploader)s - %(title)s.%(ext)s") {
+	if !strings.Contains(joined, "%(playlist_index)02d - %(artist,uploader)S - %(title)S") ||
+		!strings.Contains(joined, "%(playlist_index)02d - [%(id)S]") {
 		t.Errorf("falta el índice antepuesto a la plantilla: %v", cmd.Args)
 	}
 }
 
-// TestCommandPlaylistSubdir: sin nombre explícito, %(playlist_title)s/ debe
-// ir ANTES del índice, para que yt-dlp cree el subdirectorio él mismo.
+// TestCommandPlaylistSubdir: sin nombre explícito, el título acotado debe
+// ir ANTES del archivo, para que yt-dlp cree el subdirectorio él mismo.
 func TestCommandPlaylistSubdir(t *testing.T) {
 	cmd := Command(Opts{Dir: "/tmp/music", Spec: "https://x/playlist?list=abc", Playlist: true, PlaylistSubdir: true})
 	joined := strings.Join(cmd.Args, " ")
-	if !strings.Contains(joined, "%(playlist_title)s/%(playlist_index)02d - %(artist,uploader)s - %(title)s.%(ext)s") {
+	if !strings.Contains(joined, "%(maly_directory_short,maly_directory_legacy).220B/%(maly_filename_short,maly_filename_legacy).220B.%(ext)s") ||
+		!strings.Contains(joined, "%(playlist_title)S:%(maly_directory_full)s") {
 		t.Errorf("falta el subdirectorio por título antepuesto al índice: %v", cmd.Args)
 	}
 }
@@ -77,23 +82,25 @@ func TestCommandPlaylistSubdir(t *testing.T) {
 // TestCommandCookies: el valor de cookies_from_browser viaja tal cual
 // (navegador:perfil incluido, sin validar) antes del "--" del spec.
 func TestCommandCookies(t *testing.T) {
-	cmd := Command(Opts{Dir: "/tmp/music", Spec: "ytsearch1:x", Cookies: "firefox:default-release"})
-	args := cmd.Args
-	idx := -1
-	for i, a := range args {
-		if a == "--cookies-from-browser" {
-			idx = i
-			break
+	for _, cookies := range []string{"firefox:default-release", "firefox:/tmp/zen/Default (release)"} {
+		cmd := Command(Opts{Dir: "/tmp/music", Spec: "ytsearch1:x", Cookies: cookies})
+		args := cmd.Args
+		idx := -1
+		for i, a := range args {
+			if a == "--cookies-from-browser" {
+				idx = i
+				break
+			}
 		}
-	}
-	if idx < 0 || idx+1 >= len(args) || args[idx+1] != "firefox:default-release" {
-		t.Fatalf("falta --cookies-from-browser firefox:default-release: %v", args)
-	}
-	if idx+1 >= len(args)-2 {
-		t.Errorf("el flag debe ir antes del -- y el spec: %v", args)
-	}
-	if args[len(args)-1] != "ytsearch1:x" || args[len(args)-2] != "--" {
-		t.Errorf("el spec debe seguir al final tras --: %v", args)
+		if idx < 0 || idx+1 >= len(args) || args[idx+1] != cookies {
+			t.Fatalf("se perdió el perfil %q en los argumentos: %v", cookies, args)
+		}
+		if idx+1 >= len(args)-2 {
+			t.Errorf("el flag debe ir antes del -- y el spec: %v", args)
+		}
+		if args[len(args)-1] != "ytsearch1:x" || args[len(args)-2] != "--" {
+			t.Errorf("el spec debe seguir al final tras --: %v", args)
+		}
 	}
 }
 

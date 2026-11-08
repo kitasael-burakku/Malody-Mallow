@@ -2,6 +2,44 @@
 
 Índice: [`README.md`](README.md).
 
+## v1.22.15 (2026-11-08) — nombres de descarga acotados por bytes
+
+**Estado:** commit y tag anotado locales; publicación pendiente.
+**1.22.14 → 1.22.15 es un cambio pequeño:** corrige la construcción de nombres
+en el wrapper compartido de yt-dlp, conservando CLI/TUI, descarga, postproceso,
+escaneo y protocolo. No añade dependencias ni estado al demonio.
+
+El video `-8C3Dqglk0E` reveló que un artista muy largo podía superar el límite
+del sistema de archivos al guardar la miniatura, antes de convertir el audio.
+La plantilla concatenaba artista y título sin presupuesto. Se descartó añadir
+solo `--trim-filenames`: en yt-dlp 2026.10.26 cuenta caracteres, insuficiente
+con japonés y emojis, y un recorte sin identidad puede colisionar.
+
+Se mantienen los nombres habituales cuando caben y se usan las interfaces
+nativas de yt-dlp para sanear y acotar por bytes antes de crear audio o
+miniatura. Solo los nombres recortados incorporan el ID; en playlists el
+índice sigue primero. Los metadatos originales y el paso literal del perfil
+de cookies se conservan. [Contrato y límites](../architecture/cli.md).
+
+**Verificación en ambas direcciones:** una copia temporal con el código
+anterior compila y reproduce `Errno 36` al escribir la miniatura; las pruebas
+de nombres detectan componentes de hasta 1412 bytes. Restaurando la producción
+desde copia, las mismas regresiones pasan. yt-dlp y ffmpeg reales, con JSON y
+medios locales, cubren nombres cortos/largos, japonés, emojis, expansión del
+saneamiento, colisiones, cinco extensiones, sufijos intermedios, playlists,
+conversión WebP, portada embebida, biblioteca y descargas existentes.
+
+**Controles de release:** suite completa sin CGo y suite completa con `-race`
+correctas en los 19 paquetes, ambas con bus D-Bus privado; `go vet ./...`,
+build sin CGo y `git diff --check` correctos. El binario generado informa
+1.22.15. Durante la implementación se registró una intermitencia previa en
+`TestAdvanceObsoletoTrasJump` (4/20 repeticiones con el código del demonio sin
+cambios); queda fuera de este arreglo.
+**Aceptación real:** el dueño confirmó el 2026-11-08 que la descarga del video
+original funciona. Esa prueba de YouTube fue manual, separada del arnés local
+sin red ni acceso a cookies. No se migran archivos existentes ni se cambia la
+configuración personal.
+
 ## v1.22.14 (2026-10-31) — catálogo y navegación de la paleta
 
 **Estado:** preparación local del commit, tag anotado y PKGBUILD; publicación
